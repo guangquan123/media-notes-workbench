@@ -30,10 +30,13 @@
     "lint": "node ./scripts/lint.js",
     "format": "prettier --write \"{server,client,test}/**/*.{js,ts,tsx,json,md}\"",
     "precommit": "node scripts/hooks/run-precommit.js",
-    "upgrade": "npx -y @lark-apaas/fullstack-cli sync --disable-gen-openapi"
+    "upgrade": "npx -y @lark-apaas/fullstack-cli@latest sync --disable-gen-openapi",
+    "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
+    "postinstall": "npx -y @lark-apaas/fullstack-cli@latest action-plugin init",
+    "dev:local": "node ./scripts/dev-local.js"
   },
   "dependencies": {
-    "@lark-apaas/fullstack-nestjs-core": "^1.1.22",
+    "@lark-apaas/fullstack-nestjs-core": "^1.1.54",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^10.4.20",
     "@nestjs/config": "^3.3.0",
@@ -60,7 +63,7 @@
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
-    "@lark-apaas/client-toolkit": "^1.2.57",
+    "@lark-apaas/client-toolkit": "^1.2.58",
     "@lark-apaas/fullstack-presets": "^1.1.0",
     "@lark-apaas/fullstack-vite-preset": "^1.0.30",
     "@nestjs/cli": "^10.4.9",

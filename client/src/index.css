@@ -5,3 +5,101 @@
 
 @source "../../node_modules/streamdown/dist/*.js";
 @config "../../tailwind.config.ts";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+
+.status-pill {
+  display: flex;
+  max-width: 16rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgb(0 0 0 / 7%);
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 72%);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.7rem;
+  color: rgb(0 0 0 / 48%);
+}
+
+.status-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  border-radius: 9999px;
+  background: #f59e0b;
+}
+
+.status-pill.is-ready .status-dot {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgb(22 163 74 / 10%);
+}
+
+.stage-card {
+  display: flex;
+  min-height: 5.4rem;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgb(0 0 0 / 7%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 62%);
+  padding: 0.85rem;
+  font-size: 0.72rem;
+  color: rgb(0 0 0 / 46%);
+  transition: 180ms ease;
+}
+
+.stage-card.is-active {
+  transform: translateY(-2px);
+  border-color: rgb(251 114 153 / 40%);
+  background: white;
+  color: #161616;
+  box-shadow: 0 10px 30px rgb(50 30 35 / 7%);
+}
+
+.stage-icon {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border-radius: 0.65rem;
+  background: rgb(0 0 0 / 5%);
+  color: rgb(0 0 0 / 48%);
+}
+
+.stage-icon.is-done {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.task-panel {
+  border: 1px solid rgb(0 0 0 / 7%);
+  border-radius: 1.5rem;
+  background: rgb(255 255 255 / 92%);
+  padding: 1.65rem;
+  box-shadow:
+    0 24px 70px rgb(38 30 32 / 8%),
+    0 2px 8px rgb(38 30 32 / 3%);
+}
+
+.field-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgb(0 0 0 / 64%);
+}
+
+@media (min-width: 768px) {
+  .task-panel {
+    padding: 2rem;
+  }
+}
