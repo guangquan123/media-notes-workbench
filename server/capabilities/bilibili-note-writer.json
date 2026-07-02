@@ -1,0 +1,49 @@
+{
+  "id": "bilibili-note-writer",
+  "pluginKey": "@official-plugins/ai-text-generate",
+  "pluginVersion": "1.0.17",
+  "name": "B站学习笔记生成",
+  "description": "将视频转录稿整理成结构化 Markdown 学习笔记",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "source_text": {
+        "type": "string",
+        "description": "视频完整转录稿"
+      },
+      "video_title": {
+        "type": "string",
+        "description": "B站视频标题"
+      },
+      "uploader": {
+        "type": "string",
+        "description": "UP主名称"
+      },
+      "duration": {
+        "type": "string",
+        "description": "视频时长"
+      },
+      "source_url": {
+        "type": "string",
+        "description": "B站原视频地址"
+      }
+    },
+    "required": [
+      "source_text",
+      "video_title",
+      "uploader",
+      "duration",
+      "source_url"
+    ]
+  },
+  "formValue": {
+    "modelID": "87",
+    "modelParams": {
+      "temperature": 0.5,
+      "maxTokens": 8192
+    },
+    "prompt": "你是一位严谨的中文学习笔记编辑。请把下面的 B站视频转录稿整理成高质量 Markdown 学习笔记。\n\n要求：\n1. 忠于转录稿，不编造事实；不确定内容明确标记“待核对”。\n2. 结构自然，至少包含：一句话总结、核心知识点、分章节笔记、案例或示例、易错点、行动清单、复习问题。\n3. 去掉口头禅和重复表达，但保留关键推理、数字、术语和结论。\n4. 直接输出 Markdown 正文，不要使用 Markdown 代码围栏。\n5. 文首保留来源信息：视频《{{input.video_title}}》；UP主：{{input.uploader}}；时长：{{input.duration}}；原链接：{{input.source_url}}。\n\n转录稿：\n{{input.source_text}}"
+  },
+  "createdAt": 1783004000000,
+  "updatedAt": 1783004000000
+}

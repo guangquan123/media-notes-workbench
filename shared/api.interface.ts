@@ -10,7 +10,6 @@ export type JobStage =
 
 export interface CreateNoteJobRequest {
   url: string;
-  apiKey?: string;
 }
 
 export interface NoteJob {
@@ -28,7 +27,8 @@ export interface NoteJob {
 export interface SystemReadiness {
   ytDlp: boolean;
   ffmpeg: boolean;
+  whisperCli: boolean;
+  whisperModel: boolean;
   larkCli: boolean;
-  openAiConfigured: boolean;
   ready: boolean;
 }

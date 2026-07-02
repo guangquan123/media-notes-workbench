@@ -3,8 +3,8 @@
 粘贴 B站视频地址后，自动完成：
 
 1. 用 `yt-dlp` 拉取并提取音频
-2. 用 OpenAI Speech-to-text 转录，长音频自动切片
-3. 用大模型生成结构化 Markdown 学习笔记
+2. 用本机 Whisper 离线转录，长音频自动切片
+3. 用妙搭内置 AI 生成结构化 Markdown 学习笔记
 4. 通过当前登录的飞书用户身份创建在线文档
 5. 在页面返回飞书文档地址
 
@@ -27,6 +27,6 @@ npm run dev
 - `yt-dlp`
 - `ffmpeg`
 - 已登录的 `lark-cli`
-- OpenAI API Key（可在页面中按次填写，页面不会保存）
+- `whisper-cpp` 与 `models/ggml-base-q5_1.bin`
 
 本工具仅用于处理你有权使用的内容。任务结束后，临时音频会自动清理。

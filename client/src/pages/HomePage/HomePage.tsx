@@ -5,7 +5,6 @@ import {
   Clipboard,
   FileText,
   Headphones,
-  KeyRound,
   LoaderCircle,
   Sparkles,
   WandSparkles,
@@ -26,7 +25,6 @@ const stageLabels = [
 
 export default function HomePage() {
   const [url, setUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +55,8 @@ export default function HomePage() {
     const missing = [
       !readiness.ytDlp && 'yt-dlp',
       !readiness.ffmpeg && 'ffmpeg',
+      !readiness.whisperCli && 'Whisper',
+      !readiness.whisperModel && 'Whisper 模型',
       !readiness.larkCli && '飞书 CLI',
     ].filter(Boolean);
     return missing.length ? `缺少：${missing.join('、')}` : '本机处理环境已就绪';
@@ -75,13 +75,9 @@ export default function HomePage() {
       toast.error('请先粘贴 B站视频地址');
       return;
     }
-    if (!apiKey.trim() && !readiness?.openAiConfigured) {
-      toast.error('请填写 OpenAI API Key');
-      return;
-    }
     setSubmitting(true);
     try {
-      const created = await createNoteJob({ url, apiKey: apiKey || undefined });
+      const created = await createNoteJob({ url });
       setJob(created);
     } catch (error: any) {
       const message =
@@ -181,27 +177,6 @@ export default function HomePage() {
                       </button>
                     </div>
                   </label>
-
-                  {!readiness?.openAiConfigured && (
-                    <label className="block">
-                      <span className="field-label">OpenAI API Key</span>
-                      <div className="relative mt-2">
-                        <KeyRound className="absolute left-4 top-3.5 size-4 text-black/30" />
-                        <Input
-                          className="h-12 rounded-xl border-black/10 bg-[#fafaf8] pl-11 text-sm shadow-none focus-visible:ring-[#fb7299]/20"
-                          value={apiKey}
-                          onChange={(event) => setApiKey(event.target.value)}
-                          placeholder="sk-..."
-                          type="password"
-                          autoComplete="off"
-                          disabled={submitting}
-                        />
-                      </div>
-                      <span className="mt-2 block text-xs leading-5 text-black/38">
-                        仅发送到本机后端用于本次任务，不会保存到页面。
-                      </span>
-                    </label>
-                  )}
 
                   <Button
                     className="h-12 w-full rounded-xl bg-[#161616] text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black/80"
