@@ -175,9 +175,15 @@ export class NoteJobsService {
       const transcript = transcripts.join('\n\n');
       if (!transcript.trim()) throw new Error('转录结果为空');
 
-      this.update(id, 'summarizing', 69, '转录完成，正在整理学习笔记…');
+      this.update(id, 'summarizing', 67, '转录完成，正在检索补充依据…');
+      const editorResearch = await this.researchEvidence(
+        videoTitle,
+        transcript,
+      );
+      this.update(id, 'summarizing', 72, '依据已整理，正在撰写学习笔记…');
       const markdown = await this.summarize({
         transcript,
+        editorResearch,
         title: videoTitle,
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
@@ -400,6 +406,7 @@ export class NoteJobsService {
 
   private async summarize(input: {
     transcript: string;
+    editorResearch: string;
     title: string;
     uploader: string;
     duration: string;
@@ -417,6 +424,7 @@ export class NoteJobsService {
       duration: input.duration,
       source_url: input.sourceUrl,
       generated_date: input.generatedDate,
+      editor_research: input.editorResearch,
     };
     try {
       const result = (await this.capabilityService
@@ -442,6 +450,76 @@ export class NoteJobsService {
         `妙搭内置 AI 生成笔记失败：${error instanceof Error ? error.message : '未知错误'}`,
       );
     }
+  }
+
+  private async researchEvidence(
+    title: string,
+    transcript: string,
+  ): Promise<string> {
+    const pluginInstanceId = 'note-evidence-research';
+    const actionKey = 'searchSummary';
+    const outputMode = 'stream';
+    const compactTranscript = transcript.replace(/\s+/gu, ' ').trim();
+    const excerptSize = 120;
+    const middleStart = Math.max(
+      0,
+      Math.floor(compactTranscript.length / 2) - excerptSize / 2,
+    );
+    const researchQuery = [
+      `主题：${title}`,
+      `开头：${compactTranscript.slice(0, excerptSize)}`,
+      `中段：${compactTranscript.slice(middleStart, middleStart + excerptSize)}`,
+      `结尾：${compactTranscript.slice(-excerptSize)}`,
+    ]
+      .join('\n')
+      .slice(0, 500);
+    const pluginInput = { research_query: researchQuery };
+    try {
+      const streamResult = await this.capabilityService
+        .load(pluginInstanceId)
+        .callStream(actionKey, pluginInput);
+      const stream = this.normalizeCapabilityStream(streamResult);
+      let summary = '';
+      for await (const chunk of stream) {
+        const delta = typeof chunk.summary === 'string' ? chunk.summary : '';
+        if (!delta) continue;
+        summary = delta.startsWith(summary) ? delta : summary + delta;
+      }
+      if (!summary.trim()) throw new Error('搜索插件没有返回研究材料');
+      return summary.trim();
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode,
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      return '未获得可核验的联网研究材料。本次不要添加任何外部补充内容。';
+    }
+  }
+
+  private normalizeCapabilityStream(
+    value: unknown,
+  ): AsyncIterable<Record<string, unknown>> {
+    if (this.isCapabilityStream(value)) return value;
+    if (value && typeof value === 'object' && 'output' in value) {
+      const output = (value as { output?: unknown }).output;
+      if (this.isCapabilityStream(output)) return output;
+    }
+    throw new Error('搜索插件未返回可读取的数据流');
+  }
+
+  private isCapabilityStream(
+    value: unknown,
+  ): value is AsyncIterable<Record<string, unknown>> {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as {
+      [Symbol.asyncIterator]?: unknown;
+    };
+    return typeof candidate[Symbol.asyncIterator] === 'function';
   }
 
   private async generateKnowledgeMap(

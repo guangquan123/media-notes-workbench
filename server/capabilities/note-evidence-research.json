@@ -1,0 +1,25 @@
+{
+  "id": "note-evidence-research",
+  "pluginKey": "@official-plugins/ai-search-summary",
+  "pluginVersion": "1.0.11",
+  "name": "学习笔记依据检索",
+  "description": "围绕视频核心主题检索可核验的权威补充材料",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "research_query": {
+        "type": "string",
+        "description": "由视频标题和核心转录内容组成的检索问题"
+      }
+    },
+    "required": [
+      "research_query"
+    ]
+  },
+  "formValue": {
+    "query": "{{input.research_query}}",
+    "instruction": "为学习笔记寻找 3—5 条能解释关键概念、补足必要背景、说明适用边界或提供权威数据的材料。优先选择官方文档、标准组织、大学、论文、政府机构和原始研究，避开营销软文与无署名转载。每条材料必须包含：可直接用于笔记的事实、来源名称、可访问的原始网页 URL、它与主题的关系。找不到可靠来源时明确写“未找到可靠依据”，不得猜测或编造链接。"
+  },
+  "createdAt": 1783063000000,
+  "updatedAt": 1783063000000
+}
