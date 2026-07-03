@@ -1,0 +1,280 @@
+<title>主流 PPT 生成 Skill 深度对比与 GPT-image 2 可编辑化方案</title>
+<blockquote>
+  <p><b>最终结论：</b>如果目标是交付可继续修改的 PowerPoint，首选原生 PPTX 路线；如果目标是技术演讲或网页传播，Slidev、frontend-slides、Reveal.js 与 html-ppt 更有优势。GPT-image 2 适合生成视觉稿和素材，但不能直接把一张扁平图片“无损变成”完全可编辑 PPT，可靠做法是通过 OCR、版面理解和对象重建生成 PPTX。</p>
+  <p>评测日期：2026 年 7 月 3 日｜范围：可被 AI Agent 调用的 PPT/Slides 生成 Skill，不含 Gamma、Beautiful.ai 等 SaaS 工具。</p>
+</blockquote>
+
+<h2>一、研究方法与二次交叉验证</h2>
+<p>本报告融合了原文的 5 个候选 Skill 分析，并用 skills.sh 当前索引、GitHub 仓库与 Skill 原始说明进行二次核验。结论按以下证据优先级形成：</p>
+<ol>
+  <li>Skill 的原始 <code>SKILL.md</code> 与官方仓库，确认真实能力、输出格式和依赖。</li>
+  <li>skills.sh 的安装量与安全审计，判断生态热度；安装量属于动态快照，不等于质量评分。</li>
+  <li>是否能输出原生 PPTX、是否可编辑、是否具备视觉 QA，作为企业交付的核心指标。</li>
+</ol>
+<callout emoji="⚠️" background-color="light-yellow">
+  <p><b>重要修正：</b>原文把 html-ppt、ppt-deck、laohan-notebooklm、某第三方 pptx、notebooklm-ppt-designer 称为“安装量最高的 5 个主流 Skill”。二次核验后，这一说法不能成立：公开索引中 Anthropic pptx 的安装量已在十万级，而原文多个候选只有几十至两百级；部分仓库归属、Stars 与安装链接也不一致。因此本报告将其改为“原报告专项候选”，并重新建立当前主流代表路线。</p>
+</callout>
+
+<h2>二、二次验证后的 5 条主流路线</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Skill / 路线</th>
+      <th>主要输出</th>
+      <th>原生可编辑</th>
+      <th>最强项</th>
+      <th>主要短板</th>
+      <th>推荐场景</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Anthropic pptx</b></td>
+      <td>PPTX</td>
+      <td>★★★★★</td>
+      <td>创建、编辑、模板复用、图表与视觉 QA</td>
+      <td>复杂设计依赖代码与反复渲染检查</td>
+      <td>企业汇报、模板化交付、可编辑成品</td>
+    </tr>
+    <tr>
+      <td><b>Slidev</b></td>
+      <td>HTML / PDF / PNG / PPTX 导出</td>
+      <td>★★</td>
+      <td>Markdown、Vue、代码演示、交互与讲者工具</td>
+      <td>PPTX 导出不等同于原生对象级编辑</td>
+      <td>技术分享、课程、开发者大会</td>
+    </tr>
+    <tr>
+      <td><b>frontend-slides</b></td>
+      <td>单文件 HTML / PDF</td>
+      <td>★</td>
+      <td>高视觉、强动效、零依赖网页演示</td>
+      <td>不是传统 PPTX 工作流</td>
+      <td>发布会、路演、网页分享</td>
+    </tr>
+    <tr>
+      <td><b>Reveal.js Skill</b></td>
+      <td>HTML</td>
+      <td>★</td>
+      <td>成熟 Web 演示生态、插件与演讲控制</td>
+      <td>需要前端基础，Office 协作较弱</td>
+      <td>技术演讲、在线演示、教学</td>
+    </tr>
+    <tr>
+      <td><b>html-ppt</b></td>
+      <td>HTML / PNG</td>
+      <td>★</td>
+      <td>主题、布局、动效和演讲者体验</td>
+      <td>公开热度与仓库归属需持续核验；非原生 PPTX</td>
+      <td>强调视觉与现场效果的演讲</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>三、逐项优劣势分析</h2>
+
+<h3>1. Anthropic pptx：原生可编辑交付的首选</h3>
+<p><b>能力：</b>支持读取、创建与编辑 PPTX；从零生成时采用 PptxGenJS，可创建文本框、形状、图片、表格、图表和母版；编辑既有文件时可解包、修改并重新打包；包含缩略图检查、重叠与溢出检测等 QA 流程。</p>
+<ul>
+  <li><b>优势：</b>输出是真正的 PPTX；文本、形状和图表可继续编辑；模板复用和自动化能力强；公开生态热度显著领先。</li>
+  <li><b>劣势：</b>高质量版式仍需要设计判断；PptxGenJS 坐标式布局对复杂页面较繁琐；字体、跨平台渲染和图表兼容性必须实机验收。</li>
+  <li><b>判断：</b>如果“可编辑”是硬指标，它是本报告最稳妥的默认方案。</li>
+</ul>
+
+<h3>2. Slidev：开发者演示与互动内容最强</h3>
+<p><b>能力：</b>以 Markdown 与 Vue 组件组织幻灯片，支持代码高亮、逐行动画、Mermaid、LaTeX、演讲者备注、录制和计时，并可导出 PDF、PNG 或 PPTX。</p>
+<ul>
+  <li><b>优势：</b>内容即代码，适合版本管理；技术内容表达能力强；互动与在线发布方便。</li>
+  <li><b>劣势：</b>导出的 PPTX 更接近兼容性交付，不应默认等同于 PowerPoint 原生对象级编辑；非技术团队维护成本较高。</li>
+  <li><b>判断：</b>技术演讲优先，传统办公协作次之。</li>
+</ul>
+
+<h3>3. frontend-slides：视觉表现优先的单文件 HTML</h3>
+<p><b>能力：</b>生成固定 16:9 舞台的零依赖 HTML 演示，强调大胆但一致的视觉系统、动效、演讲密度选择和多风格预览。</p>
+<ul>
+  <li><b>优势：</b>视觉自由度高；浏览器即可播放；适合做不像模板的发布会式演示。</li>
+  <li><b>劣势：</b>主要交付物是 HTML；不能直接满足企业“发一个可改 PPTX”的要求；打印和 Office 协作需要额外转换。</li>
+  <li><b>判断：</b>适合“展示效果第一”，不适合“PowerPoint 编辑第一”。</li>
+</ul>
+
+<h3>4. Reveal.js Skill：成熟稳定的 Web 演示路线</h3>
+<p><b>能力：</b>以 HTML/CSS 构建 Reveal.js 演示，可利用其成熟的导航、插件、代码展示、讲者视图和在线发布生态。</p>
+<ul>
+  <li><b>优势：</b>生态成熟、可控性强、适合嵌入网页与在线传播。</li>
+  <li><b>劣势：</b>设计质量取决于使用者；原生 PPTX 编辑不是核心目标；通常需要前端知识。</li>
+  <li><b>判断：</b>比“纯生成器”更像稳定的演示开发框架。</li>
+</ul>
+
+<h3>5. html-ppt：主题化互动演示的专项选择</h3>
+<p><b>能力：</b>原报告记录了丰富主题、布局、动画、Canvas 特效、演讲者模式和 PNG 导出能力。这些能力与“HTML 现场演示”场景高度匹配。</p>
+<ul>
+  <li><b>优势：</b>现场效果、主题切换和演讲者体验突出；中文内容场景友好。</li>
+  <li><b>劣势：</b>原报告中的作者归属、Stars 和安装链接存在冲突；公开热度远低于头部 PPTX Skill；不能直接作为可编辑 PPTX 交付。</li>
+  <li><b>判断：</b>保留为专项候选，不再把它描述为当前绝对主流第一名。</li>
+</ul>
+
+<h2>四、原报告其余候选的复核结论</h2>
+<table>
+  <thead>
+    <tr>
+      <th>原候选</th>
+      <th>保留价值</th>
+      <th>复核后的定位</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ppt-deck</td>
+      <td>SCQA、金字塔与 Before/After/Bridge 等商业叙事框架</td>
+      <td>适合做“内容结构前置 Skill”，再交给原生 PPTX Skill 落地；不宜单凭低量级热度称为主流。</td>
+    </tr>
+    <tr>
+      <td>laohan-notebooklm</td>
+      <td>口播稿到幻灯片图片，再进入剪映，链路短</td>
+      <td>属于视频创作者专项流程；图片不可编辑，不是传统 PPT 生成主流。</td>
+    </tr>
+    <tr>
+      <td>第三方 pptx</td>
+      <td>创建、编辑、模板与批处理方向正确</td>
+      <td>同名 Skill 很多。应优先选择来源清晰、QA 完整、公开验证更充分的实现。</td>
+    </tr>
+    <tr>
+      <td>notebooklm-ppt-designer</td>
+      <td>强调 TED 信息架构与 Keynote 美学</td>
+      <td>更接近设计顾问或设计规范生成器，并非直接生成可编辑 PPTX 的工具。</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>五、GPT-image 2 图片转可编辑 PPT：正确实现方式</h2>
+<callout emoji="💡" background-color="light-blue">
+  <p><b>核心原则：</b>一张生成图片只有像素，没有“标题框、图表、形状、图片层”的对象语义。把它作为整页背景放进 PPT，只能得到视觉一致但不可编辑的假 PPT。要实现可编辑，必须重建对象。</p>
+</callout>
+
+<h3>5.1 推荐的四层架构</h3>
+<ol>
+  <li><b>视觉稿层：</b>让 GPT-image 2 生成 16:9 页面视觉稿或独立素材。优先要求简洁背景、清晰分区、少文字、稳定留白。</li>
+  <li><b>解析层：</b>用 OCR 提取文字；用视觉模型识别标题、正文、卡片、图表、图标与图片区域；输出结构化 JSON，包括对象类型、文本、边界框、颜色、层级和对齐关系。</li>
+  <li><b>重建层：</b>用 PptxGenJS 或 python-pptx 把文字重建为文本框、把简单几何重建为形状、把数据图重建为原生图表、把照片或复杂插画保留为独立图片。</li>
+  <li><b>校验层：</b>渲染 PPTX 为图片，与原视觉稿做差异比较；检查文字溢出、元素重叠、字体替换、对齐和颜色偏差，再自动迭代。</li>
+</ol>
+
+<h3>5.2 三种可编辑等级</h3>
+<table>
+  <thead>
+    <tr>
+      <th>等级</th>
+      <th>实现方式</th>
+      <th>编辑能力</th>
+      <th>成本</th>
+      <th>适用情况</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>L1 视觉保真</td>
+      <td>整页图片作为背景，另叠加少量可编辑文字</td>
+      <td>低</td>
+      <td>低</td>
+      <td>只需改标题、日期、姓名</td>
+    </tr>
+    <tr>
+      <td>L2 半结构化</td>
+      <td>文字、基础形状、图标重建；复杂插画保留图片</td>
+      <td>中高</td>
+      <td>中</td>
+      <td>大多数商业汇报，推荐默认</td>
+    </tr>
+    <tr>
+      <td>L3 全结构化</td>
+      <td>文字、形状、图表、表格、流程图全部原生重建</td>
+      <td>高</td>
+      <td>高</td>
+      <td>模板产品、长期复用、批量生成</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>5.3 推荐数据结构</h3>
+<pre lang="json"><code>{
+  "slide": {"width": 1920, "height": 1080},
+  "elements": [
+    {"type": "text", "role": "title", "text": "标题", "bbox": [120, 80, 980, 120]},
+    {"type": "shape", "shape": "roundRect", "bbox": [120, 260, 520, 240], "fill": "#F5F0E7"},
+    {"type": "chart", "chartType": "bar", "bbox": [720, 250, 900, 520], "data": {}},
+    {"type": "image", "asset": "hero.png", "bbox": [1380, 100, 420, 760]}
+  ]
+}</code></pre>
+
+<h3>5.4 最稳妥的生产流程</h3>
+<ol>
+  <li>先由 LLM 生成大纲、每页意图和结构化内容，不让图片模型承担长文本排版。</li>
+  <li>GPT-image 2 只生成视觉方向、插画、照片、纹理或少字版式参考。</li>
+  <li>视觉模型解析页面，生成元素 JSON；OCR 结果必须由原始文案回填，避免错字。</li>
+  <li>使用 Anthropic pptx 类 Skill 或自建 PptxGenJS Skill 重建 PPTX。</li>
+  <li>逐页渲染并执行像素差异、溢出、重叠、字体与可编辑性检查。</li>
+  <li>在 PowerPoint、WPS 与 macOS/Windows 至少各做一次兼容性抽检。</li>
+</ol>
+
+<h3>5.5 不能完全自动化的边界</h3>
+<ul>
+  <li>复杂插画、真实照片、光影、玻璃和纹理通常只能作为图片层，无法合理还原成矢量对象。</li>
+  <li>图片中的图表若没有原始数据，只能估算数值；应优先要求上游提供数据表。</li>
+  <li>字体识别不等于字体可用，缺失字体会导致换行和版式变化。</li>
+  <li>渐变、蒙版、布尔路径和复杂阴影在 PowerPoint 中可能只能近似重建。</li>
+</ul>
+
+<h2>六、最终选型建议</h2>
+<table>
+  <thead>
+    <tr>
+      <th>目标</th>
+      <th>推荐组合</th>
+      <th>原因</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>企业汇报、售前方案、可编辑交付</td>
+      <td><b>内容规划 Skill + Anthropic pptx / PptxGenJS</b></td>
+      <td>兼顾故事线、模板、原生对象和 QA</td>
+    </tr>
+    <tr>
+      <td>技术分享、代码演示</td>
+      <td><b>Slidev</b></td>
+      <td>代码、图表、动画、讲者工具和版本管理完整</td>
+    </tr>
+    <tr>
+      <td>高视觉发布会、网页传播</td>
+      <td><b>frontend-slides 或 html-ppt</b></td>
+      <td>浏览器表现力和动效优先</td>
+    </tr>
+    <tr>
+      <td>GPT-image 2 视觉稿转 PPT</td>
+      <td><b>GPT-image 2 + OCR/视觉解析 + PptxGenJS 重建 + 渲染 QA</b></td>
+      <td>在视觉保真和可编辑性之间取得可控平衡</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>七、建议落地方案</h2>
+<p>如果要把这套能力做成一个可复用 Skill，建议拆成四个阶段：</p>
+<ol>
+  <li><b>analyze：</b>读取图片与原文案，输出 slide-spec.json。</li>
+  <li><b>rebuild：</b>按 L2 默认策略生成 PPTX，文字与基础图形原生化，复杂视觉保留图片层。</li>
+  <li><b>render：</b>把 PPTX 渲染为逐页 PNG。</li>
+  <li><b>verify：</b>执行视觉差异、文本溢出、元素重叠和可编辑对象数量检查，失败则迭代。</li>
+</ol>
+<p><b>推荐 MVP：</b>先支持 16:9、标题/正文/图片/矩形/线条/柱状图六类对象，并把“原始文案回填”和“渲染验收”设为强制步骤。这样比一开始追求所有复杂效果更容易稳定交付。</p>
+
+<h2>八、来源与数据说明</h2>
+<ul>
+  <li><a href="https://www.skills.sh/anthropics/skills/pptx">skills.sh：Anthropic pptx</a></li>
+  <li><a href="https://github.com/anthropics/skills/tree/main/skills/pptx">GitHub：Anthropic pptx Skill</a></li>
+  <li><a href="https://www.skills.sh/slidevjs/slidev/slidev">skills.sh：Slidev Skill</a></li>
+  <li><a href="https://github.com/slidevjs/slidev">GitHub：Slidev</a></li>
+  <li><a href="https://www.skills.sh/zarazhangrui/frontend-slides/frontend-slides">skills.sh：frontend-slides</a></li>
+  <li><a href="https://github.com/zarazhangrui/frontend-slides">GitHub：frontend-slides</a></li>
+  <li><a href="https://www.skills.sh/ryanbbrown/revealjs-skill/revealjs">skills.sh：Reveal.js Skill</a></li>
+</ul>
+<p><em>安装量、Stars 与安全审计会变化。本报告引用的是 2026 年 7 月 3 日检索快照；选型时应以输出格式、可编辑性、维护状态和实际样例测试为主，不应只看热度。</em></p>
