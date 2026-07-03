@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowUpRight,
   Check,
   Clipboard,
@@ -9,6 +10,7 @@ import {
   Sparkles,
   WandSparkles,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -201,7 +203,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-7 md:px-10 md:py-10">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-2xl bg-[#fb7299] text-white shadow-sm">
               <WandSparkles className="size-5" />
@@ -211,9 +213,27 @@ export default function HomePage() {
               <p className="text-xs text-black/45">从视频到飞书，一键完成</p>
             </div>
           </div>
-          <div className={`status-pill ${readiness?.ready ? 'is-ready' : ''}`}>
-            <span className="status-dot" />
-            {readinessText}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className={`status-pill ${readiness?.ready ? 'is-ready' : ''}`}>
+              <span className="status-dot" />
+              {readinessText}
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-black/68 shadow-sm transition hover:border-black/15 hover:text-black"
+                to="/"
+              >
+                <ArrowLeft className="size-4" />
+                返回入口
+              </Link>
+              <Link
+                className="inline-flex items-center gap-2 rounded-full border border-[#d97706]/20 bg-[#fff7ed] px-4 py-2 text-[#9a3412] shadow-sm transition hover:border-[#d97706]/35 hover:bg-[#fef3c7]"
+                to="/article-export"
+              >
+                切到文章导出
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </div>
           </div>
         </header>
 

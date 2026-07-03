@@ -6,6 +6,7 @@ import {
   type SetStateAction,
 } from 'react';
 import {
+  ArrowLeft,
   ArrowUpRight,
   Check,
   Clipboard,
@@ -339,18 +340,27 @@ export default function ArticleExportPage() {
               </p>
             </div>
           </div>
-          <div className={`status-pill ${readiness.ready ? 'is-ready' : ''}`}>
-            <span className="status-dot" />
-            {readinessText}
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <Link
-              className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-black/68 shadow-sm transition hover:border-black/15 hover:text-black"
-              to="/video-notes"
-            >
-              <ArrowUpRight className="size-4" />
-              视频学习笔记
-            </Link>
+          <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
+            <div className={`status-pill ${readiness.ready ? 'is-ready' : ''}`}>
+              <span className="status-dot" />
+              {readinessText}
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-black/68 shadow-sm transition hover:border-black/15 hover:text-black"
+                to="/"
+              >
+                <ArrowLeft className="size-4" />
+                返回入口
+              </Link>
+              <Link
+                className="inline-flex items-center gap-2 rounded-full border border-[#fb7299]/20 bg-[#fff5f7] px-4 py-2 text-[#be185d] shadow-sm transition hover:border-[#fb7299]/35 hover:bg-[#ffe4ec]"
+                to="/video-notes"
+              >
+                视频学习笔记
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </div>
           </div>
         </header>
 
