@@ -156,8 +156,8 @@
     "zustand": "~5.0.8"
   },
   "engines": {
-    "node": "\u003e=22.0.0",
-    "npm": "\u003e=10.0.0"
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
   },
   "flags": {
     "customToaster": true,
@@ -169,8 +169,8 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "testMatch": [
-      "\u003crootDir\u003e/server/**/*.spec.ts",
-      "\u003crootDir\u003e/test/unit/**/*.spec.ts"
+      "<rootDir>/server/**/*.spec.ts",
+      "<rootDir>/test/unit/**/*.spec.ts"
     ]
   },
   "name": "fullstack-nestjs-template",
@@ -181,7 +181,7 @@
   "scripts": {
     "build": "./scripts/build.sh",
     "build:client": "NODE_ENV=production vite build --config vite.config.ts",
-    "build:prod": "npm run build:server \u0026\u0026 npm run build:client",
+    "build:prod": "npm run build:server && npm run build:client",
     "build:server": "NODE_ENV=production nest build",
     "dev": "./scripts/dev.sh",
     "dev:client": "NODE_ENV=development vite --config vite.config.ts",
@@ -194,7 +194,7 @@
     "lint": "node ./scripts/lint.js",
     "postinstall": "npx -y @lark-apaas/fullstack-cli@latest action-plugin init",
     "precommit": "node scripts/hooks/run-precommit.js",
-    "prepare": "chmod +x .githooks/pre-commit 2\u003e/dev/null; git config core.hooksPath .githooks 2\u003e/dev/null || true",
+    "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
     "start": "NODE_ENV=production node main.js",
     "stylelint": "stylelint client/src/**/*.css --quiet",
     "test": "jest",
