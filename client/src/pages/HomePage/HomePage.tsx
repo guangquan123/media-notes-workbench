@@ -94,10 +94,6 @@ export default function HomePage() {
       toast.error('请先粘贴视频地址');
       return;
     }
-    if (sourcePlatform === 'douyin' && !cookieBrowser) {
-      toast.error('抖音需要近期 Cookie，请选择一个刚刚打开过抖音的浏览器');
-      return;
-    }
     setSubmitting(true);
     try {
       const created = await createNoteJob({
@@ -204,9 +200,6 @@ export default function HomePage() {
                       onChange={(event) => {
                         const platform = event.target.value as SourcePlatform;
                         setSourcePlatform(platform);
-                        if (platform === 'douyin' && !cookieBrowser) {
-                          setCookieBrowser('chrome');
-                        }
                       }}
                       disabled={submitting}
                     >
@@ -256,9 +249,7 @@ export default function HomePage() {
                       disabled={submitting}
                     >
                       <option value="">
-                        {sourcePlatform === 'douyin'
-                          ? '请选择浏览器（抖音必需）'
-                          : '不使用登录状态'}
+                        不使用登录状态
                       </option>
                       <option value="chrome">Google Chrome</option>
                       <option value="safari">Safari</option>
@@ -267,7 +258,7 @@ export default function HomePage() {
                     </select>
                     <span className="mt-2 block text-xs leading-5 text-black/38">
                       {sourcePlatform === 'douyin'
-                        ? '请先在该浏览器普通窗口打开并刷新一次抖音；无需登录，但不能使用无痕窗口。'
+                        ? '抖音通过公开分享页解析，一般不需要浏览器登录状态。'
                         : `请选择已登录 ${sourcePlatformLabels[sourcePlatform]} 的浏览器。`}
                       登录信息由 yt-dlp 在本机读取，只用于当前请求，不会保存到应用。
                     </span>
