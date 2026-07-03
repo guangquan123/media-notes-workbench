@@ -82,6 +82,11 @@ export class NoteJobsService {
     const sourcePlatform = this.resolveSourcePlatform(input.sourcePlatform);
     const url = this.validateSourceUrl(input.url, sourcePlatform);
     const cookieBrowser = this.validateCookieBrowser(input.cookieBrowser);
+    if (sourcePlatform === 'douyin' && !cookieBrowser) {
+      throw new BadRequestException(
+        '抖音需要近期浏览器 Cookie，请选择一个刚刚打开过抖音的浏览器',
+      );
+    }
 
     const now = new Date().toISOString();
     const job: NoteJob = {
@@ -342,7 +347,11 @@ export class NoteJobsService {
 
   private validateSourceUrl(raw: string, platform: SourcePlatform): string {
     try {
-      const url = new URL(raw.trim());
+      const urlMatch = raw.match(/https?:\/\/[^\s]+/u);
+      if (!urlMatch) {
+        throw new Error(SOURCE_PROFILES[platform].urlErrorMessage);
+      }
+      const url = new URL(urlMatch[0]);
       const hostname = url.hostname.toLowerCase();
       const profile = SOURCE_PROFILES[platform];
       const allowed = profile.urlHosts.some(
@@ -406,6 +415,11 @@ export class NoteJobsService {
       return cookieBrowser
         ? `${profile.label}仍拒绝了请求（HTTP 412）。请先在 ${cookieBrowser} 中打开 ${profile.label} 并确认已登录，然后关闭无痕窗口后重试。`
         : `${profile.label}拒绝了匿名请求（HTTP 412）。请在页面选择一个已经登录 ${profile.label} 的浏览器后重试。`;
+    }
+    if (/fresh cookies.*needed/iu.test(message)) {
+      return cookieBrowser
+        ? `抖音 Cookie 已失效。请在 ${cookieBrowser} 普通窗口打开 douyin.com 并刷新一次页面，再回到这里重试。无需登录，但不能使用无痕窗口。`
+        : '抖音需要近期浏览器 Cookie。请先在普通浏览器窗口打开 douyin.com，再选择该浏览器并重试。';
     }
     if (
       message.includes('cookies') &&

@@ -94,6 +94,10 @@ export default function HomePage() {
       toast.error('请先粘贴视频地址');
       return;
     }
+    if (sourcePlatform === 'douyin' && !cookieBrowser) {
+      toast.error('抖音需要近期 Cookie，请选择一个刚刚打开过抖音的浏览器');
+      return;
+    }
     setSubmitting(true);
     try {
       const created = await createNoteJob({
@@ -197,9 +201,13 @@ export default function HomePage() {
                     <select
                       className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
                       value={sourcePlatform}
-                      onChange={(event) =>
-                        setSourcePlatform(event.target.value as SourcePlatform)
-                      }
+                      onChange={(event) => {
+                        const platform = event.target.value as SourcePlatform;
+                        setSourcePlatform(platform);
+                        if (platform === 'douyin' && !cookieBrowser) {
+                          setCookieBrowser('chrome');
+                        }
+                      }}
                       disabled={submitting}
                     >
                       <option value="bilibili">B站</option>
@@ -247,15 +255,21 @@ export default function HomePage() {
                       }
                       disabled={submitting}
                     >
-                      <option value="">不使用登录状态</option>
+                      <option value="">
+                        {sourcePlatform === 'douyin'
+                          ? '请选择浏览器（抖音必需）'
+                          : '不使用登录状态'}
+                      </option>
                       <option value="chrome">Google Chrome</option>
                       <option value="safari">Safari</option>
                       <option value="edge">Microsoft Edge</option>
                       <option value="firefox">Firefox</option>
                     </select>
                     <span className="mt-2 block text-xs leading-5 text-black/38">
-                      请选择已登录 {sourcePlatformLabels[sourcePlatform]} 的浏览器。登录信息由
-                      yt-dlp 在本机读取，只用于向当前平台发起本次请求，不会保存到应用。
+                      {sourcePlatform === 'douyin'
+                        ? '请先在该浏览器普通窗口打开并刷新一次抖音；无需登录，但不能使用无痕窗口。'
+                        : `请选择已登录 ${sourcePlatformLabels[sourcePlatform]} 的浏览器。`}
+                      登录信息由 yt-dlp 在本机读取，只用于当前请求，不会保存到应用。
                     </span>
                   </label>
 
