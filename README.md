@@ -24,6 +24,9 @@ npm run dev
 
 `http://localhost:8081/app/app_179bn4jet6k/`
 
+双击 `启动B站学习笔记助手.command` 后，启动器会等待前后端服务均就绪再自动打开页面。
+日常启动不会自动升级框架依赖；需要主动升级时运行 `npm run upgrade`。
+
 ## 使用前提
 
 - `yt-dlp`

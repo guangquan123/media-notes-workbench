@@ -46,27 +46,62 @@ export default function HomePage() {
   >('');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
+  const [readinessAttempt, setReadinessAttempt] = useState(0);
+  const [startupDelayed, setStartupDelayed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const running = job && !['completed', 'failed'].includes(job.stage);
 
   useEffect(() => {
-    getReadiness().then(setReadiness).catch(() => undefined);
-  }, []);
+    let cancelled = false;
+    let retryTimer: number | undefined;
+    let failedAttempts = 0;
+
+    const checkReadiness = async () => {
+      try {
+        const next = await getReadiness();
+        if (cancelled) return;
+        setReadiness(next);
+        setStartupDelayed(false);
+      } catch {
+        if (cancelled) return;
+        failedAttempts += 1;
+        setStartupDelayed(failedAttempts >= 10);
+        retryTimer = window.setTimeout(checkReadiness, 1500);
+      }
+    };
+
+    void checkReadiness();
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
+  }, [readinessAttempt]);
 
   useEffect(() => {
     if (!job || !running) return;
-    const timer = window.setInterval(async () => {
+    let cancelled = false;
+    let pollTimer: number | undefined;
+
+    const pollJob = async () => {
       try {
         const next = await getNoteJob(job.id);
+        if (cancelled) return;
         setJob(next);
         if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
         // A transient polling failure should not stop the task.
+      } finally {
+        if (!cancelled) pollTimer = window.setTimeout(pollJob, 1800);
       }
-    }, 1800);
-    return () => window.clearInterval(timer);
+    };
+
+    pollTimer = window.setTimeout(pollJob, 1800);
+    return () => {
+      cancelled = true;
+      if (pollTimer) window.clearTimeout(pollTimer);
+    };
   }, [job?.id, running]);
 
   const readinessText = useMemo(() => {
@@ -127,6 +162,40 @@ export default function HomePage() {
     setJob(null);
     setUrl('');
     setSourcePlatform('bilibili');
+  }
+
+  if (!readiness) {
+    return (
+      <main className="grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-6 text-[#161616]">
+        <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-black/7 bg-white/90 px-8 py-12 text-center shadow-[0_30px_90px_rgba(38,30,32,0.1)]">
+          <div className="absolute -right-16 -top-20 size-48 rounded-full bg-[#fb7299]/12 blur-3xl" />
+          <div className="relative mx-auto grid size-14 place-items-center rounded-2xl bg-[#fb7299] text-white shadow-lg shadow-[#fb7299]/20">
+            <LoaderCircle className="size-6 animate-spin" />
+          </div>
+          <h1 className="relative mt-6 text-2xl font-semibold tracking-tight">
+            正在启动学习笔记助手
+          </h1>
+          <p className="relative mt-3 text-sm leading-6 text-black/48">
+            正在准备本机服务和视频处理环境，准备好后会自动进入。
+          </p>
+          {startupDelayed && (
+            <div className="relative mt-7 rounded-2xl bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-900">
+              启动时间比平时稍长，请保持启动终端开启。
+              <button
+                className="ml-1 font-semibold underline underline-offset-4"
+                onClick={() => {
+                  setStartupDelayed(false);
+                  setReadinessAttempt((value) => value + 1);
+                }}
+                type="button"
+              >
+                立即重试
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    );
   }
 
   return (

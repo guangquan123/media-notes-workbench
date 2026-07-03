@@ -11,6 +11,7 @@ export async function getReadiness(): Promise<SystemReadiness> {
   const response = await axiosForBackend({
     url: '/api/note-jobs/readiness',
     method: 'GET',
+    timeout: 4000,
   });
   return response.data;
 }
@@ -21,6 +22,7 @@ export async function createNoteJob(input: CreateNoteJobRequest): Promise<NoteJo
       url: '/api/note-jobs',
       method: 'POST',
       data: input,
+      timeout: 10000,
     });
     return response.data;
   } catch (error) {
@@ -33,6 +35,7 @@ export async function getNoteJob(id: string): Promise<NoteJob> {
   const response = await axiosForBackend({
     url: `/api/note-jobs/${id}`,
     method: 'GET',
+    timeout: 5000,
   });
   return response.data;
 }
