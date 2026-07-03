@@ -30,3 +30,6 @@ npm run dev
 - `whisper-cpp` 与 `models/ggml-base-q5_1.bin`
 
 本工具仅用于处理你有权使用的内容。任务结束后，临时音频会自动清理。
+
+如果 B站返回 HTTP 412，请在页面的“B站登录状态来源”中选择一个已经登录
+B站的浏览器。应用通过 yt-dlp 在本机读取 Cookie，不会把 Cookie 保存到项目。

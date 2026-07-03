@@ -25,6 +25,9 @@ const stageLabels = [
 
 export default function HomePage() {
   const [url, setUrl] = useState('');
+  const [cookieBrowser, setCookieBrowser] = useState<
+    '' | 'chrome' | 'safari' | 'edge' | 'firefox'
+  >('');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +80,10 @@ export default function HomePage() {
     }
     setSubmitting(true);
     try {
-      const created = await createNoteJob({ url });
+      const created = await createNoteJob({
+        url,
+        cookieBrowser: cookieBrowser || undefined,
+      });
       setJob(created);
     } catch (error: any) {
       const message =
@@ -176,6 +182,35 @@ export default function HomePage() {
                         <Clipboard className="size-4" />
                       </button>
                     </div>
+                  </label>
+
+                  <label className="block">
+                    <span className="field-label">B站登录状态来源</span>
+                    <select
+                      className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
+                      value={cookieBrowser}
+                      onChange={(event) =>
+                        setCookieBrowser(
+                          event.target.value as
+                            | ''
+                            | 'chrome'
+                            | 'safari'
+                            | 'edge'
+                            | 'firefox',
+                        )
+                      }
+                      disabled={submitting}
+                    >
+                      <option value="">不使用登录状态</option>
+                      <option value="chrome">Google Chrome</option>
+                      <option value="safari">Safari</option>
+                      <option value="edge">Microsoft Edge</option>
+                      <option value="firefox">Firefox</option>
+                    </select>
+                    <span className="mt-2 block text-xs leading-5 text-black/38">
+                      请选择已登录 B站的浏览器。登录信息由 yt-dlp
+                      在本机读取，只用于向 B站发起本次请求，不会保存到应用。
+                    </span>
                   </label>
 
                   <Button

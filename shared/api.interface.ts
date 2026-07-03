@@ -10,6 +10,7 @@ export type JobStage =
 
 export interface CreateNoteJobRequest {
   url: string;
+  cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
 }
 
 export interface NoteJob {

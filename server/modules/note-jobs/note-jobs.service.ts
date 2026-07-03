@@ -54,6 +54,7 @@ export class NoteJobsService {
 
   create(input: CreateNoteJobRequest): NoteJob {
     const url = this.validateBilibiliUrl(input.url);
+    const cookieBrowser = this.validateCookieBrowser(input.cookieBrowser);
 
     const now = new Date().toISOString();
     const job: NoteJob = {
@@ -65,7 +66,7 @@ export class NoteJobsService {
       updatedAt: now,
     };
     this.jobs.set(job.id, job);
-    void this.run(job.id, url);
+    void this.run(job.id, url, cookieBrowser);
     return job;
   }
 
@@ -75,7 +76,11 @@ export class NoteJobsService {
     return job;
   }
 
-  private async run(id: string, url: string) {
+  private async run(
+    id: string,
+    url: string,
+    cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
+  ) {
     const workDir = await mkdtemp(join(tmpdir(), 'bilibili-note-'));
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
@@ -87,7 +92,9 @@ export class NoteJobsService {
       if (!readiness.larkCli) throw new Error('未找到 lark-cli，请先安装并登录飞书');
 
       this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
+      const bilibiliArgs = this.buildBilibiliArgs(cookieBrowser);
       const metadataResult = await this.runCommand('yt-dlp', [
+        ...bilibiliArgs,
         '--no-playlist',
         '--dump-single-json',
         '--skip-download',
@@ -104,6 +111,7 @@ export class NoteJobsService {
 
       const audioTemplate = join(workDir, 'audio.%(ext)s');
       await this.runCommand('yt-dlp', [
+        ...bilibiliArgs,
         '--no-playlist',
         '--extract-audio',
         '--audio-format',
@@ -150,7 +158,8 @@ export class NoteJobsService {
         documentUrl,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : '未知错误';
+      const rawMessage = error instanceof Error ? error.message : '未知错误';
+      const message = this.friendlyDownloadError(rawMessage, cookieBrowser);
       this.logger.error(`任务 ${id} 失败: ${message}`);
       this.patch(id, {
         stage: 'failed',
@@ -288,6 +297,59 @@ export class NoteJobsService {
     } catch {
       throw new BadRequestException('请输入有效的 B站视频地址');
     }
+  }
+
+  private validateCookieBrowser(
+    value?: string,
+  ): CreateNoteJobRequest['cookieBrowser'] | undefined {
+    if (!value) return undefined;
+    const supported = ['chrome', 'safari', 'edge', 'firefox'] as const;
+    if (!supported.includes(value as (typeof supported)[number])) {
+      throw new BadRequestException('不支持的浏览器登录态来源');
+    }
+    return value as CreateNoteJobRequest['cookieBrowser'];
+  }
+
+  private buildBilibiliArgs(
+    cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
+  ): string[] {
+    const args = [
+      '--no-update',
+      '--referer',
+      'https://www.bilibili.com/',
+      '--add-header',
+      'Origin:https://www.bilibili.com',
+      '--user-agent',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+      '--retries',
+      '3',
+      '--fragment-retries',
+      '3',
+    ];
+    if (cookieBrowser) {
+      args.push('--cookies-from-browser', cookieBrowser);
+    }
+    return args;
+  }
+
+  private friendlyDownloadError(
+    message: string,
+    cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
+  ): string {
+    if (message.includes('HTTP Error 412')) {
+      return cookieBrowser
+        ? `B站仍拒绝了请求（HTTP 412）。请先在 ${cookieBrowser} 中打开 bilibili.com 并确认已登录，然后关闭无痕窗口后重试。`
+        : 'B站拒绝了匿名请求（HTTP 412）。请在页面选择一个已经登录 B站的浏览器后重试。';
+    }
+    if (
+      message.includes('cookies') &&
+      (message.includes('Permission') ||
+        message.includes('decrypt') ||
+        message.includes('keyring'))
+    ) {
+      return '无法读取浏览器登录状态。请允许终端访问浏览器数据/钥匙串，或改选另一个已登录 B站的浏览器。';
+    }
+    return message;
   }
 
   private update(id: string, stage: JobStage, progress: number, message: string) {
