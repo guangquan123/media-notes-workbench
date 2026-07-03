@@ -40,6 +40,9 @@ import type {
   ArticleExportStyle,
   ArticlePlatform,
 } from '@shared/api.interface';
+import ArticlePreviewDialog, {
+  ArticlePreviewContent,
+} from './ArticlePreviewDialog';
 
 type PlatformOption = Exclude<ArticlePlatform, 'source'>;
 
@@ -108,6 +111,7 @@ export default function ArticleExportPage() {
   const [readinessAttempt, setReadinessAttempt] = useState(0);
   const [startupDelayed, setStartupDelayed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const running = Boolean(job && !['completed', 'failed'].includes(job.stage));
 
@@ -261,6 +265,11 @@ export default function ArticleExportPage() {
   async function copyArtifact(artifact: ArticleArtifact | null) {
     if (!artifact) return;
     try {
+      if (artifact.platform === 'wechat') {
+        await copyWechatRichText(artifact.copyContent);
+        toast.success('公众号富文本已复制，可直接粘贴到编辑器');
+        return;
+      }
       await navigator.clipboard.writeText(artifact.copyContent);
       toast.success('稿件内容已复制');
     } catch {
@@ -289,6 +298,13 @@ export default function ArticleExportPage() {
     setSelectedPlatforms(DEFAULT_PLATFORMS);
     setIncludeImages(true);
     setPreferredStyle('editorial');
+    setPreviewOpen(false);
+  }
+
+  function openPreview(artifact: ArticleArtifact | null) {
+    if (!artifact) return;
+    setActivePlatform(artifact.platform);
+    setPreviewOpen(true);
   }
 
   if (!readiness) {
@@ -627,7 +643,11 @@ export default function ArticleExportPage() {
                       </div>
                     ) : null}
                     {job.stage === 'completed' ? (
-                      <Button onClick={() => setActivePlatform('source')} type="button" variant="outline">
+                      <Button
+                        onClick={() => openPreview(activeArtifact || job.artifacts[0] || null)}
+                        type="button"
+                        variant="outline"
+                      >
                         查看结果
                       </Button>
                     ) : null}
@@ -725,20 +745,10 @@ export default function ArticleExportPage() {
                                     : '短稿文本'}
                               </div>
                             </div>
-                            <div className="max-h-[52vh] overflow-auto rounded-2xl border border-black/8 bg-white p-5">
-                              {artifact.previewHtml ? (
-                                <div
-                                  className="article-preview prose prose-slate max-w-none text-[15px] leading-8"
-                                  dangerouslySetInnerHTML={{
-                                    __html: artifact.previewHtml,
-                                  }}
-                                />
-                              ) : (
-                                <pre className="whitespace-pre-wrap text-sm leading-7 text-black/78">
-                                  {artifact.copyContent}
-                                </pre>
-                              )}
-                            </div>
+                            <ArticlePreviewContent
+                              artifact={artifact}
+                              className="max-h-[52vh]"
+                            />
                           </div>
 
                           {artifact.unsupportedBlocks.length ? (
@@ -799,7 +809,7 @@ export default function ArticleExportPage() {
                         </div>
                         <div className="mt-4 flex flex-wrap gap-2">
                           <Button
-                            onClick={() => setActivePlatform(artifact.platform)}
+                            onClick={() => openPreview(artifact)}
                             type="button"
                             variant="outline"
                             size="sm"
@@ -831,6 +841,13 @@ export default function ArticleExportPage() {
           </div>
         </section>
       </div>
+      <ArticlePreviewDialog
+        artifact={activeArtifact}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        onCopy={copyArtifact}
+        onDownload={downloadArtifact}
+      />
     </main>
   );
 }
@@ -877,4 +894,30 @@ function summarizeArtifact(artifact: ArticleArtifact): string {
     .join(' ')
     .replace(/\s+/gu, ' ')
     .slice(0, 180);
+}
+
+async function copyWechatRichText(html: string): Promise<void> {
+  const clipboardItemSupported =
+    typeof ClipboardItem !== 'undefined' &&
+    typeof navigator.clipboard?.write === 'function';
+
+  if (!clipboardItemSupported) {
+    await navigator.clipboard.writeText(html);
+    return;
+  }
+
+  const plainText = htmlToPlainText(html);
+  const item = new ClipboardItem({
+    'text/html': new Blob([html], { type: 'text/html' }),
+    'text/plain': new Blob([plainText], { type: 'text/plain' }),
+  });
+  await navigator.clipboard.write([item]);
+}
+
+function htmlToPlainText(html: string): string {
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  return (container.textContent || '')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim();
 }

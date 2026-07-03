@@ -87,6 +87,7 @@ const BLOCK_STARTERS = [
   /^```/u,
   /^~~~+/u,
   /^!\[[^\]]*\]\([^)]+\)$/u,
+  /^<(?:title|callout)\b/u,
   /^<(?:whiteboard|sheet|task|chat_card|sub-page-list|cite|bookmark|button|time|figure)/u,
 ];
 
@@ -97,6 +98,7 @@ export function parseMarkdownDocument(markdown: string): ParsedArticleDocument {
     : [];
   const blocks: ArticleBlock[] = [];
   const unsupportedBlocks: string[] = [];
+  let declaredTitle = '';
 
   let index = 0;
   while (index < lines.length) {
@@ -106,6 +108,35 @@ export function parseMarkdownDocument(markdown: string): ParsedArticleDocument {
 
     if (!trimmed) {
       index += 1;
+      continue;
+    }
+
+    const titleMatch = trimmed.match(/^<title(?:\s[^>]*)?>([\s\S]*?)<\/title>$/u);
+    if (titleMatch) {
+      declaredTitle = stripXmlTags(titleMatch[1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith('<callout')) {
+      const callout = collectXmlContainer(lines, index, 'callout');
+      const calloutMatch = callout.content.match(
+        /^<callout(?:\s[^>]*)?>([\s\S]*?)<\/callout>$/u,
+      );
+      if (!calloutMatch) {
+        unsupportedBlocks.push(callout.content.slice(0, 120));
+        blocks.push({
+          type: 'unsupported',
+          raw: callout.content,
+        });
+        index = callout.nextIndex;
+        continue;
+      }
+      blocks.push({
+        type: 'quote',
+        text: stripXmlTags(calloutMatch[1]).trim(),
+      });
+      index = callout.nextIndex;
       continue;
     }
 
@@ -248,7 +279,7 @@ export function parseMarkdownDocument(markdown: string): ParsedArticleDocument {
     index = paragraphIndex;
   }
 
-  const title = extractDocumentTitle(blocks) || '飞书文章导出';
+  const title = declaredTitle || extractDocumentTitle(blocks) || '飞书文章导出';
   return {
     title,
     blocks,
@@ -305,38 +336,47 @@ export function renderBlocksToHtml(
 ): string {
   const normalizedBlocks = dropLeadingTitleBlock(blocks, options.title);
   const fragments: string[] = [];
+  let paragraphIndex = 0;
 
   for (const block of normalizedBlocks) {
     if (block.type === 'heading') {
-      const level = block.level;
-      const sizeMap: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
-        1: '28px',
-        2: '24px',
-        3: '20px',
-        4: '18px',
-        5: '16px',
-        6: '15px',
-      };
-      fragments.push(
-        `<h${level} style="font-size:${sizeMap[level]};line-height:1.35;font-weight:700;margin:28px 0 12px;">${renderInlineHtml(
-          block.text,
-        )}</h${level}>`,
-      );
+      if (block.level <= 2) {
+        fragments.push(
+          '<section style="margin:32px 0 16px;padding:0;">' +
+            '<h2 style="margin:0;padding:0 0 0 13px;border-left:4px solid #d97706;' +
+            'font-size:20px;line-height:1.45;font-weight:700;color:#1f2937;' +
+            'letter-spacing:0.02em;">' +
+            `${renderInlineHtml(block.text)}</h2></section>`,
+        );
+      } else {
+        fragments.push(
+          '<h3 style="margin:26px 0 12px;padding:0 0 8px;border-bottom:1px solid #f2dfbd;' +
+            'font-size:17px;line-height:1.5;font-weight:700;color:#92400e;">' +
+            `${renderInlineHtml(block.text)}</h3>`,
+        );
+      }
       continue;
     }
 
     if (block.type === 'paragraph') {
+      const isLeadParagraph = paragraphIndex === 0 && options.style === 'editorial';
       fragments.push(
-        `<p style="margin:0 0 16px;">${renderInlineHtml(block.text)}</p>`,
+        `<p style="margin:0 0 18px;font-size:${isLeadParagraph ? '16px' : '15px'};` +
+          `line-height:${isLeadParagraph ? '2' : '1.9'};color:${
+            isLeadParagraph ? '#4b5563' : '#374151'
+          };letter-spacing:0.035em;text-align:justify;">${renderInlineHtml(
+            block.text,
+          )}</p>`,
       );
+      paragraphIndex += 1;
       continue;
     }
 
     if (block.type === 'quote') {
       fragments.push(
-        `<blockquote style="margin:0 0 16px;padding:12px 16px;border-left:4px solid rgba(244,114,31,0.4);background:rgba(244,114,31,0.06);color:#444;">${renderInlineHtml(
-          block.text,
-        )}</blockquote>`,
+        '<blockquote style="margin:22px 0;padding:16px 18px;border:none;border-left:4px solid #f59e0b;' +
+          'background:#fffbeb;color:#78350f;font-size:14px;line-height:1.85;' +
+          `letter-spacing:0.03em;">${renderInlineHtml(block.text)}</blockquote>`,
       );
       continue;
     }
@@ -344,12 +384,14 @@ export function renderBlocksToHtml(
     if (block.type === 'code') {
       const languageLabel = block.language ? ` · ${escapeHtml(block.language)}` : '';
       fragments.push(
-        `<div style="margin:0 0 16px;">` +
-          `<div style="font-size:12px;color:rgba(0,0,0,0.42);margin-bottom:6px;">代码块${languageLabel}</div>` +
-          `<pre style="overflow:auto;padding:16px;border-radius:14px;background:#111827;color:#f3f4f6;line-height:1.7;font-size:13px;"><code>${escapeHtml(
+        '<section style="margin:22px 0;">' +
+          `<p style="margin:0 0 7px;font-size:12px;color:#9ca3af;">代码块${languageLabel}</p>` +
+          '<pre style="margin:0;overflow:auto;padding:17px 18px;border-radius:8px;' +
+          'background:#111827;color:#f3f4f6;line-height:1.75;font-size:13px;' +
+          `white-space:pre-wrap;"><code>${escapeHtml(
             block.code,
           )}</code></pre>` +
-          `</div>`,
+          '</section>',
       );
       continue;
     }
@@ -363,7 +405,8 @@ export function renderBlocksToHtml(
         )
         .join('');
       fragments.push(
-        `<${tagName} style="margin:0 0 16px 22px;padding:0;">${listItems}</${tagName}>`,
+        `<${tagName} style="margin:0 0 20px 22px;padding:0;color:#374151;` +
+          `font-size:15px;line-height:1.85;">${listItems}</${tagName}>`,
       );
       continue;
     }
@@ -371,12 +414,13 @@ export function renderBlocksToHtml(
     if (block.type === 'image') {
       if (!options.includeImages) continue;
       fragments.push(
-        `<figure style="margin:0 0 20px;">` +
+        '<figure style="margin:24px 0;text-align:center;">' +
           `<img src="${escapeAttribute(block.url)}" alt="${escapeAttribute(
             block.alt,
-          )}" style="max-width:100%;border-radius:16px;display:block;" />` +
+          )}" style="display:block;width:100%;max-width:100%;height:auto;margin:0 auto;` +
+          `border-radius:6px;" />` +
           (block.alt
-            ? `<figcaption style="margin-top:8px;font-size:12px;color:rgba(0,0,0,0.42);">${escapeHtml(
+            ? `<figcaption style="margin-top:9px;font-size:12px;line-height:1.6;color:#9ca3af;">${escapeHtml(
                 block.alt,
               )}</figcaption>`
             : '') +
@@ -387,7 +431,8 @@ export function renderBlocksToHtml(
 
     if (block.type === 'divider') {
       fragments.push(
-        '<hr style="border:none;border-top:1px solid rgba(0,0,0,0.10);margin:24px 0;" />',
+        '<p style="margin:30px auto;text-align:center;color:#d1a35b;font-size:14px;' +
+          'letter-spacing:0.55em;">• • •</p>',
       );
       continue;
     }
@@ -399,18 +444,22 @@ export function renderBlocksToHtml(
 
     if (block.type === 'unsupported') {
       fragments.push(
-        `<div style="margin:0 0 16px;padding:12px 14px;border-radius:14px;background:rgba(239,68,68,0.06);color:#991b1b;font-size:13px;">${escapeHtml(
+        `<div style="margin:20px 0;padding:13px 15px;border:1px solid #fcd34d;` +
+          `background:#fffbeb;color:#92400e;font-size:13px;line-height:1.7;">${escapeHtml(
           block.raw,
         )}</div>`,
       );
     }
   }
 
-  if (options.style === 'concise') {
-    return `<div style="font-size:15px;">${fragments.join('')}</div>`;
-  }
-
-  return `<div style="font-size:16px;">${fragments.join('')}</div>`;
+  return [
+    '<section data-wechat-article="true" style="margin:0 auto;padding:4px 2px;',
+    'max-width:677px;font-family:Optima-Regular,PingFangTC-light,',
+    'PingFangSC-light,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;',
+    'color:#374151;word-break:break-word;">',
+    fragments.join(''),
+    '</section>',
+  ].join('');
 }
 
 export function renderBlocksToMarkdown(
@@ -661,7 +710,8 @@ function renderTableHtml(rows: string[][]): string {
   const headerCells = headerRow
     .map(
       (cell) =>
-        `<th style="padding:10px 12px;border:1px solid rgba(0,0,0,0.08);text-align:left;background:#fafafa;">${renderInlineHtml(
+        `<th style="padding:10px 12px;border:1px solid #eadfcf;text-align:left;` +
+        `background:#fff7e6;color:#78350f;font-weight:700;">${renderInlineHtml(
           cell,
         )}</th>`,
     )
@@ -672,7 +722,8 @@ function renderTableHtml(rows: string[][]): string {
         `<tr>${row
           .map(
             (cell) =>
-              `<td style="padding:10px 12px;border:1px solid rgba(0,0,0,0.08);vertical-align:top;">${renderInlineHtml(
+              `<td style="padding:10px 12px;border:1px solid #eadfcf;vertical-align:top;` +
+              `color:#374151;background:#ffffff;">${renderInlineHtml(
                 cell,
               )}</td>`,
           )
@@ -680,12 +731,12 @@ function renderTableHtml(rows: string[][]): string {
     )
     .join('');
   return [
-    '<div style="margin:0 0 16px;overflow:auto;">',
-    '<table style="width:100%;border-collapse:collapse;font-size:14px;">',
+    '<section style="margin:22px 0;overflow:auto;">',
+    '<table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.7;">',
     `<thead><tr>${headerCells}</tr></thead>`,
     bodyHtml ? `<tbody>${bodyHtml}</tbody>` : '',
     '</table>',
-    '</div>',
+    '</section>',
   ].join('');
 }
 
@@ -763,6 +814,35 @@ function stripMarkdownSyntax(raw: string): string {
     .trim();
 }
 
+function stripXmlTags(raw: string): string {
+  return raw
+    .replace(/<br\s*\/?>/giu, '\n')
+    .replace(/<[^>]+>/gu, ' ')
+    .replace(/\s+/gu, ' ');
+}
+
+function collectXmlContainer(
+  lines: string[],
+  startIndex: number,
+  tagName: string,
+): { content: string; nextIndex: number } {
+  const closingTag = `</${tagName}>`;
+  const collectedLines: string[] = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    collectedLines.push(line);
+    index += 1;
+    if (line.includes(closingTag)) break;
+  }
+
+  return {
+    content: collectedLines.join('\n'),
+    nextIndex: index,
+  };
+}
+
 function normalizeText(raw: string): string {
   return stripMarkdownSyntax(raw)
     .replace(/\s+/gu, ' ')
@@ -791,7 +871,7 @@ function isTableSeparatorLine(line: string): boolean {
     .map((cell) => cell.trim())
     .filter((cell) => cell.length > 0);
   if (!cells.length) return false;
-  return cells.every((cell) => /^:?-{3,}:?$/u.test(cell));
+  return cells.every((cell) => /^:?-+:?$/u.test(cell));
 }
 
 function splitTableRow(line: string): string[] {

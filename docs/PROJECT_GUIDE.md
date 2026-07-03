@@ -1,282 +1,173 @@
-# B站和抖音学习笔记助手：项目说明与维护手册
+# 内容工作台：项目说明、实现复盘与维护手册
 
-> 对应妙搭应用 `app_179bn4jet6k`，开发分支为 `sprint/default`。项目把 B站和抖音视频统一转换为音频、转录稿、Markdown 学习笔记和飞书在线文档。
+> 对应妙搭应用 `app_179bn4jet6k`，开发分支为 `sprint/default`。项目已经从单一的
+> “B站学习笔记助手”演进为包含两个独立入口的内容工作台：
+>
+> 1. 视频学习笔记：B站/抖音视频 -> 音频 -> 转录稿 -> 结构化学习笔记 -> 飞书文档。
+> 2. 飞书文章导出：飞书文档 -> 统一内容结构 -> 微信公众号/知乎/抖音稿件 ->
+>    预览、复制或下载 -> 人工发布。
 
-## 1. 项目解决什么问题
+## 1. 项目现在解决什么问题
 
-很多视频收藏最后只剩下一串链接。B站收藏夹里有教程，抖音里有短视频讲解，真正回头学习时，经常卡在三个动作上：找到视频、抄下重点、整理成能复习的笔记。
+这个项目围绕同一条内容链路解决两个相邻问题。
 
-这个项目把机械步骤交给程序：用户粘贴视频地址，系统先在本机完成下载和转写，再调用妙搭内置 AI 整理学习笔记，最后以当前登录用户的身份创建飞书文档。
+第一类问题是“视频收藏了，但没有真正沉淀”。用户把 B站或抖音地址交给系统，
+程序负责下载音频、本地转写、整理笔记并创建飞书文档，把重复劳动压缩成一次提交。
 
-项目不依赖 OpenAI API Key。音频转写使用本地 `whisper-cpp`，笔记生成使用妙搭插件 `@official-plugins/ai-text-generate`，飞书文档由 `lark-cli docs +create` 创建。
+第二类问题是“内容已经写在飞书里，但发布到不同平台仍要重复排版”。同一篇文章
+发到微信公众号、知乎和抖音时，标题、正文密度、格式能力和内容长度并不相同。
+文章导出功能以飞书文档为唯一源头，为各平台生成独立稿件，但把最终发布动作留给
+用户，避免在 MVP 阶段引入平台审核、登录态、接口权限和发布失败回滚等复杂问题。
 
-## 2. 现在能做什么
-
-- 支持 B站普通视频链接和短链，例如 `bilibili.com/video/...`、`b23.tv/...`
-- 支持抖音两种常见输入
-  - 手机分享短链，例如 `https://v.douyin.com/.../`
-  - 网页分享页，例如 `https://www.douyin.com/jingxuan?modal_id=...`
-- 自动从链接里提取元数据、标题、作者、时长和正文音频
-- 在本机完成音频切片和 Whisper 转写
-- 使用统一的学习笔记模板生成 Markdown
-- 按当前登录的飞书用户身份创建文档并返回链接
-- 在页面上先显示 loading，等后端和前端准备完成后再开放操作，避免一启动就出现“无法连接”
-
-## 3. 系统架构
+两个功能形成了一条完整但不过度耦合的内容路径：
 
 ```mermaid
 flowchart LR
-    U[用户粘贴 B站或抖音链接] --> FE[React 页面]
-    FE -->|POST /api/note-jobs| API[NestJS 任务服务]
-    API --> IN[链接归一化<br/>B站 / Douyin]
-    IN --> YT[yt-dlp / Douyin extractor<br/>元数据与音频]
-    YT --> FF[ffmpeg<br/>长音频切片]
-    FF --> WH[whisper-cpp<br/>本地中文转写]
-    WH --> AI[妙搭 AI 文本生成插件<br/>学习笔记模板]
-    AI --> LC[lark-cli docs +create]
-    LC --> DOC[飞书在线文档]
-    API -->|任务状态| FE
-    FE -->|可点击地址| DOC
+    A[B站或抖音视频] --> B[视频学习笔记]
+    B --> C[飞书在线文档]
+    C --> D[飞书文章导出]
+    D --> E[微信公众号稿件]
+    D --> F[知乎稿件]
+    D --> G[抖音短内容稿]
+    E --> H[人工检查与发布]
+    F --> H
+    G --> H
 ```
 
-### 3.1 分层说明
+## 2. 产品形态与入口设计
 
-| 层 | 组件 | 责任 |
+### 2.1 为什么把入口拆开
+
+文章导出功能第一次接入时，如果直接塞进原来的视频学习笔记页面，用户会同时看到
+视频 URL、浏览器 Cookie、飞书文档 URL、目标平台、稿件风格等两套完全不同的配置。
+功能虽然都叫“内容处理”，但任务心智并不相同：
+
+| 功能 | 用户带来的输入 | 用户期待的结果 | 主要等待过程 |
+|---|---|---|---|
+| 视频学习笔记 | B站或抖音地址 | 一篇新的飞书学习笔记 | 下载、转写、AI 总结、创建文档 |
+| 飞书文章导出 | 已有飞书文档地址 | 多个平台的可发布稿件 | 抓取、归一化、平台渲染 |
+
+因此首页现在只承担“选择工作”的职责，不再承载具体表单。路由结构如下：
+
+| 路由 | 页面 | 作用 |
 |---|---|---|
-| 前端 | React、Vite | 收集视频地址和 Cookie 来源，展示环境状态、进度、错误与文档链接 |
-| API | NestJS | 校验输入，创建任务，编排处理流水线，提供轮询接口 |
-| 归一化 | 链接解析与参数清洗 | 识别 B站和抖音输入，统一提取最终可处理地址 |
-| 下载 | yt-dlp、ffmpeg | 读取元数据、提取音频，必要时按 20 分钟切片 |
-| 转写 | whisper-cpp | 使用本地模型离线生成中文转录稿 |
-| 总结 | 妙搭 AI 插件 | 按固定模板将转录稿整理成 Markdown |
-| 发布 | lark-cli | 以当前飞书用户身份创建文档并返回 URL |
+| `/` | `EntryPage` | 内容工作台首页，展示两个独立功能入口 |
+| `/video-notes` | `HomePage` | 视频学习笔记 |
+| `/article-export` | `ArticleExportPage` | 飞书文档多平台导出 |
 
-### 3.2 关键设计取舍
+两个业务页面都提供“返回入口”和“切换到另一个功能”的按钮。这样既保留两个功能的
+独立操作空间，又不会让用户进入页面后迷路。
 
-- 音频和转写留在本机，减少原始内容外传，也省去语音 API 成本。
-- AI 只接收转录文本和视频元数据，不接收浏览器 Cookie。
-- 任务状态保存在进程内存中，结构简单，适合个人本地工具；后端重启后任务记录会丢失。
-- 每个任务使用独立临时目录，成功或失败都会在 `finally` 中清理。
-- 前端轮询任务状态，没有引入 WebSocket，调试成本较低。
-- 启动时先等待后端和前端都准备好，再自动打开页面，减少“页面开了但服务还没起”的假故障。
+### 2.2 当前产品边界
 
-## 4. 运行前提
+- 视频学习笔记会自动创建飞书文档。
+- 文章导出只生成稿件，不调用微信公众号、知乎或抖音的自动发布接口。
+- 微信公众号是文章导出的第一优先级，输出带内联样式的 HTML。
+- 知乎输出保守的 Markdown，方便用户继续调整。
+- 抖音输出短文本框架，包含导语、要点和配图建议，不假装还原长文章。
+- 所有 AI 或转写结果都需要人工核对，尤其是术语、数字、代码和事实判断。
 
-### 4.1 平台与运行时
+## 3. 总体技术架构
 
-- macOS（当前实战环境）
-- Node.js `>= 22`
-- npm `>= 10`
-- 可访问 B站、抖音、妙搭和飞书开放平台的网络
-- 对目标视频拥有合法使用权限
+项目采用 React 19 + NestJS 的前后端结构，共享类型放在 `shared` 中。两个业务模块
+都使用“创建异步任务 + 前端短轮询”的模式，但处理流水线相互独立。
 
-当前验证环境为 Node.js 24.7.0、npm 11.5.1、yt-dlp 2026.06.09、FFmpeg 8.0、lark-cli 1.0.63。
+```mermaid
+flowchart TB
+    U[用户] --> ENTRY[React 内容工作台]
+    ENTRY --> VN[视频学习笔记页面]
+    ENTRY --> AE[文章导出页面]
 
-### 4.2 本机命令
+    VN -->|POST /api/note-jobs| NJ[NestJS note-jobs]
+    NJ --> YT[yt-dlp / 平台解析器]
+    YT --> FF[ffmpeg]
+    FF --> WH[whisper-cpp]
+    WH --> AI[妙搭 AI 插件]
+    AI --> CREATE[lark-cli docs +create]
+    CREATE --> DOC[飞书文档]
 
-确保以下命令可在终端直接执行：
-
-```bash
-node --version
-npm --version
-yt-dlp --version
-ffmpeg -version
-whisper-cli --help
-lark-cli --version
+    AE -->|POST /api/article-export| AJ[NestJS article-export]
+    AJ --> FETCH[lark-cli docs +fetch]
+    FETCH --> AST[Markdown 归一化结构]
+    AST --> WR[微信公众号 HTML]
+    AST --> ZR[知乎 Markdown]
+    AST --> DR[抖音 TXT]
+    WR --> ART[预览 / 复制 / 下载]
+    ZR --> ART
+    DR --> ART
 ```
 
-macOS 可使用 Homebrew 安装常见依赖：
+### 3.1 共同设计
 
-```bash
-brew install yt-dlp ffmpeg whisper-cpp
-```
+- 后端创建 `jobId` 后立即返回，耗时处理在后台继续执行。
+- 任务状态保存在进程内存的 `Map` 中。
+- 前端大约每 1.8 秒轮询一次任务状态。
+- 前端展示阶段、进度、提示信息和最终结果。
+- 后端重启后，内存任务会丢失。
+- 当前未引入 WebSocket、消息队列或数据库，适合个人本地工具。
 
-`lark-cli` 请按妙搭/飞书 CLI 的安装方式完成安装，不要把访问令牌写进仓库。
+### 3.2 为什么两个模块不合并
 
-### 4.3 Whisper 模型
+两个模块虽然都使用 job 模式，但依赖和失败方式差异很大。视频任务依赖下载器、
+音频工具、Whisper、AI 插件和飞书创建能力；文章导出只依赖飞书读取和本地渲染。
+保持模块独立可以避免一个功能的环境检查、状态字段和异常处理污染另一个功能。
 
-模型文件必须放在：
+## 4. 功能一：视频学习笔记
 
-```text
-models/ggml-base-q5_1.bin
-```
+### 4.1 支持范围
 
-当前模型约 57 MB。后端按 `process.cwd()` 拼接此路径，因此启动命令必须在项目根目录执行。
+- B站普通视频页和 `b23.tv` 短链。
+- 抖音手机分享短链和带 `modal_id` 的网页分享页。
+- 自动读取视频标题、作者、时长和音频。
+- 超大音频通过 ffmpeg 切片。
+- 使用本地 `whisper-cpp` 生成中文转录稿。
+- 使用妙搭 `@official-plugins/ai-text-generate` 整理学习笔记。
+- 以当前飞书用户身份创建在线文档并返回链接。
 
-### 4.4 飞书身份与妙搭配置
+项目不使用 OpenAI API Key。原始音频与转写过程留在本机，妙搭 AI 接收的是转录文本
+和视频元数据，不接收浏览器 Cookie。
 
-检查用户身份：
-
-```bash
-lark-cli auth status --json --verify
-```
-
-项目元数据位于 `.spark/meta.json`，应用 ID 应为 `app_179bn4jet6k`。AI 插件实例位于：
-
-```text
-server/capabilities/bilibili-note-writer.json
-```
-
-项目使用 `@official-plugins/ai-text-generate@1.0.17`。本地启动时建议使用 `npm run dev:local` 或桌面启动器，避免日常启动时反复触发妙搭环境同步和依赖安装。
-
-## 5. 安装与启动
-
-### 5.1 进入项目
-
-```bash
-cd "/Users/yangjie/YJ/codex_workspace/b站学习笔记项目"
-npm install
-```
-
-### 5.2 检查端口
-
-默认后端端口为 3000，本地前端使用 8081。启动前检查旧进程：
-
-```bash
-lsof -nP -iTCP:3000 -sTCP:LISTEN
-lsof -nP -iTCP:8081 -sTCP:LISTEN
-```
-
-不要看到端口占用就直接杀进程。先确认它是否属于本项目，必要时在原终端用 `Control+C` 停止。
-
-### 5.3 推荐启动方式
-
-macOS 可以双击 `启动B站学习笔记助手.command`，也可以在项目根目录运行：
-
-```bash
-CLIENT_DEV_PORT=8081 npm run dev:local
-```
-
-启动器会先等待后端和前端准备完成，再自动打开页面，避免服务还没完全起来就出现连接错误。
-
-访问：
-
-```text
-http://localhost:8081/app/app_179bn4jet6k/
-```
-
-如需分开启动：
-
-```bash
-# 终端 1
-npm run dev:server
-
-# 终端 2
-CLIENT_BASE_PATH=/app/app_179bn4jet6k \
-CLIENT_DEV_PORT=8081 \
-npm run dev:client
-```
-
-后端 API 默认地址为 `http://localhost:3000`。
-
-### 5.4 日常使用建议
-
-- 如果只是本地看效果，优先用启动器。
-- 如果你在排查前端问题，可以单独开 `npm run dev:client`。
-- 如果你在排查后端问题，可以单独开 `npm run dev:server`。
-- 不建议日常直接走会触发重同步的重型启动路径。
-
-## 6. 使用步骤
-
-1. 打开本地页面，确认顶部显示“本机处理环境已就绪”。
-2. 粘贴 B站或抖音链接。
-3. 匿名访问失败时，选择一个已登录对应平台的浏览器。
-4. 点击“开始生成学习笔记”。
-5. 页面依次展示“拉取音频、语音转文字、生成学习笔记、写入飞书”。
-6. 任务完成后点击“打开飞书学习笔记”。
-7. 人工检查专有名词、数字和转录不清的句子，再开始二次学习。
-
-### 6.1 API
-
-| 方法 | 地址 | 用途 |
-|---|---|---|
-| GET | `/api/note-jobs/readiness` | 检查五项本机依赖 |
-| POST | `/api/note-jobs` | 创建任务 |
-| GET | `/api/note-jobs/:id` | 查询进度和结果 |
-
-创建任务示例：
-
-```bash
-curl -X POST http://localhost:3000/api/note-jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://www.bilibili.com/video/BV1AycQzMEZh"}'
-```
-
-抖音网页分享页示例：
-
-```bash
-curl -X POST http://localhost:3000/api/note-jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://www.douyin.com/jingxuan?modal_id=7652310640844901668"}'
-```
-
-抖音手机分享短链示例：
-
-```bash
-curl -X POST http://localhost:3000/api/note-jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://v.douyin.com/Y_VEcCfTKfI/"}'
-```
-
-如需读取 Chrome 登录状态：
-
-```json
-{
-  "url": "https://www.bilibili.com/video/BV1AycQzMEZh",
-  "cookieBrowser": "chrome"
-}
-```
-
-`cookieBrowser` 仅支持 `chrome`、`safari`、`edge`、`firefox`。
-
-## 7. 一次任务内部发生了什么
+### 4.2 任务阶段
 
 ```mermaid
 sequenceDiagram
     participant User as 用户
     participant Web as React
-    participant API as NestJS
-    participant Local as yt-dlp/ffmpeg/Whisper
+    participant API as note-jobs
+    participant Local as 本机工具
     participant AI as 妙搭 AI
-    participant Lark as 飞书文档
+    participant Lark as 飞书
 
-    User->>Web: 提交 B站或抖音地址
+    User->>Web: 提交视频地址
     Web->>API: POST /api/note-jobs
     API-->>Web: 返回 jobId
-    API->>Local: 归一化链接并获取元数据
-    Local->>Local: 下载音频
-    Local->>Local: 大于 24 MB 时按 1200 秒切片
-    Local-->>API: 中文转录稿
-    API->>AI: 转录稿 + 标题 + UP主 + 时长 + 日期
-    AI-->>API: 固定结构 Markdown
-    API->>Lark: lark-cli docs +create
-    Lark-->>API: 文档 URL
-    loop 每 1.8 秒
+    API->>Local: 识别平台并归一化链接
+    Local->>Local: 下载音频并按需切片
+    Local->>Local: Whisper 中文转写
+    Local-->>API: 转录稿
+    API->>AI: 转录稿 + 视频元数据
+    AI-->>API: 结构化 Markdown
+    API->>Lark: docs +create
+    Lark-->>API: 飞书文档 URL
+    loop 每约 1.8 秒
         Web->>API: GET /api/note-jobs/:id
-        API-->>Web: 阶段、进度、消息
+        API-->>Web: 阶段、进度、结果
     end
-    Web-->>User: 展示飞书文档入口
 ```
 
 处理细节：
 
-1. 后端检查 `yt-dlp`、`ffmpeg`、`whisper-cli`、模型文件和 `lark-cli`。
-2. B站和抖音链接会先做归一化，再交给下载器处理。
-3. 下载阶段提取音频；文件超过 24 MB 时由 ffmpeg 按 1200 秒切片。
-4. Whisper 使用 `--language zh --no-timestamps --no-prints --no-gpu` 转写。
-5. 妙搭插件按固定模板生成 Markdown。没有讲到的章节必须写“本视频未展开”，不能补造案例。
-6. `lark-cli docs +create` 从标准输入接收 Markdown，创建完成后返回文档地址。
+1. 后端检查 `yt-dlp`、`ffmpeg`、`whisper-cli`、Whisper 模型和 `lark-cli`。
+2. 链接先判断平台和分享格式，再归一化为可处理地址。
+3. 下载阶段提取音频；文件超过 24 MB 时按 1200 秒切片。
+4. Whisper 使用中文、无时间戳、CPU 模式逐段转写。
+5. 妙搭插件根据固定模板生成 Markdown。
+6. `lark-cli docs +create` 创建飞书文档并返回地址。
+7. 成功或失败后，任务临时目录都会清理。
 
-## 8. 固定笔记模板
+### 4.3 笔记模板的质量约束
 
-现在的模板已经从“机械摘要”改成“可直接复习”的结构，核心要求有四个：
-
-1. 标题必须从内容里提炼，一句话，尽量短，通常控制在十个字左右。
-2. 开头必须先给总览信息，再进入正文，不再用 `TL;DR` 这种标签。
-3. 不保留单独的“补充信息”章节，课程福利、广告、领取方式等内容只在有必要时作为备注处理。
-4. 允许在简短核心结论旁边增加有依据的 AI 备注，但必须说明来源和补充理由，避免空泛扩写。
-
-当前推荐模板顺序如下：
+当前笔记模板顺序为：
 
 - 一句话标题
 - 笔记总览
@@ -289,43 +180,422 @@ sequenceDiagram
 - 行动清单
 - 复习问题
 - 反思总结
-- 依据备注
+- 依据备注（可选）
 
-其中“依据备注”是可选项，只在确实能提升理解时出现。备注内容必须标明依据来自哪一段转录或哪一类元数据，以及为什么要补这一句。
+比章节数量更重要的是三条边界：
 
-如果内容适合图示，优先补一张总结性的框架图或白板图，而不是把所有信息都堆成纯文字。
+1. 只使用转录稿和视频元数据中存在的事实。
+2. 视频没有讲到的章节写“本视频未展开”，不为了完整而补造。
+3. AI 补充必须说明依据和补充理由。
 
-修改模板时，同时检查：
+这次实践说明，AI 内容质量主要由输入材料、结构约束和失败边界决定，不是只要换一个
+更强模型就会自然变好。
 
-- `paramsSchema` 中定义的变量是否全部在 `formValue.prompt` 中使用。
-- Prompt 引用的 `{{input.xxx}}` 是否都在 `paramsSchema` 中定义。
-- 后端 `pluginInput` 是否传入所有必填变量。
-- 输出是否仍为纯 Markdown，不能带代码围栏。
+## 5. 功能二：飞书文档多平台稿件导出
 
-## 9. 实战 Demo
+### 5.1 MVP 用户流程
 
-测试视频：
+1. 从工作台首页进入“飞书文档多平台导出”。
+2. 粘贴飞书文档 URL。
+3. 选择微信公众号、知乎、抖音中的一个或多个目标平台。
+4. 选择是否包含图片。
+5. 选择“编辑稿”或“简洁稿”。
+6. 点击生成，等待环境检查、文档抓取、结构归一化和平台渲染。
+7. 在平台标签之间切换预览。
+8. 根据需要复制稿件或下载 `.html`、`.md`、`.txt` 文件。
+9. 人工检查后，粘贴或上传到目标平台发布。
 
-```text
-BV1AycQzMEZh
+默认勾选微信公众号和知乎，默认风格为“编辑稿”，默认包含图片。
+
+### 5.2 后端任务流水线
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Web as ArticleExportPage
+    participant API as article-export
+    participant CLI as lark-cli
+    participant Parser as 归一化解析器
+    participant Renderer as 平台渲染器
+
+    User->>Web: 文档 URL + 平台 + 风格
+    Web->>API: POST /api/article-export
+    API-->>Web: 返回 jobId
+    API->>CLI: 检查命令与用户授权
+    API->>CLI: docs +fetch --doc-format markdown
+    CLI-->>API: 文档标题与 Markdown
+    API->>Parser: 解析为统一块结构
+    Parser-->>API: blocks + unsupportedBlocks
+    API->>Renderer: 按平台 profile 渲染
+    Renderer-->>API: source/wechat/zhihu/douyin artifacts
+    loop 每约 1.8 秒
+        Web->>API: GET /api/article-export/:id
+        API-->>Web: 进度与 artifacts
+    end
+    Web-->>User: 预览、复制、下载
 ```
 
-操作过程：
+任务状态依次为：
 
-1. 在页面粘贴 `https://www.bilibili.com/video/BV1AycQzMEZh`。
-2. 先保持“不使用登录状态”。
-3. 点击生成，观察四个任务阶段。
-4. 匿名状态下已验证可以读取元数据并下载 MP3。
-5. 转录完成后，AI 将课程导论整理成固定结构。
-6. 最终示例文档：`https://my.feishu.cn/docx/ZOTcdwv8RoNxcPxPJuocHbIDndf`
+| 状态 | 进度参考 | 含义 |
+|---|---:|---|
+| `queued` | 2% | 已创建任务 |
+| `checking` | 8% | 检查 `lark-cli` 与用户授权 |
+| `fetching` | 20% | 获取飞书文档 Markdown |
+| `normalizing` | 48% | 解析并归一化内容 |
+| `rendering` | 64% | 生成各平台稿件 |
+| `completed` | 100% | artifacts 可用 |
+| `failed` | 保留当前进度 | 返回明确错误 |
 
-这段视频只有 2 分 49 秒，内容主要是课程介绍。新版模板不会硬凑“原理”和“实战”，而是明确标注本节未展开，并把课程福利类内容从正文里拿出来，避免干扰真正的知识点。
+### 5.3 统一内容结构
 
-抖音这边现在已经支持两类常见链接：网页分享页和手机分享短链。它们在进入任务前会先统一成同一套可下载地址，所以用户不需要手动猜格式。
+飞书文档先通过 `lark-cli docs +fetch --as user --doc-format markdown` 获取，再由
+`parseMarkdownDocument` 转成内部块结构。当前支持：
 
-## 10. 问题记录与复盘
+| 块类型 | 输入示例 | 平台处理 |
+|---|---|---|
+| `heading` | `#` 到 `######` | 保留层级并按平台调整样式 |
+| `paragraph` | 普通段落 | 保留行内链接、强调和代码 |
+| `list` | 有序/无序列表 | HTML 列表或 Markdown 列表 |
+| `quote` | `>` 引用 | 公众号高亮引用，知乎 Markdown 引用 |
+| `code` | fenced code block | 公众号深色代码块，知乎代码围栏 |
+| `image` | Markdown 图片 | 按 `includeImages` 决定是否输出 |
+| `divider` | `---` | 输出分隔线 |
+| `table` | Markdown 表格 | 公众号 HTML 表格，知乎 Markdown 表格 |
+| `unsupported` | 白板、任务等复杂 XML 块 | 显示“待人工处理”提示并写入清单 |
 
-### 10.1 B站 HTTP 412
+标题优先使用飞书返回的文档标题，其次使用第一处标题，最后使用首段文本。渲染前会
+移除与文档标题重复的首个标题块，避免稿件出现两个相同标题。
+
+这里有一个与最初方案不同的现实取舍：当前实现以 Markdown 作为飞书读取结果，再做
+轻量解析，并不是完整的飞书 Docx AST。它足以覆盖常见文章结构，开发和调试成本也较低；
+代价是白板、嵌入表格、多维表格、任务等复杂块只能降级提示。
+
+### 5.4 平台渲染策略
+
+#### 微信公众号
+
+- 输出格式为 HTML。
+- 所有关键排版都使用内联样式，减少复制到编辑器后的样式丢失。
+- 参考开源
+  [`wechat-article-publisher-skill`](https://github.com/iamzifei/wechat-article-publisher-skill)
+  的兼容策略：首个 H1 作为文章标题且不重复进入正文、保留 HTML 内联样式、
+  表格与图片，并为后续草稿发布保留稳定结构。
+- 标题、段落、列表、引用、代码、表格、图片和分隔线分别渲染。
+- 中文正文使用接近 1.9 倍行高和轻量字间距，章节标题使用左侧强调线，
+  次级标题使用暖色分隔线。
+- 代码块使用深色背景，引用块使用暖色边框和浅色底，表格使用浅暖色表头。
+- 图片使用响应式宽度，避免超出公众号正文区域。
+- 下载文件扩展名为 `.html`。
+
+公众号复制会同时写入 `text/html` 与 `text/plain` 两种剪贴板内容。支持
+`ClipboardItem` 的浏览器可以直接粘贴富文本；不支持时回退为普通文本复制。
+微信公众号仍是第一优先级，但最终兼容性取决于浏览器剪贴板权限和公众号编辑器本身，
+人工验收时必须真实粘贴一次，不能只看站内预览。
+
+#### 知乎
+
+- 输出格式为 Markdown。
+- 保留标题、来源、列表、引用、代码围栏、图片和表格。
+- 预览使用同一份内部块结构生成 HTML，不直接拿 Markdown 当最终视觉结果。
+- 下载文件扩展名为 `.md`。
+
+知乎采用更保守的输出，是因为 Markdown 更便于迁移和二次编辑，复杂 HTML 在不同
+编辑器中的兼容性反而更难控制。
+
+#### 抖音
+
+- 输出格式为纯文本。
+- 从前两个正文段落中提取导语。
+- 从标题和列表中提取 3 到 5 个要点。
+- 编辑稿提供更完整的要点，简洁稿进一步压缩。
+- 结尾附带封面和配图数量建议。
+- 下载文件扩展名为 `.txt`。
+
+抖音稿件当前是“短内容骨架”，不是完整的视频脚本生成器，也没有调用 AI 对长文进行
+深度重写。这一版优先保证可控和可解释。
+
+### 5.5 Artifact 数据结构
+
+每个任务至少返回一个 `source` artifact，并为用户选择的平台返回对应 artifact：
+
+```ts
+interface ArticleArtifact {
+  platform: 'source' | 'wechat' | 'zhihu' | 'douyin';
+  format: 'html' | 'markdown' | 'txt';
+  copyContent: string;
+  downloadFileName: string;
+  previewHtml?: string;
+  unsupportedBlocks: string[];
+}
+```
+
+- `source` 保存飞书返回的原始 Markdown，便于对照。
+- `copyContent` 是复制和下载使用的最终内容。
+- `previewHtml` 只用于站内预览。
+- `unsupportedBlocks` 汇总无法稳定转换的复杂块，以及用户主动关闭图片后的提醒。
+- 文件名格式为 `YYYY-MM-DD-平台-标题.扩展名`。
+- 标题中的 `\ / : * ? " < > |` 会替换为 `-`，并限制长度。
+
+### 5.6 复制、下载和预览
+
+- 预览：页面内提供快速预览；点击结果卡片的“预览”会打开独立大尺寸 Dialog，
+  可以完整滚动检查稿件，并在弹窗中直接复制或下载。
+- 复制：微信稿件优先使用 Clipboard API 写入富文本 HTML 和纯文本回退；
+  其他平台复制 `copyContent`；失败时显示明确提示。
+- 下载：前端用 `Blob` 创建临时 URL，再通过 `a[download]` 保存文件。
+- 平台切换：结果区使用标签页，默认优先展示微信公众号稿件。
+- 降级提示：若存在不支持的块，页面会提醒用户发布前人工处理。
+
+当前后端也提供单个 artifact 查询接口，但前端主要从轮询得到的 job 中直接读取
+artifacts，减少额外请求。
+
+### 5.7 图片处理的真实边界
+
+当前实现并没有把飞书图片下载到工作目录，也没有把图片重新上传到公共图床。系统只是
+保留 `docs +fetch` 输出中的 Markdown 图片 URL。
+
+这意味着：
+
+- 站内预览在 URL 可访问时可以显示图片。
+- 复制到外部平台后，图片链接可能因权限或时效失效。
+- 关闭“包含图片”后，图片不会进入稿件，并在 `unsupportedBlocks` 中提示。
+- 正式发布前，应检查图片并按目标平台要求重新上传。
+
+如果后续要把图片能力做稳，需要增加 `lark-cli docs +media-download`、本地资源映射、
+目标平台上传或可控图床托管，以及临时文件清理。目前不能把这一项描述为已经完成。
+
+## 6. API 与共享类型
+
+### 6.1 视频任务 API
+
+| 方法 | 地址 | 用途 |
+|---|---|---|
+| GET | `/api/note-jobs/readiness` | 检查视频处理依赖 |
+| POST | `/api/note-jobs` | 创建视频笔记任务 |
+| GET | `/api/note-jobs/:id` | 查询任务状态和飞书文档地址 |
+
+创建任务示例：
+
+```json
+{
+  "url": "https://www.bilibili.com/video/BV1AycQzMEZh",
+  "cookieBrowser": "chrome"
+}
+```
+
+`cookieBrowser` 可选值为 `chrome`、`safari`、`edge`、`firefox`。
+
+### 6.2 文章导出 API
+
+| 方法 | 地址 | 用途 |
+|---|---|---|
+| GET | `/api/article-export/readiness` | 检查 `lark-cli` 和用户授权 |
+| POST | `/api/article-export` | 创建文章导出任务 |
+| GET | `/api/article-export/:id` | 查询任务状态与全部 artifacts |
+| GET | `/api/article-export/:id/artifacts/:platform` | 获取单个平台 artifact |
+
+创建任务示例：
+
+```json
+{
+  "sourceDocUrl": "https://my.feishu.cn/docx/...",
+  "targetPlatforms": ["wechat", "zhihu", "douyin"],
+  "includeImages": true,
+  "preferredStyle": "editorial"
+}
+```
+
+参数规则：
+
+- `sourceDocUrl` 不能为空。
+- `targetPlatforms` 至少选择一个，只允许 `wechat`、`zhihu`、`douyin`。
+- `includeImages` 默认为 `true`。
+- `preferredStyle` 默认为 `editorial`，另一个值为 `concise`。
+
+前后端类型统一定义在 `shared/api.interface.ts`。修改字段时必须同时检查 Controller、
+Service、前端 API 和页面，避免请求与响应结构漂移。
+
+## 7. 运行前提
+
+### 7.1 平台与运行时
+
+- macOS（当前实战环境）
+- Node.js `>= 22`
+- npm `>= 10`
+- 可访问 B站、抖音、妙搭和飞书开放平台的网络
+- 对源视频、飞书文档和目标平台内容拥有合法使用权限
+
+最近记录的验证环境为 Node.js 24.7.0、npm 11.5.1、yt-dlp 2026.06.09、
+FFmpeg 8.0、lark-cli 1.0.63。版本会随本机环境变化，应以实际命令输出为准。
+
+### 7.2 本机命令
+
+```bash
+node --version
+npm --version
+yt-dlp --version
+ffmpeg -version
+whisper-cli --help
+lark-cli --version
+lark-cli auth status --json --verify
+```
+
+视频功能需要 `yt-dlp`、`ffmpeg`、`whisper-cpp` 和 Whisper 模型；文章导出功能只要求
+`lark-cli` 可用且用户授权有效。
+
+macOS 可通过 Homebrew 安装常见依赖：
+
+```bash
+brew install yt-dlp ffmpeg whisper-cpp
+```
+
+不要把飞书令牌、Cookie 或其他访问凭证写进仓库。
+
+### 7.3 Whisper 模型
+
+模型文件位置：
+
+```text
+models/ggml-base-q5_1.bin
+```
+
+后端基于 `process.cwd()` 拼接模型路径，因此必须从项目根目录启动。
+
+### 7.4 妙搭配置
+
+项目元数据位于 `.spark/meta.json`，应用 ID 为 `app_179bn4jet6k`。视频笔记使用的 AI
+插件实例位于：
+
+```text
+server/capabilities/bilibili-note-writer.json
+```
+
+## 8. 安装与启动
+
+### 8.1 安装
+
+```bash
+cd "/Users/yangjie/YJ/codex_workspace/b站学习笔记项目"
+npm install
+```
+
+### 8.2 检查端口
+
+默认后端端口为 3000，本地前端使用 8081：
+
+```bash
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+lsof -nP -iTCP:8081 -sTCP:LISTEN
+```
+
+不要看到占用就直接杀进程。先确认是否为本项目的旧开发服务。
+
+### 8.3 推荐启动
+
+双击 `启动B站学习笔记助手.command`，或执行：
+
+```bash
+CLIENT_DEV_PORT=8081 npm run dev:local
+```
+
+访问地址：
+
+```text
+http://localhost:8081/app/app_179bn4jet6k/
+```
+
+启动器会等待前后端准备完成后再打开页面。若分开启动：
+
+```bash
+# 终端 1
+npm run dev:server
+
+# 终端 2
+CLIENT_BASE_PATH=/app/app_179bn4jet6k \
+CLIENT_DEV_PORT=8081 \
+npm run dev:client
+```
+
+在开发环境调 API 时，优先通过前端开发服务器访问 `/api`，让代理补齐平台所需请求头。
+
+## 9. 两个功能的使用说明
+
+### 9.1 生成视频学习笔记
+
+1. 进入 `/video-notes`。
+2. 确认本机处理环境已就绪。
+3. 粘贴 B站或抖音地址。
+4. 匿名访问失败时选择已登录对应平台的浏览器。
+5. 点击“开始生成学习笔记”。
+6. 等待下载、转写、总结和写入飞书。
+7. 打开飞书文档，人工核对内容。
+
+### 9.2 生成多平台文章稿件
+
+1. 进入 `/article-export`。
+2. 确认飞书导出环境已就绪。
+3. 粘贴有权限访问的飞书文档地址。
+4. 选择目标平台、图片选项和稿件风格。
+5. 点击生成。
+6. 在结果标签中对照原文和各平台稿件。
+7. 复制或下载需要的稿件。
+8. 在目标平台重新检查图片、标题、格式和平台规范后手动发布。
+
+## 10. 实战过程与关键经验
+
+### 10.1 视频 Demo
+
+测试视频为 `BV1AycQzMEZh`，时长 2 分 49 秒，内容主要是 Agent Memory 课程导论。
+
+这次 Demo 验证了：
+
+- 匿名状态可读取元数据并下载音频。
+- Whisper 可以完成中文转写。
+- AI 模板不会把课程导论扩写成不存在的技术原理。
+- 未讲到的案例会标记“本视频未展开”。
+- 课程福利不会挤占正文核心结构。
+
+示例飞书文档：
+
+```text
+https://my.feishu.cn/docx/ZOTcdwv8RoNxcPxPJuocHbIDndf
+```
+
+### 10.2 文章导出 MVP
+
+文章导出从一个明确的产品边界开始：先解决“生成可用稿件”，不急着解决“自动发布”。
+实现顺序是：
+
+1. 在共享类型中定义请求、任务状态和 artifact。
+2. 新增独立的 `article-export` NestJS 模块。
+3. 用 `lark-cli docs +fetch` 获取 Markdown。
+4. 写轻量解析器，统一常见文章块。
+5. 为微信、知乎、抖音分别实现渲染 profile。
+6. 前端实现平台选择、风格选择、轮询、预览、复制和下载。
+7. 根据实际使用反馈，将入口从视频页面中拆出，新增独立工作台首页。
+
+这次实现最重要的产品经验是：功能相关，不等于入口应该混在一起。用户来做“视频转笔记”
+和“文档转平台稿”时，起点、配置和完成标准都不同。把入口拆开后，页面信息密度更低，
+返回路径和功能切换也更明确。
+
+### 10.3 为什么先做手动发布
+
+自动发布看起来只是多一个按钮，实际会引入：
+
+- 各平台开放接口申请和权限审核。
+- 用户登录态、授权过期和多账号管理。
+- 图片上传与素材库映射。
+- 草稿、正式发布、审核失败等状态同步。
+- 重试、幂等、部分成功和回滚。
+- 平台规则变化后的维护成本。
+
+MVP 先输出稳定稿件，把最后一步交给人，可以更快验证“生成的内容是否真的有用”。
+只有当稿件质量、使用频率和平台优先级得到验证后，自动发布才值得进入下一阶段。
+
+## 11. 已解决的问题与复盘
+
+### 11.1 B站 HTTP 412
 
 现象：
 
@@ -333,147 +603,268 @@ BV1AycQzMEZh
 ERROR: [BiliBili] ... HTTP Error 412: Precondition Failed
 ```
 
-原因是 B站风控拒绝了缺少浏览器特征或登录状态的请求。
+处理方式是补齐 Referer、Origin 和浏览器 User-Agent，增加重试，并允许从 Chrome、
+Safari、Edge、Firefox 读取 Cookie。系统仍先匿名尝试，Cookie 只作为兜底。
 
-处理：增加 Referer、Origin 和浏览器 User-Agent；为 yt-dlp 增加重试；支持从 Chrome、Safari、Edge、Firefox 读取 Cookie；先匿名尝试，失败后再让用户选择登录浏览器。
+经验：敏感登录态不应成为默认依赖，也不应由项目保存。
 
-对应提交：`810f2fe fix: handle Bilibili HTTP 412`。
+### 11.2 抖音链接形态不一致
 
-复盘：Cookie 是兜底，不应成为默认依赖。浏览器数据只在本机由 yt-dlp 读取，应用不保存。
+手机分享短链和网页分享页不能直接走完全相同的解析入口。现在先做链接归一化，再进入
+下载流程；Cookie 过期时提示用户在普通 Chrome 窗口刷新抖音。
 
-### 10.2 抖音两种链接格式不兼容
+经验：入口兼容与登录态失败是两类问题，应分别处理和提示。
 
-现象：
+### 11.3 端口冲突与启动时序
 
-```text
-WARNING: [generic] Falling back on generic information extractor
-ERROR: Unsupported URL: https://www.douyin.com/jingxuan?modal_id=...
-```
+8080 被占用后，本地前端改为 8081。启动器还增加了就绪等待，避免浏览器已经打开，
+服务却仍在安装或初始化。
 
-以及手机分享链接解析失败、JSON 解析报空响应、提示需要 fresh cookies。
+经验：本地工具的“启动体验”也是产品的一部分。很多所谓连接故障只是服务尚未就绪。
 
-处理：同时兼容网页分享页和手机分享短链，先做链接归一化，再交给可用的解析器；抖音 cookies 失效时提示用户在普通 Chrome 窗口打开 `douyin.com` 并刷新，再回来重试。
+### 11.4 子路径导致 NotFound
 
-复盘：抖音的失败经常不是“完全不能用”，而是“当前这条链接形态没被兜住”。入口兼容和 cookie 提示要分开处理。
+妙搭本地地址位于 `/app/app_179bn4jet6k/`，不是根路径。项目修正 Vite root、HTML 入口
+和 Router basename 后，前端路由才能在子路径正常工作。
 
-### 10.3 8080 端口冲突
+经验：平台应用的静态资源路径、开发服务器路径和前端 Router 必须使用同一 base path。
 
-现象：启动时报 `EADDRINUSE`。
+### 11.5 AI 笔记能生成但不好用
 
-处理：本地前端改用 8081，启动脚本和访问地址同步调整。
+第一版模板追求章节完整，结果会混入课程介绍、福利和空泛补充。新版模板把真实性、
+章节边界、总览和复习动作写成明确约束。
 
-对应提交：`25a53d2 fix: avoid occupied local dev port`。
+经验：生成内容的“边界控制”比“写得更多”更重要。
 
-复盘：文档必须把端口检查写在启动前。否则重复启动会制造“服务明明开着但新进程报错”的假故障。
+### 11.6 两个功能入口混在一起
 
-### 10.4 应用路径进入 NotFound
+文章导出接入后，原有页面同时承担两套任务，用户难以快速判断应该从哪里开始，也缺少
+明确的返回和切换路径。
 
-现象：访问 `/app/app_179bn4jet6k/` 时命中 React Router 的 NotFound。
+处理方式：
 
-处理：Vite root 指向 `client`；修正 `client/index.html`；前端从当前 URL 自动识别 `/app/app_xxx` 作为 Router basename。
+- 新增独立 `EntryPage` 作为首页。
+- 视频功能固定到 `/video-notes`。
+- 文章导出固定到 `/article-export`。
+- 两个页面都增加返回首页和互相切换入口。
 
-对应提交：
+经验：产品导航应该按用户任务拆分，而不是按技术模块是否相似来拆分。
 
-- `e78c064 fix: serve local app at configured base path`
-- `184a4fb fix: resolve local app router base path`
+### 11.7 规划能力与实际能力需要分开记录
 
-复盘：平台应用通常不是部署在根路径 `/`。路由、静态资源和开发服务器必须使用同一 base path。
+最初方案希望完整覆盖飞书 AST，并下载图片资源。为了先跑通 MVP，当前实现选择了
+Markdown 抓取和轻量解析，图片也暂时保留原 URL。
 
-### 10.5 启动时页面比服务更早打开
+经验：文档必须明确区分“目标架构”和“已上线实现”。否则维护者会误以为复杂块与图片
+已经完全可靠，测试时就会得到错误预期。
 
-现象：浏览器先弹出，但后台服务还在安装依赖或初始化，页面短暂显示无法连接。
+## 12. 日志与故障排查
 
-处理：启动器改成先等服务端口和前端页面都可用，再自动打开页面，同时保留 loading 态和重试检测。
-
-复盘：本地工具最怕“看起来启动了，其实没启动完”。把等待逻辑做在入口处，能少掉一大半假故障。
-
-### 10.6 从 OpenAI API Key 改为妙搭内置 AI
-
-处理：移除外部 Key 方案，改用 `CapabilityService` 调用 `bilibili-note-writer`。
-
-对应提交：`1b5e691 feat: replace API key with built-in AI`。
-
-复盘：平台已有模型能力时，优先复用统一鉴权和插件配置，减少个人密钥泄露及环境配置成本。
-
-### 10.7 第一版笔记结构不适合复习
-
-现象：摘要、课程介绍和福利信息混在一起；缺少原理边界、行动清单和复习入口。
-
-处理：改成更短、更像人写的标题，增加笔记总览，删掉 TL;DR 和独立补充信息章节，并允许按需补一点有依据的备注。
-
-复盘：好的笔记生成器不只“总结更多”，还要知道哪些内容不该写。边界控制比篇幅更重要。
-
-## 11. 日志与故障排查
-
-本地统一启动日志：
+统一开发日志：
 
 ```text
 logs/dev.std.log
 ```
 
-只看后端：
+建议排查顺序：
 
-```bash
-grep '\[server\]' logs/dev.std.log
+1. 确认正在使用哪个功能和对应 readiness 接口。
+2. 检查 3000、8081 端口和开发服务状态。
+3. 查看任务 ID、stage、message 和后端错误日志。
+4. 视频问题再检查 yt-dlp、ffmpeg、Whisper 和模型路径。
+5. 飞书问题检查 `lark-cli auth status --json --verify`。
+6. 文章导出问题先用 `lark-cli docs +fetch --doc "<URL>" --doc-format markdown`
+   验证源文档是否可读。
+7. 若稿件缺内容，检查源 Markdown 是否包含不支持的飞书复杂块。
+8. 若图片在外部平台不可见，按图片权限/时效问题处理，不要先怀疑文本渲染器。
+
+视频 readiness：
+
+```text
+GET /api/note-jobs/readiness
 ```
 
-排查顺序：
+文章导出 readiness：
 
-1. 调用 `/api/note-jobs/readiness` 检查依赖。
-2. 检查 3000 和 8081 端口。
-3. 查看后端日志中的任务 ID 和命令 stderr。
-4. 单独运行 yt-dlp 验证 B站和抖音访问。
-5. 检查 Whisper 模型路径和权限。
-6. 检查 `lark-cli auth status --json --verify`。
-7. 校验妙搭插件实例 JSON 与后端输入字段。
+```text
+GET /api/article-export/readiness
+```
 
-## 12. 构建与质量检查
+## 13. 测试与质量检查
+
+常用检查：
 
 ```bash
 npm run type:check
+npm run type:check:client
 npm run lint
 npm run build:server
 npm run build:client
+git diff --check
 ```
 
-修改 AI 配置后额外执行：
+修改 AI 插件配置后额外检查 JSON：
 
 ```bash
 node -e "JSON.parse(require('fs').readFileSync('server/capabilities/bilibili-note-writer.json','utf8')); console.log('ok')"
 ```
 
-## 13. 安全、合规与当前限制
+文章导出当前需要重点人工验收：
 
-- 仅处理你有权使用的内容，遵守 B站和抖音条款以及著作权要求。
-- 不提交 Cookie、访问令牌、`.env.local` 或音频临时文件。
-- AI 生成笔记仍需人工核对，尤其是人名、术语、数字和代码。
-- 当前任务存储在内存，服务重启后无法查询旧任务。
-- 当前没有任务队列和并发限制，多人或批量使用时需要引入持久化队列。
-- Whisper 固定为中文和 CPU 模式；其他语言、GPU 加速与模型切换尚未产品化。
-- `lark-cli` 依赖本机用户登录态，不适合直接作为无人值守的多人服务。
+1. 准备一篇包含标题、段落、列表、引用、代码、图片和表格的飞书文档。
+2. 同时生成微信、知乎和抖音稿件。
+3. 检查标题是否重复、列表是否丢失、表格是否可读。
+4. 将微信稿件真实复制到公众号编辑器，验证内联样式。
+5. 将知乎 Markdown 粘贴到目标编辑器，检查代码、引用和表格。
+6. 检查抖音稿是否足够短，且没有伪造原文没有的观点。
+7. 关闭图片后重新生成，确认图片消失且有降级提示。
+8. 使用含白板或嵌入资源的文档，确认 `unsupportedBlocks` 可见。
 
-## 14. 关键代码位置
+当前仓库还没有覆盖 article-export 的自动化单元测试和集成测试。后续至少应补：
+
+- 飞书 URL 输入校验。
+- Markdown 块解析。
+- 标题去重。
+- 微信/知乎/抖音渲染器快照或结构断言。
+- 不支持块降级。
+- 文件名清洗。
+- mock `lark-cli docs +fetch` 的 job 状态流转测试。
+- 前端复制、下载、切换平台的冒烟测试。
+
+## 14. 安全、合规与限制
+
+### 14.1 通用要求
+
+- 只处理有权使用和发布的内容。
+- 遵守 B站、抖音、微信公众号、知乎和飞书的服务条款。
+- 不提交 Cookie、访问令牌、`.env.local`、音频或任务临时文件。
+- AI 和转写结果必须人工核对。
+- 人工发布前检查引用、图片版权和平台规范。
+
+### 14.2 当前技术限制
+
+- 两类任务状态都只保存在内存，服务重启后不可恢复。
+- 没有任务队列、并发限制和阶段重试。
+- Whisper 固定为中文 CPU 模式。
+- `lark-cli` 依赖当前机器的飞书用户登录态。
+- 文章导出不是完整飞书 AST，复杂资源块会降级。
+- 飞书图片没有下载和重新托管，复制到外部平台后可能失效。
+- 微信 HTML 的最终兼容性仍需在真实公众号编辑器中验收。
+- 抖音稿是规则提取的短内容骨架，不是 AI 深度改写脚本。
+- 没有自动发布、发布状态跟踪或失败回滚。
+- 当前自动化测试覆盖不足。
+
+这些限制决定了项目目前是“个人本地内容工具”，还不是可以直接开放给多人使用的
+生产级内容发布平台。
+
+## 15. 关键代码位置
 
 | 文件 | 作用 |
 |---|---|
-| `server/modules/note-jobs/note-jobs.service.ts` | 完整任务编排 |
-| `server/modules/note-jobs/note-jobs.controller.ts` | 三个后端接口 |
-| `server/capabilities/bilibili-note-writer.json` | AI 插件与固定笔记模板 |
-| `shared/api.interface.ts` | 前后端共享类型 |
-| `client/src/pages/HomePage/HomePage.tsx` | 页面与任务进度 |
-| `client/src/api/index.ts` | 前端 API 调用 |
+| `client/src/app.tsx` | 首页、视频页、文章导出页的路由 |
+| `client/src/pages/EntryPage/EntryPage.tsx` | 双功能工作台入口 |
+| `client/src/pages/HomePage/HomePage.tsx` | 视频学习笔记页面 |
+| `client/src/pages/ArticleExportPage/ArticleExportPage.tsx` | 文章导出配置、轮询、预览、复制和下载 |
+| `client/src/api/index.ts` | 两类任务的前端 API |
+| `server/modules/note-jobs/note-jobs.service.ts` | 视频任务完整编排 |
+| `server/modules/note-jobs/note-jobs.controller.ts` | 视频任务接口 |
+| `server/modules/article-export/article-export.service.ts` | 飞书抓取、任务状态和 artifact 生成 |
+| `server/modules/article-export/article-export.utils.ts` | Markdown 解析、平台渲染和降级处理 |
+| `server/modules/article-export/article-export.controller.ts` | 文章导出接口 |
+| `server/capabilities/bilibili-note-writer.json` | 视频笔记 AI 模板 |
+| `shared/api.interface.ts` | 前后端共享请求、任务和 artifact 类型 |
 | `client/src/index.tsx` | Router basename 处理 |
-| `vite.config.ts` | Vite 客户端根目录 |
-| `scripts/dev-local.js` | 环境同步、插件安装、前后端启动及日志 |
-| `启动B站学习笔记助手.command` | 本地一键启动和等待服务就绪 |
+| `scripts/dev-local.js` | 本地环境同步、启动和日志 |
+| `启动B站学习笔记助手.command` | macOS 一键启动 |
 
-## 15. 后续演进建议
+## 16. 维护修改指南
 
-1. 增加任务持久化和并发队列，解决重启丢状态与资源争抢。
-2. 保存转录稿和阶段产物，支持失败后从中间步骤重试。
-3. 增加模型、语言和笔记模板选择。
-4. 为 yt-dlp、Whisper、AI 和飞书发布分别记录耗时。
-5. 增加后端单元测试与一条可重复的端到端测试。
-6. 发布为多人服务前，重新设计飞书身份、权限和 Cookie 使用方式。
-7. 如果继续扩视频来源，可以把“链接归一化”单独抽成一个稳定层，后面再接更多平台会更轻。
+### 16.1 新增一个文章目标平台
 
+1. 在 `ArticlePlatform` 中增加平台值。
+2. 更新请求类型和后端平台白名单。
+3. 在 `article-export.utils.ts` 中新增渲染函数。
+4. 在 `buildPlatformArtifact` 中生成正确格式的 artifact。
+5. 在前端增加平台选项、名称和说明。
+6. 增加对应预览、复制和下载验收。
+7. 更新本文档中的平台能力和限制。
+
+不要直接复用微信公众号 HTML 作为所有平台输出。应先明确新平台支持什么格式、典型
+内容长度、图片规则和用户后续编辑方式。
+
+### 16.2 新增一种内容块
+
+1. 扩展内部 `ArticleBlock` 联合类型。
+2. 在 `parseMarkdownDocument` 中识别输入。
+3. 分别实现 HTML、Markdown 和纯文本渲染。
+4. 决定无法表达时的降级策略。
+5. 更新 `unsupportedBlocks` 逻辑。
+6. 增加含该块的测试文档和自动化测试。
+
+### 16.3 调整页面入口
+
+路由入口集中在 `client/src/app.tsx`。新增或调整页面时，应同时检查：
+
+- 首页是否仍能清楚解释功能差异。
+- 业务页能否返回首页。
+- 两个功能之间能否直接切换。
+- 妙搭子路径 basename 下是否仍能访问。
+- 移动端按钮和卡片是否可用。
+
+## 17. 后续演进路线
+
+### 第一阶段：把当前 MVP 做稳
+
+1. 补齐 article-export 单元测试、集成测试和前端冒烟测试。
+2. 用真实公众号编辑器完成复制兼容性验收并修正 HTML。
+3. 增加任务过期清理，避免内存 Map 长期增长。
+4. 保存关键阶段耗时和失败原因。
+5. 优化飞书授权失败时的操作指引。
+
+### 第二阶段：提高内容保真度
+
+1. 从轻量 Markdown 解析升级为更完整的飞书块结构映射。
+2. 使用 `docs +media-download` 获取图片并建立本地资源映射。
+3. 设计可控的图片上传或托管流程。
+4. 增强嵌套列表、复杂表格、公式和附件处理。
+5. 为不同公众号风格提供可配置模板。
+
+### 第三阶段：提高任务可靠性
+
+1. 引入持久化 job 与并发队列。
+2. 保存转录稿、源文档快照和 artifacts。
+3. 支持从失败阶段重试。
+4. 增加任务历史、重新下载和再次导出。
+5. 重新设计多人环境下的飞书身份和资源隔离。
+
+### 第四阶段：谨慎评估自动发布
+
+只有当手动导出的使用频率和稿件质量得到验证后，再评估：
+
+1. 微信公众号草稿箱接口。
+2. 图片素材上传与 URL 替换。
+3. 多账号授权。
+4. 草稿、审核、发布状态同步。
+5. 幂等、重试和部分失败处理。
+
+自动发布不是简单地“再接一个 API”，而是一套新的权限与状态系统。它应作为独立阶段
+设计，而不是继续堆进当前 MVP。
+
+## 18. 总结
+
+项目最初解决的是“把视频变成学习笔记”，现在又向前走了一步：把飞书中的成熟内容
+转换成适合不同平台的稿件。两条流水线连接起来后，已经形成从内容获取、知识沉淀到
+人工发布的基础闭环。
+
+这次新增功能带来的经验不只是一组代码：
+
+- 产品上，相关功能也需要按用户任务拆分入口。
+- 架构上，可以复用 job 模式，但不要强行合并不同流水线。
+- 内容上，平台差异应该由独立 renderer 处理。
+- 工程上，先做可控的降级，再逐步追求复杂块和图片保真。
+- 范围上，先验证稿件价值，再承担自动发布的权限和状态复杂度。
+- 文档上，必须区分已经实现、当前限制和未来规划。
+
+当前版本已经能完成“飞书文档 -> 多平台稿件 -> 预览/复制/下载 -> 人工发布”的
+MVP 闭环。下一步最值得投入的不是立刻扩更多平台，而是补齐真实编辑器验收、图片链路、
+自动化测试和任务持久化，把已经跑通的能力做稳。
