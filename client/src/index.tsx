@@ -11,7 +11,11 @@ import './index.css';
 import { createPortal } from 'react-dom';
 import { Toaster } from '@client/src/components/ui/sonner';
 
-const CLIENT_BASE_PATH = process.env.CLIENT_BASE_PATH || '/';
+const configuredBasePath = process.env.CLIENT_BASE_PATH
+  ?.replace(/^['"]|['"]$/g, '')
+  .replace(/\/+$/, '');
+const localAppBasePath = window.location.pathname.match(/^\/app\/app_[^/]+/)?.[0];
+const CLIENT_BASE_PATH = localAppBasePath || configuredBasePath || '/';
 
 const MainApp = () => {
   return (
