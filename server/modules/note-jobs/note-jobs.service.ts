@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -126,7 +126,10 @@ export class NoteJobsService {
       if (!readiness.larkCli) throw new Error('未找到 lark-cli，请先安装并登录飞书');
 
       this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
-      const sourceArgs = this.buildSourceArgs(sourcePlatform, cookieBrowser);
+      const sourceArgs = await this.buildSourceArgs(
+        sourcePlatform,
+        cookieBrowser,
+      );
       const metadataResult = await this.runCommand('yt-dlp', [
         ...sourceArgs,
         '--no-playlist',
@@ -381,10 +384,10 @@ export class NoteJobsService {
     return value as CreateNoteJobRequest['cookieBrowser'];
   }
 
-  private buildSourceArgs(
+  private async buildSourceArgs(
     platform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
-  ): string[] {
+  ): Promise<string[]> {
     const profile = SOURCE_PROFILES[platform];
     const args = [
       '--no-update',
@@ -400,9 +403,38 @@ export class NoteJobsService {
       '3',
     ];
     if (cookieBrowser) {
-      args.push('--cookies-from-browser', cookieBrowser);
+      const browserSpec = await this.resolveCookieBrowserSpec(cookieBrowser);
+      args.push('--cookies-from-browser', browserSpec);
     }
     return args;
+  }
+
+  private async resolveCookieBrowserSpec(
+    browser: NonNullable<CreateNoteJobRequest['cookieBrowser']>,
+  ): Promise<string> {
+    if (browser !== 'chrome') return browser;
+    const localStatePath = join(
+      homedir(),
+      'Library',
+      'Application Support',
+      'Google',
+      'Chrome',
+      'Local State',
+    );
+    try {
+      const localState = JSON.parse(await readFile(localStatePath, 'utf8')) as {
+        profile?: { last_used?: string };
+      };
+      const profile = localState.profile?.last_used;
+      if (profile && /^(Default|Profile \d+)$/u.test(profile)) {
+        this.logger.log(`使用 Chrome Cookie 配置：${profile}`);
+        return `chrome:${profile}`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`无法识别 Chrome 当前配置，将使用默认配置：${message}`);
+    }
+    return browser;
   }
 
   private friendlyDownloadError(
