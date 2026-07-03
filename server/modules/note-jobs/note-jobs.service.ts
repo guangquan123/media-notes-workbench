@@ -190,9 +190,18 @@ export class NoteJobsService {
           day: '2-digit',
         }).format(new Date()),
       });
+      this.update(id, 'summarizing', 82, '笔记已整理，正在生成知识框架图…');
+      const knowledgeMapUrl = await this.generateKnowledgeMap(markdown);
+      const finalMarkdown = knowledgeMapUrl
+        ? this.insertKnowledgeMap(markdown, knowledgeMapUrl)
+        : markdown;
+      const noteTitle = this.extractMarkdownTitle(markdown) || videoTitle;
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
-      const documentUrl = await this.createLarkDocument(videoTitle, markdown);
+      const documentUrl = await this.createLarkDocument(
+        noteTitle,
+        finalMarkdown,
+      );
       this.patch(id, {
         stage: 'completed',
         progress: 100,
@@ -435,8 +444,57 @@ export class NoteJobsService {
     }
   }
 
+  private async generateKnowledgeMap(
+    markdown: string,
+  ): Promise<string | undefined> {
+    const pluginInstanceId = 'note-knowledge-map';
+    const actionKey = 'textToImage';
+    const outputMode = 'unary';
+    const pluginInput = { note_content: markdown };
+    try {
+      const result = (await this.capabilityService
+        .load(pluginInstanceId)
+        .call(actionKey, pluginInput)) as { images?: string[] };
+      const imageUrl = result.images?.find((image) =>
+        /^https?:\/\//u.test(image),
+      );
+      if (!imageUrl) throw new Error('图片插件没有返回有效图片地址');
+      return imageUrl;
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode,
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      return undefined;
+    }
+  }
+
+  private insertKnowledgeMap(markdown: string, imageUrl: string): string {
+    const section = [
+      '## 知识框架图',
+      '',
+      `![知识框架图](${imageUrl})`,
+      '',
+      '> AI 生成的认知地图用于辅助理解，具体知识以正文为准。',
+      '',
+    ].join('\n');
+    const nextSection = markdown.search(/^## 2[.、]\s*/mu);
+    if (nextSection < 0) return `${markdown.trim()}\n\n${section}`;
+    return `${markdown.slice(0, nextSection)}${section}${markdown.slice(nextSection)}`;
+  }
+
+  private extractMarkdownTitle(markdown: string): string | undefined {
+    const title = markdown.match(/^#\s+(.+)$/mu)?.[1].trim();
+    return title || undefined;
+  }
+
   private async createLarkDocument(title: string, markdown: string): Promise<string> {
-    const safeTitle = `学习笔记｜${title}`.slice(0, 120);
+    const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
       'lark-cli',
       [

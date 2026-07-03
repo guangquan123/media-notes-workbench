@@ -1,0 +1,26 @@
+{
+  "id": "note-knowledge-map",
+  "pluginKey": "@official-plugins/ai-text-to-image",
+  "pluginVersion": "1.0.19",
+  "name": "学习笔记知识框架图",
+  "description": "根据学习笔记生成简洁清晰的知识框架信息图",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "note_content": {
+        "type": "string",
+        "description": "已经整理完成的 Markdown 学习笔记"
+      }
+    },
+    "required": [
+      "note_content"
+    ]
+  },
+  "formValue": {
+    "prompt": "根据以下学习笔记生成一张 16:9 横版知识框架信息图。先识别一个中心主题和 4—6 个核心模块，用清晰的中心辐射或从左到右流程布局表达模块之间的依赖、因果、对比或步骤关系。视觉风格：专业编辑信息图、米白纸张背景、深墨色线条、朱红和青绿色作少量强调、充足留白、层级清楚。只使用极少量简短中文标签，每个标签不超过 6 个汉字；不要放长句、段落、人物、产品 Logo、水印或装饰性伪文字。图片应作为学习笔记的认知地图，而不是宣传海报。\n\n学习笔记：\n{{input.note_content}}",
+    "ratio": "16:9",
+    "watermark": false
+  },
+  "createdAt": 1783058000000,
+  "updatedAt": 1783058000000
+}
