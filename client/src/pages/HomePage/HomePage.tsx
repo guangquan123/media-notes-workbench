@@ -14,7 +14,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
-import type { NoteJob, SystemReadiness } from '@shared/api.interface';
+import type {
+  NoteJob,
+  SourcePlatform,
+  SystemReadiness,
+} from '@shared/api.interface';
 
 const stageLabels = [
   ['downloading', '拉取音频', Headphones],
@@ -23,8 +27,20 @@ const stageLabels = [
   ['publishing', '写入飞书', ArrowUpRight],
 ] as const;
 
+const sourcePlatformLabels: Record<SourcePlatform, string> = {
+  bilibili: 'B站',
+  douyin: '抖音',
+};
+
+const sourcePlatformPlaceholders: Record<SourcePlatform, string> = {
+  bilibili: 'https://www.bilibili.com/video/BV...',
+  douyin: 'https://www.douyin.com/video/...',
+};
+
 export default function HomePage() {
   const [url, setUrl] = useState('');
+  const [sourcePlatform, setSourcePlatform] =
+    useState<SourcePlatform>('bilibili');
   const [cookieBrowser, setCookieBrowser] = useState<
     '' | 'chrome' | 'safari' | 'edge' | 'firefox'
   >('');
@@ -75,20 +91,31 @@ export default function HomePage() {
 
   async function start() {
     if (!url.trim()) {
-      toast.error('请先粘贴 B站视频地址');
+      toast.error('请先粘贴视频地址');
       return;
     }
     setSubmitting(true);
     try {
       const created = await createNoteJob({
         url,
+        sourcePlatform,
         cookieBrowser: cookieBrowser || undefined,
       });
       setJob(created);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const responseError = error as {
+        response?: {
+          data?: {
+            error?: {
+              message?: string;
+            };
+            message?: string;
+          };
+        };
+      };
       const message =
-        error?.response?.data?.error?.message ||
-        error?.response?.data?.message ||
+        responseError.response?.data?.error?.message ||
+        responseError.response?.data?.message ||
         '任务创建失败';
       toast.error(message);
     } finally {
@@ -99,6 +126,7 @@ export default function HomePage() {
   function reset() {
     setJob(null);
     setUrl('');
+    setSourcePlatform('bilibili');
   }
 
   return (
@@ -110,7 +138,7 @@ export default function HomePage() {
               <WandSparkles className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">B站学习笔记助手</p>
+              <p className="text-sm font-semibold">视频学习笔记助手</p>
               <p className="text-xs text-black/45">从视频到飞书，一键完成</p>
             </div>
           </div>
@@ -127,12 +155,13 @@ export default function HomePage() {
               把收藏真正变成学会
             </div>
             <h1 className="text-balance text-4xl font-semibold leading-[1.12] tracking-[-0.035em] md:text-6xl">
-              粘贴一个链接，
+              粘贴一个视频链接，
               <br />
               收获一篇好笔记。
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
-              自动提取音频、准确转录、整理重点，并写入你的飞书文档。你只需要负责检查和学习。
+              支持 B站和抖音，自动提取音频、准确转录、整理重点，并写入你的飞书文档。
+              你只需要负责检查和学习。
             </p>
 
             <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -159,18 +188,35 @@ export default function HomePage() {
               <>
                 <div>
                   <p className="text-lg font-semibold tracking-tight">创建学习笔记</p>
-                  <p className="mt-1 text-sm text-black/45">支持 bilibili.com 和 b23.tv 地址</p>
+                  <p className="mt-1 text-sm text-black/45">支持 B站和抖音视频地址</p>
                 </div>
 
                 <div className="mt-7 space-y-5">
                   <label className="block">
-                    <span className="field-label">B站视频地址</span>
+                    <span className="field-label">视频平台</span>
+                    <select
+                      className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
+                      value={sourcePlatform}
+                      onChange={(event) =>
+                        setSourcePlatform(event.target.value as SourcePlatform)
+                      }
+                      disabled={submitting}
+                    >
+                      <option value="bilibili">B站</option>
+                      <option value="douyin">抖音</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="field-label">
+                      {sourcePlatformLabels[sourcePlatform]}视频地址
+                    </span>
                     <div className="relative mt-2">
                       <Input
                         className="h-12 rounded-xl border-black/10 bg-[#fafaf8] pr-12 text-sm shadow-none focus-visible:ring-[#fb7299]/20"
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
-                        placeholder="https://www.bilibili.com/video/BV..."
+                        placeholder={sourcePlatformPlaceholders[sourcePlatform]}
                         disabled={submitting}
                       />
                       <button
@@ -185,7 +231,7 @@ export default function HomePage() {
                   </label>
 
                   <label className="block">
-                    <span className="field-label">B站登录状态来源</span>
+                    <span className="field-label">登录状态来源</span>
                     <select
                       className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
                       value={cookieBrowser}
@@ -208,8 +254,8 @@ export default function HomePage() {
                       <option value="firefox">Firefox</option>
                     </select>
                     <span className="mt-2 block text-xs leading-5 text-black/38">
-                      请选择已登录 B站的浏览器。登录信息由 yt-dlp
-                      在本机读取，只用于向 B站发起本次请求，不会保存到应用。
+                      请选择已登录 {sourcePlatformLabels[sourcePlatform]} 的浏览器。登录信息由
+                      yt-dlp 在本机读取，只用于向当前平台发起本次请求，不会保存到应用。
                     </span>
                   </label>
 
@@ -237,6 +283,9 @@ export default function HomePage() {
                       </p>
                       <p className="mt-1 line-clamp-2 text-sm text-black/45">
                         {job.videoTitle || '正在读取视频信息…'}
+                      </p>
+                      <p className="mt-1 text-xs text-black/35">
+                        来源平台：{sourcePlatformLabels[job.sourcePlatform]}
                       </p>
                     </div>
                     {running && <LoaderCircle className="mt-1 size-5 animate-spin text-[#fb7299]" />}

@@ -1,3 +1,5 @@
+export type SourcePlatform = 'bilibili' | 'douyin';
+
 export type JobStage =
   | 'queued'
   | 'checking'
@@ -10,6 +12,7 @@ export type JobStage =
 
 export interface CreateNoteJobRequest {
   url: string;
+  sourcePlatform?: SourcePlatform;
   cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
 }
 
@@ -18,6 +21,7 @@ export interface NoteJob {
   stage: JobStage;
   progress: number;
   message: string;
+  sourcePlatform: SourcePlatform;
   videoTitle?: string;
   documentUrl?: string;
   error?: string;

@@ -15,10 +15,36 @@ import type {
   CreateNoteJobRequest,
   JobStage,
   NoteJob,
+  SourcePlatform,
   SystemReadiness,
 } from '@shared/api.interface';
 
 type CommandResult = { stdout: string; stderr: string };
+
+interface SourceProfile {
+  readonly label: string;
+  readonly urlHosts: readonly string[];
+  readonly referer: string;
+  readonly origin: string;
+  readonly urlErrorMessage: string;
+}
+
+const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
+  bilibili: {
+    label: 'B站',
+    urlHosts: ['bilibili.com', 'b23.tv'],
+    referer: 'https://www.bilibili.com/',
+    origin: 'https://www.bilibili.com',
+    urlErrorMessage: '请输入有效的 B站视频地址',
+  },
+  douyin: {
+    label: '抖音',
+    urlHosts: ['douyin.com', 'iesdouyin.com', 'v.douyin.com'],
+    referer: 'https://www.douyin.com/',
+    origin: 'https://www.douyin.com',
+    urlErrorMessage: '请输入有效的抖音视频地址',
+  },
+};
 
 @Injectable()
 export class NoteJobsService {
@@ -53,7 +79,8 @@ export class NoteJobsService {
   }
 
   create(input: CreateNoteJobRequest): NoteJob {
-    const url = this.validateBilibiliUrl(input.url);
+    const sourcePlatform = this.resolveSourcePlatform(input.sourcePlatform);
+    const url = this.validateSourceUrl(input.url, sourcePlatform);
     const cookieBrowser = this.validateCookieBrowser(input.cookieBrowser);
 
     const now = new Date().toISOString();
@@ -62,11 +89,12 @@ export class NoteJobsService {
       stage: 'queued',
       progress: 2,
       message: '任务已创建，正在准备…',
+      sourcePlatform,
       createdAt: now,
       updatedAt: now,
     };
     this.jobs.set(job.id, job);
-    void this.run(job.id, url, cookieBrowser);
+    void this.run(job.id, url, sourcePlatform, cookieBrowser);
     return job;
   }
 
@@ -79,9 +107,10 @@ export class NoteJobsService {
   private async run(
     id: string,
     url: string,
+    sourcePlatform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ) {
-    const workDir = await mkdtemp(join(tmpdir(), 'bilibili-note-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'video-note-'));
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
@@ -92,9 +121,9 @@ export class NoteJobsService {
       if (!readiness.larkCli) throw new Error('未找到 lark-cli，请先安装并登录飞书');
 
       this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
-      const bilibiliArgs = this.buildBilibiliArgs(cookieBrowser);
+      const sourceArgs = this.buildSourceArgs(sourcePlatform, cookieBrowser);
       const metadataResult = await this.runCommand('yt-dlp', [
-        ...bilibiliArgs,
+        ...sourceArgs,
         '--no-playlist',
         '--dump-single-json',
         '--skip-download',
@@ -106,12 +135,12 @@ export class NoteJobsService {
         webpage_url?: string;
         duration_string?: string;
       };
-      const videoTitle = metadata.title || 'B站学习笔记';
+      const videoTitle = metadata.title || `${this.getSourceLabel(sourcePlatform)}学习笔记`;
       this.patch(id, { videoTitle });
 
       const audioTemplate = join(workDir, 'audio.%(ext)s');
       await this.runCommand('yt-dlp', [
-        ...bilibiliArgs,
+        ...sourceArgs,
         '--no-playlist',
         '--extract-audio',
         '--audio-format',
@@ -147,6 +176,7 @@ export class NoteJobsService {
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
         sourceUrl: metadata.webpage_url || url,
+        sourcePlatform,
         generatedDate: new Intl.DateTimeFormat('zh-CN', {
           timeZone: 'Asia/Shanghai',
           year: 'numeric',
@@ -161,11 +191,16 @@ export class NoteJobsService {
         stage: 'completed',
         progress: 100,
         message: '完成！飞书学习笔记已创建。',
+        sourcePlatform,
         documentUrl,
       });
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : '未知错误';
-      const message = this.friendlyDownloadError(rawMessage, cookieBrowser);
+      const message = this.friendlyDownloadError(
+        rawMessage,
+        sourcePlatform,
+        cookieBrowser,
+      );
       this.logger.error(`任务 ${id} 失败: ${message}`);
       this.patch(id, {
         stage: 'failed',
@@ -225,11 +260,13 @@ export class NoteJobsService {
     uploader: string;
     duration: string;
     sourceUrl: string;
+    sourcePlatform: SourcePlatform;
     generatedDate: string;
   }): Promise<string> {
     const pluginInstanceId = 'bilibili-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {
+      source_platform: this.getSourceLabel(input.sourcePlatform),
       source_text: input.transcript,
       video_title: input.title,
       uploader: input.uploader,
@@ -248,13 +285,15 @@ export class NoteJobsService {
       if (!markdown.trim()) throw new Error('妙搭内置 AI 没有返回学习笔记');
       return markdown;
     } catch (error) {
-      this.logger.error('pluginInstance call failed', {
-        pluginInstanceId,
-        actionKey,
-        outputMode: 'stream',
-        inputKeys: Object.keys(pluginInput),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      this.logger.error(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode: 'stream',
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
       throw new Error(
         `妙搭内置 AI 生成笔记失败：${error instanceof Error ? error.message : '未知错误'}`,
       );
@@ -291,19 +330,34 @@ export class NoteJobsService {
     return parsed.data.document.url;
   }
 
-  private validateBilibiliUrl(raw: string): string {
+  private resolveSourcePlatform(value?: string): SourcePlatform {
+    if (!value || value === 'bilibili') return 'bilibili';
+    if (value === 'douyin') return 'douyin';
+    throw new BadRequestException('不支持的视频平台');
+  }
+
+  private getSourceLabel(platform: SourcePlatform): string {
+    return SOURCE_PROFILES[platform].label;
+  }
+
+  private validateSourceUrl(raw: string, platform: SourcePlatform): string {
     try {
       const url = new URL(raw.trim());
       const hostname = url.hostname.toLowerCase();
-      const allowed =
-        hostname === 'bilibili.com' ||
-        hostname.endsWith('.bilibili.com') ||
-        hostname === 'b23.tv' ||
-        hostname.endsWith('.b23.tv');
-      if (!allowed || !['http:', 'https:'].includes(url.protocol)) throw new Error();
+      const profile = SOURCE_PROFILES[platform];
+      const allowed = profile.urlHosts.some(
+        (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`),
+      );
+      if (!allowed || !['http:', 'https:'].includes(url.protocol)) {
+        throw new Error(profile.urlErrorMessage);
+      }
       return url.toString();
-    } catch {
-      throw new BadRequestException('请输入有效的 B站视频地址');
+    } catch (error) {
+      const profile = SOURCE_PROFILES[platform];
+      if (error instanceof Error && error.message) {
+        throw new BadRequestException(error.message);
+      }
+      throw new BadRequestException(profile.urlErrorMessage);
     }
   }
 
@@ -318,15 +372,17 @@ export class NoteJobsService {
     return value as CreateNoteJobRequest['cookieBrowser'];
   }
 
-  private buildBilibiliArgs(
+  private buildSourceArgs(
+    platform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ): string[] {
+    const profile = SOURCE_PROFILES[platform];
     const args = [
       '--no-update',
       '--referer',
-      'https://www.bilibili.com/',
+      profile.referer,
       '--add-header',
-      'Origin:https://www.bilibili.com',
+      `Origin:${profile.origin}`,
       '--user-agent',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
       '--retries',
@@ -342,12 +398,14 @@ export class NoteJobsService {
 
   private friendlyDownloadError(
     message: string,
+    platform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ): string {
+    const profile = SOURCE_PROFILES[platform];
     if (message.includes('HTTP Error 412')) {
       return cookieBrowser
-        ? `B站仍拒绝了请求（HTTP 412）。请先在 ${cookieBrowser} 中打开 bilibili.com 并确认已登录，然后关闭无痕窗口后重试。`
-        : 'B站拒绝了匿名请求（HTTP 412）。请在页面选择一个已经登录 B站的浏览器后重试。';
+        ? `${profile.label}仍拒绝了请求（HTTP 412）。请先在 ${cookieBrowser} 中打开 ${profile.label} 并确认已登录，然后关闭无痕窗口后重试。`
+        : `${profile.label}拒绝了匿名请求（HTTP 412）。请在页面选择一个已经登录 ${profile.label} 的浏览器后重试。`;
     }
     if (
       message.includes('cookies') &&
@@ -355,7 +413,7 @@ export class NoteJobsService {
         message.includes('decrypt') ||
         message.includes('keyring'))
     ) {
-      return '无法读取浏览器登录状态。请允许终端访问浏览器数据/钥匙串，或改选另一个已登录 B站的浏览器。';
+      return `无法读取浏览器登录状态。请允许终端访问浏览器数据/钥匙串，或改选另一个已登录 ${profile.label} 的浏览器。`;
     }
     return message;
   }
