@@ -147,6 +147,12 @@ export class NoteJobsService {
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
         sourceUrl: metadata.webpage_url || url,
+        generatedDate: new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date()),
       });
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
@@ -219,6 +225,7 @@ export class NoteJobsService {
     uploader: string;
     duration: string;
     sourceUrl: string;
+    generatedDate: string;
   }): Promise<string> {
     const pluginInstanceId = 'bilibili-note-writer';
     const actionKey = 'textGenerate';
@@ -228,6 +235,7 @@ export class NoteJobsService {
       uploader: input.uploader,
       duration: input.duration,
       source_url: input.sourceUrl,
+      generated_date: input.generatedDate,
     };
     try {
       const result = (await this.capabilityService
