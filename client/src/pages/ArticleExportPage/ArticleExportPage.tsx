@@ -129,8 +129,9 @@ export default function ArticleExportPage() {
       } catch {
         if (cancelled) return;
         failedAttempts += 1;
-        setStartupDelayed(failedAttempts >= 10);
-        retryTimer = window.setTimeout(checkReadiness, 1500);
+        setStartupDelayed(failedAttempts >= 3);
+        const retryDelay = Math.min(1500 * 2 ** (failedAttempts - 1), 10000);
+        retryTimer = window.setTimeout(checkReadiness, retryDelay);
       }
     };
 

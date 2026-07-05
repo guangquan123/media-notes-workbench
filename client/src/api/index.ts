@@ -10,14 +10,63 @@ import type {
   SystemReadiness,
 } from '@shared/api.interface';
 
+interface CachedRequestState<T> {
+  promise: Promise<T> | null;
+  resolvedAt: number;
+  value: T | null;
+}
+
+const READINESS_TIMEOUT_MS = 12000;
+const JOB_READ_TIMEOUT_MS = 8000;
+const JOB_WRITE_TIMEOUT_MS = 15000;
+const READINESS_CACHE_TTL_MS = 30000;
+
+function createCachedRequestState<T>(): CachedRequestState<T> {
+  return {
+    promise: null,
+    resolvedAt: 0,
+    value: null,
+  };
+}
+
+async function requestWithCache<T>(
+  state: CachedRequestState<T>,
+  request: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  if (state.value && now - state.resolvedAt < READINESS_CACHE_TTL_MS) {
+    return state.value;
+  }
+  if (state.promise) {
+    return state.promise;
+  }
+
+  state.promise = request()
+    .then((value: T) => {
+      state.value = value;
+      state.resolvedAt = Date.now();
+      return value;
+    })
+    .finally(() => {
+      state.promise = null;
+    });
+
+  return state.promise;
+}
+
+const noteJobsReadinessState = createCachedRequestState<SystemReadiness>();
+const articleExportReadinessState =
+  createCachedRequestState<ArticleExportReadiness>();
 
 export async function getReadiness(): Promise<SystemReadiness> {
-  const response = await axiosForBackend({
-    url: '/api/note-jobs/readiness',
-    method: 'GET',
-    timeout: 4000,
+  return requestWithCache(noteJobsReadinessState, async () => {
+    const response = await axiosForBackend({
+      url: '/api/note-jobs/readiness',
+      method: 'GET',
+      timeout: READINESS_TIMEOUT_MS,
+    });
+    return response.data;
   });
-  return response.data;
 }
 
 export async function createNoteJob(input: CreateNoteJobRequest): Promise<NoteJob> {
@@ -26,7 +75,7 @@ export async function createNoteJob(input: CreateNoteJobRequest): Promise<NoteJo
       url: '/api/note-jobs',
       method: 'POST',
       data: input,
-      timeout: 10000,
+      timeout: JOB_WRITE_TIMEOUT_MS,
     });
     return response.data;
   } catch (error) {
@@ -39,18 +88,20 @@ export async function getNoteJob(id: string): Promise<NoteJob> {
   const response = await axiosForBackend({
     url: `/api/note-jobs/${id}`,
     method: 'GET',
-    timeout: 5000,
+    timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
 }
 
 export async function getArticleExportReadiness(): Promise<ArticleExportReadiness> {
-  const response = await axiosForBackend({
-    url: '/api/article-export/readiness',
-    method: 'GET',
-    timeout: 4000,
+  return requestWithCache(articleExportReadinessState, async () => {
+    const response = await axiosForBackend({
+      url: '/api/article-export/readiness',
+      method: 'GET',
+      timeout: READINESS_TIMEOUT_MS,
+    });
+    return response.data;
   });
-  return response.data;
 }
 
 export async function createArticleExportJob(
@@ -61,7 +112,7 @@ export async function createArticleExportJob(
       url: '/api/article-export',
       method: 'POST',
       data: input,
-      timeout: 10000,
+      timeout: JOB_WRITE_TIMEOUT_MS,
     });
     return response.data;
   } catch (error) {
@@ -74,7 +125,7 @@ export async function getArticleExportJob(id: string): Promise<ArticleExportJob>
   const response = await axiosForBackend({
     url: `/api/article-export/${id}`,
     method: 'GET',
-    timeout: 5000,
+    timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
 }
@@ -86,7 +137,7 @@ export async function getArticleExportArtifact(
   const response = await axiosForBackend({
     url: `/api/article-export/${id}/artifacts/${platform}`,
     method: 'GET',
-    timeout: 5000,
+    timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
 }
