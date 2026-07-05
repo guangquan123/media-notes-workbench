@@ -218,7 +218,7 @@ export default function ConversionHistoryPage() {
                       </div>
                     </div>
 
-                    <div className="flex md:justify-end">
+                    <div className="flex flex-col gap-2 md:items-end">
                       {record.documentUrl ? (
                         <Button
                           asChild
@@ -229,11 +229,28 @@ export default function ConversionHistoryPage() {
                             rel="noopener noreferrer"
                             target="_blank"
                           >
-                            查看飞书笔记
+                            查看总结笔记
                             <ArrowUpRight className="size-4" />
                           </a>
                         </Button>
-                      ) : (
+                      ) : null}
+                      {record.rawDocumentUrl ? (
+                        <Button
+                          asChild
+                          className="w-full rounded-xl border-black/10 bg-white text-black/72 hover:bg-black/5 md:w-auto"
+                          variant="outline"
+                        >
+                          <a
+                            href={record.rawDocumentUrl}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            查看原文
+                            <ArrowUpRight className="size-4" />
+                          </a>
+                        </Button>
+                      ) : null}
+                      {!record.documentUrl && !record.rawDocumentUrl && (
                         <span className="text-xs text-black/35">
                           {record.status === 'processing'
                             ? '完成后可查看'

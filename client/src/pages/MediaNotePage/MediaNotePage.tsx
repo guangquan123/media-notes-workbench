@@ -477,7 +477,23 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                         )
                       }
                     >
-                      打开飞书学习笔记
+                      打开总结笔记
+                      <ArrowUpRight className="ml-2 size-4" />
+                    </Button>
+                  )}
+                  {job?.rawDocumentUrl && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
+                      onClick={() =>
+                        window.open(
+                          job.rawDocumentUrl,
+                          '_blank',
+                          'noopener,noreferrer',
+                        )
+                      }
+                      variant="outline"
+                    >
+                      查看原始转录
                       <ArrowUpRight className="ml-2 size-4" />
                     </Button>
                   )}

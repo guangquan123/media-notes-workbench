@@ -24,6 +24,7 @@ interface FinishRecordInput {
   documentUrl?: string;
   error?: string;
   jobId: string;
+  rawDocumentUrl?: string;
   startedAt: Date;
   status: Exclude<ConversionStatus, 'processing'>;
 }
@@ -38,6 +39,7 @@ interface ConversionRecordRow {
   durationMs: number | null;
   startedAt: Date;
   completedAt: Date | null;
+  rawDocumentUrl: string | null;
   documentUrl: string | null;
 }
 
@@ -86,6 +88,7 @@ export class NoteHistoryService {
         documentUrl: input.documentUrl,
         durationMs,
         error: input.error?.slice(0, 4000),
+        rawDocumentUrl: input.rawDocumentUrl,
         status: input.status,
       })
       .where(eq(noteConversionRecords.jobId, input.jobId));
@@ -103,6 +106,7 @@ export class NoteHistoryService {
         durationMs: noteConversionRecords.durationMs,
         startedAt: noteConversionRecords.startedAt,
         completedAt: noteConversionRecords.completedAt,
+        rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
         documentUrl: noteConversionRecords.documentUrl,
       })
       .from(noteConversionRecords)
@@ -122,10 +126,23 @@ export class NoteHistoryService {
         durationLabel: formatDuration(row.durationMs),
         startedAt: row.startedAt.toISOString(),
         completedAt: row.completedAt?.toISOString() || null,
+        rawDocumentUrl: row.rawDocumentUrl,
         documentUrl: row.documentUrl,
       }),
     );
     return { items };
+  }
+
+  async updateRawDocumentUrl(
+    jobId: string,
+    rawDocumentUrl: string,
+  ): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({
+        rawDocumentUrl,
+      })
+      .where(eq(noteConversionRecords.jobId, jobId));
   }
 
   private toSourceType(value: string): NoteSourceType {

@@ -34,6 +34,10 @@ import {
   validateMediaDownloadUrl,
   validateNoteJobRequest,
 } from './note-jobs.utils';
+import {
+  buildRawDocumentTitle,
+  buildRawTranscriptMarkdown,
+} from './note-document.utils';
 import { NoteHistoryService } from './note-history.service';
 
 type CommandResult = { stdout: string; stderr: string };
@@ -214,12 +218,32 @@ export class NoteJobsService {
       const transcript = transcripts.join('\n\n');
       if (!transcript.trim()) throw new Error('转录结果为空');
 
-      this.update(id, 'summarizing', 67, '转录完成，正在检索补充依据…');
+      this.update(id, 'publishing', 66, '转录完成，正在归档原文…');
+      const rawDocumentUrl = await this.createRawTranscriptDocument({
+        duration: metadata.duration_string || '未知',
+        generatedDate: new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date()),
+        sourceLabel,
+        sourceUrl,
+        title: videoTitle,
+        transcript,
+        uploader: metadata.uploader || '未知',
+      });
+      if (rawDocumentUrl) {
+        this.patch(id, { rawDocumentUrl });
+        await this.persistRawDocument(id, rawDocumentUrl);
+      }
+
+      this.update(id, 'summarizing', 70, '原文已归档，正在检索补充依据…');
       const editorResearch = await this.researchEvidence(
         videoTitle,
         transcript,
       );
-      this.update(id, 'summarizing', 72, '依据已整理，正在撰写学习笔记…');
+      this.update(id, 'summarizing', 74, '依据已整理，正在撰写学习笔记…');
       const markdown = await this.summarize({
         transcript,
         editorResearch,
@@ -235,11 +259,14 @@ export class NoteJobsService {
           day: '2-digit',
         }).format(new Date()),
       });
-      this.update(id, 'summarizing', 82, '笔记已整理，正在生成知识框架图…');
+      this.update(id, 'summarizing', 84, '笔记已整理，正在生成知识框架图…');
       const knowledgeMapUrl = await this.generateKnowledgeMap(markdown);
-      const finalMarkdown = knowledgeMapUrl
+      const summaryMarkdown = knowledgeMapUrl
         ? this.insertKnowledgeMap(markdown, knowledgeMapUrl)
         : markdown;
+      const finalMarkdown = rawDocumentUrl
+        ? this.appendRawDocumentReference(summaryMarkdown, rawDocumentUrl)
+        : summaryMarkdown;
       const noteTitle = this.extractMarkdownTitle(markdown) || videoTitle;
       await this.persistTitle(id, noteTitle);
 
@@ -252,10 +279,12 @@ export class NoteJobsService {
         stage: 'completed',
         progress: 100,
         message: '完成！飞书学习笔记已创建。',
+        rawDocumentUrl,
         documentUrl,
       });
       await this.persistFinish(id, {
         status: 'completed',
+        rawDocumentUrl,
         documentUrl,
       });
     } catch (error) {
@@ -275,6 +304,7 @@ export class NoteJobsService {
       });
       await this.persistFinish(id, {
         status: 'failed',
+        rawDocumentUrl: this.jobs.get(id)?.job.rawDocumentUrl,
         error: message,
       });
     } finally {
@@ -797,6 +827,44 @@ export class NoteJobsService {
     return parsed.data.document.url;
   }
 
+  private async createRawTranscriptDocument(input: {
+    duration: string;
+    generatedDate: string;
+    sourceLabel: string;
+    sourceUrl: string;
+    title: string;
+    transcript: string;
+    uploader: string;
+  }): Promise<string | undefined> {
+    const rawTitle = buildRawDocumentTitle(input.title);
+    const rawMarkdown = buildRawTranscriptMarkdown(input);
+    try {
+      return await this.createLarkDocument(rawTitle, rawMarkdown);
+    } catch (error) {
+      this.logger.warn(
+        `创建任务原文档案失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+      return undefined;
+    }
+  }
+
+  private appendRawDocumentReference(
+    markdown: string,
+    rawDocumentUrl: string,
+  ): string {
+    const section = [
+      '## 原文归档',
+      '',
+      `- [查看完整原文](${rawDocumentUrl})`,
+      '',
+      '> 原文文档保留完整转录，可直接复制或下载。',
+      '',
+    ].join('\n');
+    return `${markdown.trim()}\n\n${section}`;
+  }
+
   private resolveSourcePlatform(value?: string): SourcePlatform {
     if (!value || value === 'bilibili') return 'bilibili';
     if (value === 'douyin') return 'douyin';
@@ -963,11 +1031,27 @@ export class NoteJobsService {
     }
   }
 
+  private async persistRawDocument(
+    id: string,
+    rawDocumentUrl: string,
+  ): Promise<void> {
+    try {
+      await this.noteHistoryService.updateRawDocumentUrl(id, rawDocumentUrl);
+    } catch (error) {
+      this.logger.warn(
+        `更新任务 ${id} 的原文链接失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    }
+  }
+
   private async persistFinish(
     id: string,
     result: {
       status: 'completed' | 'failed';
       documentUrl?: string;
+      rawDocumentUrl?: string;
       error?: string;
     },
   ): Promise<void> {
@@ -980,6 +1064,7 @@ export class NoteJobsService {
         completedAt: new Date(),
         status: result.status,
         documentUrl: result.documentUrl,
+        rawDocumentUrl: result.rawDocumentUrl || stored.job.rawDocumentUrl,
         error: result.error,
       });
     } catch (error) {

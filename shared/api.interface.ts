@@ -39,6 +39,7 @@ export interface NoteJob {
   sourceLabel: string;
   mediaFileName?: string;
   videoTitle?: string;
+  rawDocumentUrl?: string;
   documentUrl?: string;
   error?: string;
   createdAt: string;
@@ -69,6 +70,7 @@ export interface NoteConversionRecord {
   durationLabel: string;
   startedAt: string;
   completedAt: string | null;
+  rawDocumentUrl: string | null;
   documentUrl: string | null;
 }
 

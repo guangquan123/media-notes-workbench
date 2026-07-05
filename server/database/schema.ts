@@ -130,6 +130,7 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   completedAt: customTimestamptz("completed_at", { precision: 6 }),
   documentUrl: text("document_url"),
   error: text("error"),
+  rawDocumentUrl: text("raw_document_url"),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)
