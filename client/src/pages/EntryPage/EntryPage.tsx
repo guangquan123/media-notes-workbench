@@ -1,4 +1,12 @@
-import { ArrowRight, BookOpenText, FileText, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpenText,
+  FileAudio,
+  FileText,
+  FileVideo,
+  History,
+  Sparkles,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -18,9 +26,31 @@ const FEATURE_CARDS = [
     description:
       '把 B站和抖音视频整理成结构化学习笔记，适合做视频复盘、课程摘记和知识沉淀。',
     accent: 'from-[#fb7299]/15 to-[#fb7299]/5',
-    badge: '旧入口',
+    badge: '平台视频',
     bullets: ['视频地址粘贴', '自动转录与总结', '写入飞书文档'],
     cta: '进入视频学习笔记',
+  },
+  {
+    href: '/local-video-notes',
+    icon: FileVideo,
+    title: '本地视频学习笔记',
+    description:
+      '上传课程视频、讲座或屏幕录制，自动提取音轨并整理成结构化学习笔记。',
+    accent: 'from-[#e86f3d]/15 to-[#f4a261]/5',
+    badge: '视频文件',
+    bullets: ['独立文件上传', '提取音轨与转写', '实时显示处理进度'],
+    cta: '上传本地视频',
+  },
+  {
+    href: '/audio-notes',
+    icon: FileAudio,
+    title: '录音学习笔记',
+    description:
+      '上传课堂录音、访谈或语音备忘，提炼重点、知识结构和行动项。',
+    accent: 'from-[#168b75]/15 to-[#5db9a5]/5',
+    badge: '录音文件',
+    bullets: ['多种音频格式', '长录音自动切片', '生成飞书学习笔记'],
+    cta: '上传录音文件',
   },
   {
     href: '/article-export',
@@ -50,8 +80,13 @@ export default function EntryPage() {
             </div>
           </div>
           <div className="status-pill is-ready">
-            <span className="status-dot" />
-            两个功能已分离，可自由切换
+            <Link
+              className="inline-flex items-center gap-2"
+              to="/conversion-history"
+            >
+              <History className="size-3.5" />
+              查看转化记录
+            </Link>
           </div>
         </header>
 
@@ -67,8 +102,8 @@ export default function EntryPage() {
               再开始处理内容。
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
-              这里把“视频学习笔记”和“飞书文档多平台导出”拆成两个独立页面。
-              进入后可以随时切换，也可以随时返回到这个入口页。
+              平台视频、本地视频、录音和文章导出各自拥有独立页面。
+              处理链路互不干扰，也能共享稳定的转录与笔记生成能力。
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
@@ -86,6 +121,16 @@ export default function EntryPage() {
                 <Link to="/article-export">
                   <FileText className="size-4" />
                   进入文章导出
+                </Link>
+              </Button>
+              <Button
+                asChild
+                className="h-11 rounded-xl border-black/10 bg-white px-5 text-[#161616]"
+                variant="outline"
+              >
+                <Link to="/conversion-history">
+                  <History className="size-4" />
+                  查看转化记录
                 </Link>
               </Button>
             </div>

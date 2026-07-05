@@ -1,6 +1,31 @@
+/* eslint-disable */
 /** auto generated, do not edit */
-import { pgTable, pgPolicy, uuid, varchar, text, customType } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
+import { sql } from 'drizzle-orm';
+import { index, integer, pgTable, text, uniqueIndex, uuid, varchar, customType } from "drizzle-orm/pg-core"
+
+export const customTimestamptz = customType<{
+  data: Date;
+  driverData: string;
+  config: { precision?: number };
+}>({
+  dataType(config) {
+    const precision = typeof config?.precision !== 'undefined'
+      ? ` (${config.precision})`
+      : '';
+    return `timestamptz${precision}`;
+  },
+  toDriver(value: Date | string | number) {
+    if (value == null) return value as any;
+    if (typeof value === 'number') return new Date(value).toISOString();
+    if (typeof value === 'string') return value;
+    if (value instanceof Date) return value.toISOString();
+    throw new Error('Invalid timestamp value');
+  },
+  fromDriver(value: string | Date): Date {
+    if (value instanceof Date) return value;
+    return new Date(value);
+  },
+});
 
 export const userProfile = customType<{
   data: string;
@@ -39,52 +64,80 @@ export const fileAttachment = customType<{
   },
 });
 
-export const customTimestamptz = customType<{
-  data: Date;
+export function escapeLiteral(str: string): string {
+  return "'" + str.replace(/'/g, "''") + "'";
+}
+
+export const userProfileArray = customType<{
+  data: string[];
   driverData: string;
-  config: { precision?: number};
 }>({
-  dataType(config) {
-    const precision = typeof config?.precision !== 'undefined'
-      ? ` (${config.precision})`
-      : '';
-    return `timestamptz${precision}`;
+  dataType() {
+    return 'user_profile[]';
   },
-  toDriver(value: Date | string | number){
-    if(value == null) return value as any;
-    if (typeof value === 'number') {
-      return new Date(value).toISOString();
+  toDriver(value: string[]) {
+    if (!value || value.length === 0) {
+      return sql`'{}'::user_profile[]`;
     }
-    if(typeof value === 'string') {
-      return value;
-    }
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    throw new Error('Invalid timestamp value');
+    const elements = value.map(id => `ROW(${escapeLiteral(id)})::user_profile`).join(',');
+    return sql.raw(`ARRAY[${elements}]::user_profile[]`);
   },
-  fromDriver(value: string | Date): Date {
-    if(value instanceof Date) return value;
-    return new Date(value);
+  fromDriver(value: string): string[] {
+    if (!value || value === '{}') return [];
+    const inner = value.slice(1, -1);
+    const matches = inner.match(/\([^)]*\)/g) || [];
+    return matches.map(m => m.slice(1, -1).split(',')[0].trim());
   },
 });
 
-/**
- * 以下是模板代码，仅作示例
- */
-// export const record = pgTable("record", {
-// 	id: uuid().defaultRandom().notNull(),
-// 	title: varchar({ length: 255 }).notNull(),
-// 	type: varchar({ length: 255 }).notNull(),
-// 	creator: varchar({ length: 255 }).notNull(),
-// 	speakDate: customTimestamptz("speakDate").notNull(),
-// 	userProfile: userProfile("user_profile").notNull(),
-// 	// System field: Creation time (auto-filled, do not modify)
-// 	createdAt: customTimestamptz("_created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-// 	// System field: Creator (auto-filled, do not modify)
-// 	createdBy: userProfile("_created_by"),
-// 	// System field: Update time (auto-filled, do not modify)
-// 	updatedAt: customTimestamptz("_updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-// 	// System field: Updater (auto-filled, do not modify)
-// 	updatedBy: userProfile("_updated_by"),
-// });
+export const fileAttachmentArray = customType<{
+  data: FileAttachment[];
+  driverData: string;
+}>({
+  dataType() {
+    return 'file_attachment[]';
+  },
+  toDriver(value: FileAttachment[]) {
+    if (!value || value.length === 0) {
+      return sql`'{}'::file_attachment[]`;
+    }
+    const elements = value.map(f =>
+      `ROW(${escapeLiteral(f.bucket_id)},${escapeLiteral(f.file_path)})::file_attachment`
+    ).join(',');
+    return sql.raw(`ARRAY[${elements}]::file_attachment[]`);
+  },
+  fromDriver(value: string): FileAttachment[] {
+    if (!value || value === '{}') return [];
+    const inner = value.slice(1, -1);
+    const matches = inner.match(/\([^)]*\)/g) || [];
+    return matches.map(m => {
+      const [bucketId, filePath] = m.slice(1, -1).split(',');
+      return { bucket_id: bucketId.trim(), file_path: filePath.trim() };
+    });
+  },
+});
+
+export const noteConversionRecords = pgTable("note_conversion_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").notNull().unique(),
+  ownerId: userProfile("owner_id").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  sourceType: varchar("source_type", { length: 32 }).notNull(),
+  sourceLabel: varchar("source_label", { length: 64 }).notNull(),
+  status: varchar("status", { length: 32 }).notNull(),
+  durationMs: integer("duration_ms"),
+  startedAt: customTimestamptz("started_at", { precision: 6 }).notNull(),
+  completedAt: customTimestamptz("completed_at", { precision: 6 }),
+  documentUrl: text("document_url"),
+  error: text("error"),
+  // System field: Creation time (auto-filled, do not modify)
+  createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  // System field: Update time (auto-filled, do not modify)
+  updatedAt: customTimestamptz("_updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_conversion_records_job_id_key").on(table.jobId),
+  index("note_conversion_records_owner_completed_idx").on(table.ownerId, table.completedAt, table.startedAt),
+]);
+
+// table aliases
+export const noteConversionRecordsTable = noteConversionRecords;

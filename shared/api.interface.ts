@@ -1,8 +1,12 @@
 export type SourcePlatform = 'bilibili' | 'douyin';
 
+export type NoteSourceType = 'platform' | 'video' | 'audio';
+
 export type JobStage =
   | 'queued'
+  | 'uploading'
   | 'checking'
+  | 'preparing'
   | 'downloading'
   | 'transcribing'
   | 'summarizing'
@@ -10,10 +14,19 @@ export type JobStage =
   | 'completed'
   | 'failed';
 
+export interface UploadedMediaInput {
+  downloadUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
 export interface CreateNoteJobRequest {
-  url: string;
+  sourceType?: NoteSourceType;
+  url?: string;
   sourcePlatform?: SourcePlatform;
   cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
+  media?: UploadedMediaInput;
 }
 
 export interface NoteJob {
@@ -21,7 +34,10 @@ export interface NoteJob {
   stage: JobStage;
   progress: number;
   message: string;
-  sourcePlatform: SourcePlatform;
+  sourceType: NoteSourceType;
+  sourcePlatform?: SourcePlatform;
+  sourceLabel: string;
+  mediaFileName?: string;
   videoTitle?: string;
   documentUrl?: string;
   error?: string;
@@ -36,6 +52,28 @@ export interface SystemReadiness {
   whisperModel: boolean;
   larkCli: boolean;
   ready: boolean;
+  platformReady: boolean;
+  mediaReady: boolean;
+}
+
+export type ConversionStatus = 'processing' | 'completed' | 'failed';
+
+export interface NoteConversionRecord {
+  id: string;
+  jobId: string;
+  title: string;
+  sourceType: NoteSourceType;
+  sourceLabel: string;
+  status: ConversionStatus;
+  durationMs: number | null;
+  durationLabel: string;
+  startedAt: string;
+  completedAt: string | null;
+  documentUrl: string | null;
+}
+
+export interface NoteConversionHistoryResponse {
+  items: NoteConversionRecord[];
 }
 
 export type ArticlePlatform = 'source' | 'wechat' | 'zhihu' | 'douyin';

@@ -6,6 +6,7 @@ import type {
   ArticleExportReadiness,
   CreateArticleExportJobRequest,
   CreateNoteJobRequest,
+  NoteConversionHistoryResponse,
   NoteJob,
   SystemReadiness,
 } from '@shared/api.interface';
@@ -87,6 +88,15 @@ export async function createNoteJob(input: CreateNoteJobRequest): Promise<NoteJo
 export async function getNoteJob(id: string): Promise<NoteJob> {
   const response = await axiosForBackend({
     url: `/api/note-jobs/${id}`,
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getNoteConversionHistory(): Promise<NoteConversionHistoryResponse> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/history',
     method: 'GET',
     timeout: JOB_READ_TIMEOUT_MS,
   });

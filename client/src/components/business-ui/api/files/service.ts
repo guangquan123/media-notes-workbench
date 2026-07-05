@@ -18,11 +18,30 @@ export async function uploadFile(file: File): Promise<UploadFileData> {
   if (result.error) {
     throw result.error;
   }
+  const signedUrlResult = await bucket.createSignedUrl(
+    result.data.file_path,
+    60 * 60,
+  );
+  if (signedUrlResult.error) {
+    await bucket.remove([result.data.file_path]);
+    throw signedUrlResult.error;
+  }
 
   return {
     id: result.data.id,
     filePath: result.data.file_path,
     bucketId: result.data.bucket_id,
-    url: result.data.download_url,
+    url: signedUrlResult.data.signedUrl,
   };
+}
+
+export async function deleteUploadedFile(
+  file: Pick<UploadFileData, 'bucketId' | 'filePath'>,
+): Promise<void> {
+  const dataloom = await getDataloom();
+  const bucket = dataloom.storage.from(file.bucketId);
+  const result = await bucket.remove([file.filePath]);
+  if (result.error) {
+    throw result.error;
+  }
 }

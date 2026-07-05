@@ -7,17 +7,34 @@ import {
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import {
+  access,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import type {
   CreateNoteJobRequest,
   JobStage,
   NoteJob,
+  NoteSourceType,
   SourcePlatform,
   SystemReadiness,
+  UploadedMediaInput,
 } from '@shared/api.interface';
+import {
+  validateMediaDownloadUrl,
+  validateNoteJobRequest,
+} from './note-jobs.utils';
+import { NoteHistoryService } from './note-history.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -35,6 +52,11 @@ interface SourceProfile {
   readonly referer: string;
   readonly origin: string;
   readonly urlErrorMessage: string;
+}
+
+interface StoredNoteJob {
+  job: NoteJob;
+  ownerId: string;
 }
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
@@ -57,7 +79,7 @@ const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
 @Injectable()
 export class NoteJobsService {
   private readonly logger = new Logger(NoteJobsService.name);
-  private readonly jobs = new Map<string, NoteJob>();
+  private readonly jobs = new Map<string, StoredNoteJob>();
   private readonly whisperModelPath = join(
     process.cwd(),
     'models',
@@ -66,6 +88,7 @@ export class NoteJobsService {
 
   constructor(
     @Inject() private readonly capabilityService: CapabilityService,
+    private readonly noteHistoryService: NoteHistoryService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -82,14 +105,32 @@ export class NoteJobsService {
       whisperCli,
       whisperModel,
       larkCli,
-      ready: ytDlp && ffmpeg && whisperCli && whisperModel && larkCli,
+      ready: ffmpeg && whisperCli && whisperModel && larkCli,
+      platformReady: ytDlp && ffmpeg && whisperCli && whisperModel && larkCli,
+      mediaReady: ffmpeg && whisperCli && whisperModel && larkCli,
     };
   }
 
-  create(input: CreateNoteJobRequest): NoteJob {
-    const sourcePlatform = this.resolveSourcePlatform(input.sourcePlatform);
-    const url = this.validateSourceUrl(input.url, sourcePlatform);
-    const cookieBrowser = this.validateCookieBrowser(input.cookieBrowser);
+  async create(
+    input: CreateNoteJobRequest,
+    ownerId: string,
+  ): Promise<NoteJob> {
+    const validatedInput = validateNoteJobRequest(input);
+    const sourceType: NoteSourceType = validatedInput.sourceType;
+    const sourcePlatform =
+      sourceType === 'platform'
+        ? this.resolveSourcePlatform(input.sourcePlatform)
+        : undefined;
+    const sourceLabel =
+      sourceType === 'platform' && sourcePlatform
+        ? this.getSourceLabel(sourcePlatform)
+        : sourceType === 'video'
+          ? '本地视频'
+          : '录音文件';
+    const cookieBrowser =
+      sourceType === 'platform'
+        ? this.validateCookieBrowser(input.cookieBrowser)
+        : undefined;
 
     const now = new Date().toISOString();
     const job: NoteJob = {
@@ -97,67 +138,65 @@ export class NoteJobsService {
       stage: 'queued',
       progress: 2,
       message: '任务已创建，正在准备…',
+      sourceType,
       sourcePlatform,
+      sourceLabel,
+      mediaFileName:
+        validatedInput.sourceType === 'platform'
+          ? undefined
+          : validatedInput.media.fileName,
       createdAt: now,
       updatedAt: now,
     };
-    this.jobs.set(job.id, job);
-    void this.run(job.id, url, sourcePlatform, cookieBrowser);
+    await this.noteHistoryService.create(job, ownerId);
+    this.jobs.set(job.id, { job, ownerId });
+    void this.run(job.id, validatedInput, sourcePlatform, cookieBrowser);
     return job;
   }
 
-  get(id: string): NoteJob {
-    const job = this.jobs.get(id);
-    if (!job) throw new NotFoundException('任务不存在或服务已重启');
-    return job;
+  get(id: string, ownerId: string): NoteJob {
+    const stored: StoredNoteJob | undefined = this.jobs.get(id);
+    if (!stored || stored.ownerId !== ownerId) {
+      throw new NotFoundException('任务不存在或服务已重启');
+    }
+    return stored.job;
   }
 
   private async run(
     id: string,
-    url: string,
-    sourcePlatform: SourcePlatform,
+    input: ReturnType<typeof validateNoteJobRequest>,
+    sourcePlatform?: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ) {
     const workDir = await mkdtemp(join(tmpdir(), 'video-note-'));
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
-      if (!readiness.ytDlp) throw new Error('未找到 yt-dlp，请先安装 yt-dlp');
+      if (input.sourceType === 'platform' && !readiness.ytDlp) {
+        throw new Error('未找到 yt-dlp，请先安装 yt-dlp');
+      }
       if (!readiness.ffmpeg) throw new Error('未找到 ffmpeg，请先安装 ffmpeg');
       if (!readiness.whisperCli) throw new Error('未找到 whisper-cli，请先安装 whisper-cpp');
       if (!readiness.whisperModel) throw new Error('未找到本机 Whisper 模型');
       if (!readiness.larkCli) throw new Error('未找到 lark-cli，请先安装并登录飞书');
 
-      this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
-      const sourceArgs =
-        sourcePlatform === 'bilibili'
-          ? await this.buildSourceArgs(sourcePlatform, cookieBrowser)
-          : [];
-      const metadata =
-        sourcePlatform === 'douyin'
-          ? await this.getDouyinMetadata(url)
-          : await this.getYtDlpMetadata(url, sourceArgs);
-      const videoTitle = metadata.title || `${this.getSourceLabel(sourcePlatform)}学习笔记`;
-      this.patch(id, { videoTitle });
-
-      const audioPath = join(workDir, 'audio.mp3');
-      if (sourcePlatform === 'douyin' && metadata.mediaUrl) {
-        await this.extractDouyinAudio(metadata.mediaUrl, audioPath);
-      } else {
-        const audioTemplate = join(workDir, 'audio.%(ext)s');
-        await this.runCommand('yt-dlp', [
-          ...sourceArgs,
-          '--no-playlist',
-          '--extract-audio',
-          '--audio-format',
-          'mp3',
-          '--audio-quality',
-          '5',
-          '--output',
-          audioTemplate,
-          url,
-        ]);
+      if (input.sourceType === 'platform' && !sourcePlatform) {
+        throw new Error('视频平台信息不完整');
       }
+      const preparedMedia =
+        input.sourceType === 'platform'
+          ? await this.preparePlatformMedia(
+              id,
+              workDir,
+              input.url,
+              sourcePlatform,
+              cookieBrowser,
+            )
+          : await this.prepareUploadedMedia(id, workDir, input);
+      const { audioPath, metadata, sourceUrl, sourceLabel } = preparedMedia;
+      const videoTitle = metadata.title || `${sourceLabel}学习笔记`;
+      this.patch(id, { videoTitle });
+      await this.persistTitle(id, videoTitle);
       this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
       const audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
       const transcripts: string[] = [];
@@ -187,8 +226,8 @@ export class NoteJobsService {
         title: videoTitle,
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
-        sourceUrl: metadata.webpage_url || url,
-        sourcePlatform,
+        sourceUrl,
+        sourceLabel,
         generatedDate: new Intl.DateTimeFormat('zh-CN', {
           timeZone: 'Asia/Shanghai',
           year: 'numeric',
@@ -202,6 +241,7 @@ export class NoteJobsService {
         ? this.insertKnowledgeMap(markdown, knowledgeMapUrl)
         : markdown;
       const noteTitle = this.extractMarkdownTitle(markdown) || videoTitle;
+      await this.persistTitle(id, noteTitle);
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
       const documentUrl = await this.createLarkDocument(
@@ -212,25 +252,181 @@ export class NoteJobsService {
         stage: 'completed',
         progress: 100,
         message: '完成！飞书学习笔记已创建。',
-        sourcePlatform,
+        documentUrl,
+      });
+      await this.persistFinish(id, {
+        status: 'completed',
         documentUrl,
       });
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : '未知错误';
-      const message = this.friendlyDownloadError(
-        rawMessage,
-        sourcePlatform,
-        cookieBrowser,
-      );
+      const message = sourcePlatform
+        ? this.friendlyDownloadError(
+            rawMessage,
+            sourcePlatform,
+            cookieBrowser,
+          )
+        : rawMessage;
       this.logger.error(`任务 ${id} 失败: ${message}`);
       this.patch(id, {
         stage: 'failed',
         message: '处理失败',
         error: message,
       });
+      await this.persistFinish(id, {
+        status: 'failed',
+        error: message,
+      });
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  private async preparePlatformMedia(
+    id: string,
+    workDir: string,
+    url: string,
+    sourcePlatform: SourcePlatform,
+    cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
+  ): Promise<{
+    audioPath: string;
+    metadata: VideoMetadata;
+    sourceUrl: string;
+    sourceLabel: string;
+  }> {
+    this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
+    const sourceArgs: string[] =
+      sourcePlatform === 'bilibili'
+        ? await this.buildSourceArgs(sourcePlatform, cookieBrowser)
+        : [];
+    const metadata: VideoMetadata =
+      sourcePlatform === 'douyin'
+        ? await this.getDouyinMetadata(url)
+        : await this.getYtDlpMetadata(url, sourceArgs);
+    const audioPath: string = join(workDir, 'audio.mp3');
+    if (sourcePlatform === 'douyin' && metadata.mediaUrl) {
+      await this.extractDouyinAudio(metadata.mediaUrl, audioPath);
+    } else {
+      await this.runCommand('yt-dlp', [
+        ...sourceArgs,
+        '--no-playlist',
+        '--extract-audio',
+        '--audio-format',
+        'mp3',
+        '--audio-quality',
+        '5',
+        '--output',
+        join(workDir, 'audio.%(ext)s'),
+        url,
+      ]);
+    }
+    return {
+      audioPath,
+      metadata,
+      sourceUrl: metadata.webpage_url || url,
+      sourceLabel: this.getSourceLabel(sourcePlatform),
+    };
+  }
+
+  private async prepareUploadedMedia(
+    id: string,
+    workDir: string,
+    input: Exclude<
+      ReturnType<typeof validateNoteJobRequest>,
+      { sourceType: 'platform' }
+    >,
+  ): Promise<{
+    audioPath: string;
+    metadata: VideoMetadata;
+    sourceUrl: string;
+    sourceLabel: string;
+  }> {
+    const sourceLabel: string =
+      input.sourceType === 'video' ? '本地视频' : '录音文件';
+    this.update(id, 'preparing', 14, `正在读取${sourceLabel}…`);
+    const extension: string =
+      input.media.fileName.split('.').pop()?.replace(/[^a-z0-9]/giu, '') ||
+      'media';
+    const sourcePath: string = join(workDir, `source.${extension}`);
+    await this.downloadUploadedMedia(input.media, sourcePath);
+
+    const audioPath: string = join(workDir, 'audio.mp3');
+    this.update(
+      id,
+      'preparing',
+      30,
+      input.sourceType === 'video'
+        ? '视频已上传，正在提取音轨…'
+        : '录音已上传，正在统一音频格式…',
+    );
+    await this.runCommand('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      sourcePath,
+      '-vn',
+      '-codec:a',
+      'libmp3lame',
+      '-q:a',
+      '5',
+      '-y',
+      audioPath,
+    ]);
+    return {
+      audioPath,
+      metadata: {
+        title: input.media.fileName.replace(/[.][^.]+$/u, ''),
+        uploader: '本地文件',
+      },
+      sourceUrl: '用户上传的本地文件',
+      sourceLabel,
+    };
+  }
+
+  private async downloadUploadedMedia(
+    media: UploadedMediaInput,
+    destination: string,
+  ): Promise<void> {
+    let currentUrl: URL = validateMediaDownloadUrl(media.downloadUrl);
+    let response: Response | undefined;
+    for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
+      response = await fetch(currentUrl, { redirect: 'manual' });
+      if (response.status < 300 || response.status >= 400) break;
+      const location: string | null = response.headers.get('location');
+      if (!location || redirectCount === 5) {
+        throw new Error('上传文件重定向地址无效');
+      }
+      currentUrl = validateMediaDownloadUrl(
+        new URL(location, currentUrl).toString(),
+      );
+    }
+    if (!response) {
+      throw new Error('无法读取上传文件');
+    }
+    if (!response.ok) {
+      throw new Error(`读取上传文件失败（HTTP ${response.status}）`);
+    }
+    if (!response.body) {
+      throw new Error('上传文件没有可读取的内容');
+    }
+    const maximumBytes: number = Math.min(media.fileSize + 1024, 1024 ** 3);
+    let receivedBytes = 0;
+    const sizeLimiter = new Transform({
+      transform(chunk: Buffer, _encoding: BufferEncoding, callback) {
+        receivedBytes += chunk.length;
+        if (receivedBytes > maximumBytes) {
+          callback(new Error('上传文件大小与声明不一致'));
+          return;
+        }
+        callback(null, chunk);
+      },
+    });
+    await pipeline(
+      Readable.fromWeb(response.body),
+      sizeLimiter,
+      createWriteStream(destination, { flags: 'wx' }),
+    );
   }
 
   private async transcribe(audioPath: string): Promise<string> {
@@ -411,13 +607,13 @@ export class NoteJobsService {
     uploader: string;
     duration: string;
     sourceUrl: string;
-    sourcePlatform: SourcePlatform;
+    sourceLabel: string;
     generatedDate: string;
   }): Promise<string> {
     const pluginInstanceId = 'bilibili-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {
-      source_platform: this.getSourceLabel(input.sourcePlatform),
+      source_platform: input.sourceLabel,
       source_text: input.transcript,
       video_title: input.title,
       uploader: input.uploader,
@@ -746,10 +942,53 @@ export class NoteJobsService {
     const current = this.jobs.get(id);
     if (!current) return;
     this.jobs.set(id, {
-      ...current,
-      ...update,
-      updatedAt: new Date().toISOString(),
+      ownerId: current.ownerId,
+      job: {
+        ...current.job,
+        ...update,
+        updatedAt: new Date().toISOString(),
+      },
     });
+  }
+
+  private async persistTitle(id: string, title: string): Promise<void> {
+    try {
+      await this.noteHistoryService.updateTitle(id, title);
+    } catch (error) {
+      this.logger.warn(
+        `更新任务 ${id} 的历史主题失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    }
+  }
+
+  private async persistFinish(
+    id: string,
+    result: {
+      status: 'completed' | 'failed';
+      documentUrl?: string;
+      error?: string;
+    },
+  ): Promise<void> {
+    const stored: StoredNoteJob | undefined = this.jobs.get(id);
+    if (!stored) return;
+    try {
+      await this.noteHistoryService.finish({
+        jobId: id,
+        startedAt: new Date(stored.job.createdAt),
+        completedAt: new Date(),
+        status: result.status,
+        documentUrl: result.documentUrl,
+        error: result.error,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `更新任务 ${id} 的历史状态失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    }
   }
 
   private commandExists(command: string): Promise<boolean> {

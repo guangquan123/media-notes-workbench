@@ -357,7 +357,7 @@ export default function HomePage() {
                   <Button
                     className="h-12 w-full rounded-xl bg-[#161616] text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black/80"
                     onClick={start}
-                    disabled={submitting || !readiness?.ready}
+                    disabled={submitting || !readiness?.platformReady}
                   >
                     {submitting ? (
                       <LoaderCircle className="mr-2 size-4 animate-spin" />
@@ -380,7 +380,7 @@ export default function HomePage() {
                         {job.videoTitle || '正在读取视频信息…'}
                       </p>
                       <p className="mt-1 text-xs text-black/35">
-                        来源平台：{sourcePlatformLabels[job.sourcePlatform]}
+                        来源平台：{job.sourceLabel}
                       </p>
                     </div>
                     {running && <LoaderCircle className="mt-1 size-5 animate-spin text-[#fb7299]" />}
