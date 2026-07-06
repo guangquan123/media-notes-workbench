@@ -12,12 +12,14 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
 import type {
   NoteJob,
+  NoteStyle,
   SourcePlatform,
   SystemReadiness,
 } from '@shared/api.interface';
@@ -43,6 +45,7 @@ export default function HomePage() {
   const [url, setUrl] = useState('');
   const [sourcePlatform, setSourcePlatform] =
     useState<SourcePlatform>('bilibili');
+  const [noteStyle, setNoteStyle] = useState<NoteStyle>('systematic');
   const [cookieBrowser, setCookieBrowser] = useState<
     '' | 'chrome' | 'safari' | 'edge' | 'firefox'
   >('');
@@ -137,6 +140,7 @@ export default function HomePage() {
       const created = await createNoteJob({
         url,
         sourcePlatform,
+        noteStyle,
         cookieBrowser: cookieBrowser || undefined,
       });
       setJob(created);
@@ -165,6 +169,7 @@ export default function HomePage() {
     setJob(null);
     setUrl('');
     setSourcePlatform('bilibili');
+    setNoteStyle('systematic');
   }
 
   if (!readiness) {
@@ -353,6 +358,12 @@ export default function HomePage() {
                       登录信息由 yt-dlp 在本机读取，只用于当前请求，不会保存到应用。
                     </span>
                   </label>
+
+                  <NoteStyleSelector
+                    disabled={submitting}
+                    onChange={setNoteStyle}
+                    value={noteStyle}
+                  />
 
                   <Button
                     className="h-12 w-full rounded-xl bg-[#161616] text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black/80"

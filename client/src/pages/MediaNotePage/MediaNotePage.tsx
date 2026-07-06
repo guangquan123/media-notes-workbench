@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
+import NoteStyleSelector from '@/components/NoteStyleSelector';
 import {
   deleteUploadedFile,
   uploadFile,
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import type {
   NoteJob,
+  NoteStyle,
   NoteSourceType,
   SystemReadiness,
 } from '@shared/api.interface';
@@ -116,6 +118,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const copy: PageCopy = PAGE_COPY[sourceType];
   const MediaIcon = sourceType === 'video' ? FileVideo : FileAudio;
   const [file, setFile] = useState<File | null>(null);
+  const [noteStyle, setNoteStyle] = useState<NoteStyle>('systematic');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [uploadedMedia, setUploadedMedia] = useState<UploadFileData | null>(
@@ -203,6 +206,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       setUploading(false);
       const created: NoteJob = await createNoteJob({
         sourceType,
+        noteStyle,
         media: {
           downloadUrl: uploaded.url,
           fileName: file.name,
@@ -237,6 +241,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const reset = () => {
     setJob(null);
     setFile(null);
+    setNoteStyle('systematic');
   };
 
   const displayProgress: number = uploading ? 8 : job?.progress || 0;
@@ -393,6 +398,14 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                     </button>
                   </div>
                 )}
+
+                <div className="mt-5">
+                  <NoteStyleSelector
+                    disabled={submitting}
+                    onChange={setNoteStyle}
+                    value={noteStyle}
+                  />
+                </div>
 
                 <Button
                   className="mt-6 h-12 w-full rounded-xl text-white shadow-lg"

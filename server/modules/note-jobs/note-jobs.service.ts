@@ -25,12 +25,14 @@ import type {
   CreateNoteJobRequest,
   JobStage,
   NoteJob,
+  NoteStyle,
   NoteSourceType,
   SourcePlatform,
   SystemReadiness,
   UploadedMediaInput,
 } from '@shared/api.interface';
 import {
+  getNoteStyleRequirement,
   validateMediaDownloadUrl,
   validateNoteJobRequest,
 } from './note-jobs.utils';
@@ -247,6 +249,7 @@ export class NoteJobsService {
       const markdown = await this.summarize({
         transcript,
         editorResearch,
+        noteStyle: input.noteStyle,
         title: videoTitle,
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
@@ -259,15 +262,22 @@ export class NoteJobsService {
           day: '2-digit',
         }).format(new Date()),
       });
-      this.update(id, 'summarizing', 84, '笔记已整理，正在生成知识框架图…');
-      const knowledgeMapUrl = await this.generateKnowledgeMap(markdown);
+      this.update(id, 'summarizing', 80, '初稿已完成，正在校验完整性和真实性…');
+      const reviewedMarkdown = await this.reviewNoteQuality({
+        draftNote: markdown,
+        noteStyle: input.noteStyle,
+        transcript,
+      });
+      this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
+      const knowledgeMapUrl = await this.generateKnowledgeMap(reviewedMarkdown);
       const summaryMarkdown = knowledgeMapUrl
-        ? this.insertKnowledgeMap(markdown, knowledgeMapUrl)
-        : markdown;
+        ? this.insertKnowledgeMap(reviewedMarkdown, knowledgeMapUrl)
+        : reviewedMarkdown;
       const finalMarkdown = rawDocumentUrl
         ? this.appendRawDocumentReference(summaryMarkdown, rawDocumentUrl)
         : summaryMarkdown;
-      const noteTitle = this.extractMarkdownTitle(markdown) || videoTitle;
+      const noteTitle =
+        this.extractMarkdownTitle(reviewedMarkdown) || videoTitle;
       await this.persistTitle(id, noteTitle);
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
@@ -633,6 +643,7 @@ export class NoteJobsService {
   private async summarize(input: {
     transcript: string;
     editorResearch: string;
+    noteStyle: NoteStyle;
     title: string;
     uploader: string;
     duration: string;
@@ -651,15 +662,17 @@ export class NoteJobsService {
       source_url: input.sourceUrl,
       generated_date: input.generatedDate,
       editor_research: input.editorResearch,
+      note_style: input.noteStyle,
+      style_requirements: getNoteStyleRequirement(input.noteStyle),
     };
     try {
-      const result = (await this.capabilityService
+      const streamResult = await this.capabilityService
         .load(pluginInstanceId)
-        .call(actionKey, pluginInput)) as {
-        content?: string;
-        response?: string;
-      };
-      const markdown = result?.content || result?.response || '';
+        .callStream(actionKey, pluginInput);
+      const markdown = await this.collectCapabilityText(
+        streamResult,
+        ['content', 'response'],
+      );
       if (!markdown.trim()) throw new Error('妙搭内置 AI 没有返回学习笔记');
       return markdown;
     } catch (error) {
@@ -674,6 +687,50 @@ export class NoteJobsService {
       );
       throw new Error(
         `妙搭内置 AI 生成笔记失败：${error instanceof Error ? error.message : '未知错误'}`,
+      );
+    }
+  }
+
+  private async reviewNoteQuality(input: {
+    draftNote: string;
+    noteStyle: NoteStyle;
+    transcript: string;
+  }): Promise<string> {
+    const pluginInstanceId = 'note-quality-reviewer';
+    const actionKey = 'textGenerate';
+    const outputMode = 'stream';
+    const pluginInput = {
+      draft_note: input.draftNote,
+      note_style: input.noteStyle,
+      source_text: input.transcript,
+      style_requirements: getNoteStyleRequirement(input.noteStyle),
+    };
+    try {
+      const streamResult = await this.capabilityService
+        .load(pluginInstanceId)
+        .callStream(actionKey, pluginInput);
+      const reviewedNote = await this.collectCapabilityText(
+        streamResult,
+        ['content', 'response'],
+      );
+      if (!reviewedNote.trim()) {
+        throw new Error('质量审核插件没有返回修订后的笔记');
+      }
+      return reviewedNote.trim();
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode,
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      throw new Error(
+        `笔记质量审核失败：${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
       );
     }
   }
@@ -736,6 +793,22 @@ export class NoteJobsService {
       if (this.isCapabilityStream(output)) return output;
     }
     throw new Error('搜索插件未返回可读取的数据流');
+  }
+
+  private async collectCapabilityText(
+    value: unknown,
+    fields: readonly string[],
+  ): Promise<string> {
+    const stream = this.normalizeCapabilityStream(value);
+    let content = '';
+    for await (const chunk of stream) {
+      const delta = fields
+        .map((field: string) => chunk[field])
+        .find((candidate: unknown) => typeof candidate === 'string');
+      if (typeof delta !== 'string' || !delta) continue;
+      content = delta.startsWith(content) ? delta : content + delta;
+    }
+    return content;
   }
 
   private isCapabilityStream(

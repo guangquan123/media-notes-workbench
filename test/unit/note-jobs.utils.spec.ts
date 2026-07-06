@@ -22,6 +22,30 @@ describe('note job request validation', () => {
 
     expect(result.sourceType).toBe('video');
     expect(result.media.fileName).toBe('lesson.mp4');
+    expect(result.noteStyle).toBe('systematic');
+  });
+
+  it.each(['systematic', 'concise', 'actionable', 'meeting'] as const)(
+    'accepts the %s note style',
+    (noteStyle) => {
+      const result = validateNoteJobRequest({
+        sourceType: 'video',
+        media: video,
+        noteStyle,
+      });
+
+      expect(result.noteStyle).toBe(noteStyle);
+    },
+  );
+
+  it('rejects unsupported note styles', () => {
+    expect(() =>
+      validateNoteJobRequest({
+        sourceType: 'video',
+        media: video,
+        noteStyle: 'marketing',
+      }),
+    ).toThrow('不支持的笔记风格');
   });
 
   it('rejects audio MIME types for a local video job', () => {

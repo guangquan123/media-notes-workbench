@@ -2,6 +2,12 @@ export type SourcePlatform = 'bilibili' | 'douyin';
 
 export type NoteSourceType = 'platform' | 'video' | 'audio';
 
+export type NoteStyle =
+  | 'systematic'
+  | 'concise'
+  | 'actionable'
+  | 'meeting';
+
 export type JobStage =
   | 'queued'
   | 'uploading'
@@ -23,6 +29,7 @@ export interface UploadedMediaInput {
 
 export interface CreateNoteJobRequest {
   sourceType?: NoteSourceType;
+  noteStyle?: NoteStyle;
   url?: string;
   sourcePlatform?: SourcePlatform;
   cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';

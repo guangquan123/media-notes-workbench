@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type {
   CreateNoteJobRequest,
+  NoteStyle,
   NoteSourceType,
   UploadedMediaInput,
 } from '@shared/api.interface';
@@ -13,15 +14,47 @@ const MEDIA_MIME_PREFIX: Record<Exclude<NoteSourceType, 'platform'>, string> = {
 
 interface PlatformJobInput {
   sourceType: 'platform';
+  noteStyle: NoteStyle;
   url: string;
 }
 
 interface MediaJobInput {
   sourceType: 'video' | 'audio';
+  noteStyle: NoteStyle;
   media: UploadedMediaInput;
 }
 
 type ValidatedNoteJobInput = PlatformJobInput | MediaJobInput;
+
+const NOTE_STYLES: readonly NoteStyle[] = [
+  'systematic',
+  'concise',
+  'actionable',
+  'meeting',
+];
+
+const NOTE_STYLE_REQUIREMENTS: Record<NoteStyle, string> = {
+  systematic:
+    '系统学习型：完整保留概念、原理、因果关系、案例、边界与复习卡片，适合深入学习和长期复习。',
+  concise:
+    '精简速记型：优先结论和高密度要点，删除非必要展开，控制篇幅，适合快速回顾。',
+  actionable:
+    '实操手册型：突出前置条件、操作步骤、检查点、示例、常见错误和可执行清单。',
+  meeting:
+    '会议纪要型：按议题整理讨论、结论、决策、待办、负责人和时间；原文未提供负责人或时间时标记待确认。',
+};
+
+export function validateNoteStyle(value?: string): NoteStyle {
+  if (!value) return 'systematic';
+  if (NOTE_STYLES.includes(value as NoteStyle)) {
+    return value as NoteStyle;
+  }
+  throw new BadRequestException('不支持的笔记风格');
+}
+
+export function getNoteStyleRequirement(noteStyle: NoteStyle): string {
+  return NOTE_STYLE_REQUIREMENTS[noteStyle];
+}
 
 function isPrivateHostname(hostname: string): boolean {
   const normalized: string = hostname.toLowerCase();
@@ -79,11 +112,12 @@ export function validateNoteJobRequest(
   input: CreateNoteJobRequest,
 ): ValidatedNoteJobInput {
   const sourceType: NoteSourceType = input.sourceType || 'platform';
+  const noteStyle: NoteStyle = validateNoteStyle(input.noteStyle);
   if (sourceType === 'platform') {
     if (!input.url?.trim()) {
       throw new BadRequestException('请粘贴需要处理的视频地址');
     }
-    return { sourceType, url: input.url };
+    return { sourceType, noteStyle, url: input.url };
   }
   if (sourceType !== 'video' && sourceType !== 'audio') {
     throw new BadRequestException('不支持的内容来源');
@@ -97,6 +131,7 @@ export function validateNoteJobRequest(
   }
   return {
     sourceType,
+    noteStyle,
     media: validateMediaInput(input.media, sourceType),
   };
 }
