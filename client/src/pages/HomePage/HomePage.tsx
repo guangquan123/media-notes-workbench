@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ClipboardEvent } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -40,6 +40,36 @@ const sourcePlatformPlaceholders: Record<SourcePlatform, string> = {
   bilibili: 'https://www.bilibili.com/video/BV...',
   douyin: 'https://www.douyin.com/video/...',
 };
+
+const sourcePlatformHosts: Record<SourcePlatform, readonly string[]> = {
+  bilibili: ['bilibili.com', 'b23.tv'],
+  douyin: ['douyin.com', 'iesdouyin.com', 'v.douyin.com'],
+};
+
+function normalizePlatformInput(
+  raw: string,
+  sourcePlatform: SourcePlatform,
+): string {
+  const trimmed: string = raw.trim();
+  if (!trimmed) return '';
+
+  const urlMatches: string[] = trimmed.match(/https?:\/\/[^\s]+/gu) || [];
+  const allowedHosts = sourcePlatformHosts[sourcePlatform];
+  const matchedUrl = urlMatches.find((candidate: string) => {
+    try {
+      const parsed = new URL(candidate);
+      const hostname = parsed.hostname.toLowerCase();
+      return allowedHosts.some(
+        (allowedHost) =>
+          hostname === allowedHost || hostname.endsWith(`.${allowedHost}`),
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  return matchedUrl || trimmed;
+}
 
 export default function HomePage() {
   const [url, setUrl] = useState('');
@@ -124,10 +154,19 @@ export default function HomePage() {
 
   async function pasteUrl() {
     try {
-      setUrl(await navigator.clipboard.readText());
+      const clipboardText = await navigator.clipboard.readText();
+      setUrl(normalizePlatformInput(clipboardText, sourcePlatform));
     } catch {
       toast.error('浏览器未允许读取剪贴板，请手动粘贴');
     }
+  }
+
+  function handleUrlPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const clipboardText = event.clipboardData.getData('text');
+    const normalizedUrl = normalizePlatformInput(clipboardText, sourcePlatform);
+    if (normalizedUrl === clipboardText.trim()) return;
+    event.preventDefault();
+    setUrl(normalizedUrl);
   }
 
   async function start() {
@@ -138,7 +177,7 @@ export default function HomePage() {
     setSubmitting(true);
     try {
       const created = await createNoteJob({
-        url,
+        url: normalizePlatformInput(url, sourcePlatform),
         sourcePlatform,
         noteStyle,
         cookieBrowser: cookieBrowser || undefined,
@@ -312,6 +351,7 @@ export default function HomePage() {
                         className="h-12 rounded-xl border-black/10 bg-[#fafaf8] pr-12 text-sm shadow-none focus-visible:ring-[#fb7299]/20"
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
+                        onPaste={handleUrlPaste}
                         placeholder={sourcePlatformPlaceholders[sourcePlatform]}
                         disabled={submitting}
                       />
