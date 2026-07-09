@@ -33,6 +33,7 @@ import type {
 } from '@shared/api.interface';
 import {
   getNoteStyleRequirement,
+  normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
   validateNoteJobRequest,
 } from './note-jobs.utils';
@@ -325,7 +326,7 @@ export class NoteJobsService {
   private async preparePlatformMedia(
     id: string,
     workDir: string,
-    url: string,
+    rawUrl: string,
     sourcePlatform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ): Promise<{
@@ -335,6 +336,7 @@ export class NoteJobsService {
     sourceLabel: string;
   }> {
     this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
+    const url = normalizePlatformSourceUrl(rawUrl, sourcePlatform);
     const sourceArgs: string[] =
       sourcePlatform === 'bilibili'
         ? await this.buildSourceArgs(sourcePlatform, cookieBrowser)
@@ -946,44 +948,6 @@ export class NoteJobsService {
 
   private getSourceLabel(platform: SourcePlatform): string {
     return SOURCE_PROFILES[platform].label;
-  }
-
-  private validateSourceUrl(raw: string, platform: SourcePlatform): string {
-    try {
-      const urlMatch = raw.match(/https?:\/\/[^\s]+/u);
-      if (!urlMatch) {
-        throw new Error(SOURCE_PROFILES[platform].urlErrorMessage);
-      }
-      const url = new URL(urlMatch[0]);
-      const hostname = url.hostname.toLowerCase();
-      const profile = SOURCE_PROFILES[platform];
-      const allowed = profile.urlHosts.some(
-        (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`),
-      );
-      if (!allowed || !['http:', 'https:'].includes(url.protocol)) {
-        throw new Error(profile.urlErrorMessage);
-      }
-      return platform === 'douyin'
-        ? this.normalizeDouyinUrl(url)
-        : url.toString();
-    } catch (error) {
-      const profile = SOURCE_PROFILES[platform];
-      if (error instanceof Error && error.message) {
-        throw new BadRequestException(error.message);
-      }
-      throw new BadRequestException(profile.urlErrorMessage);
-    }
-  }
-
-  private normalizeDouyinUrl(url: URL): string {
-    if (url.pathname === '/jingxuan') {
-      const videoId = url.searchParams.get('modal_id');
-      if (!videoId || !/^\d+$/u.test(videoId)) {
-        throw new Error('抖音精选链接缺少有效的 modal_id');
-      }
-      return `https://www.douyin.com/video/${videoId}`;
-    }
-    return url.toString();
   }
 
   private validateCookieBrowser(

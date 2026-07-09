@@ -4,6 +4,7 @@ import {
   validateMediaDownloadUrl,
   validateMediaInput,
   validateNoteJobRequest,
+  normalizePlatformSourceUrl,
 } from '../../server/modules/note-jobs/note-jobs.utils';
 
 describe('note job request validation', () => {
@@ -85,5 +86,16 @@ describe('note job request validation', () => {
     expect(() =>
       validateNoteJobRequest({ sourceType: 'audio' }),
     ).toThrow('请选择需要处理的录音文件');
+  });
+
+  it('extracts the Bilibili URL from a share text payload', () => {
+    const result = normalizePlatformSourceUrl(
+      '【Codex联动Obsidian，搭建卡帕西同款知识库，手把手教程】https://www.bilibili.com/video/BV1MJVb6cETR?vd_source=f7e989348f5babe743827751dbe46aef',
+      'bilibili',
+    );
+
+    expect(result).toBe(
+      'https://www.bilibili.com/video/BV1MJVb6cETR?vd_source=f7e989348f5babe743827751dbe46aef',
+    );
   });
 });

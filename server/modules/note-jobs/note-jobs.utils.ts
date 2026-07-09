@@ -3,6 +3,7 @@ import type {
   CreateNoteJobRequest,
   NoteStyle,
   NoteSourceType,
+  SourcePlatform,
   UploadedMediaInput,
 } from '@shared/api.interface';
 
@@ -44,6 +45,23 @@ const NOTE_STYLE_REQUIREMENTS: Record<NoteStyle, string> = {
     '会议纪要型：按议题整理讨论、结论、决策、待办、负责人和时间；原文未提供负责人或时间时标记待确认。',
 };
 
+const PLATFORM_URL_PROFILES: Record<
+  SourcePlatform,
+  {
+    readonly urlHosts: readonly string[];
+    readonly urlErrorMessage: string;
+  }
+> = {
+  bilibili: {
+    urlHosts: ['bilibili.com', 'b23.tv'],
+    urlErrorMessage: '请输入有效的 B站视频地址',
+  },
+  douyin: {
+    urlHosts: ['douyin.com', 'iesdouyin.com', 'v.douyin.com'],
+    urlErrorMessage: '请输入有效的抖音视频地址',
+  },
+};
+
 export function validateNoteStyle(value?: string): NoteStyle {
   if (!value) return 'systematic';
   if (NOTE_STYLES.includes(value as NoteStyle)) {
@@ -54,6 +72,35 @@ export function validateNoteStyle(value?: string): NoteStyle {
 
 export function getNoteStyleRequirement(noteStyle: NoteStyle): string {
   return NOTE_STYLE_REQUIREMENTS[noteStyle];
+}
+
+export function normalizePlatformSourceUrl(
+  raw: string,
+  platform: SourcePlatform,
+): string {
+  try {
+    const urlMatch = raw.match(/https?:\/\/[^\s]+/u);
+    const profile = PLATFORM_URL_PROFILES[platform];
+    if (!urlMatch) {
+      throw new Error(profile.urlErrorMessage);
+    }
+    const url = new URL(urlMatch[0]);
+    const hostname = url.hostname.toLowerCase();
+    const allowed = profile.urlHosts.some(
+      (allowedHost) =>
+        hostname === allowedHost || hostname.endsWith(`.${allowedHost}`),
+    );
+    if (!allowed || !['http:', 'https:'].includes(url.protocol)) {
+      throw new Error(profile.urlErrorMessage);
+    }
+    return platform === 'douyin' ? normalizeDouyinUrl(url) : url.toString();
+  } catch (error) {
+    const profile = PLATFORM_URL_PROFILES[platform];
+    if (error instanceof Error && error.message) {
+      throw new BadRequestException(error.message);
+    }
+    throw new BadRequestException(profile.urlErrorMessage);
+  }
 }
 
 function isPrivateHostname(hostname: string): boolean {
@@ -134,4 +181,15 @@ export function validateNoteJobRequest(
     noteStyle,
     media: validateMediaInput(input.media, sourceType),
   };
+}
+
+function normalizeDouyinUrl(url: URL): string {
+  if (url.pathname === '/jingxuan') {
+    const videoId = url.searchParams.get('modal_id');
+    if (!videoId || !/^\d+$/u.test(videoId)) {
+      throw new Error('抖音精选链接缺少有效的 modal_id');
+    }
+    return `https://www.douyin.com/video/${videoId}`;
+  }
+  return url.toString();
 }
