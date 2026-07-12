@@ -8,7 +8,11 @@ import type {
   CreateNoteJobRequest,
   NoteConversionHistoryResponse,
   NoteJob,
+  NoteStyle,
+  NoteTemplateConfig,
+  NoteTemplateConfigResponse,
   SystemReadiness,
+  UpdateNoteTemplateConfigRequest,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -70,7 +74,9 @@ export async function getReadiness(): Promise<SystemReadiness> {
   });
 }
 
-export async function createNoteJob(input: CreateNoteJobRequest): Promise<NoteJob> {
+export async function createNoteJob(
+  input: CreateNoteJobRequest,
+): Promise<NoteJob> {
   try {
     const response = await axiosForBackend({
       url: '/api/note-jobs',
@@ -103,6 +109,28 @@ export async function getNoteConversionHistory(): Promise<NoteConversionHistoryR
   return response.data;
 }
 
+export async function getNoteTemplates(): Promise<NoteTemplateConfigResponse> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/templates',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateNoteTemplate(
+  style: NoteStyle,
+  input: UpdateNoteTemplateConfigRequest,
+): Promise<NoteTemplateConfig> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/templates/${style}`,
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getArticleExportReadiness(): Promise<ArticleExportReadiness> {
   return requestWithCache(articleExportReadinessState, async () => {
     const response = await axiosForBackend({
@@ -131,7 +159,9 @@ export async function createArticleExportJob(
   }
 }
 
-export async function getArticleExportJob(id: string): Promise<ArticleExportJob> {
+export async function getArticleExportJob(
+  id: string,
+): Promise<ArticleExportJob> {
   const response = await axiosForBackend({
     url: `/api/article-export/${id}`,
     method: 'GET',

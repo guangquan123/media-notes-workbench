@@ -75,7 +75,7 @@ export default function HomePage() {
   const [url, setUrl] = useState('');
   const [sourcePlatform, setSourcePlatform] =
     useState<SourcePlatform>('bilibili');
-  const [noteStyle, setNoteStyle] = useState<NoteStyle>('systematic');
+  const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [cookieBrowser, setCookieBrowser] = useState<
     '' | 'chrome' | 'safari' | 'edge' | 'firefox'
   >('');
@@ -149,7 +149,9 @@ export default function HomePage() {
       !readiness.whisperModel && 'Whisper 模型',
       !readiness.larkCli && '飞书 CLI',
     ].filter(Boolean);
-    return missing.length ? `缺少：${missing.join('、')}` : '本机处理环境已就绪';
+    return missing.length
+      ? `缺少：${missing.join('、')}`
+      : '本机处理环境已就绪';
   }, [readiness]);
 
   async function pasteUrl() {
@@ -208,7 +210,7 @@ export default function HomePage() {
     setJob(null);
     setUrl('');
     setSourcePlatform('bilibili');
-    setNoteStyle('systematic');
+    setNoteStyle('learning');
   }
 
   if (!readiness) {
@@ -259,7 +261,9 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className={`status-pill ${readiness?.ready ? 'is-ready' : ''}`}>
+            <div
+              className={`status-pill ${readiness?.ready ? 'is-ready' : ''}`}
+            >
               <span className="status-dot" />
               {readinessText}
             </div>
@@ -270,13 +274,6 @@ export default function HomePage() {
               >
                 <ArrowLeft className="size-4" />
                 返回入口
-              </Link>
-              <Link
-                className="inline-flex items-center gap-2 rounded-full border border-[#d97706]/20 bg-[#fff7ed] px-4 py-2 text-[#9a3412] shadow-sm transition hover:border-[#d97706]/35 hover:bg-[#fef3c7]"
-                to="/article-export"
-              >
-                切到文章导出
-                <ArrowUpRight className="size-4" />
               </Link>
             </div>
           </div>
@@ -294,21 +291,31 @@ export default function HomePage() {
               收获一篇好笔记。
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
-              支持 B站和抖音，自动提取音频、准确转录、整理重点，并写入你的飞书文档。
+              支持
+              B站和抖音，自动提取音频、准确转录、整理重点，并写入你的飞书文档。
               你只需要负责检查和学习。
             </p>
 
             <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {stageLabels.map(([stage, label, Icon], index) => {
-                const stageIndex = stageLabels.findIndex(([item]) => item === job?.stage);
+                const stageIndex = stageLabels.findIndex(
+                  ([item]) => item === job?.stage,
+                );
                 const done =
                   job?.stage === 'completed' ||
                   (stageIndex >= 0 && index < stageIndex);
                 const active = job?.stage === stage;
                 return (
-                  <div className={`stage-card ${active ? 'is-active' : ''}`} key={stage}>
+                  <div
+                    className={`stage-card ${active ? 'is-active' : ''}`}
+                    key={stage}
+                  >
                     <div className={`stage-icon ${done ? 'is-done' : ''}`}>
-                      {done ? <Check className="size-4" /> : <Icon className="size-4" />}
+                      {done ? (
+                        <Check className="size-4" />
+                      ) : (
+                        <Icon className="size-4" />
+                      )}
                     </div>
                     <span>{label}</span>
                   </div>
@@ -321,8 +328,12 @@ export default function HomePage() {
             {!job ? (
               <>
                 <div>
-                  <p className="text-lg font-semibold tracking-tight">创建学习笔记</p>
-                  <p className="mt-1 text-sm text-black/45">支持 B站和抖音视频地址</p>
+                  <p className="text-lg font-semibold tracking-tight">
+                    创建学习笔记
+                  </p>
+                  <p className="mt-1 text-sm text-black/45">
+                    支持 B站和抖音视频地址
+                  </p>
                 </div>
 
                 <div className="mt-7 space-y-5">
@@ -383,9 +394,7 @@ export default function HomePage() {
                       }
                       disabled={submitting}
                     >
-                      <option value="">
-                        不使用登录状态
-                      </option>
+                      <option value="">不使用登录状态</option>
                       <option value="chrome">Google Chrome</option>
                       <option value="safari">Safari</option>
                       <option value="edge">Microsoft Edge</option>
@@ -395,7 +404,8 @@ export default function HomePage() {
                       {sourcePlatform === 'douyin'
                         ? '抖音通过公开分享页解析，一般不需要浏览器登录状态。'
                         : `请选择已登录 ${sourcePlatformLabels[sourcePlatform]} 的浏览器。`}
-                      登录信息由 yt-dlp 在本机读取，只用于当前请求，不会保存到应用。
+                      登录信息由 yt-dlp
+                      在本机读取，只用于当前请求，不会保存到应用。
                     </span>
                   </label>
 
@@ -425,7 +435,9 @@ export default function HomePage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-lg font-semibold tracking-tight">
-                        {job.stage === 'completed' ? '笔记已经准备好' : '正在处理视频'}
+                        {job.stage === 'completed'
+                          ? '笔记已经准备好'
+                          : '正在处理视频'}
                       </p>
                       <p className="mt-1 line-clamp-2 text-sm text-black/45">
                         {job.videoTitle || '正在读取视频信息…'}
@@ -434,15 +446,22 @@ export default function HomePage() {
                         来源平台：{job.sourceLabel}
                       </p>
                     </div>
-                    {running && <LoaderCircle className="mt-1 size-5 animate-spin text-[#fb7299]" />}
+                    {running && (
+                      <LoaderCircle className="mt-1 size-5 animate-spin text-[#fb7299]" />
+                    )}
                   </div>
 
                   <div className="mt-10">
                     <div className="mb-3 flex items-center justify-between text-sm">
                       <span className="font-medium">{job.message}</span>
-                      <span className="tabular-nums text-black/38">{job.progress}%</span>
+                      <span className="tabular-nums text-black/38">
+                        {job.progress}%
+                      </span>
                     </div>
-                    <Progress value={job.progress} className="h-2 bg-black/6 [&>div]:bg-[#fb7299]" />
+                    <Progress
+                      value={job.progress}
+                      className="h-2 bg-black/6 [&>div]:bg-[#fb7299]"
+                    />
                   </div>
 
                   {job.stage === 'failed' && (
@@ -458,8 +477,12 @@ export default function HomePage() {
                           <Check className="size-5" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-emerald-950">飞书文档创建成功</p>
-                          <p className="mt-0.5 text-xs text-emerald-800/60">现在可以打开检查学习笔记</p>
+                          <p className="text-sm font-semibold text-emerald-950">
+                            飞书文档创建成功
+                          </p>
+                          <p className="mt-0.5 text-xs text-emerald-800/60">
+                            现在可以打开检查学习笔记
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -470,7 +493,13 @@ export default function HomePage() {
                   {job.documentUrl && (
                     <Button
                       className="h-12 w-full rounded-xl bg-[#3370ff] hover:bg-[#2864ea]"
-                      onClick={() => window.open(job.documentUrl, '_blank', 'noopener,noreferrer')}
+                      onClick={() =>
+                        window.open(
+                          job.documentUrl,
+                          '_blank',
+                          'noopener,noreferrer',
+                        )
+                      }
                     >
                       打开总结笔记
                       <ArrowUpRight className="ml-2 size-4" />
@@ -493,7 +522,11 @@ export default function HomePage() {
                     </Button>
                   )}
                   {['completed', 'failed'].includes(job.stage) && (
-                    <Button className="h-11 w-full rounded-xl" variant="outline" onClick={reset}>
+                    <Button
+                      className="h-11 w-full rounded-xl"
+                      variant="outline"
+                      onClick={reset}
+                    >
                       再处理一个视频
                     </Button>
                   )}

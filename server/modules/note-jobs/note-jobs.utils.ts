@@ -6,6 +6,7 @@ import type {
   SourcePlatform,
   UploadedMediaInput,
 } from '@shared/api.interface';
+import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
 
 const MAX_MEDIA_SIZE = 1024 * 1024 * 1024;
 const MAX_PDF_SIZE = 200 * 1024 * 1024;
@@ -37,23 +38,7 @@ interface PdfJobInput {
 
 type ValidatedNoteJobInput = PlatformJobInput | MediaJobInput | PdfJobInput;
 
-const NOTE_STYLES: readonly NoteStyle[] = [
-  'systematic',
-  'concise',
-  'actionable',
-  'meeting',
-];
-
-const NOTE_STYLE_REQUIREMENTS: Record<NoteStyle, string> = {
-  systematic:
-    '系统学习型：完整保留概念、原理、因果关系、案例、边界与复习卡片，适合深入学习和长期复习。',
-  concise:
-    '精简速记型：优先结论和高密度要点，删除非必要展开，控制篇幅，适合快速回顾。',
-  actionable:
-    '实操手册型：突出前置条件、操作步骤、检查点、示例、常见错误和可执行清单。',
-  meeting:
-    '会议纪要型：按议题整理讨论、结论、决策、待办、负责人和时间；原文未提供负责人或时间时标记待确认。',
-};
+const NOTE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
 
 const PLATFORM_URL_PROFILES: Record<
   SourcePlatform,
@@ -73,7 +58,7 @@ const PLATFORM_URL_PROFILES: Record<
 };
 
 export function validateNoteStyle(value?: string): NoteStyle {
-  if (!value) return 'systematic';
+  if (!value) return 'learning';
   if (NOTE_STYLES.includes(value as NoteStyle)) {
     return value as NoteStyle;
   }
@@ -81,7 +66,7 @@ export function validateNoteStyle(value?: string): NoteStyle {
 }
 
 export function getNoteStyleRequirement(noteStyle: NoteStyle): string {
-  return NOTE_STYLE_REQUIREMENTS[noteStyle];
+  return DEFAULT_NOTE_TEMPLATES[noteStyle].content;
 }
 
 export function normalizePlatformSourceUrl(

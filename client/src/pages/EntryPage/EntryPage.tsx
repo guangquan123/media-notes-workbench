@@ -5,6 +5,7 @@ import {
   FileText,
   FileVideo,
   History,
+  Settings2,
   Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -62,17 +63,6 @@ const FEATURE_CARDS = [
     bullets: ['原文解析归档', '知识结构提炼', '生成飞书学习笔记'],
     cta: '上传 PDF 文件',
   },
-  {
-    href: '/article-export',
-    icon: FileText,
-    title: '飞书文档多平台导出',
-    description:
-      '以飞书文档为源头，一键生成微信公众号、知乎、抖音等平台稿件，支持预览、复制和下载。',
-    accent: 'from-[#d97706]/15 to-[#f59e0b]/5',
-    badge: '新入口',
-    bullets: ['文档 URL 输入', '公众号优先排版', '手动发布更稳妥'],
-    cta: '进入文章导出',
-  },
 ] as const;
 
 export default function EntryPage() {
@@ -100,7 +90,7 @@ export default function EntryPage() {
           </div>
         </header>
 
-        <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-12">
+        <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.75fr_1.25fr] lg:py-12">
           <div className="max-w-xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-3 py-1.5 text-xs font-medium text-black/55 shadow-sm">
               <Sparkles className="size-3.5 text-[#d97706]" />
@@ -131,9 +121,9 @@ export default function EntryPage() {
                 className="h-11 rounded-xl border-black/10 bg-white px-5 text-[#161616]"
                 variant="outline"
               >
-                <Link to="/article-export">
-                  <FileText className="size-4" />
-                  进入文章导出
+                <Link to="/note-templates">
+                  <Settings2 className="size-4" />
+                  配置笔记模板
                 </Link>
               </Button>
               <Button
@@ -149,7 +139,7 @@ export default function EntryPage() {
             </div>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {FEATURE_CARDS.map((item) => {
               const Icon = item.icon;
               return (

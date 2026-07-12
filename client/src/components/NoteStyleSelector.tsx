@@ -1,10 +1,4 @@
-import {
-  BookOpenText,
-  ListChecks,
-  NotebookTabs,
-  UsersRound,
-  type LucideIcon,
-} from 'lucide-react';
+import { BookOpenText, UsersRound, type LucideIcon } from 'lucide-react';
 
 import type { NoteStyle } from '@shared/api.interface';
 
@@ -23,22 +17,10 @@ interface NoteStyleOption {
 
 const NOTE_STYLE_OPTIONS: readonly NoteStyleOption[] = [
   {
-    value: 'systematic',
-    label: '系统学习',
-    description: '概念、原理、案例与复习卡片',
+    value: 'learning',
+    label: '学习笔记',
+    description: '通用学习、系统总结与行动清单',
     icon: BookOpenText,
-  },
-  {
-    value: 'concise',
-    label: '精简速记',
-    description: '结论优先，快速回顾',
-    icon: NotebookTabs,
-  },
-  {
-    value: 'actionable',
-    label: '实操手册',
-    description: '步骤、检查点与行动清单',
-    icon: ListChecks,
   },
   {
     value: 'meeting',

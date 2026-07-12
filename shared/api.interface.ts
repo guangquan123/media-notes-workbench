@@ -2,7 +2,24 @@ export type SourcePlatform = 'bilibili' | 'douyin';
 
 export type NoteSourceType = 'platform' | 'video' | 'audio' | 'pdf';
 
-export type NoteStyle = 'systematic' | 'concise' | 'actionable' | 'meeting';
+export type NoteStyle = 'learning' | 'meeting';
+
+export interface NoteTemplateConfig {
+  content: string;
+  description: string;
+  isDefault: boolean;
+  label: string;
+  style: NoteStyle;
+  updatedAt?: string;
+}
+
+export interface NoteTemplateConfigResponse {
+  items: NoteTemplateConfig[];
+}
+
+export interface UpdateNoteTemplateConfigRequest {
+  content: string;
+}
 
 export type JobStage =
   | 'queued'

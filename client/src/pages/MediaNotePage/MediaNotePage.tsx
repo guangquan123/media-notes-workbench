@@ -153,7 +153,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const processStages =
     sourceType === 'pdf' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
   const [file, setFile] = useState<File | null>(null);
-  const [noteStyle, setNoteStyle] = useState<NoteStyle>('systematic');
+  const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [uploadedMedia, setUploadedMedia] = useState<UploadFileData | null>(
@@ -275,7 +275,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const reset = () => {
     setJob(null);
     setFile(null);
-    setNoteStyle('systematic');
+    setNoteStyle('learning');
   };
 
   const displayProgress: number = uploading ? 8 : job?.progress || 0;

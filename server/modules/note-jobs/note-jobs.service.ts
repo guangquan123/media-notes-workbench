@@ -25,7 +25,6 @@ import type {
   UploadedMediaInput,
 } from '@shared/api.interface';
 import {
-  getNoteStyleRequirement,
   normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
   validateNoteJobRequest,
@@ -36,6 +35,7 @@ import {
 } from './note-document.utils';
 import { NoteHistoryService } from './note-history.service';
 import { buildPdfRawMarkdown, getParseQuality } from './pdf-note.utils';
+import { NoteTemplateService } from './note-template.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -90,6 +90,7 @@ export class NoteJobsService {
   constructor(
     @Inject() private readonly capabilityService: CapabilityService,
     private readonly noteHistoryService: NoteHistoryService,
+    private readonly noteTemplateService: NoteTemplateService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -152,7 +153,13 @@ export class NoteJobsService {
     };
     await this.noteHistoryService.create(job, ownerId);
     this.jobs.set(job.id, { job, ownerId });
-    void this.run(job.id, validatedInput, sourcePlatform, cookieBrowser);
+    void this.run(
+      job.id,
+      validatedInput,
+      ownerId,
+      sourcePlatform,
+      cookieBrowser,
+    );
     return job;
   }
 
@@ -167,6 +174,7 @@ export class NoteJobsService {
   private async run(
     id: string,
     input: ReturnType<typeof validateNoteJobRequest>,
+    ownerId: string,
     sourcePlatform?: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
   ) {
@@ -178,7 +186,7 @@ export class NoteJobsService {
         throw new Error('未找到 lark-cli，请先安装并登录飞书');
       }
       if (input.sourceType === 'pdf') {
-        await this.runPdf(id, workDir, input);
+        await this.runPdf(id, workDir, input, ownerId);
         return;
       }
       if (input.sourceType === 'platform' && !readiness.ytDlp) {
@@ -248,11 +256,16 @@ export class NoteJobsService {
         videoTitle,
         transcript,
       );
+      const styleRequirements = await this.noteTemplateService.getContent(
+        ownerId,
+        input.noteStyle,
+      );
       this.update(id, 'summarizing', 74, '依据已整理，正在撰写学习笔记…');
       const markdown = await this.summarize({
         transcript,
         editorResearch,
         noteStyle: input.noteStyle,
+        styleRequirements,
         title: videoTitle,
         uploader: metadata.uploader || '未知',
         duration: metadata.duration_string || '未知',
@@ -269,6 +282,7 @@ export class NoteJobsService {
       const reviewedMarkdown = await this.reviewNoteQuality({
         draftNote: markdown,
         noteStyle: input.noteStyle,
+        styleRequirements,
         transcript,
       });
       this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
@@ -330,6 +344,7 @@ export class NoteJobsService {
       ReturnType<typeof validateNoteJobRequest>,
       { sourceType: 'pdf' }
     >,
+    ownerId: string,
   ): Promise<void> {
     this.update(id, 'preparing', 14, '正在安全读取 PDF 文件…');
     const sourcePath: string = join(workDir, 'source.pdf');
@@ -378,6 +393,10 @@ export class NoteJobsService {
       title,
       parsedContent,
     );
+    const styleRequirements = await this.noteTemplateService.getContent(
+      ownerId,
+      input.noteStyle,
+    );
     const markdown: string = await this.summarizePdf({
       content: parsedContent,
       editorResearch,
@@ -385,6 +404,7 @@ export class NoteJobsService {
       fileName: input.media.fileName,
       generatedDate,
       noteStyle: input.noteStyle,
+      styleRequirements,
       parseQuality,
       sourceUrl: input.media.downloadUrl,
       title,
@@ -393,6 +413,7 @@ export class NoteJobsService {
     const reviewedMarkdown: string = await this.reviewPdfNote({
       draftNote: markdown,
       noteStyle: input.noteStyle,
+      styleRequirements,
       sourceText: parsedContent,
     });
     this.update(id, 'summarizing', 86, '正在生成知识框架图…');
@@ -754,6 +775,7 @@ export class NoteJobsService {
     transcript: string;
     editorResearch: string;
     noteStyle: NoteStyle;
+    styleRequirements: string;
     title: string;
     uploader: string;
     duration: string;
@@ -772,8 +794,9 @@ export class NoteJobsService {
       source_url: input.sourceUrl,
       generated_date: input.generatedDate,
       editor_research: input.editorResearch,
-      note_style: input.noteStyle,
-      style_requirements: getNoteStyleRequirement(input.noteStyle),
+      note_style:
+        input.noteStyle === 'learning' ? 'systematic' : input.noteStyle,
+      style_requirements: input.styleRequirements,
     };
     try {
       const streamResult = await this.capabilityService
@@ -837,6 +860,7 @@ export class NoteJobsService {
     fileName: string;
     generatedDate: string;
     noteStyle: NoteStyle;
+    styleRequirements: string;
     parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
     sourceUrl: string;
     title: string;
@@ -853,7 +877,7 @@ export class NoteJobsService {
       parse_quality: input.parseQuality,
       editor_research: input.editorResearch,
       note_style: input.noteStyle,
-      style_requirements: getNoteStyleRequirement(input.noteStyle),
+      style_requirements: input.styleRequirements,
     };
     try {
       const streamResult = await this.capabilityService
@@ -886,6 +910,7 @@ export class NoteJobsService {
   private async reviewPdfNote(input: {
     draftNote: string;
     noteStyle: NoteStyle;
+    styleRequirements: string;
     sourceText: string;
   }): Promise<string> {
     const pluginInstanceId = 'pdf-note-quality-reviewer';
@@ -894,7 +919,7 @@ export class NoteJobsService {
       draft_note: input.draftNote,
       note_style: input.noteStyle,
       source_text: input.sourceText,
-      style_requirements: getNoteStyleRequirement(input.noteStyle),
+      style_requirements: input.styleRequirements,
     };
     try {
       const streamResult = await this.capabilityService
@@ -927,6 +952,7 @@ export class NoteJobsService {
   private async reviewNoteQuality(input: {
     draftNote: string;
     noteStyle: NoteStyle;
+    styleRequirements: string;
     transcript: string;
   }): Promise<string> {
     const pluginInstanceId = 'note-quality-reviewer';
@@ -936,7 +962,7 @@ export class NoteJobsService {
       draft_note: input.draftNote,
       note_style: input.noteStyle,
       source_text: input.transcript,
-      style_requirements: getNoteStyleRequirement(input.noteStyle),
+      style_requirements: input.styleRequirements,
     };
     try {
       const streamResult = await this.capabilityService

@@ -117,6 +117,18 @@ export const fileAttachmentArray = customType<{
   },
 });
 
+export const noteTemplateConfigs = pgTable("note_template_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: userProfile("owner_id").notNull(),
+  noteStyle: varchar("note_style", { length: 32 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_template_configs_owner_style_key").on(table.ownerId, table.noteStyle),
+  index("note_template_configs_owner_idx").on(table.ownerId),
+]);
+
 export const noteConversionRecords = pgTable("note_conversion_records", {
   id: uuid("id").primaryKey().defaultRandom(),
   jobId: uuid("job_id").notNull().unique(),
@@ -142,3 +154,4 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
 
 // table aliases
 export const noteConversionRecordsTable = noteConversionRecords;
+export const noteTemplateConfigsTable = noteTemplateConfigs;
