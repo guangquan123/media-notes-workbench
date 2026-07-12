@@ -1,18 +1,15 @@
 export type SourcePlatform = 'bilibili' | 'douyin';
 
-export type NoteSourceType = 'platform' | 'video' | 'audio';
+export type NoteSourceType = 'platform' | 'video' | 'audio' | 'pdf';
 
-export type NoteStyle =
-  | 'systematic'
-  | 'concise'
-  | 'actionable'
-  | 'meeting';
+export type NoteStyle = 'systematic' | 'concise' | 'actionable' | 'meeting';
 
 export type JobStage =
   | 'queued'
   | 'uploading'
   | 'checking'
   | 'preparing'
+  | 'parsing'
   | 'downloading'
   | 'transcribing'
   | 'summarizing'
@@ -45,6 +42,9 @@ export interface NoteJob {
   sourcePlatform?: SourcePlatform;
   sourceLabel: string;
   mediaFileName?: string;
+  fileHash?: string;
+  pageCount?: number;
+  parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   videoTitle?: string;
   rawDocumentUrl?: string;
   documentUrl?: string;
@@ -62,6 +62,7 @@ export interface SystemReadiness {
   ready: boolean;
   platformReady: boolean;
   mediaReady: boolean;
+  pdfReady: boolean;
 }
 
 export type ConversionStatus = 'processing' | 'completed' | 'failed';

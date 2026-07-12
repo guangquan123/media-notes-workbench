@@ -45,12 +45,22 @@ const FEATURE_CARDS = [
     href: '/audio-notes',
     icon: FileAudio,
     title: '录音学习笔记',
-    description:
-      '上传课堂录音、访谈或语音备忘，提炼重点、知识结构和行动项。',
+    description: '上传课堂录音、访谈或语音备忘，提炼重点、知识结构和行动项。',
     accent: 'from-[#168b75]/15 to-[#5db9a5]/5',
     badge: '录音文件',
     bullets: ['多种音频格式', '长录音自动切片', '生成飞书学习笔记'],
     cta: '上传录音文件',
+  },
+  {
+    href: '/pdf-notes',
+    icon: FileText,
+    title: 'PDF 学习笔记',
+    description:
+      '上传书籍、报告、论文或课程资料，自动提炼知识框架、核心观点和行动清单。',
+    accent: 'from-[#3370ff]/15 to-[#85a9ff]/5',
+    badge: 'PDF 文件',
+    bullets: ['原文解析归档', '知识结构提炼', '生成飞书学习笔记'],
+    cta: '上传 PDF 文件',
   },
   {
     href: '/article-export',
@@ -107,7 +117,10 @@ export default function EntryPage() {
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
-              <Button asChild className="h-11 rounded-xl bg-[#161616] px-5 text-white hover:bg-black/85">
+              <Button
+                asChild
+                className="h-11 rounded-xl bg-[#161616] px-5 text-white hover:bg-black/85"
+              >
                 <Link to="/video-notes">
                   <BookOpenText className="size-4" />
                   进入视频学习笔记
@@ -144,7 +157,9 @@ export default function EntryPage() {
                   className="overflow-hidden border-black/8 bg-white/92 shadow-[0_20px_60px_rgba(57,46,29,0.08)]"
                   key={item.href}
                 >
-                  <CardHeader className={`space-y-3 bg-gradient-to-br ${item.accent}`}>
+                  <CardHeader
+                    className={`space-y-3 bg-gradient-to-br ${item.accent}`}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white/85 px-3 py-1 text-xs font-semibold text-black/58">
                         <Icon className="size-3.5" />
@@ -172,7 +187,10 @@ export default function EntryPage() {
                         </div>
                       ))}
                     </div>
-                    <Button asChild className="h-11 w-full rounded-xl bg-[#161616] text-white hover:bg-black/85">
+                    <Button
+                      asChild
+                      className="h-11 w-full rounded-xl bg-[#161616] text-white hover:bg-black/85"
+                    >
                       <Link to={item.href}>
                         {item.cta}
                         <ArrowRight className="size-4" />

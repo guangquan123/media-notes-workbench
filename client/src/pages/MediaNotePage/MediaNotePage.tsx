@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Check,
   FileAudio,
+  FileText,
   FileVideo,
   LoaderCircle,
   Sparkles,
@@ -46,6 +47,7 @@ interface PageCopy {
 }
 
 const MAX_FILE_SIZE = 1024 * 1024 * 1024;
+const MAX_PDF_FILE_SIZE = 200 * 1024 * 1024;
 
 const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
   video: {
@@ -81,12 +83,32 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     fileHint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG，最大 1 GB',
     title: '让一段录音，沉淀成真正可复习的笔记。',
   },
+  pdf: {
+    accent: '#3370ff',
+    accentSoft: '#edf3ff',
+    accept: {
+      'application/pdf': ['.pdf'],
+    },
+    description:
+      '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的飞书学习笔记。',
+    eyebrow: 'PDF 学习工作台',
+    fileHint: '支持 PDF，最大 200 MB',
+    title: '把一份 PDF，沉淀成可回顾的知识资产。',
+  },
 };
 
-const PROCESS_STAGES = [
+const MEDIA_PROCESS_STAGES = [
   ['uploading', '安全上传'],
   ['preparing', '整理媒体'],
   ['transcribing', '语音转文字'],
+  ['summarizing', '生成笔记'],
+  ['publishing', '写入飞书'],
+] as const;
+
+const PDF_PROCESS_STAGES = [
+  ['uploading', '安全上传'],
+  ['preparing', '读取文件'],
+  ['parsing', '解析原文'],
   ['summarizing', '生成笔记'],
   ['publishing', '写入飞书'],
 ] as const;
@@ -96,7 +118,10 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function getMediaMimeType(file: File, sourceType: 'video' | 'audio'): string {
+function getMediaMimeType(
+  file: File,
+  sourceType: 'video' | 'audio' | 'pdf',
+): string {
   if (file.type) return file.type;
   const extension: string = file.name.split('.').pop()?.toLowerCase() || '';
   const mimeTypes: Record<string, string> = {
@@ -108,6 +133,7 @@ function getMediaMimeType(file: File, sourceType: 'video' | 'audio'): string {
     mp3: 'audio/mpeg',
     mp4: 'video/mp4',
     ogg: 'audio/ogg',
+    pdf: 'application/pdf',
     wav: 'audio/wav',
     webm: 'video/webm',
   };
@@ -116,7 +142,16 @@ function getMediaMimeType(file: File, sourceType: 'video' | 'audio'): string {
 
 export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const copy: PageCopy = PAGE_COPY[sourceType];
-  const MediaIcon = sourceType === 'video' ? FileVideo : FileAudio;
+  const sourceLabel: string =
+    sourceType === 'video' ? '视频' : sourceType === 'audio' ? '录音' : 'PDF';
+  const MediaIcon =
+    sourceType === 'video'
+      ? FileVideo
+      : sourceType === 'audio'
+        ? FileAudio
+        : FileText;
+  const processStages =
+    sourceType === 'pdf' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
   const [file, setFile] = useState<File | null>(null);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('systematic');
   const [job, setJob] = useState<NoteJob | null>(null);
@@ -132,12 +167,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const dropzone = useDropzone({
     accept: copy.accept,
     maxFiles: 1,
-    maxSize: MAX_FILE_SIZE,
+    maxSize: sourceType === 'pdf' ? MAX_PDF_FILE_SIZE : MAX_FILE_SIZE,
     disabled: submitting,
     onDropAccepted: (files: File[]) => setFile(files[0] || null),
     onDropRejected: () =>
       toast.error(
-        `文件格式不支持或超过 1 GB，请重新选择${sourceType === 'video' ? '视频' : '录音'}`,
+        `文件格式不支持或超过 ${sourceType === 'pdf' ? '200 MB' : '1 GB'}，请重新选择${sourceLabel}`,
       ),
   });
 
@@ -168,10 +203,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         setJob(next);
         if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (
-          uploadedMedia &&
-          ['completed', 'failed'].includes(next.stage)
-        ) {
+        if (uploadedMedia && ['completed', 'failed'].includes(next.stage)) {
           try {
             await deleteUploadedFile(uploadedMedia);
             setUploadedMedia(null);
@@ -194,7 +226,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
 
   const start = async () => {
     if (!file) {
-      toast.error(`请先选择${sourceType === 'video' ? '视频' : '录音'}文件`);
+      toast.error(`请先选择${sourceLabel}文件`);
       return;
     }
     setSubmitting(true);
@@ -225,7 +257,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         }
       }
       const responseError = error as {
-        response?: { data?: { error?: { message?: string }; message?: string } };
+        response?: {
+          data?: { error?: { message?: string }; message?: string };
+        };
       };
       toast.error(
         responseError.response?.data?.error?.message ||
@@ -297,10 +331,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
               {copy.description}
             </p>
             <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {PROCESS_STAGES.map(([stage, label], index) => {
+              {processStages.map(([stage, label], index) => {
                 const currentStage = uploading ? 'uploading' : job?.stage;
-                const currentIndex = PROCESS_STAGES.findIndex(
-                  ([item]) => item === currentStage,
+                const currentIndex = processStages.findIndex(
+                  (entry: readonly [string, string]) =>
+                    entry[0] === currentStage,
                 );
                 const done =
                   job?.stage === 'completed' ||
@@ -317,7 +352,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   >
                     <div
                       className={`mx-auto mb-2 grid size-7 place-items-center rounded-full ${
-                        done || active ? 'text-white' : 'bg-black/5 text-black/35'
+                        done || active
+                          ? 'text-white'
+                          : 'bg-black/5 text-black/35'
                       }`}
                       style={
                         done || active
@@ -342,7 +379,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             {!job && !uploading ? (
               <>
                 <p className="text-lg font-semibold tracking-tight">
-                  选择{sourceType === 'video' ? '视频' : '录音'}文件
+                  选择{sourceLabel}文件
                 </p>
                 <p className="mt-1 text-sm text-black/45">{copy.fileHint}</p>
                 <div
@@ -380,7 +417,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       <MediaIcon className="size-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{file.name}</p>
+                      <p className="truncate text-sm font-medium">
+                        {file.name}
+                      </p>
                       <p className="mt-0.5 text-xs text-black/38">
                         {formatFileSize(file.size)}
                       </p>
@@ -409,18 +448,29 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
 
                 <Button
                   className="mt-6 h-12 w-full rounded-xl text-white shadow-lg"
-                  disabled={!file || submitting || !readiness?.mediaReady}
+                  disabled={
+                    !file ||
+                    submitting ||
+                    !(sourceType === 'pdf'
+                      ? readiness?.pdfReady
+                      : readiness?.mediaReady)
+                  }
                   onClick={start}
                   style={{ backgroundColor: copy.accent }}
                 >
                   <WandSparkles className="mr-2 size-4" />
                   开始生成学习笔记
                 </Button>
-                {readiness && !readiness.mediaReady && (
-                  <p className="mt-3 text-center text-xs text-amber-700">
-                    本机音频处理环境尚未就绪
-                  </p>
-                )}
+                {readiness &&
+                  !(sourceType === 'pdf'
+                    ? readiness.pdfReady
+                    : readiness.mediaReady) && (
+                    <p className="mt-3 text-center text-xs text-amber-700">
+                      {sourceType === 'pdf'
+                        ? 'PDF 处理环境尚未就绪'
+                        : '本机音频处理环境尚未就绪'}
+                    </p>
+                  )}
               </>
             ) : (
               <div className="flex min-h-[390px] flex-col justify-between">
@@ -430,7 +480,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       <p className="text-lg font-semibold tracking-tight">
                         {job?.stage === 'completed'
                           ? '笔记已经准备好'
-                          : `正在处理${sourceType === 'video' ? '视频' : '录音'}`}
+                          : `正在处理${sourceLabel}`}
                       </p>
                       <p className="mt-1 truncate text-sm text-black/45">
                         {job?.mediaFileName || file?.name}

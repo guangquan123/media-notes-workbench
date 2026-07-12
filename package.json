@@ -1,5 +1,6 @@
 {
   "actionPlugins": {
+    "@official-plugins/ai-doc-parser": "1.0.16",
     "@official-plugins/ai-search-summary": "1.0.11",
     "@official-plugins/ai-text-generate": "1.0.17",
     "@official-plugins/ai-text-to-image": "1.0.19"

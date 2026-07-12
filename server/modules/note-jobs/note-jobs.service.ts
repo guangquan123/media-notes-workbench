@@ -8,17 +8,10 @@ import {
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import {
-  access,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  stat,
-} from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type {
@@ -42,6 +35,7 @@ import {
   buildRawTranscriptMarkdown,
 } from './note-document.utils';
 import { NoteHistoryService } from './note-history.service';
+import { buildPdfRawMarkdown, getParseQuality } from './pdf-note.utils';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -99,13 +93,14 @@ export class NoteJobsService {
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
-    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli] = await Promise.all([
-      this.commandExists('yt-dlp'),
-      this.commandExists('ffmpeg'),
-      this.commandExists('whisper-cli'),
-      this.fileExists(this.whisperModelPath),
-      this.commandExists('lark-cli'),
-    ]);
+    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli] =
+      await Promise.all([
+        this.commandExists('yt-dlp'),
+        this.commandExists('ffmpeg'),
+        this.commandExists('whisper-cli'),
+        this.fileExists(this.whisperModelPath),
+        this.commandExists('lark-cli'),
+      ]);
     return {
       ytDlp,
       ffmpeg,
@@ -115,13 +110,11 @@ export class NoteJobsService {
       ready: ffmpeg && whisperCli && whisperModel && larkCli,
       platformReady: ytDlp && ffmpeg && whisperCli && whisperModel && larkCli,
       mediaReady: ffmpeg && whisperCli && whisperModel && larkCli,
+      pdfReady: larkCli,
     };
   }
 
-  async create(
-    input: CreateNoteJobRequest,
-    ownerId: string,
-  ): Promise<NoteJob> {
+  async create(input: CreateNoteJobRequest, ownerId: string): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
     const sourceType: NoteSourceType = validatedInput.sourceType;
     const sourcePlatform =
@@ -133,7 +126,9 @@ export class NoteJobsService {
         ? this.getSourceLabel(sourcePlatform)
         : sourceType === 'video'
           ? '本地视频'
-          : '录音文件';
+          : sourceType === 'audio'
+            ? '录音文件'
+            : 'PDF 资料';
     const cookieBrowser =
       sourceType === 'platform'
         ? this.validateCookieBrowser(input.cookieBrowser)
@@ -179,13 +174,20 @@ export class NoteJobsService {
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
+      if (!readiness.larkCli) {
+        throw new Error('未找到 lark-cli，请先安装并登录飞书');
+      }
+      if (input.sourceType === 'pdf') {
+        await this.runPdf(id, workDir, input);
+        return;
+      }
       if (input.sourceType === 'platform' && !readiness.ytDlp) {
         throw new Error('未找到 yt-dlp，请先安装 yt-dlp');
       }
       if (!readiness.ffmpeg) throw new Error('未找到 ffmpeg，请先安装 ffmpeg');
-      if (!readiness.whisperCli) throw new Error('未找到 whisper-cli，请先安装 whisper-cpp');
+      if (!readiness.whisperCli)
+        throw new Error('未找到 whisper-cli，请先安装 whisper-cpp');
       if (!readiness.whisperModel) throw new Error('未找到本机 Whisper 模型');
-      if (!readiness.larkCli) throw new Error('未找到 lark-cli，请先安装并登录飞书');
 
       if (input.sourceType === 'platform' && !sourcePlatform) {
         throw new Error('视频平台信息不完整');
@@ -301,11 +303,7 @@ export class NoteJobsService {
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : '未知错误';
       const message = sourcePlatform
-        ? this.friendlyDownloadError(
-            rawMessage,
-            sourcePlatform,
-            cookieBrowser,
-          )
+        ? this.friendlyDownloadError(rawMessage, sourcePlatform, cookieBrowser)
         : rawMessage;
       this.logger.error(`任务 ${id} 失败: ${message}`);
       this.patch(id, {
@@ -319,8 +317,114 @@ export class NoteJobsService {
         error: message,
       });
     } finally {
-      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+      await rm(workDir, { recursive: true, force: true }).catch(
+        () => undefined,
+      );
     }
+  }
+
+  private async runPdf(
+    id: string,
+    workDir: string,
+    input: Extract<
+      ReturnType<typeof validateNoteJobRequest>,
+      { sourceType: 'pdf' }
+    >,
+  ): Promise<void> {
+    this.update(id, 'preparing', 14, '正在安全读取 PDF 文件…');
+    const sourcePath: string = join(workDir, 'source.pdf');
+    await this.downloadUploadedMedia(input.media, sourcePath);
+    const fileHash: string = createHash('sha256')
+      .update(await readFile(sourcePath))
+      .digest('hex');
+    const title: string =
+      input.media.fileName.replace(/[.][^.]+$/u, '') || 'PDF 学习资料';
+    this.patch(id, { fileHash, videoTitle: title });
+    await this.persistTitle(id, title);
+
+    this.update(id, 'parsing', 28, '正在解析 PDF 文本与文档结构…');
+    const parsedContent: string = await this.parsePdf(input.media.downloadUrl);
+    const parseQuality = getParseQuality(parsedContent);
+    this.patch(id, { parseQuality });
+    this.update(
+      id,
+      'publishing',
+      42,
+      parseQuality === 'parsed'
+        ? 'PDF 文本解析完成，正在归档原文…'
+        : 'PDF 文本质量需人工核对，正在保留可追溯原文…',
+    );
+    const generatedDate: string = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const rawDocumentUrl = await this.createRawPdfDocument({
+      content: parsedContent,
+      fileHash,
+      fileName: input.media.fileName,
+      generatedDate,
+      parseQuality,
+      sourceUrl: input.media.downloadUrl,
+    });
+    if (rawDocumentUrl) {
+      this.patch(id, { rawDocumentUrl });
+      await this.persistRawDocument(id, rawDocumentUrl);
+    }
+
+    this.update(id, 'summarizing', 58, '正在提炼知识框架与核心观点…');
+    const editorResearch: string = await this.researchEvidence(
+      title,
+      parsedContent,
+    );
+    const markdown: string = await this.summarizePdf({
+      content: parsedContent,
+      editorResearch,
+      fileHash,
+      fileName: input.media.fileName,
+      generatedDate,
+      noteStyle: input.noteStyle,
+      parseQuality,
+      sourceUrl: input.media.downloadUrl,
+      title,
+    });
+    this.update(id, 'summarizing', 78, '正在核验笔记与 PDF 原文的一致性…');
+    const reviewedMarkdown: string = await this.reviewPdfNote({
+      draftNote: markdown,
+      noteStyle: input.noteStyle,
+      sourceText: parsedContent,
+    });
+    this.update(id, 'summarizing', 86, '正在生成知识框架图…');
+    const knowledgeMapUrl: string | undefined =
+      await this.generateKnowledgeMap(reviewedMarkdown);
+    const withKnowledgeMap: string = knowledgeMapUrl
+      ? this.insertKnowledgeMap(reviewedMarkdown, knowledgeMapUrl)
+      : reviewedMarkdown;
+    const finalMarkdown: string = rawDocumentUrl
+      ? this.appendRawDocumentReference(withKnowledgeMap, rawDocumentUrl)
+      : withKnowledgeMap;
+    const noteTitle: string =
+      this.extractMarkdownTitle(reviewedMarkdown) || title;
+    await this.persistTitle(id, noteTitle);
+
+    this.update(id, 'publishing', 92, '学习笔记已完成，正在写入飞书文档…');
+    const documentUrl: string = await this.createLarkDocument(
+      noteTitle,
+      finalMarkdown,
+    );
+    this.patch(id, {
+      stage: 'completed',
+      progress: 100,
+      message: '完成！PDF 学习笔记已创建。',
+      rawDocumentUrl,
+      documentUrl,
+    });
+    await this.persistFinish(id, {
+      status: 'completed',
+      rawDocumentUrl,
+      documentUrl,
+    });
   }
 
   private async preparePlatformMedia(
@@ -387,8 +491,10 @@ export class NoteJobsService {
       input.sourceType === 'video' ? '本地视频' : '录音文件';
     this.update(id, 'preparing', 14, `正在读取${sourceLabel}…`);
     const extension: string =
-      input.media.fileName.split('.').pop()?.replace(/[^a-z0-9]/giu, '') ||
-      'media';
+      input.media.fileName
+        .split('.')
+        .pop()
+        ?.replace(/[^a-z0-9]/giu, '') || 'media';
     const sourcePath: string = join(workDir, `source.${extension}`);
     await this.downloadUploadedMedia(input.media, sourcePath);
 
@@ -522,7 +628,7 @@ export class NoteJobsService {
     ) as {
       loaderData?: Record<
         string,
-        | {
+        {
           videoInfoRes?: {
             item_list?: Array<{
               aweme_id?: string;
@@ -535,8 +641,7 @@ export class NoteJobsService {
               };
             }>;
           };
-        }
-        | null
+        } | null
       >;
     };
     const pageData = Object.values(routerData.loaderData || {}).find(
@@ -615,7 +720,10 @@ export class NoteJobsService {
     return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
   }
 
-  private async splitAudioIfNeeded(audioPath: string, workDir: string): Promise<string[]> {
+  private async splitAudioIfNeeded(
+    audioPath: string,
+    workDir: string,
+  ): Promise<string[]> {
     const audioStat = await stat(audioPath);
     if (audioStat.size <= 24 * 1024 * 1024) return [audioPath];
 
@@ -671,10 +779,10 @@ export class NoteJobsService {
       const streamResult = await this.capabilityService
         .load(pluginInstanceId)
         .callStream(actionKey, pluginInput);
-      const markdown = await this.collectCapabilityText(
-        streamResult,
-        ['content', 'response'],
-      );
+      const markdown = await this.collectCapabilityText(streamResult, [
+        'content',
+        'response',
+      ]);
       if (!markdown.trim()) throw new Error('妙搭内置 AI 没有返回学习笔记');
       return markdown;
     } catch (error) {
@@ -689,6 +797,129 @@ export class NoteJobsService {
       );
       throw new Error(
         `妙搭内置 AI 生成笔记失败：${error instanceof Error ? error.message : '未知错误'}`,
+      );
+    }
+  }
+
+  private async parsePdf(downloadUrl: string): Promise<string> {
+    const pluginInstanceId = 'pdf-document-parser';
+    const actionKey = 'parseDocToMarkdown';
+    const outputMode = 'unary';
+    const pluginInput = { file_url: [downloadUrl] };
+    try {
+      const result = (await this.capabilityService
+        .load(pluginInstanceId)
+        .call(actionKey, pluginInput)) as { content?: unknown };
+      if (typeof result.content !== 'string' || !result.content.trim()) {
+        throw new Error('文档解析插件没有返回可用文本');
+      }
+      return result.content.trim();
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode,
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      throw new Error(
+        `PDF 解析失败：${error instanceof Error ? error.message : '未知错误'}`,
+      );
+    }
+  }
+
+  private async summarizePdf(input: {
+    content: string;
+    editorResearch: string;
+    fileHash: string;
+    fileName: string;
+    generatedDate: string;
+    noteStyle: NoteStyle;
+    parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
+    sourceUrl: string;
+    title: string;
+  }): Promise<string> {
+    const pluginInstanceId = 'pdf-note-writer';
+    const actionKey = 'textGenerate';
+    const pluginInput = {
+      source_text: input.content,
+      document_title: input.title,
+      file_name: input.fileName,
+      file_hash: input.fileHash,
+      source_url: input.sourceUrl,
+      generated_date: input.generatedDate,
+      parse_quality: input.parseQuality,
+      editor_research: input.editorResearch,
+      note_style: input.noteStyle,
+      style_requirements: getNoteStyleRequirement(input.noteStyle),
+    };
+    try {
+      const streamResult = await this.capabilityService
+        .load(pluginInstanceId)
+        .callStream(actionKey, pluginInput);
+      const markdown = await this.collectCapabilityText(streamResult, [
+        'content',
+        'response',
+      ]);
+      if (!markdown.trim()) throw new Error('PDF 笔记插件没有返回内容');
+      return markdown.trim();
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode: 'stream',
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      throw new Error(
+        `PDF 学习笔记生成失败：${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    }
+  }
+
+  private async reviewPdfNote(input: {
+    draftNote: string;
+    noteStyle: NoteStyle;
+    sourceText: string;
+  }): Promise<string> {
+    const pluginInstanceId = 'pdf-note-quality-reviewer';
+    const actionKey = 'textGenerate';
+    const pluginInput = {
+      draft_note: input.draftNote,
+      note_style: input.noteStyle,
+      source_text: input.sourceText,
+      style_requirements: getNoteStyleRequirement(input.noteStyle),
+    };
+    try {
+      const streamResult = await this.capabilityService
+        .load(pluginInstanceId)
+        .callStream(actionKey, pluginInput);
+      const reviewedNote = await this.collectCapabilityText(streamResult, [
+        'content',
+        'response',
+      ]);
+      if (!reviewedNote.trim()) throw new Error('PDF 质量审核插件没有返回内容');
+      return reviewedNote.trim();
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          pluginInstanceId,
+          actionKey,
+          outputMode: 'stream',
+          inputKeys: Object.keys(pluginInput),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+      );
+      throw new Error(
+        `PDF 笔记质量审核失败：${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
       );
     }
   }
@@ -711,10 +942,10 @@ export class NoteJobsService {
       const streamResult = await this.capabilityService
         .load(pluginInstanceId)
         .callStream(actionKey, pluginInput);
-      const reviewedNote = await this.collectCapabilityText(
-        streamResult,
-        ['content', 'response'],
-      );
+      const reviewedNote = await this.collectCapabilityText(streamResult, [
+        'content',
+        'response',
+      ]);
       if (!reviewedNote.trim()) {
         throw new Error('质量审核插件没有返回修订后的笔记');
       }
@@ -872,7 +1103,10 @@ export class NoteJobsService {
     return title || undefined;
   }
 
-  private async createLarkDocument(title: string, markdown: string): Promise<string> {
+  private async createLarkDocument(
+    title: string,
+    markdown: string,
+  ): Promise<string> {
     const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
       'lark-cli',
@@ -897,7 +1131,9 @@ export class NoteJobsService {
       error?: { message?: string; hint?: string };
     };
     if (!parsed.ok || !parsed.data?.document?.url) {
-      throw new Error(parsed.error?.hint || parsed.error?.message || '飞书文档创建失败');
+      throw new Error(
+        parsed.error?.hint || parsed.error?.message || '飞书文档创建失败',
+      );
     }
     return parsed.data.document.url;
   }
@@ -918,6 +1154,31 @@ export class NoteJobsService {
     } catch (error) {
       this.logger.warn(
         `创建任务原文档案失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+      return undefined;
+    }
+  }
+
+  private async createRawPdfDocument(input: {
+    content: string;
+    fileHash: string;
+    fileName: string;
+    generatedDate: string;
+    parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
+    sourceUrl: string;
+  }): Promise<string | undefined> {
+    const title: string =
+      input.fileName.replace(/[.][^.]+$/u, '') || 'PDF 原文';
+    try {
+      return await this.createLarkDocument(
+        buildRawDocumentTitle(title),
+        buildPdfRawMarkdown(input),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `创建 PDF 原文档案失败: ${
           error instanceof Error ? error.message : '未知错误'
         }`,
       );
@@ -1039,7 +1300,12 @@ export class NoteJobsService {
     return message;
   }
 
-  private update(id: string, stage: JobStage, progress: number, message: string) {
+  private update(
+    id: string,
+    stage: JobStage,
+    progress: number,
+    message: string,
+  ) {
     this.patch(id, { stage, progress, message });
   }
 
@@ -1125,7 +1391,11 @@ export class NoteJobsService {
       .catch(() => false);
   }
 
-  private runCommand(command: string, args: string[], stdin?: string): Promise<CommandResult> {
+  private runCommand(
+    command: string,
+    args: string[],
+    stdin?: string,
+  ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         cwd: process.cwd(),
@@ -1139,21 +1409,32 @@ export class NoteJobsService {
       child.on('error', reject);
       child.on('close', (code) => {
         if (code === 0) resolve({ stdout, stderr });
-        else reject(new Error(this.commandError(command, stderr, stdout, code)));
+        else
+          reject(new Error(this.commandError(command, stderr, stdout, code)));
       });
       if (stdin) child.stdin.end(stdin);
       else child.stdin.end();
     });
   }
 
-  private commandError(command: string, stderr: string, stdout: string, code: number | null) {
+  private commandError(
+    command: string,
+    stderr: string,
+    stdout: string,
+    code: number | null,
+  ) {
     const raw = (stderr || stdout).trim();
     try {
-      const parsed = JSON.parse(raw) as { error?: { hint?: string; message?: string } };
-      return parsed.error?.hint || parsed.error?.message || `${command} 执行失败`;
+      const parsed = JSON.parse(raw) as {
+        error?: { hint?: string; message?: string };
+      };
+      return (
+        parsed.error?.hint || parsed.error?.message || `${command} 执行失败`
+      );
     } catch {
-      return raw.split('\n').slice(-5).join('\n') || `${command} 执行失败（${code}）`;
+      return (
+        raw.split('\n').slice(-5).join('\n') || `${command} 执行失败（${code}）`
+      );
     }
   }
-
 }

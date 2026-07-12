@@ -8,6 +8,7 @@ import ConversionHistoryPage from './pages/ConversionHistoryPage/ConversionHisto
 import EntryPage from './pages/EntryPage/EntryPage';
 import LocalVideoNotesPage from './pages/LocalVideoNotesPage/LocalVideoNotesPage';
 import NotFound from './pages/NotFound/NotFound';
+import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import HomePage from './pages/HomePage/HomePage';
 
 const RoutesComponent = () => {
@@ -18,6 +19,7 @@ const RoutesComponent = () => {
         <Route path="video-notes" element={<HomePage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
+        <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="conversion-history" element={<ConversionHistoryPage />} />
         <Route path="article-export" element={<ArticleExportPage />} />
       </Route>

@@ -1,0 +1,22 @@
+{
+  "id": "pdf-document-parser",
+  "pluginKey": "@official-plugins/ai-doc-parser",
+  "pluginVersion": "1.0.16",
+  "name": "PDF 文本解析",
+  "description": "从单个 PDF 文件提取 Markdown 原文，供后续学习笔记生成与追溯使用",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "file_url": {
+        "type": "array",
+        "format": "plugin-file-url",
+        "description": "待解析的单个 PDF 文件地址",
+        "items": { "type": "string" }
+      }
+    },
+    "required": ["file_url"]
+  },
+  "formValue": {
+    "fileUrl": "{{input.file_url}}"
+  }
+}

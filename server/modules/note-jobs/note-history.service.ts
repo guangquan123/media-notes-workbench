@@ -51,17 +51,13 @@ export class NoteHistoryService {
   ) {}
 
   async create(job: NoteJob, ownerId: string): Promise<void> {
-    const title: string =
-      job.mediaFileName || `${job.sourceLabel}学习笔记`;
+    const title: string = job.mediaFileName || `${job.sourceLabel}学习笔记`;
     await this.db.insert(noteConversionRecords).values({
       jobId: job.id,
       ownerId,
       title,
       sourceType: job.sourceType,
-      sourceLabel: getConversionTypeLabel(
-        job.sourceType,
-        job.sourcePlatform,
-      ),
+      sourceLabel: getConversionTypeLabel(job.sourceType, job.sourcePlatform),
       status: 'processing',
       startedAt: new Date(job.createdAt),
     });
@@ -146,7 +142,7 @@ export class NoteHistoryService {
   }
 
   private toSourceType(value: string): NoteSourceType {
-    if (value === 'video' || value === 'audio') return value;
+    if (value === 'video' || value === 'audio' || value === 'pdf') return value;
     return 'platform';
   }
 

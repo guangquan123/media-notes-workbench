@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   FileAudio,
+  FileText,
   FileVideo,
   History,
   LoaderCircle,
@@ -39,6 +40,10 @@ const SOURCE_STYLES: Record<
     accent: '#168b75',
     background: '#eaf8f4',
   },
+  pdf: {
+    accent: '#3370ff',
+    background: '#edf3ff',
+  },
 };
 
 function getStatusCopy(record: NoteConversionRecord): string {
@@ -47,12 +52,9 @@ function getStatusCopy(record: NoteConversionRecord): string {
   return '处理中';
 }
 
-function ConversionIcon({
-  sourceType,
-}: {
-  sourceType: NoteSourceType;
-}) {
+function ConversionIcon({ sourceType }: { sourceType: NoteSourceType }) {
   if (sourceType === 'audio') return <FileAudio className="size-5" />;
+  if (sourceType === 'pdf') return <FileText className="size-5" />;
   return <FileVideo className="size-5" />;
 }
 
@@ -153,7 +155,10 @@ export default function ConversionHistoryPage() {
                 <p className="mt-2 text-sm leading-6 text-black/45">
                   完成一次视频或录音转化后，记录会自动出现在这里。
                 </p>
-                <Button asChild className="mt-6 rounded-xl bg-[#161616] text-white">
+                <Button
+                  asChild
+                  className="mt-6 rounded-xl bg-[#161616] text-white"
+                >
                   <Link to="/">开始第一次转化</Link>
                 </Button>
               </div>

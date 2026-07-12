@@ -8,7 +8,11 @@ import type {
 } from '@shared/api.interface';
 
 const MAX_MEDIA_SIZE = 1024 * 1024 * 1024;
-const MEDIA_MIME_PREFIX: Record<Exclude<NoteSourceType, 'platform'>, string> = {
+const MAX_PDF_SIZE = 200 * 1024 * 1024;
+const MEDIA_MIME_PREFIX: Record<
+  Exclude<NoteSourceType, 'platform' | 'pdf'>,
+  string
+> = {
   video: 'video/',
   audio: 'audio/',
 };
@@ -25,7 +29,13 @@ interface MediaJobInput {
   media: UploadedMediaInput;
 }
 
-type ValidatedNoteJobInput = PlatformJobInput | MediaJobInput;
+interface PdfJobInput {
+  sourceType: 'pdf';
+  noteStyle: NoteStyle;
+  media: UploadedMediaInput;
+}
+
+type ValidatedNoteJobInput = PlatformJobInput | MediaJobInput | PdfJobInput;
 
 const NOTE_STYLES: readonly NoteStyle[] = [
   'systematic',
@@ -155,6 +165,35 @@ export function validateMediaInput(
   };
 }
 
+export function validatePdfInput(
+  input: UploadedMediaInput,
+): UploadedMediaInput {
+  const extension: string =
+    input.fileName?.split('.').pop()?.toLowerCase() || '';
+  if (!input.fileName?.trim() || !input.mimeType?.trim()) {
+    throw new BadRequestException('文件信息不完整');
+  }
+  if (
+    !Number.isFinite(input.fileSize) ||
+    input.fileSize <= 0 ||
+    input.fileSize > MAX_PDF_SIZE
+  ) {
+    throw new BadRequestException('PDF 文件不能超过 200 MB');
+  }
+  if (
+    input.mimeType.toLowerCase() !== 'application/pdf' &&
+    extension !== 'pdf'
+  ) {
+    throw new BadRequestException('请选择有效的 PDF 文件');
+  }
+  validateMediaDownloadUrl(input.downloadUrl);
+  return {
+    ...input,
+    fileName: input.fileName.trim().slice(0, 240),
+    mimeType: 'application/pdf',
+  };
+}
+
 export function validateNoteJobRequest(
   input: CreateNoteJobRequest,
 ): ValidatedNoteJobInput {
@@ -166,7 +205,11 @@ export function validateNoteJobRequest(
     }
     return { sourceType, noteStyle, url: input.url };
   }
-  if (sourceType !== 'video' && sourceType !== 'audio') {
+  if (
+    sourceType !== 'video' &&
+    sourceType !== 'audio' &&
+    sourceType !== 'pdf'
+  ) {
     throw new BadRequestException('不支持的内容来源');
   }
   if (!input.media) {
@@ -175,6 +218,13 @@ export function validateNoteJobRequest(
         ? '请选择需要处理的视频文件'
         : '请选择需要处理的录音文件',
     );
+  }
+  if (sourceType === 'pdf') {
+    return {
+      sourceType,
+      noteStyle,
+      media: validatePdfInput(input.media),
+    };
   }
   return {
     sourceType,

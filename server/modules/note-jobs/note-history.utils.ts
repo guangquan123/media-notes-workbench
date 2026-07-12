@@ -1,7 +1,4 @@
-import type {
-  NoteSourceType,
-  SourcePlatform,
-} from '@shared/api.interface';
+import type { NoteSourceType, SourcePlatform } from '@shared/api.interface';
 
 function calculateDurationMs(startedAt: Date, completedAt: Date): number {
   return Math.max(0, completedAt.getTime() - startedAt.getTime());
@@ -23,11 +20,8 @@ function getConversionTypeLabel(
 ): string {
   if (sourceType === 'video') return '本地视频';
   if (sourceType === 'audio') return '录音';
+  if (sourceType === 'pdf') return 'PDF 资料';
   return sourcePlatform === 'douyin' ? '抖音视频' : 'B站视频';
 }
 
-export {
-  calculateDurationMs,
-  formatDuration,
-  getConversionTypeLabel,
-};
+export { calculateDurationMs, formatDuration, getConversionTypeLabel };
