@@ -64,13 +64,44 @@ describe('note job request validation', () => {
     ).toThrow(BadRequestException);
   });
 
-  it('rejects files larger than the configured media limit', () => {
+  it('accepts media files up to 10 GiB', () => {
     expect(() =>
       validateMediaInput(
-        { ...video, fileSize: 1024 * 1024 * 1024 + 1 },
+        { ...video, fileSize: 10 * 1024 * 1024 * 1024 },
         'video',
       ),
-    ).toThrow('文件不能超过 1 GB');
+    ).not.toThrow();
+  });
+
+  it('rejects chunked media when the part sizes do not match the file size', () => {
+    expect(() =>
+      validateMediaInput(
+        {
+          ...video,
+          fileSize: 1024,
+          parts: [
+            {
+              downloadUrl: 'https://storage.example.com/uploads/lesson.part-1',
+              fileSize: 512,
+            },
+            {
+              downloadUrl: 'https://storage.example.com/uploads/lesson.part-2',
+              fileSize: 256,
+            },
+          ],
+        },
+        'video',
+      ),
+    ).toThrow('上传分片大小与文件大小不一致');
+  });
+
+  it('rejects files larger than 10 GiB', () => {
+    expect(() =>
+      validateMediaInput(
+        { ...video, fileSize: 10 * 1024 * 1024 * 1024 + 1 },
+        'video',
+      ),
+    ).toThrow('文件不能超过 10 GB');
   });
 
   it('rejects non-HTTPS and private download URLs', () => {

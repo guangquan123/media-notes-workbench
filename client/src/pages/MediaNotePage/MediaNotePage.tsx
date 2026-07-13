@@ -19,8 +19,8 @@ import { toast } from 'sonner';
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import {
-  deleteUploadedFile,
-  uploadFile,
+  deleteUploadedFiles,
+  uploadMediaFile,
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ interface PageCopy {
   title: string;
 }
 
-const MAX_FILE_SIZE = 1024 * 1024 * 1024;
+const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
 const MAX_PDF_FILE_SIZE = 200 * 1024 * 1024;
 
 const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
@@ -62,7 +62,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     description:
       '上传课程、讲座或屏幕录制，系统会提取音轨、转录内容并整理成飞书学习笔记。',
     eyebrow: '本地视频工作台',
-    fileHint: '支持 MP4、MOV、MKV、WebM，最大 1 GB',
+    fileHint: '支持 MP4、MOV、MKV、WebM，最大 10 GB',
     title: '把本地视频，变成一篇有结构的学习笔记。',
   },
   audio: {
@@ -80,7 +80,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     description:
       '上传课堂录音、访谈或语音备忘，系统会转成文字、提炼重点并写入飞书。',
     eyebrow: '录音整理工作台',
-    fileHint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG，最大 1 GB',
+    fileHint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG，最大 10 GB',
     title: '让一段录音，沉淀成真正可复习的笔记。',
   },
   pdf: {
@@ -156,8 +156,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData | null>(
-    null,
+  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>(
+    [],
   );
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -172,7 +172,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     onDropAccepted: (files: File[]) => setFile(files[0] || null),
     onDropRejected: () =>
       toast.error(
-        `文件格式不支持或超过 ${sourceType === 'pdf' ? '200 MB' : '1 GB'}，请重新选择${sourceLabel}`,
+        `文件格式不支持或超过 ${sourceType === 'pdf' ? '200 MB' : '10 GB'}，请重新选择${sourceLabel}`,
       ),
   });
 
@@ -203,10 +203,10 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         setJob(next);
         if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (uploadedMedia && ['completed', 'failed'].includes(next.stage)) {
+        if (uploadedMedia.length > 0 && ['completed', 'failed'].includes(next.stage)) {
           try {
-            await deleteUploadedFile(uploadedMedia);
-            setUploadedMedia(null);
+            await deleteUploadedFiles(uploadedMedia);
+            setUploadedMedia([]);
           } catch {
             toast.warning('源文件自动清理失败，可稍后在应用文件中删除');
           }
@@ -231,27 +231,36 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     }
     setSubmitting(true);
     setUploading(true);
-    let uploaded: UploadFileData | null = null;
+    let uploaded: UploadFileData[] = [];
+    let uploadCompleted = false;
     try {
-      uploaded = await uploadFile(file);
+      uploaded = await uploadMediaFile(file);
       setUploadedMedia(uploaded);
       setUploading(false);
+      uploadCompleted = true;
       const created: NoteJob = await createNoteJob({
         sourceType,
         noteStyle,
         media: {
-          downloadUrl: uploaded.url,
+          downloadUrl: uploaded[0].url,
           fileName: file.name,
           fileSize: file.size,
           mimeType: getMediaMimeType(file, sourceType),
+          parts:
+            uploaded.length > 1
+              ? uploaded.map((part: UploadFileData) => ({
+                  downloadUrl: part.url,
+                  fileSize: part.fileSize,
+                }))
+              : undefined,
         },
       });
       setJob(created);
     } catch (error: unknown) {
-      if (uploaded) {
+      if (uploaded.length > 0) {
         try {
-          await deleteUploadedFile(uploaded);
-          setUploadedMedia(null);
+          await deleteUploadedFiles(uploaded);
+          setUploadedMedia([]);
         } catch {
           toast.warning('上传文件清理失败，可稍后在应用文件中删除');
         }
@@ -262,9 +271,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         };
       };
       toast.error(
-        responseError.response?.data?.error?.message ||
+          responseError.response?.data?.error?.message ||
           responseError.response?.data?.message ||
-          '任务创建失败，请稍后重试',
+          (uploadCompleted
+            ? '任务创建失败，请稍后重试'
+            : '文件上传失败，请检查网络后重试'),
       );
     } finally {
       setUploading(false);

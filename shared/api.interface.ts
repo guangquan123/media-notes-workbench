@@ -39,6 +39,12 @@ export interface UploadedMediaInput {
   fileName: string;
   fileSize: number;
   mimeType: string;
+  parts?: UploadedMediaPart[];
+}
+
+export interface UploadedMediaPart {
+  downloadUrl: string;
+  fileSize: number;
 }
 
 export interface CreateNoteJobRequest {

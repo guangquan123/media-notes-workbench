@@ -22,11 +22,13 @@ import type {
   NoteSourceType,
   SourcePlatform,
   SystemReadiness,
+  UploadedMediaPart,
   UploadedMediaInput,
 } from '@shared/api.interface';
 import {
   getDouyinAudioFallbackArgs,
   isAudioRematrixError,
+  MAX_MEDIA_SIZE_BYTES,
   normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
   validateNoteJobRequest,
@@ -559,6 +561,26 @@ export class NoteJobsService {
     media: UploadedMediaInput,
     destination: string,
   ): Promise<void> {
+    const parts: UploadedMediaPart[] = media.parts || [
+      {
+        downloadUrl: media.downloadUrl,
+        fileSize: media.fileSize,
+      },
+    ];
+    for (let index = 0; index < parts.length; index += 1) {
+      await this.downloadUploadedMediaPart(
+        parts[index],
+        destination,
+        index === 0 ? 'wx' : 'a',
+      );
+    }
+  }
+
+  private async downloadUploadedMediaPart(
+    media: UploadedMediaPart,
+    destination: string,
+    flags: 'a' | 'wx',
+  ): Promise<void> {
     let currentUrl: URL = validateMediaDownloadUrl(media.downloadUrl);
     let response: Response | undefined;
     for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
@@ -581,7 +603,10 @@ export class NoteJobsService {
     if (!response.body) {
       throw new Error('上传文件没有可读取的内容');
     }
-    const maximumBytes: number = Math.min(media.fileSize + 1024, 1024 ** 3);
+    const maximumBytes: number = Math.min(
+      media.fileSize + 1024,
+      MAX_MEDIA_SIZE_BYTES,
+    );
     let receivedBytes = 0;
     const sizeLimiter = new Transform({
       transform(chunk: Buffer, _encoding: BufferEncoding, callback) {
@@ -596,7 +621,7 @@ export class NoteJobsService {
     await pipeline(
       Readable.fromWeb(response.body),
       sizeLimiter,
-      createWriteStream(destination, { flags: 'wx' }),
+      createWriteStream(destination, { flags }),
     );
   }
 

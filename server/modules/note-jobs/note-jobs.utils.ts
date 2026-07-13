@@ -8,7 +8,10 @@ import type {
 } from '@shared/api.interface';
 import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
 
-const MAX_MEDIA_SIZE = 1024 * 1024 * 1024;
+export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
+const MAX_MEDIA_PART_SIZE_BYTES = 512 * 1024 * 1024;
+const MAX_MEDIA_PART_COUNT =
+  MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
 const MAX_PDF_SIZE = 200 * 1024 * 1024;
 const MEDIA_MIME_PREFIX: Record<
   Exclude<NoteSourceType, 'platform' | 'pdf'>,
@@ -145,9 +148,9 @@ export function validateMediaInput(
   if (
     !Number.isFinite(input.fileSize) ||
     input.fileSize <= 0 ||
-    input.fileSize > MAX_MEDIA_SIZE
+    input.fileSize > MAX_MEDIA_SIZE_BYTES
   ) {
-    throw new BadRequestException('文件不能超过 1 GB');
+    throw new BadRequestException('文件不能超过 10 GB');
   }
   if (!input.mimeType.startsWith(MEDIA_MIME_PREFIX[sourceType])) {
     throw new BadRequestException(
@@ -155,6 +158,28 @@ export function validateMediaInput(
     );
   }
   validateMediaDownloadUrl(input.downloadUrl);
+  if (input.parts) {
+    if (input.parts.length === 0 || input.parts.length > MAX_MEDIA_PART_COUNT) {
+      throw new BadRequestException('上传分片数量无效');
+    }
+    const partSize: number = input.parts.reduce(
+      (total: number, part: { downloadUrl: string; fileSize: number }) => {
+        if (
+          !Number.isFinite(part.fileSize) ||
+          part.fileSize <= 0 ||
+          part.fileSize > MAX_MEDIA_PART_SIZE_BYTES
+        ) {
+          throw new BadRequestException('上传分片大小无效');
+        }
+        validateMediaDownloadUrl(part.downloadUrl);
+        return total + part.fileSize;
+      },
+      0,
+    );
+    if (partSize !== input.fileSize) {
+      throw new BadRequestException('上传分片大小与文件大小不一致');
+    }
+  }
   return {
     ...input,
     fileName: input.fileName.trim().slice(0, 240),
