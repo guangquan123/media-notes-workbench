@@ -48,6 +48,8 @@ interface PageCopy {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
 const MAX_PDF_FILE_SIZE = 200 * 1024 * 1024;
+const READINESS_MAX_ATTEMPTS = 3;
+const READINESS_RETRY_DELAY_MS = 1200;
 
 const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
   video: {
@@ -179,11 +181,21 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   useEffect(() => {
     let cancelled = false;
     const loadReadiness = async () => {
-      try {
-        const next: SystemReadiness = await getReadiness();
-        if (!cancelled) setReadiness(next);
-      } catch {
-        if (!cancelled) toast.error('暂时无法检查处理环境');
+      for (let attempt = 1; attempt <= READINESS_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const next: SystemReadiness = await getReadiness();
+          if (!cancelled) setReadiness(next);
+          return;
+        } catch {
+          if (attempt === READINESS_MAX_ATTEMPTS) {
+            if (!cancelled) toast.error('暂时无法检查处理环境');
+            return;
+          }
+          await new Promise<void>((resolve: () => void) => {
+            window.setTimeout(resolve, attempt * READINESS_RETRY_DELAY_MS);
+          });
+          if (cancelled) return;
+        }
       }
     };
     void loadReadiness();

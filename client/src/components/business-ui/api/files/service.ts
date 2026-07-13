@@ -2,7 +2,9 @@
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 
-const MEDIA_UPLOAD_PART_SIZE = 512 * 1024 * 1024;
+const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
+const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
+const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
 
 export interface UploadFileData {
   id: string;
@@ -41,7 +43,7 @@ export async function uploadFile(file: File): Promise<UploadFileData> {
 
 export async function uploadMediaFile(file: File): Promise<UploadFileData[]> {
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
-    return [await uploadFile(file)];
+    return [await uploadMediaPart(file)];
   }
 
   const uploads: UploadFileData[] = [];
@@ -60,13 +62,27 @@ export async function uploadMediaFile(file: File): Promise<UploadFileData[]> {
         `${file.name}.part-${String(index).padStart(3, '0')}`,
         { type: file.type },
       );
-      uploads.push(await uploadFile(part));
+      uploads.push(await uploadMediaPart(part));
     }
   } catch (error) {
     await deleteUploadedFiles(uploads).catch(() => undefined);
     throw error;
   }
   return uploads;
+}
+
+async function uploadMediaPart(file: File): Promise<UploadFileData> {
+  for (let attempt = 1; attempt <= MEDIA_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await uploadFile(file);
+    } catch (error) {
+      if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) throw error;
+      await new Promise<void>((resolve: () => void) => {
+        window.setTimeout(resolve, attempt * MEDIA_UPLOAD_RETRY_DELAY_MS);
+      });
+    }
+  }
+  throw new Error('文件上传重试次数已用尽');
 }
 
 export async function deleteUploadedFile(

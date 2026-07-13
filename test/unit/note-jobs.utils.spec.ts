@@ -95,6 +95,23 @@ describe('note job request validation', () => {
     ).toThrow('上传分片大小与文件大小不一致');
   });
 
+  it('accepts up to 80 media parts for a 10 GiB upload', () => {
+    const parts: { downloadUrl: string; fileSize: number }[] = Array.from(
+      { length: 80 },
+      (_: unknown, index: number) => ({
+        downloadUrl: `https://storage.example.com/uploads/lesson.part-${index}`,
+        fileSize: 128,
+      }),
+    );
+
+    expect(() =>
+      validateMediaInput(
+        { ...video, fileSize: 80 * 128, parts },
+        'video',
+      ),
+    ).not.toThrow();
+  });
+
   it('rejects files larger than 10 GiB', () => {
     expect(() =>
       validateMediaInput(

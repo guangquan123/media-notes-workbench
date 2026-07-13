@@ -9,7 +9,7 @@ import type {
 import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
 
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
-const MAX_MEDIA_PART_SIZE_BYTES = 512 * 1024 * 1024;
+const MAX_MEDIA_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MAX_MEDIA_PART_COUNT =
   MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
 const MAX_PDF_SIZE = 200 * 1024 * 1024;
