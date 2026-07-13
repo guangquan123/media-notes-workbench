@@ -57,6 +57,18 @@ const PLATFORM_URL_PROFILES: Record<
   },
 };
 
+export function getDouyinAudioFallbackArgs(): string[] {
+  return ['-filter:a', 'pan=stereo|c0=c0|c1=c1', '-ar', '16000'];
+}
+
+export function isAudioRematrixError(message: string): boolean {
+  return (
+    message.includes('Rematrix is needed') ||
+    message.includes('Failed to configure output pad on auto_aresample') ||
+    message.includes('Error reinitializing filters')
+  );
+}
+
 export function validateNoteStyle(value?: string): NoteStyle {
   if (!value) return 'learning';
   if (NOTE_STYLES.includes(value as NoteStyle)) {

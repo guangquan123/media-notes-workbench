@@ -25,6 +25,8 @@ import type {
   UploadedMediaInput,
 } from '@shared/api.interface';
 import {
+  getDouyinAudioFallbackArgs,
+  isAudioRematrixError,
   normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
   validateNoteJobRequest,
@@ -710,7 +712,7 @@ export class NoteJobsService {
     mediaUrl: string,
     audioPath: string,
   ): Promise<void> {
-    await this.runCommand('ffmpeg', [
+    const baseArgs: string[] = [
       '-hide_banner',
       '-loglevel',
       'error',
@@ -721,13 +723,28 @@ export class NoteJobsService {
       '-i',
       mediaUrl,
       '-vn',
+    ];
+    const outputArgs: string[] = [
       '-codec:a',
       'libmp3lame',
       '-q:a',
       '5',
       '-y',
       audioPath,
-    ]);
+    ];
+    try {
+      await this.runCommand('ffmpeg', [...baseArgs, ...outputArgs]);
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      if (!isAudioRematrixError(message)) throw error;
+      this.logger.warn('抖音音频声道布局异常，正在使用显式双声道映射重试');
+      await this.runCommand('ffmpeg', [
+        ...baseArgs,
+        ...getDouyinAudioFallbackArgs(),
+        ...outputArgs,
+      ]);
+    }
   }
 
   private getDouyinMobileUserAgent(): string {

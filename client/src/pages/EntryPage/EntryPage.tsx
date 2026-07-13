@@ -24,174 +24,131 @@ const FEATURE_CARDS = [
     href: '/video-notes',
     icon: BookOpenText,
     title: '视频学习笔记',
-    description:
-      '把 B站和抖音视频整理成结构化学习笔记，适合做视频复盘、课程摘记和知识沉淀。',
-    accent: 'from-[#fb7299]/15 to-[#fb7299]/5',
+    description: '将 B站和抖音视频整理为结构化学习笔记。',
     badge: '平台视频',
-    bullets: ['视频地址粘贴', '自动转录与总结', '写入飞书文档'],
-    cta: '进入视频学习笔记',
+    bullets: ['视频地址', '自动转录', '飞书笔记'],
+    cta: '开始处理',
   },
   {
     href: '/local-video-notes',
     icon: FileVideo,
     title: '本地视频学习笔记',
-    description:
-      '上传课程视频、讲座或屏幕录制，自动提取音轨并整理成结构化学习笔记。',
-    accent: 'from-[#e86f3d]/15 to-[#f4a261]/5',
+    description: '上传课程、讲座或屏幕录制，提取内容并生成笔记。',
     badge: '视频文件',
-    bullets: ['独立文件上传', '提取音轨与转写', '实时显示处理进度'],
-    cta: '上传本地视频',
+    bullets: ['文件上传', '音轨提取', '处理进度'],
+    cta: '上传视频',
   },
   {
     href: '/audio-notes',
     icon: FileAudio,
     title: '录音学习笔记',
-    description: '上传课堂录音、访谈或语音备忘，提炼重点、知识结构和行动项。',
-    accent: 'from-[#168b75]/15 to-[#5db9a5]/5',
+    description: '上传课堂录音、访谈或语音备忘，提炼重点与行动项。',
     badge: '录音文件',
-    bullets: ['多种音频格式', '长录音自动切片', '生成飞书学习笔记'],
-    cta: '上传录音文件',
+    bullets: ['多种格式', '自动切片', '学习笔记'],
+    cta: '上传录音',
   },
   {
     href: '/pdf-notes',
     icon: FileText,
     title: 'PDF 学习笔记',
-    description:
-      '上传书籍、报告、论文或课程资料，自动提炼知识框架、核心观点和行动清单。',
-    accent: 'from-[#3370ff]/15 to-[#85a9ff]/5',
+    description: '上传书籍、报告、论文或课程资料，沉淀知识结构。',
     badge: 'PDF 文件',
-    bullets: ['原文解析归档', '知识结构提炼', '生成飞书学习笔记'],
-    cta: '上传 PDF 文件',
+    bullets: ['原文解析', '知识提炼', '飞书归档'],
+    cta: '上传 PDF',
   },
 ] as const;
 
 export default function EntryPage() {
   return (
-    <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_left,_rgba(251,114,153,0.12),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.1),_transparent_26%),linear-gradient(180deg,#faf8f4_0%,#f7f6f2_48%,#f5f3ef_100%)] text-[#161616]">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6 md:px-10 md:py-8">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-2xl bg-[#111111] text-white shadow-sm">
-              <Sparkles className="size-5" />
+    <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#111315]">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_82%_2%,rgba(77,93,255,0.09),transparent_24%),linear-gradient(135deg,rgba(17,19,21,0.025)_1px,transparent_1px)] bg-[size:auto,32px_32px]">
+        <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 md:px-10 md:py-8">
+          <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
+                <Sparkles className="size-5" />
+              </div>
+              <p className="text-sm font-semibold tracking-wide">学习工作台</p>
             </div>
-            <div>
-              <p className="text-sm font-semibold">内容工作台</p>
-              <p className="text-xs text-black/45">先选入口，再进入对应页面</p>
-            </div>
-          </div>
-          <div className="status-pill is-ready">
             <Link
-              className="inline-flex items-center gap-2"
+              className="inline-flex w-fit items-center gap-2 rounded-full border border-black/9 bg-white/80 px-3 py-1.5 text-xs text-black/55 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-black"
               to="/conversion-history"
             >
               <History className="size-3.5" />
-              查看转化记录
+              转化记录
             </Link>
-          </div>
-        </header>
+          </header>
 
-        <section className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[0.75fr_1.25fr] lg:py-12">
-          <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-3 py-1.5 text-xs font-medium text-black/55 shadow-sm">
-              <Sparkles className="size-3.5 text-[#d97706]" />
-              入口分离，更清晰也更好返回
-            </div>
-            <h1 className="text-balance text-4xl font-semibold leading-[1.08] tracking-[-0.04em] md:text-6xl">
-              先选功能，
-              <br />
-              再开始处理内容。
-            </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
-              平台视频、本地视频、录音和文章导出各自拥有独立页面。
-              处理链路互不干扰，也能共享稳定的转录与笔记生成能力。
-            </p>
-
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Button
-                asChild
-                className="h-11 rounded-xl bg-[#161616] px-5 text-white hover:bg-black/85"
-              >
-                <Link to="/video-notes">
-                  <BookOpenText className="size-4" />
-                  进入视频学习笔记
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="h-11 rounded-xl border-black/10 bg-white px-5 text-[#161616]"
-                variant="outline"
-              >
-                <Link to="/note-templates">
-                  <Settings2 className="size-4" />
-                  配置笔记模板
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="h-11 rounded-xl border-black/10 bg-white px-5 text-[#161616]"
-                variant="outline"
-              >
-                <Link to="/conversion-history">
-                  <History className="size-4" />
-                  查看转化记录
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {FEATURE_CARDS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Card
-                  className="overflow-hidden border-black/8 bg-white/92 shadow-[0_20px_60px_rgba(57,46,29,0.08)]"
-                  key={item.href}
-                >
-                  <CardHeader
-                    className={`space-y-3 bg-gradient-to-br ${item.accent}`}
+          <section className="flex flex-1 items-center py-8 lg:py-12">
+            <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {FEATURE_CARDS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Card
+                    className="group relative flex min-h-[360px] flex-col overflow-hidden border-black/8 bg-white/88 shadow-[0_20px_60px_rgba(18,24,40,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#4d5dff]/30 hover:shadow-[0_26px_70px_rgba(44,59,150,0.1)]"
+                    key={item.href}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white/85 px-3 py-1 text-xs font-semibold text-black/58">
+                    <div className="pointer-events-none absolute -right-16 -top-16 size-40 rounded-full bg-[#4d5dff]/8 blur-3xl transition group-hover:bg-[#4d5dff]/14" />
+                    <CardHeader className="relative space-y-4 p-6 pb-3">
+                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-[#f3f4ff] px-3 py-1 text-xs font-semibold text-black/58">
                         <Icon className="size-3.5" />
                         {item.badge}
                       </div>
-                      <div className="rounded-full border border-black/6 bg-white/85 px-3 py-1 text-[11px] font-medium text-black/42">
-                        独立页面
+                      <CardTitle className="text-2xl tracking-[-0.04em] text-[#111315]">
+                        {item.title}
+                      </CardTitle>
+                      <CardDescription className="min-h-12 text-sm leading-6 text-black/48">
+                        {item.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="relative flex flex-1 flex-col space-y-5 p-6 pt-4">
+                      <div className="grid grid-cols-3 gap-2">
+                        {item.bullets.map((bullet: string) => (
+                          <div
+                            className="rounded-xl border border-black/7 bg-[#f7f7f5] px-2 py-3 text-center text-xs leading-5 text-black/52"
+                            key={bullet}
+                          >
+                            {bullet}
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                    <CardTitle className="text-2xl tracking-[-0.035em]">
-                      {item.title}
-                    </CardTitle>
-                    <CardDescription className="max-w-xl text-sm leading-6 text-black/55">
-                      {item.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-6">
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      {item.bullets.map((bullet: string) => (
-                        <div
-                          className="rounded-2xl border border-black/7 bg-[#fafaf8] px-3 py-3 text-xs leading-5 text-black/54"
-                          key={bullet}
-                        >
-                          {bullet}
-                        </div>
-                      ))}
-                    </div>
-                    <Button
-                      asChild
-                      className="h-11 w-full rounded-xl bg-[#161616] text-white hover:bg-black/85"
-                    >
-                      <Link to={item.href}>
-                        {item.cta}
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
+                      <Button
+                        asChild
+                        className="mt-auto h-11 w-full rounded-xl bg-[#111315] text-white shadow-sm hover:bg-[#4d5dff]"
+                      >
+                        <Link to={item.href}>
+                          {item.cta}
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 py-5 text-xs text-black/40">
+            <span>选择资料类型后开始生成学习笔记</span>
+            <div className="flex items-center gap-2">
+              <Link
+                className="transition hover:text-black"
+                to="/note-templates"
+              >
+                <Settings2 className="mr-1 inline size-3.5" />
+                模板配置
+              </Link>
+              <span className="text-black/15">/</span>
+              <Link
+                className="transition hover:text-black"
+                to="/conversion-history"
+              >
+                <History className="mr-1 inline size-3.5" />
+                转化记录
+              </Link>
+            </div>
+          </footer>
+        </div>
       </div>
     </main>
   );

@@ -6,6 +6,8 @@ import {
   validateNoteJobRequest,
   normalizePlatformSourceUrl,
   validatePdfInput,
+  getDouyinAudioFallbackArgs,
+  isAudioRematrixError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
 import { DEFAULT_NOTE_TEMPLATES } from '../../server/modules/note-jobs/note-template.defaults';
 
@@ -128,5 +130,21 @@ describe('note job request validation', () => {
     expect(result).toBe(
       'https://www.bilibili.com/video/BV1MJVb6cETR?vd_source=f7e989348f5babe743827751dbe46aef',
     );
+  });
+
+  it('uses an explicit stereo pan when Douyin audio metadata is invalid', () => {
+    expect(getDouyinAudioFallbackArgs()).toEqual([
+      '-filter:a',
+      'pan=stereo|c0=c0|c1=c1',
+      '-ar',
+      '16000',
+    ]);
+  });
+
+  it('only retries Douyin extraction for channel rematrix failures', () => {
+    expect(
+      isAudioRematrixError('Rematrix is needed between 42 channels and stereo'),
+    ).toBe(true);
+    expect(isAudioRematrixError('HTTP error 403')).toBe(false);
   });
 });
