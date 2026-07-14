@@ -14,6 +14,11 @@ export interface UploadFileData {
   url: string;
 }
 
+export interface MediaUploadProgress {
+  totalBytes: number;
+  uploadedBytes: number;
+}
+
 export async function uploadFile(file: File): Promise<UploadFileData> {
   const dataloom = await getDataloom();
   const bucket = dataloom.storage.from(getDefaultBucketId());
@@ -41,9 +46,14 @@ export async function uploadFile(file: File): Promise<UploadFileData> {
   };
 }
 
-export async function uploadMediaFile(file: File): Promise<UploadFileData[]> {
+export async function uploadMediaFile(
+  file: File,
+  onProgress?: (progress: MediaUploadProgress) => void,
+): Promise<UploadFileData[]> {
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
-    return [await uploadMediaPart(file)];
+    const upload: UploadFileData = await uploadMediaPart(file);
+    onProgress?.({ totalBytes: file.size, uploadedBytes: file.size });
+    return [upload];
   }
 
   const uploads: UploadFileData[] = [];
@@ -62,7 +72,12 @@ export async function uploadMediaFile(file: File): Promise<UploadFileData[]> {
         `${file.name}.part-${String(index).padStart(3, '0')}`,
         { type: file.type },
       );
-      uploads.push(await uploadMediaPart(part));
+      const upload: UploadFileData = await uploadMediaPart(part);
+      uploads.push(upload);
+      onProgress?.({
+        totalBytes: file.size,
+        uploadedBytes: Math.min(offset + part.size, file.size),
+      });
     }
   } catch (error) {
     await deleteUploadedFiles(uploads).catch(() => undefined);

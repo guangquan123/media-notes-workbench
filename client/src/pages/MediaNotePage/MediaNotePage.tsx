@@ -21,10 +21,12 @@ import NoteStyleSelector from '@/components/NoteStyleSelector';
 import {
   deleteUploadedFiles,
   uploadMediaFile,
+  type MediaUploadProgress,
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { formatFileSize } from '@/utils/file-size';
 import type {
   NoteJob,
   NoteStyle,
@@ -115,11 +117,6 @@ const PDF_PROCESS_STAGES = [
   ['publishing', '写入飞书'],
 ] as const;
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function getMediaMimeType(
   file: File,
   sourceType: 'video' | 'audio' | 'pdf',
@@ -163,6 +160,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
   const running: boolean = Boolean(
     job && !['completed', 'failed'].includes(job.stage),
   );
@@ -243,10 +241,15 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     }
     setSubmitting(true);
     setUploading(true);
+    setUploadedBytes(0);
     let uploaded: UploadFileData[] = [];
     let uploadCompleted = false;
     try {
-      uploaded = await uploadMediaFile(file);
+      uploaded = await uploadMediaFile(
+        file,
+        (progress: MediaUploadProgress) =>
+          setUploadedBytes(progress.uploadedBytes),
+      );
       setUploadedMedia(uploaded);
       setUploading(false);
       uploadCompleted = true;
@@ -299,12 +302,18 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setJob(null);
     setFile(null);
     setNoteStyle('learning');
+    setUploadedBytes(0);
   };
 
-  const displayProgress: number = uploading ? 8 : job?.progress || 0;
+  const displayProgress: number = uploading
+    ? Math.round((uploadedBytes / (file?.size || 1)) * 100)
+    : job?.progress || 0;
   const displayMessage: string = uploading
     ? '正在安全上传文件…'
     : job?.message || '等待开始';
+  const uploadedSizeLabel: string = file
+    ? `已上传 ${formatFileSize(uploadedBytes)} / ${formatFileSize(file.size)}`
+    : '';
 
   return (
     <main
@@ -527,6 +536,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       className="h-2 bg-black/6 [&>div]:bg-[var(--media-accent)]"
                       value={displayProgress}
                     />
+                    {uploading && (
+                      <p className="mt-3 text-right text-xs tabular-nums text-black/45">
+                        {uploadedSizeLabel}
+                      </p>
+                    )}
                   </div>
                   {job?.stage === 'failed' && (
                     <div className="mt-7 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
