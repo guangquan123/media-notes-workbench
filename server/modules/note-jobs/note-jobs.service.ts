@@ -8,7 +8,15 @@ import {
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import {
+  access,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -151,7 +159,11 @@ export class NoteJobsService {
       mediaFileName:
         validatedInput.sourceType === 'platform'
           ? undefined
-          : validatedInput.media.fileName,
+          : validatedInput.sourceType === 'pdf'
+            ? validatedInput.media.fileName
+            : validatedInput.mediaItems
+                .map((media: UploadedMediaInput) => media.fileName)
+                .join('、'),
       createdAt: now,
       updatedAt: now,
     };
@@ -502,10 +514,7 @@ export class NoteJobsService {
   private async prepareUploadedMedia(
     id: string,
     workDir: string,
-    input: Exclude<
-      ReturnType<typeof validateNoteJobRequest>,
-      { sourceType: 'platform' }
-    >,
+    input: { sourceType: 'video' | 'audio'; mediaItems: UploadedMediaInput[] },
   ): Promise<{
     audioPath: string;
     metadata: VideoMetadata;
@@ -514,47 +523,88 @@ export class NoteJobsService {
   }> {
     const sourceLabel: string =
       input.sourceType === 'video' ? '本地视频' : '录音文件';
-    this.update(id, 'preparing', 14, `正在读取${sourceLabel}…`);
-    const extension: string =
-      input.media.fileName
-        .split('.')
-        .pop()
-        ?.replace(/[^a-z0-9]/giu, '') || 'media';
-    const sourcePath: string = join(workDir, `source.${extension}`);
-    await this.downloadUploadedMedia(input.media, sourcePath);
+    const audioPaths: string[] = [];
+    for (let index = 0; index < input.mediaItems.length; index += 1) {
+      const media: UploadedMediaInput = input.mediaItems[index];
+      this.update(
+        id,
+        'preparing',
+        14 + Math.round((index / input.mediaItems.length) * 16),
+        `正在读取并提取第 ${index + 1}/${input.mediaItems.length} 个${sourceLabel}…`,
+      );
+      const extension: string =
+        media.fileName
+          .split('.')
+          .pop()
+          ?.replace(/[^a-z0-9]/giu, '') || 'media';
+      const sourcePath: string = join(workDir, `source-${index}.${extension}`);
+      const audioPath: string = join(workDir, `audio-${index}.mp3`);
+      await this.downloadUploadedMedia(media, sourcePath);
+      await this.runCommand('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        sourcePath,
+        '-vn',
+        '-codec:a',
+        'libmp3lame',
+        '-q:a',
+        '5',
+        '-y',
+        audioPath,
+      ]);
+      audioPaths.push(audioPath);
+    }
+    const audioPath: string = await this.mergeAudioFiles(audioPaths, workDir);
+    const fileNames: string = input.mediaItems
+      .map((media: UploadedMediaInput) => media.fileName)
+      .join('、');
+    return {
+      audioPath,
+      metadata: {
+        title:
+          input.mediaItems.length > 1
+            ? `多视频合并：${input.mediaItems.length} 个视频`
+            : input.mediaItems[0].fileName.replace(/[.][^.]+$/u, ''),
+        uploader: '本地文件',
+      },
+      sourceUrl: `用户上传的本地文件：${fileNames}`,
+      sourceLabel:
+        input.mediaItems.length > 1
+          ? `本地视频（${input.mediaItems.length} 个合并）`
+          : sourceLabel,
+    };
+  }
 
-    const audioPath: string = join(workDir, 'audio.mp3');
-    this.update(
-      id,
-      'preparing',
-      30,
-      input.sourceType === 'video'
-        ? '视频已上传，正在提取音轨…'
-        : '录音已上传，正在统一音频格式…',
+  private async mergeAudioFiles(
+    audioPaths: string[],
+    workDir: string,
+  ): Promise<string> {
+    if (audioPaths.length === 1) return audioPaths[0];
+    const listPath: string = join(workDir, 'audio-concat.txt');
+    await writeFile(
+      listPath,
+      audioPaths.map((audioPath: string) => `file '${audioPath}'`).join('\n'),
+      'utf8',
     );
+    const mergedPath: string = join(workDir, 'audio-merged.mp3');
     await this.runCommand('ffmpeg', [
       '-hide_banner',
       '-loglevel',
       'error',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
       '-i',
-      sourcePath,
-      '-vn',
-      '-codec:a',
-      'libmp3lame',
-      '-q:a',
-      '5',
+      listPath,
+      '-c',
+      'copy',
       '-y',
-      audioPath,
+      mergedPath,
     ]);
-    return {
-      audioPath,
-      metadata: {
-        title: input.media.fileName.replace(/[.][^.]+$/u, ''),
-        uploader: '本地文件',
-      },
-      sourceUrl: '用户上传的本地文件',
-      sourceLabel,
-    };
+    return mergedPath;
   }
 
   private async downloadUploadedMedia(

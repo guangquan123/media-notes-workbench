@@ -26,7 +26,9 @@ describe('note job request validation', () => {
     });
 
     expect(result.sourceType).toBe('video');
-    expect(result.media.fileName).toBe('lesson.mp4');
+    expect(result.sourceType === 'video' && result.mediaItems[0].fileName).toBe(
+      'lesson.mp4',
+    );
     expect(result.noteStyle).toBe('learning');
   });
 
@@ -73,6 +75,51 @@ describe('note job request validation', () => {
     ).not.toThrow();
   });
 
+  it('accepts up to 10 videos when their combined size is within 10 GiB', () => {
+    const mediaItems = Array.from(
+      { length: 10 },
+      (_: unknown, index: number) => ({
+        ...video,
+        downloadUrl: `https://storage.example.com/uploads/lesson-${index}.mp4`,
+        fileSize: 1024,
+      }),
+    );
+
+    expect(() =>
+      validateNoteJobRequest({ sourceType: 'video', mediaItems }),
+    ).not.toThrow();
+  });
+
+  it('rejects more than 10 videos in one job', () => {
+    const mediaItems = Array.from(
+      { length: 11 },
+      (_: unknown, index: number) => ({
+        ...video,
+        downloadUrl: `https://storage.example.com/uploads/lesson-${index}.mp4`,
+        fileSize: 1024,
+      }),
+    );
+
+    expect(() =>
+      validateNoteJobRequest({ sourceType: 'video', mediaItems }),
+    ).toThrow('一次最多处理 10 个视频');
+  });
+
+  it('rejects videos whose combined size exceeds 10 GiB', () => {
+    const mediaItems = [
+      { ...video, fileSize: 6 * 1024 * 1024 * 1024 },
+      {
+        ...video,
+        downloadUrl: 'https://storage.example.com/uploads/lesson-2.mp4',
+        fileSize: 5 * 1024 * 1024 * 1024,
+      },
+    ];
+
+    expect(() =>
+      validateNoteJobRequest({ sourceType: 'video', mediaItems }),
+    ).toThrow('所有视频累计不能超过 10 GB');
+  });
+
   it('rejects chunked media when the part sizes do not match the file size', () => {
     expect(() =>
       validateMediaInput(
@@ -105,10 +152,7 @@ describe('note job request validation', () => {
     );
 
     expect(() =>
-      validateMediaInput(
-        { ...video, fileSize: 80 * 128, parts },
-        'video',
-      ),
+      validateMediaInput({ ...video, fileSize: 80 * 128, parts }, 'video'),
     ).not.toThrow();
   });
 

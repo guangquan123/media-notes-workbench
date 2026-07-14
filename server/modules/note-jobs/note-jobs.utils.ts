@@ -10,8 +10,7 @@ import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
 
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 const MAX_MEDIA_PART_SIZE_BYTES = 128 * 1024 * 1024;
-const MAX_MEDIA_PART_COUNT =
-  MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
+const MAX_MEDIA_PART_COUNT = MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
 const MAX_PDF_SIZE = 200 * 1024 * 1024;
 const MEDIA_MIME_PREFIX: Record<
   Exclude<NoteSourceType, 'platform' | 'pdf'>,
@@ -30,7 +29,7 @@ interface PlatformJobInput {
 interface MediaJobInput {
   sourceType: 'video' | 'audio';
   noteStyle: NoteStyle;
-  media: UploadedMediaInput;
+  mediaItems: UploadedMediaInput[];
 }
 
 interface PdfJobInput {
@@ -234,7 +233,13 @@ export function validateNoteJobRequest(
   ) {
     throw new BadRequestException('不支持的内容来源');
   }
-  if (!input.media) {
+  const mediaItems: UploadedMediaInput[] =
+    sourceType === 'video' && input.mediaItems?.length
+      ? input.mediaItems
+      : input.media
+        ? [input.media]
+        : [];
+  if (!mediaItems.length) {
     throw new BadRequestException(
       sourceType === 'video'
         ? '请选择需要处理的视频文件'
@@ -245,13 +250,26 @@ export function validateNoteJobRequest(
     return {
       sourceType,
       noteStyle,
-      media: validatePdfInput(input.media),
+      media: validatePdfInput(mediaItems[0]),
     };
+  }
+  if (sourceType === 'video' && mediaItems.length > 10) {
+    throw new BadRequestException('一次最多处理 10 个视频');
+  }
+  const validatedMediaItems: UploadedMediaInput[] = mediaItems.map(
+    (media: UploadedMediaInput) => validateMediaInput(media, sourceType),
+  );
+  const totalMediaSize: number = validatedMediaItems.reduce(
+    (total: number, media: UploadedMediaInput) => total + media.fileSize,
+    0,
+  );
+  if (totalMediaSize > MAX_MEDIA_SIZE_BYTES) {
+    throw new BadRequestException('所有视频累计不能超过 10 GB');
   }
   return {
     sourceType,
     noteStyle,
-    media: validateMediaInput(input.media, sourceType),
+    mediaItems: validatedMediaItems,
   };
 }
 

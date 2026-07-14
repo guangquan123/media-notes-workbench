@@ -136,7 +136,7 @@ export default function EntryPage() {
                 to="/note-templates"
               >
                 <Settings2 className="mr-1 inline size-3.5" />
-                模板配置
+                提示词配置
               </Link>
               <span className="text-black/15">/</span>
               <Link

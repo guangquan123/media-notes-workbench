@@ -35,7 +35,7 @@ export default function NoteTemplatesPage() {
         );
         setContent(learning?.content || '');
       } catch {
-        toast.error('笔记模板加载失败');
+        toast.error('笔记提示词加载失败');
       } finally {
         setLoading(false);
       }
@@ -53,7 +53,7 @@ export default function NoteTemplatesPage() {
 
   const save = async () => {
     if (!content.trim()) {
-      toast.error('模板内容不能为空');
+      toast.error('提示词内容不能为空');
       return;
     }
     setSaving(true);
@@ -65,9 +65,9 @@ export default function NoteTemplatesPage() {
         ),
       );
       setContent(updated.content);
-      toast.success('模板已保存，下一次生成笔记时生效');
+      toast.success('提示词已保存，下一次生成笔记时会读取最新配置');
     } catch {
-      toast.error('模板保存失败，请稍后重试');
+      toast.error('提示词保存失败，请稍后重试');
     } finally {
       setSaving(false);
     }
@@ -82,9 +82,9 @@ export default function NoteTemplatesPage() {
               <FilePenLine className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">笔记模板配置</p>
+              <p className="text-sm font-semibold">笔记提示词配置</p>
               <p className="text-xs text-black/45">
-                配置下一次 AI 笔记生成的风格要求
+                保存后，每次生成都会读取最新的提示词
               </p>
             </div>
           </div>
@@ -101,13 +101,13 @@ export default function NoteTemplatesPage() {
           <aside className="space-y-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3370ff]">
-                Template center
+                Prompt center
               </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                 让笔记按你的方式组织。
               </h1>
               <p className="mt-3 text-sm leading-6 text-black/50">
-                这里展示的内容会作为现有真实性规则之外的风格要求，直接传给 AI。
+                每次生成笔记时，系统都会读取并将这里最新的提示词直接传给 AI。
               </p>
             </div>
             {TEMPLATE_STYLES.map((style: NoteStyle) => {
@@ -136,8 +136,8 @@ export default function NoteTemplatesPage() {
                   </p>
                   <p className="mt-3 text-[11px] text-black/35">
                     {template?.isDefault
-                      ? '使用默认模板'
-                      : '已使用你的自定义模板'}
+                      ? '使用默认提示词'
+                      : '已使用你的自定义提示词'}
                   </p>
                 </button>
               );
@@ -151,7 +151,7 @@ export default function NoteTemplatesPage() {
                   {selectedTemplate?.label}
                 </p>
                 <p className="mt-1 text-sm text-black/45">
-                  可直接编辑；保存后只影响你之后新创建的任务。
+                  可直接编辑；保存后，之后创建的任务会使用最新提示词。
                 </p>
               </div>
               <Button
@@ -164,7 +164,7 @@ export default function NoteTemplatesPage() {
                 ) : (
                   <Save className="size-4" />
                 )}
-                保存模板
+                保存提示词
               </Button>
             </div>
             <Textarea
@@ -174,7 +174,7 @@ export default function NoteTemplatesPage() {
               value={content}
             />
             <p className="mt-3 text-xs leading-5 text-black/40">
-              当前模板不改变系统已有的真实性约束：原文未提供的信息不会被要求补写；不确定内容仍应标记为待人工确认。
+              当前提示词不改变系统已有的真实性约束：原文未提供的信息不会被要求补写；不确定内容仍应标记为待人工确认。
             </p>
           </section>
         </section>

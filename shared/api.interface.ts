@@ -54,6 +54,7 @@ export interface CreateNoteJobRequest {
   sourcePlatform?: SourcePlatform;
   cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
   media?: UploadedMediaInput;
+  mediaItems?: UploadedMediaInput[];
 }
 
 export interface NoteJob {

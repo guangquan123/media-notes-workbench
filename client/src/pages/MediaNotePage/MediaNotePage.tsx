@@ -50,6 +50,7 @@ interface PageCopy {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
 const MAX_PDF_FILE_SIZE = 200 * 1024 * 1024;
+const MAX_VIDEO_FILES = 10;
 const READINESS_MAX_ATTEMPTS = 3;
 const READINESS_RETRY_DELAY_MS = 1200;
 
@@ -66,7 +67,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     description:
       '上传课程、讲座或屏幕录制，系统会提取音轨、转录内容并整理成飞书学习笔记。',
     eyebrow: '本地视频工作台',
-    fileHint: '支持 MP4、MOV、MKV、WebM，最大 10 GB',
+    fileHint: '最多 10 个视频，单个及累计均不超过 10 GB',
     title: '把本地视频，变成一篇有结构的学习笔记。',
   },
   audio: {
@@ -151,13 +152,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         : FileText;
   const processStages =
     sourceType === 'pdf' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>(
-    [],
-  );
+  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -165,12 +164,34 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const running: boolean = Boolean(
     job && !['completed', 'failed'].includes(job.stage),
   );
+  const selectedFileSize: number = files.reduce(
+    (total: number, item: File) => total + item.size,
+    0,
+  );
+  const supportsMultipleFiles: boolean = sourceType === 'video';
   const dropzone = useDropzone({
     accept: copy.accept,
-    maxFiles: 1,
+    maxFiles: supportsMultipleFiles ? MAX_VIDEO_FILES : 1,
     maxSize: sourceType === 'pdf' ? MAX_PDF_FILE_SIZE : MAX_FILE_SIZE,
     disabled: submitting,
-    onDropAccepted: (files: File[]) => setFile(files[0] || null),
+    onDropAccepted: (acceptedFiles: File[]) => {
+      const nextFiles: File[] = supportsMultipleFiles
+        ? [...files, ...acceptedFiles]
+        : acceptedFiles.slice(0, 1);
+      if (supportsMultipleFiles && nextFiles.length > MAX_VIDEO_FILES) {
+        toast.error(`一次最多选择 ${MAX_VIDEO_FILES} 个视频`);
+        return;
+      }
+      const nextSize: number = nextFiles.reduce(
+        (total: number, item: File) => total + item.size,
+        0,
+      );
+      if (nextSize > MAX_FILE_SIZE) {
+        toast.error('所有视频累计不能超过 10 GB，请移除部分文件后重试');
+        return;
+      }
+      setFiles(nextFiles);
+    },
     onDropRejected: () =>
       toast.error(
         `文件格式不支持或超过 ${sourceType === 'pdf' ? '200 MB' : '10 GB'}，请重新选择${sourceLabel}`,
@@ -214,7 +235,10 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         setJob(next);
         if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (uploadedMedia.length > 0 && ['completed', 'failed'].includes(next.stage)) {
+        if (
+          uploadedMedia.length > 0 &&
+          ['completed', 'failed'].includes(next.stage)
+        ) {
           try {
             await deleteUploadedFiles(uploadedMedia);
             setUploadedMedia([]);
@@ -236,7 +260,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   }, [job?.id, running, uploadedMedia]);
 
   const start = async () => {
-    if (!file) {
+    if (files.length === 0) {
       toast.error(`请先选择${sourceLabel}文件`);
       return;
     }
@@ -247,34 +271,47 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     let uploaded: UploadFileData[] = [];
     let uploadCompleted = false;
     try {
-      uploaded = await uploadMediaFile(
-        file,
-        (progress: MediaUploadProgress) => {
-          setUploadedBytes(progress.uploadedBytes);
-          setUploadPartLabel(
-            `正在上传第 ${progress.currentPart} / ${progress.totalParts} 个分片`,
-          );
-        },
-      );
+      const uploadedItems: UploadFileData[][] = [];
+      let completedBytes = 0;
+      for (let index = 0; index < files.length; index += 1) {
+        const currentFile: File = files[index];
+        const currentUpload: UploadFileData[] = await uploadMediaFile(
+          currentFile,
+          (progress: MediaUploadProgress) => {
+            setUploadedBytes(completedBytes + progress.uploadedBytes);
+            setUploadPartLabel(
+              `正在上传第 ${index + 1}/${files.length} 个文件 · 第 ${progress.currentPart}/${progress.totalParts} 个分片`,
+            );
+          },
+        );
+        uploadedItems.push(currentUpload);
+        uploaded.push(...currentUpload);
+        completedBytes += currentFile.size;
+        setUploadedBytes(completedBytes);
+      }
       setUploadedMedia(uploaded);
       setUploading(false);
       uploadCompleted = true;
-      const created: NoteJob = await createNoteJob({
-        sourceType,
-        noteStyle,
-        media: {
-          downloadUrl: uploaded[0].url,
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: getMediaMimeType(file, sourceType),
+      const mediaItems = files.map((currentFile: File, index: number) => {
+        const itemUploads: UploadFileData[] = uploadedItems[index];
+        return {
+          downloadUrl: itemUploads[0].url,
+          fileName: currentFile.name,
+          fileSize: currentFile.size,
+          mimeType: getMediaMimeType(currentFile, sourceType),
           parts:
-            uploaded.length > 1
-              ? uploaded.map((part: UploadFileData) => ({
+            itemUploads.length > 1
+              ? itemUploads.map((part: UploadFileData) => ({
                   downloadUrl: part.url,
                   fileSize: part.fileSize,
                 }))
               : undefined,
-        },
+        };
+      });
+      const created: NoteJob = await createNoteJob({
+        sourceType,
+        noteStyle,
+        ...(sourceType === 'video' ? { mediaItems } : { media: mediaItems[0] }),
       });
       setJob(created);
     } catch (error: unknown) {
@@ -292,7 +329,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         };
       };
       toast.error(
-          responseError.response?.data?.error?.message ||
+        responseError.response?.data?.error?.message ||
           responseError.response?.data?.message ||
           (uploadCompleted
             ? '任务创建失败，请稍后重试'
@@ -306,21 +343,22 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
 
   const reset = () => {
     setJob(null);
-    setFile(null);
+    setFiles([]);
     setNoteStyle('learning');
     setUploadedBytes(0);
     setUploadPartLabel('');
   };
 
   const displayProgress: number = uploading
-    ? Math.round((uploadedBytes / (file?.size || 1)) * 100)
+    ? Math.round((uploadedBytes / (selectedFileSize || 1)) * 100)
     : job?.progress || 0;
   const displayMessage: string = uploading
     ? '正在安全上传文件…'
     : job?.message || '等待开始';
-  const uploadedSizeLabel: string = file
-    ? `已上传 ${formatFileSize(uploadedBytes)} / ${formatFileSize(file.size)}`
-    : '';
+  const uploadedSizeLabel: string =
+    selectedFileSize > 0
+      ? `已上传 ${formatFileSize(uploadedBytes)} / ${formatFileSize(selectedFileSize)}`
+      : '';
 
   return (
     <main
@@ -444,36 +482,54 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   </p>
                 </div>
 
-                {file && (
-                  <div className="mt-4 flex items-center gap-3 rounded-2xl border border-black/7 bg-white p-3 shadow-sm">
-                    <div
-                      className="grid size-10 shrink-0 place-items-center rounded-xl"
-                      style={{
-                        backgroundColor: copy.accentSoft,
-                        color: copy.accent,
-                      }}
-                    >
-                      <MediaIcon className="size-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {file.name}
+                {files.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {supportsMultipleFiles && (
+                      <p className="px-1 text-xs text-black/45">
+                        已选择 {files.length}/{MAX_VIDEO_FILES} 个视频，共{' '}
+                        {formatFileSize(selectedFileSize)} / 10 GB
                       </p>
-                      <p className="mt-0.5 text-xs text-black/38">
-                        {formatFileSize(file.size)}
-                      </p>
-                    </div>
-                    <button
-                      aria-label="移除文件"
-                      className="grid size-8 place-items-center rounded-lg text-black/38 transition hover:bg-black/5 hover:text-black"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setFile(null);
-                      }}
-                      type="button"
-                    >
-                      <X className="size-4" />
-                    </button>
+                    )}
+                    {files.map((item: File, index: number) => (
+                      <div
+                        className="flex items-center gap-3 rounded-2xl border border-black/7 bg-white p-3 shadow-sm"
+                        key={`${item.name}-${item.lastModified}-${index}`}
+                      >
+                        <div
+                          className="grid size-10 shrink-0 place-items-center rounded-xl"
+                          style={{
+                            backgroundColor: copy.accentSoft,
+                            color: copy.accent,
+                          }}
+                        >
+                          <MediaIcon className="size-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {item.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-black/38">
+                            {formatFileSize(item.size)}
+                          </p>
+                        </div>
+                        <button
+                          aria-label={`移除文件 ${item.name}`}
+                          className="grid size-8 place-items-center rounded-lg text-black/38 transition hover:bg-black/5 hover:text-black"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setFiles((current: File[]) =>
+                              current.filter(
+                                (_item: File, currentIndex: number) =>
+                                  currentIndex !== index,
+                              ),
+                            );
+                          }}
+                          type="button"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -488,7 +544,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                 <Button
                   className="mt-6 h-12 w-full rounded-xl text-white shadow-lg"
                   disabled={
-                    !file ||
+                    files.length === 0 ||
                     submitting ||
                     !(sourceType === 'pdf'
                       ? readiness?.pdfReady
@@ -522,7 +578,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                           : `正在处理${sourceLabel}`}
                       </p>
                       <p className="mt-1 truncate text-sm text-black/45">
-                        {job?.mediaFileName || file?.name}
+                        {job?.mediaFileName ||
+                          files.map((item: File) => item.name).join('、')}
                       </p>
                     </div>
                     {(uploading || running) && (
