@@ -1,10 +1,30 @@
 'use client';
+import axios, { type AxiosProgressEvent } from 'axios';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
+import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
+
+import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
 const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
+const MEDIA_UPLOAD_PART_TIMEOUT_MS = 10 * 60 * 1000;
+
+interface StoragePreUploadResponse {
+  data: {
+    uploadID: string;
+    uploadUrl: string;
+  };
+}
+
+interface StorageUploadCallbackResponse {
+  data: {
+    bucketID: string;
+    filePath: string;
+    id: string;
+  };
+}
 
 export interface UploadFileData {
   id: string;
@@ -15,32 +35,52 @@ export interface UploadFileData {
 }
 
 export interface MediaUploadProgress {
+  currentPart: number;
+  totalParts: number;
   totalBytes: number;
   uploadedBytes: number;
 }
 
-export async function uploadFile(file: File): Promise<UploadFileData> {
+export async function uploadFile(
+  file: File,
+  onPartProgress?: (uploadedBytes: number) => void,
+): Promise<UploadFileData> {
   const dataloom = await getDataloom();
-  const bucket = dataloom.storage.from(getDefaultBucketId());
-
-  const result = await bucket.uploadFile(file);
-
-  if (result.error) {
-    throw result.error;
-  }
+  const bucketId: string = getDefaultBucketId();
+  const bucket = dataloom.storage.from(bucketId);
+  onPartProgress?.(0);
+  const preUpload = await axiosForBackend.post<StoragePreUploadResponse>(
+    `/__runtime__/api/v1/storage/object/${bucketId}/pre_upload`,
+    {
+      fileName: file.name,
+      filePath: '',
+      fileSize: String(file.size),
+      upsert: false,
+      ...(file.type ? { contentType: file.type } : {}),
+    },
+  );
+  const eTag: string = await uploadToStorage(
+    preUpload.data.data.uploadUrl,
+    file,
+    onPartProgress,
+  );
+  const callback = await axiosForBackend.post<StorageUploadCallbackResponse>(
+    '/__runtime__/api/v1/storage/object/callback',
+    { eTag, uploadID: preUpload.data.data.uploadID },
+  );
   const signedUrlResult = await bucket.createSignedUrl(
-    result.data.file_path,
+    callback.data.data.filePath,
     24 * 60 * 60,
   );
   if (signedUrlResult.error) {
-    await bucket.remove([result.data.file_path]);
+    await bucket.remove([callback.data.data.filePath]);
     throw signedUrlResult.error;
   }
 
   return {
-    id: result.data.id,
-    filePath: result.data.file_path,
-    bucketId: result.data.bucket_id,
+    id: callback.data.data.id,
+    filePath: callback.data.data.filePath,
+    bucketId: callback.data.data.bucketID,
     fileSize: file.size,
     url: signedUrlResult.data.signedUrl,
   };
@@ -51,12 +91,22 @@ export async function uploadMediaFile(
   onProgress?: (progress: MediaUploadProgress) => void,
 ): Promise<UploadFileData[]> {
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
-    const upload: UploadFileData = await uploadMediaPart(file);
-    onProgress?.({ totalBytes: file.size, uploadedBytes: file.size });
+    const upload: UploadFileData = await uploadMediaPart(
+      file,
+      (uploadedBytes: number) =>
+        onProgress?.({
+          currentPart: 1,
+          totalParts: 1,
+          totalBytes: file.size,
+          uploadedBytes,
+        }),
+    );
     return [upload];
   }
 
   const uploads: UploadFileData[] = [];
+  const totalParts: number = Math.ceil(file.size / MEDIA_UPLOAD_PART_SIZE);
+  let completedBytes: number = 0;
   try {
     for (
       let offset = 0, index = 1;
@@ -72,12 +122,26 @@ export async function uploadMediaFile(
         `${file.name}.part-${String(index).padStart(3, '0')}`,
         { type: file.type },
       );
-      const upload: UploadFileData = await uploadMediaPart(part);
+      const upload: UploadFileData = await uploadMediaPart(
+        part,
+        (currentPartBytes: number) =>
+          onProgress?.({
+            currentPart: index,
+            totalParts,
+            totalBytes: file.size,
+            uploadedBytes: calculateUploadedBytes(
+              completedBytes,
+              currentPartBytes,
+              file.size,
+            ),
+          }),
+      );
       uploads.push(upload);
-      onProgress?.({
-        totalBytes: file.size,
-        uploadedBytes: Math.min(offset + part.size, file.size),
-      });
+      completedBytes = calculateUploadedBytes(
+        completedBytes,
+        part.size,
+        file.size,
+      );
     }
   } catch (error) {
     await deleteUploadedFiles(uploads).catch(() => undefined);
@@ -86,10 +150,13 @@ export async function uploadMediaFile(
   return uploads;
 }
 
-async function uploadMediaPart(file: File): Promise<UploadFileData> {
+async function uploadMediaPart(
+  file: File,
+  onPartProgress?: (uploadedBytes: number) => void,
+): Promise<UploadFileData> {
   for (let attempt = 1; attempt <= MEDIA_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
-      return await uploadFile(file);
+      return await uploadFile(file, onPartProgress);
     } catch (error) {
       if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) throw error;
       await new Promise<void>((resolve: () => void) => {
@@ -98,6 +165,24 @@ async function uploadMediaPart(file: File): Promise<UploadFileData> {
     }
   }
   throw new Error('文件上传重试次数已用尽');
+}
+
+async function uploadToStorage(
+  uploadUrl: string,
+  file: File,
+  onPartProgress?: (uploadedBytes: number) => void,
+): Promise<string> {
+  const response = await axios.put(uploadUrl, file, {
+    headers: {
+      'content-disposition': `attachment; filename="${encodeURIComponent(file.name)}"`,
+      ...(file.type ? { 'content-type': file.type } : {}),
+    },
+    onUploadProgress: (event: AxiosProgressEvent) =>
+      onPartProgress?.(event.loaded),
+    timeout: MEDIA_UPLOAD_PART_TIMEOUT_MS,
+    withCredentials: false,
+  });
+  return String(response.headers.etag || '');
 }
 
 export async function deleteUploadedFile(

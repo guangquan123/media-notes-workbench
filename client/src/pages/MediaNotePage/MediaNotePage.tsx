@@ -161,6 +161,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [uploadPartLabel, setUploadPartLabel] = useState('');
   const running: boolean = Boolean(
     job && !['completed', 'failed'].includes(job.stage),
   );
@@ -242,13 +243,18 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setSubmitting(true);
     setUploading(true);
     setUploadedBytes(0);
+    setUploadPartLabel('正在连接存储服务…');
     let uploaded: UploadFileData[] = [];
     let uploadCompleted = false;
     try {
       uploaded = await uploadMediaFile(
         file,
-        (progress: MediaUploadProgress) =>
-          setUploadedBytes(progress.uploadedBytes),
+        (progress: MediaUploadProgress) => {
+          setUploadedBytes(progress.uploadedBytes);
+          setUploadPartLabel(
+            `正在上传第 ${progress.currentPart} / ${progress.totalParts} 个分片`,
+          );
+        },
       );
       setUploadedMedia(uploaded);
       setUploading(false);
@@ -303,6 +309,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setFile(null);
     setNoteStyle('learning');
     setUploadedBytes(0);
+    setUploadPartLabel('');
   };
 
   const displayProgress: number = uploading
@@ -537,9 +544,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       value={displayProgress}
                     />
                     {uploading && (
-                      <p className="mt-3 text-right text-xs tabular-nums text-black/45">
-                        {uploadedSizeLabel}
-                      </p>
+                      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-black/45">
+                        <span>{uploadPartLabel}</span>
+                        <span className="shrink-0 tabular-nums">
+                          {uploadedSizeLabel}
+                        </span>
+                      </div>
                     )}
                   </div>
                   {job?.stage === 'failed' && (
