@@ -1,5 +1,4 @@
 'use client';
-import axios, { type AxiosProgressEvent } from 'axios';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
@@ -172,17 +171,29 @@ async function uploadToStorage(
   file: File,
   onPartProgress?: (uploadedBytes: number) => void,
 ): Promise<string> {
-  const response = await axios.put(uploadUrl, file, {
-    headers: {
-      'content-disposition': `attachment; filename="${encodeURIComponent(file.name)}"`,
-      ...(file.type ? { 'content-type': file.type } : {}),
-    },
-    onUploadProgress: (event: AxiosProgressEvent) =>
-      onPartProgress?.(event.loaded),
-    timeout: MEDIA_UPLOAD_PART_TIMEOUT_MS,
-    withCredentials: false,
+  return new Promise<string>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('PUT', uploadUrl, true);
+    request.timeout = MEDIA_UPLOAD_PART_TIMEOUT_MS;
+    request.setRequestHeader(
+      'content-disposition',
+      `attachment; filename="${encodeURIComponent(file.name)}"`,
+    );
+    if (file.type) request.setRequestHeader('content-type', file.type);
+    request.upload.onprogress = (event: ProgressEvent<EventTarget>) => {
+      onPartProgress?.(event.loaded);
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        resolve(request.getResponseHeader('etag') || '');
+        return;
+      }
+      reject(new Error(`对象存储上传失败（HTTP ${request.status}）`));
+    };
+    request.onerror = () => reject(new Error('对象存储上传连接失败'));
+    request.ontimeout = () => reject(new Error('对象存储上传超时'));
+    request.send(file);
   });
-  return String(response.headers.etag || '');
 }
 
 export async function deleteUploadedFile(
