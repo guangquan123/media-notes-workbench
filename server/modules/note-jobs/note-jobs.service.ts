@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import {
   access,
   mkdtemp,
@@ -17,8 +17,8 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { availableParallelism, homedir, tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -41,6 +41,7 @@ import {
   validateMediaDownloadUrl,
   validateNoteJobRequest,
 } from './note-jobs.utils';
+import { mapWithConcurrency } from '@shared/async.utils';
 import {
   buildRawDocumentTitle,
   buildRawTranscriptMarkdown,
@@ -72,6 +73,9 @@ interface StoredNoteJob {
   job: NoteJob;
   ownerId: string;
 }
+
+const MEDIA_DOWNLOAD_CONCURRENCY = 2;
+const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
@@ -249,7 +253,7 @@ export class NoteJobsService {
             `正在转录第 ${index + 1}/${audioParts.length} 段音频…`,
           );
         }
-        transcripts.push(await this.transcribe(audioParts[index]));
+        transcripts.push(await this.transcribe(id, audioParts[index]));
       }
       const transcript = transcripts.join('\n\n');
       if (!transcript.trim()) throw new Error('转录结果为空');
@@ -387,7 +391,7 @@ export class NoteJobsService {
         14 + Math.round((index / input.mediaItems.length) * 14),
         `正在读取第 ${index + 1}/${input.mediaItems.length} 个文档…`,
       );
-      await this.downloadUploadedMedia(media, sourcePath);
+      await this.downloadUploadedMedia(id, media, sourcePath);
       const fileHash: string = createHash('sha256')
         .update(await readFile(sourcePath))
         .digest('hex');
@@ -595,21 +599,27 @@ export class NoteJobsService {
           ?.replace(/[^a-z0-9]/giu, '') || 'media';
       const sourcePath: string = join(workDir, `source-${index}.${extension}`);
       const audioPath: string = join(workDir, `audio-${index}.mp3`);
-      await this.downloadUploadedMedia(media, sourcePath);
-      await this.runCommand('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-i',
-        sourcePath,
-        '-vn',
-        '-codec:a',
-        'libmp3lame',
-        '-q:a',
-        '5',
-        '-y',
-        audioPath,
-      ]);
+      await this.downloadUploadedMedia(id, media, sourcePath);
+      await this.measureStep(
+        id,
+        'extract_audio',
+        { fileName: media.fileName },
+        () =>
+          this.runCommand('ffmpeg', [
+            '-hide_banner',
+            '-loglevel',
+            'error',
+            '-i',
+            sourcePath,
+            '-vn',
+            '-codec:a',
+            'libmp3lame',
+            '-q:a',
+            '5',
+            '-y',
+            audioPath,
+          ]),
+      );
       audioPaths.push(audioPath);
     }
     const audioPath: string = await this.mergeAudioFiles(audioPaths, workDir);
@@ -664,6 +674,7 @@ export class NoteJobsService {
   }
 
   private async downloadUploadedMedia(
+    id: string,
     media: UploadedMediaInput,
     destination: string,
   ): Promise<void> {
@@ -673,11 +684,42 @@ export class NoteJobsService {
         fileSize: media.fileSize,
       },
     ];
-    for (let index = 0; index < parts.length; index += 1) {
-      await this.downloadUploadedMediaPart(
-        parts[index],
-        destination,
-        index === 0 ? 'wx' : 'a',
+    const completedTemporaryPaths: string[] = [];
+    try {
+      const temporaryPaths: string[] = await this.measureStep(
+        id,
+        'download_uploaded_media',
+        {
+          fileName: media.fileName,
+          fileSize: media.fileSize,
+          partCount: parts.length,
+        },
+        () =>
+          mapWithConcurrency(
+            parts,
+            MEDIA_DOWNLOAD_CONCURRENCY,
+            async (part: UploadedMediaPart, index: number): Promise<string> => {
+              const temporaryPath: string = join(
+                dirname(destination),
+                `${basename(destination)}.download-${String(index).padStart(3, '0')}`,
+              );
+              completedTemporaryPaths.push(temporaryPath);
+              await this.downloadUploadedMediaPart(part, temporaryPath, 'wx');
+              return temporaryPath;
+            },
+          ),
+      );
+      for (let index = 0; index < temporaryPaths.length; index += 1) {
+        await pipeline(
+          createReadStream(temporaryPaths[index]),
+          createWriteStream(destination, { flags: index === 0 ? 'wx' : 'a' }),
+        );
+      }
+    } finally {
+      await Promise.all(
+        completedTemporaryPaths.map((temporaryPath: string) =>
+          rm(temporaryPath, { force: true }),
+        ),
       );
     }
   }
@@ -731,19 +773,68 @@ export class NoteJobsService {
     );
   }
 
-  private async transcribe(audioPath: string): Promise<string> {
-    const result = await this.runCommand('whisper-cli', [
-      '--no-gpu',
-      '--model',
-      this.whisperModelPath,
-      '--language',
-      'zh',
-      '--no-timestamps',
-      '--no-prints',
-      '--file',
-      audioPath,
-    ]);
+  private async transcribe(id: string, audioPath: string): Promise<string> {
+    const result = await this.measureStep(
+      id,
+      'transcribe_audio',
+      { whisperThreads: WHISPER_THREAD_COUNT },
+      () =>
+        this.runCommand('whisper-cli', [
+          '--threads',
+          String(WHISPER_THREAD_COUNT),
+          '--model',
+          this.whisperModelPath,
+          '--language',
+          'zh',
+          '--no-timestamps',
+          '--no-prints',
+          '--file',
+          audioPath,
+        ]),
+    );
     return result.stdout.trim();
+  }
+
+  private async measureStep<T>(
+    id: string,
+    operation: string,
+    details: Record<string, number | string>,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const startedAt: number = Date.now();
+    try {
+      const result: T = await action();
+      const durationMs: number = Date.now() - startedAt;
+      const fileSize: number | undefined =
+        typeof details.fileSize === 'number' ? details.fileSize : undefined;
+      const throughputMbps: number | undefined =
+        fileSize && durationMs > 0
+          ? Number(((fileSize * 8) / durationMs / 1000).toFixed(2))
+          : undefined;
+      this.logger.log(
+        JSON.stringify({
+          ...details,
+          durationMs,
+          ...(throughputMbps ? { throughputMbps } : {}),
+          jobId: id,
+          operation,
+          status: 'completed',
+        }),
+      );
+      return result;
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          ...details,
+          durationMs: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : '未知错误',
+          jobId: id,
+          operation,
+          status: 'failed',
+        }),
+      );
+      throw error;
+    }
   }
 
   private async getYtDlpMetadata(

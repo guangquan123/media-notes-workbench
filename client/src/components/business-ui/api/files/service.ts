@@ -1,12 +1,15 @@
 'use client';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
+import { logger } from '@lark-apaas/client-toolkit/logger';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 
+import { mapWithConcurrency } from '@shared/async.utils';
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
 const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
+const MEDIA_UPLOAD_CONCURRENCY = 2;
 
 export interface UploadFileData {
   id: string;
@@ -60,6 +63,7 @@ export async function uploadMediaFile(
   file: File,
   onProgress?: (progress: MediaUploadProgress) => void,
 ): Promise<UploadFileData[]> {
+  const startedAt: number = performance.now();
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
     const upload: UploadFileData = await uploadMediaPart(
       file,
@@ -71,53 +75,87 @@ export async function uploadMediaFile(
           uploadedBytes,
         }),
     );
-    return [upload];
+    const uploads: UploadFileData[] = [upload];
+    logMediaUploadMetric(file, startedAt, uploads.length);
+    return uploads;
   }
 
-  const uploads: UploadFileData[] = [];
   const totalParts: number = Math.ceil(file.size / MEDIA_UPLOAD_PART_SIZE);
-  let completedBytes: number = 0;
+  const partProgress: number[] = Array<number>(totalParts).fill(0);
+  const completedUploads: UploadFileData[] = [];
+  const parts: Array<{ content: Blob; index: number }> = Array.from(
+    { length: totalParts },
+    (_: unknown, index: number) => ({
+      content: file.slice(
+        index * MEDIA_UPLOAD_PART_SIZE,
+        Math.min((index + 1) * MEDIA_UPLOAD_PART_SIZE, file.size),
+      ),
+      index,
+    }),
+  );
   try {
-    for (
-      let offset = 0, index = 1;
-      offset < file.size;
-      offset += MEDIA_UPLOAD_PART_SIZE, index += 1
-    ) {
-      const content: Blob = file.slice(
-        offset,
-        Math.min(offset + MEDIA_UPLOAD_PART_SIZE, file.size),
-      );
-      const part: File = new File(
-        [content],
-        `${file.name}.part-${String(index).padStart(3, '0')}`,
-        { type: file.type },
-      );
-      const upload: UploadFileData = await uploadMediaPart(
-        part,
-        (currentPartBytes: number) =>
-          onProgress?.({
-            currentPart: index,
-            totalParts,
-            totalBytes: file.size,
-            uploadedBytes: calculateUploadedBytes(
-              completedBytes,
-              currentPartBytes,
-              file.size,
-            ),
-          }),
-      );
-      uploads.push(upload);
-      completedBytes = calculateUploadedBytes(
-        completedBytes,
-        part.size,
-        file.size,
-      );
-    }
+    const uploads: UploadFileData[] = await mapWithConcurrency(
+      parts,
+      MEDIA_UPLOAD_CONCURRENCY,
+      async (partDefinition: {
+        content: Blob;
+        index: number;
+      }): Promise<UploadFileData> => {
+        const index: number = partDefinition.index + 1;
+        const part: File = new File(
+          [partDefinition.content],
+          `${file.name}.part-${String(index).padStart(3, '0')}`,
+          { type: file.type },
+        );
+        const upload: UploadFileData = await uploadMediaPart(
+          part,
+          (currentPartBytes: number) => {
+            partProgress[partDefinition.index] = currentPartBytes;
+            const uploadedBytes: number = partProgress.reduce(
+              (total: number, bytes: number) => total + bytes,
+              0,
+            );
+            onProgress?.({
+              currentPart: index,
+              totalParts,
+              totalBytes: file.size,
+              uploadedBytes: calculateUploadedBytes(
+                0,
+                uploadedBytes,
+                file.size,
+              ),
+            });
+          },
+        );
+        completedUploads.push(upload);
+        return upload;
+      },
+    );
+    logMediaUploadMetric(file, startedAt, uploads.length);
+    return uploads;
   } catch (error) {
-    await deleteUploadedFiles(uploads).catch(() => undefined);
+    await deleteUploadedFiles(completedUploads).catch(() => undefined);
     throw error;
   }
-  return uploads;
+}
+
+function logMediaUploadMetric(
+  file: File,
+  startedAt: number,
+  partCount: number,
+): void {
+  const durationMs: number = Math.round(performance.now() - startedAt);
+  const throughputMbps: number =
+    durationMs > 0
+      ? Number(((file.size * 8) / durationMs / 1000).toFixed(2))
+      : 0;
+  logger.info('媒体上传性能', {
+    durationMs,
+    fileName: file.name,
+    fileSize: file.size,
+    partCount,
+    throughputMbps,
+  });
 }
 
 async function uploadMediaPart(
