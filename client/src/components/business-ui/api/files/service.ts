@@ -1,29 +1,12 @@
 'use client';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
-import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
 
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
 const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
-const MEDIA_UPLOAD_PART_TIMEOUT_MS = 10 * 60 * 1000;
-
-interface StoragePreUploadResponse {
-  data: {
-    uploadID: string;
-    uploadUrl: string;
-  };
-}
-
-interface StorageUploadCallbackResponse {
-  data: {
-    bucketID: string;
-    filePath: string;
-    id: string;
-  };
-}
 
 export interface UploadFileData {
   id: string;
@@ -48,38 +31,26 @@ export async function uploadFile(
   const bucketId: string = getDefaultBucketId();
   const bucket = dataloom.storage.from(bucketId);
   onPartProgress?.(0);
-  const preUpload = await axiosForBackend.post<StoragePreUploadResponse>(
-    `/__runtime__/api/v1/storage/object/${bucketId}/pre_upload`,
-    {
-      fileName: file.name,
-      filePath: '',
-      fileSize: String(file.size),
-      upsert: false,
-      ...(file.type ? { contentType: file.type } : {}),
-    },
-  );
-  const eTag: string = await uploadToStorage(
-    preUpload.data.data.uploadUrl,
-    file,
-    onPartProgress,
-  );
-  const callback = await axiosForBackend.post<StorageUploadCallbackResponse>(
-    '/__runtime__/api/v1/storage/object/callback',
-    { eTag, uploadID: preUpload.data.data.uploadID },
-  );
+  const result = await bucket.uploadFile(file, {
+    ...(file.type ? { contentType: file.type } : {}),
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  onPartProgress?.(file.size);
   const signedUrlResult = await bucket.createSignedUrl(
-    callback.data.data.filePath,
+    result.data.file_path,
     24 * 60 * 60,
   );
   if (signedUrlResult.error) {
-    await bucket.remove([callback.data.data.filePath]);
+    await bucket.remove([result.data.file_path]);
     throw signedUrlResult.error;
   }
 
   return {
-    id: callback.data.data.id,
-    filePath: callback.data.data.filePath,
-    bucketId: callback.data.data.bucketID,
+    id: result.data.id,
+    filePath: result.data.file_path,
+    bucketId: result.data.bucket_id,
     fileSize: file.size,
     url: signedUrlResult.data.signedUrl,
   };
@@ -164,36 +135,6 @@ async function uploadMediaPart(
     }
   }
   throw new Error('文件上传重试次数已用尽');
-}
-
-async function uploadToStorage(
-  uploadUrl: string,
-  file: File,
-  onPartProgress?: (uploadedBytes: number) => void,
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    request.open('PUT', uploadUrl, true);
-    request.timeout = MEDIA_UPLOAD_PART_TIMEOUT_MS;
-    request.setRequestHeader(
-      'content-disposition',
-      `attachment; filename="${encodeURIComponent(file.name)}"`,
-    );
-    if (file.type) request.setRequestHeader('content-type', file.type);
-    request.upload.onprogress = (event: ProgressEvent<EventTarget>) => {
-      onPartProgress?.(event.loaded);
-    };
-    request.onload = () => {
-      if (request.status >= 200 && request.status < 300) {
-        resolve(request.getResponseHeader('etag') || '');
-        return;
-      }
-      reject(new Error(`对象存储上传失败（HTTP ${request.status}）`));
-    };
-    request.onerror = () => reject(new Error('对象存储上传连接失败'));
-    request.ontimeout = () => reject(new Error('对象存储上传超时'));
-    request.send(file);
-  });
 }
 
 export async function deleteUploadedFile(
