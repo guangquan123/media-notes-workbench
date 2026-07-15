@@ -2,26 +2,21 @@
   "id": "pdf-note-quality-reviewer",
   "pluginKey": "@official-plugins/ai-text-generate",
   "pluginVersion": "1.0.17",
-  "name": "文档学习笔记质量审核",
-  "description": "对照文档解析原文核验并修订学习笔记",
+  "name": "文档笔记真实性审核",
+  "description": "在不改变用户指定结构的前提下核验文档笔记真实性",
   "paramsSchema": {
     "type": "object",
     "properties": {
       "source_text": { "type": "string", "description": "文档解析原文" },
       "draft_note": { "type": "string", "description": "笔记初稿" },
       "note_style": { "type": "string", "description": "笔记风格" },
-      "style_requirements": { "type": "string", "description": "笔记风格要求" }
+      "style_requirements": { "type": "string", "description": "用户配置的笔记提示词" }
     },
-    "required": [
-      "source_text",
-      "draft_note",
-      "note_style",
-      "style_requirements"
-    ]
+    "required": ["source_text", "draft_note", "note_style", "style_requirements"]
   },
   "formValue": {
     "modelID": "87",
     "modelParams": { "temperature": 0.2, "maxTokens": 8192 },
-    "prompt": "你是严格的文档学习笔记审核编辑。请对照文档解析原文，直接返回修订后的完整 Markdown 笔记。\n\n规则：删除没有原文依据的断言；保留条件、数字、边界和案例；不确定内容统一标记【待人工确认】；没有准确页码或页码不适用时不得编造定位；每个核心观点保留来源文件、章节或原文定位；不要删除已有有效链接。\n\n在“一句话总结”前增加“## 质量校验”：完整性、结构性、可读性、忠实度四项评分与一句说明；并写明待核对项数量和审核修订。\n\n笔记风格：{{input.note_style}}\n风格要求：{{input.style_requirements}}\n\n笔记初稿：\n{{input.draft_note}}\n\n文档解析原文：\n{{input.source_text}}"
+    "prompt": "你是严格的文档笔记真实性审核编辑。用户提示词优先级最高：它决定笔记的输出结构、章节和表达方式。审核时必须保留初稿的结构、标题层级与用户指定格式；不得新增固定章节、评分、审核说明、摘要或总结，也不得为了模板重排内容。\n\n仅执行以下真实性校验：\n1. 删除或改写没有文档原文依据的断言。\n2. 补回初稿明显遗漏、且用户提示词要求保留的关键条件、数字、步骤、案例、边界或结论。\n3. 不确定内容标记【待人工确认】；没有准确页码或页码不适用时不得伪造定位。\n4. 保留有效链接与来源文件边界；外部补充没有明确来源时删除。\n\n直接输出经核验后的完整 Markdown 笔记，不输出审核过程或额外说明。\n\n用户提示词：\n{{input.style_requirements}}\n\n笔记初稿：\n{{input.draft_note}}\n\n文档解析原文：\n{{input.source_text}}"
   }
 }

@@ -3,72 +3,26 @@
   "pluginKey": "@official-plugins/ai-text-generate",
   "pluginVersion": "1.0.17",
   "name": "视频学习笔记生成",
-  "description": "将视频转录稿整理成结构化 Markdown 学习笔记，支持 B站和抖音",
+  "description": "依据用户提示词整理视频转录稿",
   "paramsSchema": {
     "type": "object",
     "properties": {
-      "source_text": {
-        "type": "string",
-        "description": "视频完整转录稿"
-      },
-      "video_title": {
-        "type": "string",
-        "description": "视频标题"
-      },
-      "source_platform": {
-        "type": "string",
-        "description": "视频来源平台名称"
-      },
-      "uploader": {
-        "type": "string",
-        "description": "UP主名称"
-      },
-      "duration": {
-        "type": "string",
-        "description": "视频时长"
-      },
-      "source_url": {
-        "type": "string",
-        "description": "原视频地址"
-      },
-      "generated_date": {
-        "type": "string",
-        "description": "笔记生成日期"
-      },
-      "editor_research": {
-        "type": "string",
-        "description": "联网检索得到的可核验补充材料及来源"
-      },
-      "note_style": {
-        "type": "string",
-        "description": "用户选择的笔记风格标识"
-      },
-      "style_requirements": {
-        "type": "string",
-        "description": "当前笔记风格对应的具体编辑要求"
-      }
+      "source_text": { "type": "string", "description": "视频完整转录稿" },
+      "video_title": { "type": "string", "description": "视频标题" },
+      "source_platform": { "type": "string", "description": "视频来源平台名称" },
+      "uploader": { "type": "string", "description": "UP主名称" },
+      "duration": { "type": "string", "description": "视频时长" },
+      "source_url": { "type": "string", "description": "原视频地址" },
+      "generated_date": { "type": "string", "description": "笔记生成日期" },
+      "editor_research": { "type": "string", "description": "可核验的外部补充材料" },
+      "note_style": { "type": "string", "description": "用户选择的笔记风格标识" },
+      "style_requirements": { "type": "string", "description": "用户配置的笔记提示词" }
     },
-    "required": [
-      "source_text",
-      "video_title",
-      "source_platform",
-      "uploader",
-      "duration",
-      "source_url",
-      "generated_date",
-      "editor_research",
-      "note_style",
-      "style_requirements"
-    ]
+    "required": ["source_text", "video_title", "source_platform", "uploader", "duration", "source_url", "generated_date", "editor_research", "note_style", "style_requirements"]
   },
   "formValue": {
     "modelID": "87",
-    "modelParams": {
-      "temperature": 0.5,
-      "maxTokens": 8192
-    },
-    "prompt": "你是一位擅长知识建模的中文学习笔记编辑。请将视频转录稿重构为结构清晰、可以直接使用的 Markdown 笔记，而不是按时间顺序复述视频。\n\n当前风格：{{input.note_style}}\n风格要求：{{input.style_requirements}}\n风格要求决定内容的组织方式和详略程度，但不能改变真实性规则。\n\n真实性规则：\n1. 主体内容只能来自转录稿和给定元数据，禁止补写视频未表达的观点。\n2. 转录不清、专有名词可疑或无法确认的内容标记为“待核对”，不要擅自纠正。\n3. 外部补充只能使用联网研究材料中明确给出的事实与 URL，且必须标明来源。\n4. 删除寒暄、口头禅、机械重复、关注引导、课程促销和资料领取信息。\n5. 保留条件、数字、例外、步骤、对比项、推导过程和案例细节；精简速记型可以压缩解释，但不能改变结论。\n\n编辑规则：\n1. 先识别主题和语义章节，再按当前风格重组，不要机械套用同一目录。\n2. 系统学习型重点覆盖总览、知识框架、核心概念、原理、案例、边界和复习卡片。\n3. 精简速记型重点覆盖一句话摘要、关键结论、核心要点、必要数据和待核对项，避免长篇背景。\n4. 实操手册型重点覆盖目标、前置条件、分步操作、检查点、示例、常见错误和行动清单。\n5. 会议纪要型重点覆盖议题、讨论结论、决策、待办、负责人和截止时间；没有明确依据的负责人或时间写“待确认”，不得猜测。\n6. 每段聚焦一个观点，列表层级不超过 3 层。直接输出 Markdown 正文，不使用代码围栏，不输出写作说明。\n\n标题规则：\n1. 根据内容重新提炼 8—14 个汉字的明确标题。\n2. 不使用冒号、副标题、平台名、作者名、“学习笔记”“视频总结”等套话。\n\n所有风格都必须保留的内容：\n- 标题和一句话摘要\n- 来源平台、原链接、作者、时长、整理日期\n- 正文主体\n- “待核对内容”章节：仅列出确实存在的不确定项，没有则写“未发现明显待核对项”\n- “一句话总结”\n\n输入元数据：\n- 原视频标题：{{input.video_title}}\n- 来源平台：{{input.source_platform}}\n- 作者：{{input.uploader}}\n- 时长：{{input.duration}}\n- 原链接：{{input.source_url}}\n- 整理日期：{{input.generated_date}}\n\n联网研究材料：\n{{input.editor_research}}\n\n转录稿：\n{{input.source_text}}"
-  },
-  "createdAt": 1783004000000,
-  "updatedAt": 1783348077000
+    "modelParams": { "temperature": 0.5, "maxTokens": 8192 },
+    "prompt": "你是一位严谨的中文笔记编辑。用户提示词优先级最高：它决定最终笔记的输出结构、章节、表达方式、详略程度和是否保留特定模块。不得用内置模板覆盖、补充或重排用户指定的结构。\n\n不可突破的真实性约束仅包括：\n1. 主体内容只能来自转录稿、给定元数据和明确提供的联网材料；不得编造。\n2. 无法确认的专有名词、数字、结论或时间必须标记“待核对”，不得猜测。\n3. 外部补充必须保留明确来源 URL。\n4. 可删除寒暄、口头禅、机械重复和无关引导，但不得遗漏条件、数字、例外、步骤、案例与推导。\n\n严格按用户提示词直接输出 Markdown 正文；除用户提示词明确要求外，不添加固定章节、YAML、摘要、来源说明、待核对章节或总结。\n\n用户提示词：\n{{input.style_requirements}}\n\n元数据（仅在用户提示词要求时使用）：\n- 标题：{{input.video_title}}\n- 来源平台：{{input.source_platform}}\n- 作者：{{input.uploader}}\n- 时长：{{input.duration}}\n- 原链接：{{input.source_url}}\n- 整理日期：{{input.generated_date}}\n\n联网材料：\n{{input.editor_research}}\n\n转录稿：\n{{input.source_text}}"
+  }
 }
