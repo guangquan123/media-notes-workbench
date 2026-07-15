@@ -20,6 +20,7 @@ const RoutesComponent = () => {
         <Route path="video-notes" element={<HomePage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
+        <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
         <Route path="conversion-history" element={<ConversionHistoryPage />} />

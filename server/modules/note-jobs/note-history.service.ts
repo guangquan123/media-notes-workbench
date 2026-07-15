@@ -142,7 +142,14 @@ export class NoteHistoryService {
   }
 
   private toSourceType(value: string): NoteSourceType {
-    if (value === 'video' || value === 'audio' || value === 'pdf') return value;
+    if (
+      value === 'video' ||
+      value === 'audio' ||
+      value === 'document' ||
+      value === 'pdf'
+    ) {
+      return value;
+    }
     return 'platform';
   }
 

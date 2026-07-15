@@ -44,6 +44,10 @@ const SOURCE_STYLES: Record<
     accent: '#3370ff',
     background: '#edf3ff',
   },
+  document: {
+    accent: '#3370ff',
+    background: '#edf3ff',
+  },
 };
 
 function getStatusCopy(record: NoteConversionRecord): string {
@@ -54,7 +58,9 @@ function getStatusCopy(record: NoteConversionRecord): string {
 
 function ConversionIcon({ sourceType }: { sourceType: NoteSourceType }) {
   if (sourceType === 'audio') return <FileAudio className="size-5" />;
-  if (sourceType === 'pdf') return <FileText className="size-5" />;
+  if (sourceType === 'pdf' || sourceType === 'document') {
+    return <FileText className="size-5" />;
+  }
   return <FileVideo className="size-5" />;
 }
 

@@ -35,7 +35,7 @@ import type {
 } from '@shared/api.interface';
 
 interface MediaNotePageProps {
-  sourceType: Exclude<NoteSourceType, 'platform'>;
+  sourceType: Exclude<NoteSourceType, 'platform' | 'pdf'>;
 }
 
 interface PageCopy {
@@ -49,8 +49,10 @@ interface PageCopy {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
-const MAX_PDF_FILE_SIZE = 200 * 1024 * 1024;
+const MAX_DOCUMENT_FILE_SIZE = 200 * 1024 * 1024;
 const MAX_VIDEO_FILES = 10;
+const MAX_AUDIO_FILES = 10;
+const MAX_DOCUMENT_FILES = 10;
 const READINESS_MAX_ATTEMPTS = 3;
 const READINESS_RETRY_DELAY_MS = 1200;
 
@@ -88,17 +90,25 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     fileHint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG，最大 10 GB',
     title: '让一段录音，沉淀成真正可复习的笔记。',
   },
-  pdf: {
+  document: {
     accent: '#3370ff',
     accentSoft: '#edf3ff',
     accept: {
       'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+        '.docx',
+      ],
+      'application/vnd.ms-powerpoint': ['.ppt'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
+        '.pptx',
+      ],
     },
     description:
       '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的飞书学习笔记。',
-    eyebrow: 'PDF 学习工作台',
-    fileHint: '支持 PDF，最大 200 MB',
-    title: '把一份 PDF，沉淀成可回顾的知识资产。',
+    eyebrow: '文档学习工作台',
+    fileHint: '支持 PDF、Word、PowerPoint；最多 10 个，累计不超过 200 MB',
+    title: '把多份文档，沉淀成一篇可回顾的知识资产。',
   },
 };
 
@@ -120,7 +130,7 @@ const PDF_PROCESS_STAGES = [
 
 function getMediaMimeType(
   file: File,
-  sourceType: 'video' | 'audio' | 'pdf',
+  sourceType: 'video' | 'audio' | 'document',
 ): string {
   if (file.type) return file.type;
   const extension: string = file.name.split('.').pop()?.toLowerCase() || '';
@@ -134,6 +144,10 @@ function getMediaMimeType(
     mp4: 'video/mp4',
     ogg: 'audio/ogg',
     pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     wav: 'audio/wav',
     webm: 'video/webm',
   };
@@ -143,7 +157,11 @@ function getMediaMimeType(
 export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const copy: PageCopy = PAGE_COPY[sourceType];
   const sourceLabel: string =
-    sourceType === 'video' ? '视频' : sourceType === 'audio' ? '录音' : 'PDF';
+    sourceType === 'video'
+      ? '视频'
+      : sourceType === 'audio'
+        ? '录音'
+        : '文档';
   const MediaIcon =
     sourceType === 'video'
       ? FileVideo
@@ -151,7 +169,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         ? FileAudio
         : FileText;
   const processStages =
-    sourceType === 'pdf' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
+    sourceType === 'document' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
   const [files, setFiles] = useState<File[]>([]);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [job, setJob] = useState<NoteJob | null>(null);
@@ -168,33 +186,43 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     (total: number, item: File) => total + item.size,
     0,
   );
-  const supportsMultipleFiles: boolean = sourceType === 'video';
+  const maxFiles: number =
+    sourceType === 'video'
+      ? MAX_VIDEO_FILES
+      : sourceType === 'audio'
+        ? MAX_AUDIO_FILES
+        : MAX_DOCUMENT_FILES;
   const dropzone = useDropzone({
     accept: copy.accept,
-    maxFiles: supportsMultipleFiles ? MAX_VIDEO_FILES : 1,
-    maxSize: sourceType === 'pdf' ? MAX_PDF_FILE_SIZE : MAX_FILE_SIZE,
+    maxFiles,
+    maxSize:
+      sourceType === 'document' ? MAX_DOCUMENT_FILE_SIZE : MAX_FILE_SIZE,
     disabled: submitting,
     onDropAccepted: (acceptedFiles: File[]) => {
-      const nextFiles: File[] = supportsMultipleFiles
-        ? [...files, ...acceptedFiles]
-        : acceptedFiles.slice(0, 1);
-      if (supportsMultipleFiles && nextFiles.length > MAX_VIDEO_FILES) {
-        toast.error(`一次最多选择 ${MAX_VIDEO_FILES} 个视频`);
+      const nextFiles: File[] = [...files, ...acceptedFiles];
+      if (nextFiles.length > maxFiles) {
+        toast.error(`一次最多选择 ${maxFiles} 个${sourceLabel}`);
         return;
       }
       const nextSize: number = nextFiles.reduce(
         (total: number, item: File) => total + item.size,
         0,
       );
-      if (nextSize > MAX_FILE_SIZE) {
-        toast.error('所有视频累计不能超过 10 GB，请移除部分文件后重试');
+      const maximumSize: number =
+        sourceType === 'document' ? MAX_DOCUMENT_FILE_SIZE : MAX_FILE_SIZE;
+      if (nextSize > maximumSize) {
+        toast.error(
+          `所有${sourceLabel}累计不能超过 ${
+            sourceType === 'document' ? '200 MB' : '10 GB'
+          }，请移除部分文件后重试`,
+        );
         return;
       }
       setFiles(nextFiles);
     },
     onDropRejected: () =>
       toast.error(
-        `文件格式不支持或超过 ${sourceType === 'pdf' ? '200 MB' : '10 GB'}，请重新选择${sourceLabel}`,
+        `文件格式不支持或超过 ${sourceType === 'document' ? '200 MB' : '10 GB'}，请重新选择${sourceLabel}`,
       ),
   });
 
@@ -311,7 +339,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       const created: NoteJob = await createNoteJob({
         sourceType,
         noteStyle,
-        ...(sourceType === 'video' ? { mediaItems } : { media: mediaItems[0] }),
+        mediaItems,
       });
       setJob(created);
     } catch (error: unknown) {
@@ -484,12 +512,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
 
                 {files.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    {supportsMultipleFiles && (
-                      <p className="px-1 text-xs text-black/45">
-                        已选择 {files.length}/{MAX_VIDEO_FILES} 个视频，共{' '}
-                        {formatFileSize(selectedFileSize)} / 10 GB
-                      </p>
-                    )}
+                    <p className="px-1 text-xs text-black/45">
+                      已选择 {files.length}/{maxFiles} 个{sourceLabel}，共{' '}
+                      {formatFileSize(selectedFileSize)} /{' '}
+                      {sourceType === 'document' ? '200 MB' : '10 GB'}
+                    </p>
                     {files.map((item: File, index: number) => (
                       <div
                         className="flex items-center gap-3 rounded-2xl border border-black/7 bg-white p-3 shadow-sm"
@@ -546,8 +573,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   disabled={
                     files.length === 0 ||
                     submitting ||
-                    !(sourceType === 'pdf'
-                      ? readiness?.pdfReady
+                    !(sourceType === 'document'
+                      ? readiness?.documentReady
                       : readiness?.mediaReady)
                   }
                   onClick={start}
@@ -557,12 +584,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   开始生成学习笔记
                 </Button>
                 {readiness &&
-                  !(sourceType === 'pdf'
-                    ? readiness.pdfReady
+                  !(sourceType === 'document'
+                    ? readiness.documentReady
                     : readiness.mediaReady) && (
                     <p className="mt-3 text-center text-xs text-amber-700">
-                      {sourceType === 'pdf'
-                        ? 'PDF 处理环境尚未就绪'
+                      {sourceType === 'document'
+                        ? '文档处理环境尚未就绪'
                         : '本机音频处理环境尚未就绪'}
                     </p>
                   )}

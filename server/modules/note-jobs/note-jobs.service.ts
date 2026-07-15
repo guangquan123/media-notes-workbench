@@ -46,7 +46,8 @@ import {
   buildRawTranscriptMarkdown,
 } from './note-document.utils';
 import { NoteHistoryService } from './note-history.service';
-import { buildPdfRawMarkdown, getParseQuality } from './pdf-note.utils';
+import { getParseQuality } from './pdf-note.utils';
+import { buildDocumentRawMarkdown } from './document-note.utils';
 import { NoteTemplateService } from './note-template.service';
 
 type CommandResult = { stdout: string; stderr: string };
@@ -123,6 +124,7 @@ export class NoteJobsService {
       ready: ffmpeg && whisperCli && whisperModel && larkCli,
       platformReady: ytDlp && ffmpeg && whisperCli && whisperModel && larkCli,
       mediaReady: ffmpeg && whisperCli && whisperModel && larkCli,
+      documentReady: larkCli,
       pdfReady: larkCli,
     };
   }
@@ -141,7 +143,7 @@ export class NoteJobsService {
           ? '本地视频'
           : sourceType === 'audio'
             ? '录音文件'
-            : 'PDF 资料';
+          : '文档资料';
     const cookieBrowser =
       sourceType === 'platform'
         ? this.validateCookieBrowser(input.cookieBrowser)
@@ -159,11 +161,9 @@ export class NoteJobsService {
       mediaFileName:
         validatedInput.sourceType === 'platform'
           ? undefined
-          : validatedInput.sourceType === 'pdf'
-            ? validatedInput.media.fileName
-            : validatedInput.mediaItems
-                .map((media: UploadedMediaInput) => media.fileName)
-                .join('、'),
+          : validatedInput.mediaItems
+              .map((media: UploadedMediaInput) => media.fileName)
+              .join('、'),
       createdAt: now,
       updatedAt: now,
     };
@@ -201,9 +201,16 @@ export class NoteJobsService {
       if (!readiness.larkCli) {
         throw new Error('未找到 lark-cli，请先安装并登录飞书');
       }
-      if (input.sourceType === 'pdf') {
-        await this.runPdf(id, workDir, input, ownerId);
+      if (input.sourceType === 'pdf' || input.sourceType === 'document') {
+        await this.runDocument(id, workDir, input, ownerId);
         return;
+      }
+      if (
+        input.sourceType !== 'video' &&
+        input.sourceType !== 'audio' &&
+        input.sourceType !== 'platform'
+      ) {
+        throw new Error('不支持的内容来源');
       }
       if (input.sourceType === 'platform' && !readiness.ytDlp) {
         throw new Error('未找到 yt-dlp，请先安装 yt-dlp');
@@ -353,37 +360,86 @@ export class NoteJobsService {
     }
   }
 
-  private async runPdf(
+  private async runDocument(
     id: string,
     workDir: string,
     input: Extract<
       ReturnType<typeof validateNoteJobRequest>,
-      { sourceType: 'pdf' }
+      { sourceType: 'pdf' | 'document' }
     >,
     ownerId: string,
   ): Promise<void> {
-    this.update(id, 'preparing', 14, '正在安全读取 PDF 文件…');
-    const sourcePath: string = join(workDir, 'source.pdf');
-    await this.downloadUploadedMedia(input.media, sourcePath);
-    const fileHash: string = createHash('sha256')
-      .update(await readFile(sourcePath))
-      .digest('hex');
+    this.update(id, 'preparing', 14, '正在安全读取文档文件…');
+    const parsedItems: Array<{
+      content: string;
+      fileHash: string;
+      fileName: string;
+      parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
+      sourceUrl: string;
+    }> = [];
+    for (let index = 0; index < input.mediaItems.length; index += 1) {
+      const media: UploadedMediaInput = input.mediaItems[index];
+      const extension: string = media.fileName.split('.').pop() || 'document';
+      const sourcePath: string = join(workDir, `source-${index}.${extension}`);
+      this.update(
+        id,
+        'preparing',
+        14 + Math.round((index / input.mediaItems.length) * 14),
+        `正在读取第 ${index + 1}/${input.mediaItems.length} 个文档…`,
+      );
+      await this.downloadUploadedMedia(media, sourcePath);
+      const fileHash: string = createHash('sha256')
+        .update(await readFile(sourcePath))
+        .digest('hex');
+      this.update(
+        id,
+        'parsing',
+        28 + Math.round((index / input.mediaItems.length) * 14),
+        `正在解析第 ${index + 1}/${input.mediaItems.length} 个文档…`,
+      );
+      const content: string = await this.parseDocument(media.downloadUrl);
+      parsedItems.push({
+        content,
+        fileHash,
+        fileName: media.fileName,
+        parseQuality: getParseQuality(content),
+        sourceUrl: media.downloadUrl,
+      });
+    }
+    const primaryItem = parsedItems[0];
     const title: string =
-      input.media.fileName.replace(/[.][^.]+$/u, '') || 'PDF 学习资料';
-    this.patch(id, { fileHash, videoTitle: title });
+      input.mediaItems.length > 1
+        ? `多文档融合：${input.mediaItems.length} 个文件`
+        : primaryItem.fileName.replace(/[.][^.]+$/u, '') || '文档学习资料';
+    const parsedContent: string = parsedItems
+      .map(
+        (item: (typeof parsedItems)[number], index: number) =>
+          `[来源 ${index + 1}：${item.fileName}]\n${item.content}`,
+      )
+      .join('\n\n');
+    const parseQuality = parsedItems.some(
+      (item: (typeof parsedItems)[number]) => item.parseQuality === 'needs_ocr',
+    )
+      ? 'needs_ocr'
+      : parsedItems.some(
+            (item: (typeof parsedItems)[number]) =>
+              item.parseQuality === 'needs_review',
+          )
+        ? 'needs_review'
+        : 'parsed';
+    this.patch(id, {
+      fileHash: primaryItem.fileHash,
+      videoTitle: title,
+      parseQuality,
+    });
     await this.persistTitle(id, title);
-
-    this.update(id, 'parsing', 28, '正在解析 PDF 文本与文档结构…');
-    const parsedContent: string = await this.parsePdf(input.media.downloadUrl);
-    const parseQuality = getParseQuality(parsedContent);
-    this.patch(id, { parseQuality });
     this.update(
       id,
       'publishing',
       42,
       parseQuality === 'parsed'
-        ? 'PDF 文本解析完成，正在归档原文…'
-        : 'PDF 文本质量需人工核对，正在保留可追溯原文…',
+        ? '文档解析完成，正在归档原文…'
+        : '文档文本质量需人工核对，正在保留可追溯原文…',
     );
     const generatedDate: string = new Intl.DateTimeFormat('zh-CN', {
       timeZone: 'Asia/Shanghai',
@@ -391,13 +447,9 @@ export class NoteJobsService {
       month: '2-digit',
       day: '2-digit',
     }).format(new Date());
-    const rawDocumentUrl = await this.createRawPdfDocument({
-      content: parsedContent,
-      fileHash,
-      fileName: input.media.fileName,
+    const rawDocumentUrl = await this.createRawDocumentArchive({
       generatedDate,
-      parseQuality,
-      sourceUrl: input.media.downloadUrl,
+      items: parsedItems,
     });
     if (rawDocumentUrl) {
       this.patch(id, { rawDocumentUrl });
@@ -413,20 +465,24 @@ export class NoteJobsService {
       ownerId,
       input.noteStyle,
     );
-    const markdown: string = await this.summarizePdf({
+    const markdown: string = await this.summarizeDocument({
       content: parsedContent,
       editorResearch,
-      fileHash,
-      fileName: input.media.fileName,
+      fileHash: primaryItem.fileHash,
+      fileName: input.mediaItems
+        .map((media: UploadedMediaInput) => media.fileName)
+        .join('、'),
       generatedDate,
       noteStyle: input.noteStyle,
       styleRequirements,
       parseQuality,
-      sourceUrl: input.media.downloadUrl,
+      sourceUrl: input.mediaItems
+        .map((media: UploadedMediaInput) => media.downloadUrl)
+        .join('、'),
       title,
     });
-    this.update(id, 'summarizing', 78, '正在核验笔记与 PDF 原文的一致性…');
-    const reviewedMarkdown: string = await this.reviewPdfNote({
+    this.update(id, 'summarizing', 78, '正在核验笔记与文档原文的一致性…');
+    const reviewedMarkdown: string = await this.reviewDocumentNote({
       draftNote: markdown,
       noteStyle: input.noteStyle,
       styleRequirements,
@@ -453,7 +509,7 @@ export class NoteJobsService {
     this.patch(id, {
       stage: 'completed',
       progress: 100,
-      message: '完成！PDF 学习笔记已创建。',
+      message: '完成！文档学习笔记已创建。',
       rawDocumentUrl,
       documentUrl,
     });
@@ -916,7 +972,7 @@ export class NoteJobsService {
     }
   }
 
-  private async parsePdf(downloadUrl: string): Promise<string> {
+  private async parseDocument(downloadUrl: string): Promise<string> {
     const pluginInstanceId = 'pdf-document-parser';
     const actionKey = 'parseDocToMarkdown';
     const outputMode = 'unary';
@@ -940,12 +996,12 @@ export class NoteJobsService {
         }),
       );
       throw new Error(
-        `PDF 解析失败：${error instanceof Error ? error.message : '未知错误'}`,
+        `文档解析失败：${error instanceof Error ? error.message : '未知错误'}`,
       );
     }
   }
 
-  private async summarizePdf(input: {
+  private async summarizeDocument(input: {
     content: string;
     editorResearch: string;
     fileHash: string;
@@ -979,7 +1035,7 @@ export class NoteJobsService {
         'content',
         'response',
       ]);
-      if (!markdown.trim()) throw new Error('PDF 笔记插件没有返回内容');
+      if (!markdown.trim()) throw new Error('文档笔记插件没有返回内容');
       return markdown.trim();
     } catch (error) {
       this.logger.error(
@@ -992,14 +1048,14 @@ export class NoteJobsService {
         }),
       );
       throw new Error(
-        `PDF 学习笔记生成失败：${
+        `文档学习笔记生成失败：${
           error instanceof Error ? error.message : '未知错误'
         }`,
       );
     }
   }
 
-  private async reviewPdfNote(input: {
+  private async reviewDocumentNote(input: {
     draftNote: string;
     noteStyle: NoteStyle;
     styleRequirements: string;
@@ -1021,7 +1077,7 @@ export class NoteJobsService {
         'content',
         'response',
       ]);
-      if (!reviewedNote.trim()) throw new Error('PDF 质量审核插件没有返回内容');
+      if (!reviewedNote.trim()) throw new Error('文档质量审核插件没有返回内容');
       return reviewedNote.trim();
     } catch (error) {
       this.logger.error(
@@ -1034,7 +1090,7 @@ export class NoteJobsService {
         }),
       );
       throw new Error(
-        `PDF 笔记质量审核失败：${
+        `文档笔记质量审核失败：${
           error instanceof Error ? error.message : '未知错误'
         }`,
       );
@@ -1279,24 +1335,28 @@ export class NoteJobsService {
     }
   }
 
-  private async createRawPdfDocument(input: {
-    content: string;
-    fileHash: string;
-    fileName: string;
+  private async createRawDocumentArchive(input: {
     generatedDate: string;
-    parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
-    sourceUrl: string;
+    items: Array<{
+      content: string;
+      fileHash: string;
+      fileName: string;
+      parseQuality: 'parsed' | 'needs_ocr' | 'needs_review';
+      sourceUrl: string;
+    }>;
   }): Promise<string | undefined> {
     const title: string =
-      input.fileName.replace(/[.][^.]+$/u, '') || 'PDF 原文';
+      input.items.length > 1
+        ? `多文档原文（${input.items.length} 个文件）`
+        : input.items[0].fileName.replace(/[.][^.]+$/u, '') || '文档原文';
     try {
       return await this.createLarkDocument(
         buildRawDocumentTitle(title),
-        buildPdfRawMarkdown(input),
+        buildDocumentRawMarkdown(input),
       );
     } catch (error) {
       this.logger.warn(
-        `创建 PDF 原文档案失败: ${
+        `创建文档原文档案失败: ${
           error instanceof Error ? error.message : '未知错误'
         }`,
       );

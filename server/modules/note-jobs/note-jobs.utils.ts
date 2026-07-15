@@ -7,13 +7,18 @@ import type {
   UploadedMediaInput,
 } from '@shared/api.interface';
 import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
+import {
+  getDocumentMimeType,
+  isSupportedDocumentFile,
+} from './document-note.utils';
 
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 const MAX_MEDIA_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MAX_MEDIA_PART_COUNT = MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
-const MAX_PDF_SIZE = 200 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE_BYTES = 200 * 1024 * 1024;
+const MAX_DOCUMENT_COUNT = 10;
 const MEDIA_MIME_PREFIX: Record<
-  Exclude<NoteSourceType, 'platform' | 'pdf'>,
+  Exclude<NoteSourceType, 'platform' | 'pdf' | 'document'>,
   string
 > = {
   video: 'video/',
@@ -32,13 +37,16 @@ interface MediaJobInput {
   mediaItems: UploadedMediaInput[];
 }
 
-interface PdfJobInput {
-  sourceType: 'pdf';
+interface DocumentJobInput {
+  sourceType: 'document' | 'pdf';
   noteStyle: NoteStyle;
-  media: UploadedMediaInput;
+  mediaItems: UploadedMediaInput[];
 }
 
-type ValidatedNoteJobInput = PlatformJobInput | MediaJobInput | PdfJobInput;
+type ValidatedNoteJobInput =
+  | PlatformJobInput
+  | MediaJobInput
+  | DocumentJobInput;
 
 const NOTE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
 
@@ -186,32 +194,27 @@ export function validateMediaInput(
   };
 }
 
-export function validatePdfInput(
+export function validateDocumentInput(
   input: UploadedMediaInput,
 ): UploadedMediaInput {
-  const extension: string =
-    input.fileName?.split('.').pop()?.toLowerCase() || '';
   if (!input.fileName?.trim() || !input.mimeType?.trim()) {
     throw new BadRequestException('文件信息不完整');
   }
   if (
     !Number.isFinite(input.fileSize) ||
     input.fileSize <= 0 ||
-    input.fileSize > MAX_PDF_SIZE
+    input.fileSize > MAX_DOCUMENT_SIZE_BYTES
   ) {
-    throw new BadRequestException('PDF 文件不能超过 200 MB');
+    throw new BadRequestException('单个文档不能超过 200 MB');
   }
-  if (
-    input.mimeType.toLowerCase() !== 'application/pdf' &&
-    extension !== 'pdf'
-  ) {
-    throw new BadRequestException('请选择有效的 PDF 文件');
+  if (!isSupportedDocumentFile(input.fileName)) {
+    throw new BadRequestException('仅支持 PDF、Word 和 PowerPoint 文档');
   }
   validateMediaDownloadUrl(input.downloadUrl);
   return {
     ...input,
     fileName: input.fileName.trim().slice(0, 240),
-    mimeType: 'application/pdf',
+    mimeType: getDocumentMimeType(input.fileName) || input.mimeType,
   };
 }
 
@@ -229,12 +232,17 @@ export function validateNoteJobRequest(
   if (
     sourceType !== 'video' &&
     sourceType !== 'audio' &&
-    sourceType !== 'pdf'
+    sourceType !== 'pdf' &&
+    sourceType !== 'document'
   ) {
     throw new BadRequestException('不支持的内容来源');
   }
   const mediaItems: UploadedMediaInput[] =
-    sourceType === 'video' && input.mediaItems?.length
+    (sourceType === 'video' ||
+      sourceType === 'audio' ||
+      sourceType === 'document' ||
+      sourceType === 'pdf') &&
+    input.mediaItems?.length
       ? input.mediaItems
       : input.media
         ? [input.media]
@@ -243,15 +251,35 @@ export function validateNoteJobRequest(
     throw new BadRequestException(
       sourceType === 'video'
         ? '请选择需要处理的视频文件'
-        : '请选择需要处理的录音文件',
+        : sourceType === 'audio'
+          ? '请选择需要处理的录音文件'
+          : '请选择需要处理的文档文件',
     );
   }
-  if (sourceType === 'pdf') {
+  if (sourceType === 'pdf' || sourceType === 'document') {
+    if (mediaItems.length > MAX_DOCUMENT_COUNT) {
+      throw new BadRequestException(
+        `一次最多处理 ${MAX_DOCUMENT_COUNT} 个文档`,
+      );
+    }
+    const validatedMediaItems: UploadedMediaInput[] = mediaItems.map(
+      (media: UploadedMediaInput) => validateDocumentInput(media),
+    );
+    const totalDocumentSize: number = validatedMediaItems.reduce(
+      (total: number, media: UploadedMediaInput) => total + media.fileSize,
+      0,
+    );
+    if (totalDocumentSize > MAX_DOCUMENT_SIZE_BYTES) {
+      throw new BadRequestException('所有文档累计不能超过 200 MB');
+    }
     return {
       sourceType,
       noteStyle,
-      media: validatePdfInput(mediaItems[0]),
+      mediaItems: validatedMediaItems,
     };
+  }
+  if (sourceType !== 'video' && sourceType !== 'audio') {
+    throw new BadRequestException('不支持的内容来源');
   }
   if (sourceType === 'video' && mediaItems.length > 10) {
     throw new BadRequestException('一次最多处理 10 个视频');

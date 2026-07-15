@@ -5,7 +5,7 @@ import {
   validateMediaInput,
   validateNoteJobRequest,
   normalizePlatformSourceUrl,
-  validatePdfInput,
+  validateDocumentInput,
   getDouyinAudioFallbackArgs,
   isAudioRematrixError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
@@ -186,9 +186,9 @@ describe('note job request validation', () => {
     );
   });
 
-  it('accepts an uploaded PDF with safe metadata', () => {
+  it('accepts an uploaded document with safe metadata', () => {
     const result = validateNoteJobRequest({
-      sourceType: 'pdf',
+      sourceType: 'document',
       media: {
         downloadUrl: 'https://storage.example.com/uploads/governance.pdf',
         fileName: 'governance.pdf',
@@ -197,20 +197,47 @@ describe('note job request validation', () => {
       },
     });
 
-    expect(result.sourceType).toBe('pdf');
-    expect(result.media.fileName).toBe('governance.pdf');
+    expect(result.sourceType).toBe('document');
+    expect(
+      result.sourceType === 'document' && result.mediaItems[0].fileName,
+    ).toBe('governance.pdf');
   });
 
-  it('rejects a non-PDF file for a PDF job', () => {
+  it('accepts multiple Word and PowerPoint files for one document note', () => {
+    const result = validateNoteJobRequest({
+      sourceType: 'document',
+      mediaItems: [
+        {
+          downloadUrl: 'https://storage.example.com/uploads/guide.docx',
+          fileName: 'guide.docx',
+          fileSize: 1024,
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {
+          downloadUrl: 'https://storage.example.com/uploads/training.pptx',
+          fileName: 'training.pptx',
+          fileSize: 1024,
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+      ],
+    });
+
+    expect(
+      result.sourceType === 'document' && result.mediaItems.length,
+    ).toBe(2);
+  });
+
+  it('rejects unsupported files for a document job', () => {
     expect(() =>
-      validatePdfInput({
-        downloadUrl: 'https://storage.example.com/uploads/governance.docx',
-        fileName: 'governance.docx',
+      validateDocumentInput({
+        downloadUrl: 'https://storage.example.com/uploads/recording.mp3',
+        fileName: 'recording.mp3',
         fileSize: 8 * 1024 * 1024,
-        mimeType:
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimeType: 'audio/mpeg',
       }),
-    ).toThrow('请选择有效的 PDF 文件');
+    ).toThrow('仅支持 PDF、Word 和 PowerPoint 文档');
   });
 
   it('extracts the Bilibili URL from a share text payload', () => {

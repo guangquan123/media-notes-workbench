@@ -1,6 +1,11 @@
 export type SourcePlatform = 'bilibili' | 'douyin';
 
-export type NoteSourceType = 'platform' | 'video' | 'audio' | 'pdf';
+export type NoteSourceType =
+  | 'platform'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'pdf';
 
 export type NoteStyle = 'learning' | 'meeting';
 
@@ -86,6 +91,8 @@ export interface SystemReadiness {
   ready: boolean;
   platformReady: boolean;
   mediaReady: boolean;
+  documentReady: boolean;
+  /** @deprecated 旧客户端兼容字段，请使用 documentReady。 */
   pdfReady: boolean;
 }
 

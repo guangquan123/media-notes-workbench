@@ -30,5 +30,6 @@ describe('note conversion history utilities', () => {
     expect(getConversionTypeLabel('platform', 'douyin')).toBe('抖音视频');
     expect(getConversionTypeLabel('video')).toBe('本地视频');
     expect(getConversionTypeLabel('audio')).toBe('录音');
+    expect(getConversionTypeLabel('document')).toBe('文档资料');
   });
 });

@@ -1,5 +1,5 @@
 import MediaNotePage from '../MediaNotePage/MediaNotePage';
 
 export default function PdfNotesPage() {
-  return <MediaNotePage sourceType="pdf" />;
+  return <MediaNotePage sourceType="document" />;
 }

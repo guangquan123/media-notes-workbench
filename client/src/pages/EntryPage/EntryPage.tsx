@@ -48,13 +48,13 @@ const FEATURE_CARDS = [
     cta: '上传录音',
   },
   {
-    href: '/pdf-notes',
+    href: '/document-notes',
     icon: FileText,
-    title: 'PDF 学习笔记',
-    description: '上传书籍、报告、论文或课程资料，沉淀知识结构。',
-    badge: 'PDF 文件',
-    bullets: ['原文解析', '知识提炼', '飞书归档'],
-    cta: '上传 PDF',
+    title: '文档学习笔记',
+    description: '上传书籍、报告、课件或课程资料，融合沉淀知识结构。',
+    badge: '文档文件',
+    bullets: ['多文件融合', '原文解析', '飞书归档'],
+    cta: '上传文档',
   },
 ] as const;
 
@@ -70,13 +70,20 @@ export default function EntryPage() {
               </div>
               <p className="text-sm font-semibold tracking-wide">学习工作台</p>
             </div>
-            <Link
-              className="inline-flex w-fit items-center gap-2 rounded-full border border-black/9 bg-white/80 px-3 py-1.5 text-xs text-black/55 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-black"
-              to="/conversion-history"
-            >
-              <History className="size-3.5" />
-              转化记录
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild className="rounded-full bg-[#111315] text-white hover:bg-[#4d5dff]" size="sm">
+                <Link to="/note-templates">
+                  <Settings2 className="size-3.5" />
+                  提示词配置
+                </Link>
+              </Button>
+              <Button asChild className="rounded-full bg-white/90 text-black/65 hover:bg-white" size="sm" variant="outline">
+                <Link to="/conversion-history">
+                  <History className="size-3.5" />
+                  转化记录
+                </Link>
+              </Button>
+            </div>
           </header>
 
           <section className="flex flex-1 items-center py-8 lg:py-12">
