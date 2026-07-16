@@ -9,6 +9,7 @@ import EntryPage from './pages/EntryPage/EntryPage';
 import LocalVideoNotesPage from './pages/LocalVideoNotesPage/LocalVideoNotesPage';
 import NotFound from './pages/NotFound/NotFound';
 import NoteTemplatesPage from './pages/NoteTemplatesPage/NoteTemplatesPage';
+import OperationManualPage from './pages/OperationManualPage/OperationManualPage';
 import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import HomePage from './pages/HomePage/HomePage';
 
@@ -23,6 +24,7 @@ const RoutesComponent = () => {
         <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
+        <Route path="operation-manual" element={<OperationManualPage />} />
         <Route path="conversion-history" element={<ConversionHistoryPage />} />
         <Route path="article-export" element={<ArticleExportPage />} />
       </Route>

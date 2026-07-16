@@ -99,6 +99,17 @@ export default function EntryPage() {
                   转化记录
                 </Link>
               </Button>
+              <Button
+                asChild
+                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
+                size="sm"
+                variant="outline"
+              >
+                <Link to="/operation-manual">
+                  <BookOpenText className="size-3.5" />
+                  操作手册
+                </Link>
+              </Button>
             </div>
           </header>
 
