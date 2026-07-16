@@ -14,10 +14,12 @@ import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Request, Response } from 'express';
 import type {
   CreateNoteJobRequest,
+  ConversionStatus,
   MarkNoteProcessedBatchRequest,
   MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
   NoteProcessingStatus,
+  NoteSourceType,
   NoteStyle,
   UpdateNoteTemplateConfigRequest,
 } from '@shared/api.interface';
@@ -26,12 +28,30 @@ import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
-import { normalizeHistoryPagination } from './note-history.utils';
+import {
+  normalizeHistoryDateRange,
+  normalizeHistoryKeyword,
+  normalizeHistoryPagination,
+} from './note-history.utils';
 
 interface AuthenticatedRequest extends Request {
   userContext: {
     userId: string;
   };
+}
+
+function isConversionStatus(value: string): value is ConversionStatus {
+  return value === 'processing' || value === 'completed' || value === 'failed';
+}
+
+function isNoteSourceType(value: string): value is NoteSourceType {
+  return (
+    value === 'platform' ||
+    value === 'video' ||
+    value === 'audio' ||
+    value === 'document' ||
+    value === 'pdf'
+  );
 }
 
 @Controller('api/note-jobs')
@@ -61,6 +81,11 @@ export class NoteJobsController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('processingStatus') processingStatus?: NoteProcessingStatus,
+    @Query('sourceType') sourceType?: NoteSourceType,
+    @Query('status') status?: ConversionStatus,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('keyword') keyword?: string,
   ) {
     if (
       processingStatus &&
@@ -69,11 +94,28 @@ export class NoteJobsController {
     ) {
       throw new BadRequestException('不支持的处理状态筛选');
     }
+    if (sourceType && !isNoteSourceType(sourceType)) {
+      throw new BadRequestException('不支持的资料类型筛选');
+    }
+    if (status && !isConversionStatus(status)) {
+      throw new BadRequestException('不支持的转化结果筛选');
+    }
     const pagination = normalizeHistoryPagination(page, pageSize);
-    return this.noteHistoryService.list(req.userContext.userId, {
-      ...pagination,
-      processingStatus,
-    });
+    try {
+      const dateRange = normalizeHistoryDateRange(dateFrom, dateTo);
+      return this.noteHistoryService.list(req.userContext.userId, {
+        ...dateRange,
+        ...pagination,
+        keyword: normalizeHistoryKeyword(keyword),
+        processingStatus,
+        sourceType,
+        status,
+      });
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '日期筛选参数无效';
+      throw new BadRequestException(message);
+    }
   }
 
   @NeedLogin()

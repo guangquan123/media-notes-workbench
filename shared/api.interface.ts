@@ -150,9 +150,14 @@ export interface NoteConversionHistoryPagination {
 }
 
 export interface NoteConversionHistoryQuery {
+  dateFrom?: string;
+  dateTo?: string;
+  keyword?: string;
   page?: number;
   pageSize?: number;
   processingStatus?: NoteProcessingStatus;
+  sourceType?: NoteSourceType;
+  status?: ConversionStatus;
 }
 
 export interface MarkNoteProcessedResponse {

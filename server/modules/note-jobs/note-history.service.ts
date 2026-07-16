@@ -3,7 +3,7 @@ import {
   DRIZZLE_DATABASE,
   type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, lt, type SQL } from 'drizzle-orm';
 
 import { noteConversionRecords } from '@server/database/schema';
 import type {
@@ -70,6 +70,17 @@ interface RawTranscriptRow {
   title: string;
 }
 
+interface HistoryListInput {
+  keyword?: string;
+  page: number;
+  pageSize: number;
+  processingStatus?: NoteProcessingStatus;
+  sourceType?: NoteSourceType;
+  startedAtBefore?: Date;
+  startedAtFrom?: Date;
+  status?: ConversionStatus;
+}
+
 @Injectable()
 export class NoteHistoryService {
   constructor(
@@ -119,16 +130,36 @@ export class NoteHistoryService {
 
   async list(
     ownerId: string,
-    input: {
-      page: number;
-      pageSize: number;
-      processingStatus?: NoteProcessingStatus;
-    },
+    input: HistoryListInput,
   ): Promise<NoteConversionHistoryResponse> {
-    const conditions = [eq(noteConversionRecords.ownerId, ownerId)];
+    const conditions: SQL<unknown>[] = [
+      eq(noteConversionRecords.ownerId, ownerId),
+    ];
+    if (input.keyword) {
+      const keywordPattern: string = input.keyword.replace(/[\\%_]/gu, '\\$&');
+      conditions.push(
+        ilike(noteConversionRecords.title, `%${keywordPattern}%`),
+      );
+    }
     if (input.processingStatus) {
       conditions.push(
         eq(noteConversionRecords.processingStatus, input.processingStatus),
+      );
+    }
+    if (input.sourceType) {
+      conditions.push(eq(noteConversionRecords.sourceType, input.sourceType));
+    }
+    if (input.status) {
+      conditions.push(eq(noteConversionRecords.status, input.status));
+    }
+    if (input.startedAtFrom) {
+      conditions.push(
+        gte(noteConversionRecords.startedAt, input.startedAtFrom),
+      );
+    }
+    if (input.startedAtBefore) {
+      conditions.push(
+        lt(noteConversionRecords.startedAt, input.startedAtBefore),
       );
     }
     const whereClause = and(...conditions);

@@ -2,6 +2,7 @@ import {
   calculateDurationMs,
   formatDuration,
   getConversionTypeLabel,
+  normalizeHistoryDateRange,
   normalizeHistoryPagination,
 } from '../../server/modules/note-jobs/note-history.utils';
 
@@ -43,5 +44,26 @@ describe('note conversion history utilities', () => {
       page: 3,
       pageSize: 10,
     });
+  });
+
+  it('converts an inclusive Shanghai date range to database boundaries', () => {
+    const range = normalizeHistoryDateRange('2026-07-16', '2026-07-17');
+
+    expect(range.startedAtFrom?.toISOString()).toBe('2026-07-15T16:00:00.000Z');
+    expect(range.startedAtBefore?.toISOString()).toBe(
+      '2026-07-17T16:00:00.000Z',
+    );
+  });
+
+  it('rejects inverted or malformed history date ranges', () => {
+    expect(() => normalizeHistoryDateRange('2026-07-18', '2026-07-17')).toThrow(
+      '开始日期不能晚于结束日期',
+    );
+    expect(() => normalizeHistoryDateRange('2026-7-17')).toThrow(
+      '日期格式应为 YYYY-MM-DD',
+    );
+    expect(() => normalizeHistoryDateRange('2026-02-31')).toThrow(
+      '日期格式应为 YYYY-MM-DD',
+    );
   });
 });

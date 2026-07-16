@@ -19,8 +19,9 @@ import {
   TriangleAlert,
   X,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import type { DateRange } from 'react-day-picker';
 
 import {
   downloadRawTranscript,
@@ -39,10 +40,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { downloadBlob } from '@/utils/download';
 import type {
+  ConversionStatus,
   NoteConversionHistoryPagination,
   NoteConversionRecord,
+  NoteProcessingStatus,
   NoteSourceType,
 } from '@shared/api.interface';
+import { HistoryFilterControls } from './HistoryFilterControls';
 
 const PAGE_SIZE = 10;
 
@@ -56,14 +60,6 @@ const SOURCE_STYLES: Record<
   pdf: { accent: '#3370ff', background: '#edf3ff' },
   document: { accent: '#3370ff', background: '#edf3ff' },
 };
-
-type ProcessingFilter = 'all' | 'pending' | 'processed';
-
-const PROCESSING_FILTERS: Array<{ label: string; value: ProcessingFilter }> = [
-  { label: '全部', value: 'all' },
-  { label: '待处理', value: 'pending' },
-  { label: '已处理', value: 'processed' },
-];
 
 function getStatusCopy(record: NoteConversionRecord): string {
   if (record.status === 'completed') return '已完成';
@@ -83,15 +79,72 @@ function isSelectable(record: NoteConversionRecord): boolean {
   return record.status === 'completed' && record.processingStatus === 'pending';
 }
 
+function getSourceType(value: string | null): NoteSourceType | undefined {
+  if (
+    value === 'platform' ||
+    value === 'video' ||
+    value === 'audio' ||
+    value === 'document' ||
+    value === 'pdf'
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function getConversionStatus(
+  value: string | null,
+): ConversionStatus | undefined {
+  if (value === 'completed' || value === 'processing' || value === 'failed') {
+    return value;
+  }
+  return undefined;
+}
+
+function getProcessingStatus(
+  value: string | null,
+): NoteProcessingStatus | undefined {
+  if (value === 'pending' || value === 'processed') return value;
+  return undefined;
+}
+
+function getDateParam(value: string | null): string | undefined {
+  return value && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
+}
+
 export default function ConversionHistoryPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<NoteConversionRecord[]>([]);
   const [pagination, setPagination] =
     useState<NoteConversionHistoryPagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [processingFilter, setProcessingFilter] =
-    useState<ProcessingFilter>('all');
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
+  const [appliedKeyword, setAppliedKeyword] = useState(
+    searchParams.get('keyword') || '',
+  );
+  const [sourceType, setSourceType] = useState<NoteSourceType | undefined>(
+    getSourceType(searchParams.get('sourceType')),
+  );
+  const [status, setStatus] = useState<ConversionStatus | undefined>(
+    getConversionStatus(searchParams.get('status')),
+  );
+  const [processingStatus, setProcessingStatus] = useState<
+    NoteProcessingStatus | undefined
+  >(getProcessingStatus(searchParams.get('processingStatus')));
+  const [dateFrom, setDateFrom] = useState<string | undefined>(
+    getDateParam(searchParams.get('dateFrom')),
+  );
+  const [dateTo, setDateTo] = useState<string | undefined>(
+    getDateParam(searchParams.get('dateTo')),
+  );
+  const [page, setPage] = useState(() => {
+    const parsedPage: number = Number.parseInt(
+      searchParams.get('page') || '',
+      10,
+    );
+    return Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  });
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [markingJobId, setMarkingJobId] = useState<string | null>(null);
@@ -102,10 +155,14 @@ export default function ConversionHistoryPage() {
     else setLoading(true);
     try {
       const response = await getNoteConversionHistory({
+        dateFrom,
+        dateTo,
+        keyword: appliedKeyword || undefined,
         page,
         pageSize: PAGE_SIZE,
-        processingStatus:
-          processingFilter === 'all' ? undefined : processingFilter,
+        processingStatus,
+        sourceType,
+        status,
       });
       if (
         response.items.length === 0 &&
@@ -128,7 +185,38 @@ export default function ConversionHistoryPage() {
 
   useEffect(() => {
     void loadRecords();
-  }, [page, processingFilter]);
+  }, [
+    appliedKeyword,
+    dateFrom,
+    dateTo,
+    page,
+    processingStatus,
+    sourceType,
+    status,
+  ]);
+
+  useEffect(() => {
+    const nextSearchParams = new URLSearchParams();
+    if (appliedKeyword) nextSearchParams.set('keyword', appliedKeyword);
+    if (sourceType) nextSearchParams.set('sourceType', sourceType);
+    if (status) nextSearchParams.set('status', status);
+    if (processingStatus) {
+      nextSearchParams.set('processingStatus', processingStatus);
+    }
+    if (dateFrom) nextSearchParams.set('dateFrom', dateFrom);
+    if (dateTo) nextSearchParams.set('dateTo', dateTo);
+    if (page > 1) nextSearchParams.set('page', String(page));
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [
+    appliedKeyword,
+    dateFrom,
+    dateTo,
+    page,
+    processingStatus,
+    setSearchParams,
+    sourceType,
+    status,
+  ]);
 
   const downloadTranscript = async (record: NoteConversionRecord) => {
     try {
@@ -199,8 +287,41 @@ export default function ConversionHistoryPage() {
     }
   };
 
-  const changeFilter = (filter: ProcessingFilter) => {
-    setProcessingFilter(filter);
+  const resetFilters = () => {
+    setKeyword('');
+    setAppliedKeyword('');
+    setSourceType(undefined);
+    setStatus(undefined);
+    setProcessingStatus(undefined);
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setPage(1);
+    setSelectedJobIds([]);
+  };
+
+  const changeSourceType = (value: NoteSourceType | undefined) => {
+    setSourceType(value);
+    setPage(1);
+    setSelectedJobIds([]);
+  };
+
+  const changeStatus = (value: ConversionStatus | undefined) => {
+    setStatus(value);
+    setPage(1);
+    setSelectedJobIds([]);
+  };
+
+  const changeProcessingStatus = (value: NoteProcessingStatus | undefined) => {
+    setProcessingStatus(value);
+    setPage(1);
+    setSelectedJobIds([]);
+  };
+
+  const changeDateRange = (range: DateRange | undefined) => {
+    setDateFrom(
+      range?.from ? dayjs(range.from).format('YYYY-MM-DD') : undefined,
+    );
+    setDateTo(range?.to ? dayjs(range.to).format('YYYY-MM-DD') : undefined);
     setPage(1);
     setSelectedJobIds([]);
   };
@@ -247,41 +368,24 @@ export default function ConversionHistoryPage() {
         </header>
 
         <section className="py-10">
-          <div className="mb-8 flex flex-col gap-5">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#3370ff]">
-                Conversion archive
-              </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] md:text-5xl">
-                过去学过什么，
-                <br />
-                在这里一目了然。
-              </h1>
-            </div>
-            {!loading && totalItems > 0 ? (
-              <div className="flex flex-col gap-3 rounded-2xl border border-black/7 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 text-sm text-black/45">
-                    共 {totalItems} 条记录
-                  </span>
-                  {PROCESSING_FILTERS.map(
-                    (filter: { label: string; value: ProcessingFilter }) => (
-                      <Button
-                        className={
-                          processingFilter === filter.value
-                            ? 'rounded-full bg-[#161616] text-white hover:bg-[#161616]'
-                            : 'rounded-full border-black/8 bg-white text-black/58'
-                        }
-                        key={filter.value}
-                        onClick={() => changeFilter(filter.value)}
-                        size="sm"
-                        variant="outline"
-                      >
-                        {filter.label}
-                      </Button>
-                    ),
-                  )}
+          <div className="mb-6 flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">
+                    转化记录
+                  </h1>
+                  {!loading ? (
+                    <span className="text-sm text-black/42">
+                      共 {totalItems} 条
+                    </span>
+                  ) : null}
                 </div>
+                <p className="mt-1 text-sm text-black/45">
+                  按资料类型、生成时间和处理状态快速定位笔记
+                </p>
+              </div>
+              {!loading && totalItems > 0 ? (
                 <Button
                   className={
                     selectionMode
@@ -298,8 +402,29 @@ export default function ConversionHistoryPage() {
                   <ListChecks className="size-4" />
                   {selectionMode ? '退出批量处理' : '批量处理'}
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
+            <HistoryFilterControls
+              keyword={keyword}
+              onDateRangeChange={changeDateRange}
+              onKeywordChange={setKeyword}
+              onKeywordSubmit={() => {
+                setAppliedKeyword(keyword.trim());
+                setPage(1);
+                setSelectedJobIds([]);
+              }}
+              onProcessingStatusChange={changeProcessingStatus}
+              onReset={resetFilters}
+              onSourceTypeChange={changeSourceType}
+              onStatusChange={changeStatus}
+              values={{
+                dateFrom,
+                dateTo,
+                processingStatus,
+                sourceType,
+                status,
+              }}
+            />
 
             {selectionMode && selectableRecords.length > 0 ? (
               <div className="flex flex-col gap-3 rounded-2xl border border-[#3370ff]/20 bg-[#eff4ff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

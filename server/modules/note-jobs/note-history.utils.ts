@@ -1,6 +1,12 @@
 import type { NoteSourceType, SourcePlatform } from '@shared/api.interface';
 
 const HISTORY_PAGE_SIZE = 10;
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+
+interface HistoryDateRange {
+  startedAtBefore?: Date;
+  startedAtFrom?: Date;
+}
 
 function normalizeHistoryPagination(
   pageValue?: string,
@@ -13,6 +19,50 @@ function normalizeHistoryPagination(
     pageSize:
       parsedPageSize === HISTORY_PAGE_SIZE ? parsedPageSize : HISTORY_PAGE_SIZE,
   };
+}
+
+function normalizeHistoryDateRange(
+  dateFrom?: string,
+  dateTo?: string,
+): HistoryDateRange {
+  const normalizedFrom: string | undefined = normalizeHistoryDate(dateFrom);
+  const normalizedTo: string | undefined = normalizeHistoryDate(dateTo);
+  if (normalizedFrom && normalizedTo && normalizedFrom > normalizedTo) {
+    throw new Error('开始日期不能晚于结束日期');
+  }
+  const startedAtFrom: Date | undefined = normalizedFrom
+    ? new Date(`${normalizedFrom}T00:00:00+08:00`)
+    : undefined;
+  const startedAtBefore: Date | undefined = normalizedTo
+    ? new Date(`${normalizedTo}T00:00:00+08:00`)
+    : undefined;
+  if (startedAtBefore)
+    startedAtBefore.setUTCDate(startedAtBefore.getUTCDate() + 1);
+  return { startedAtBefore, startedAtFrom };
+}
+
+function normalizeHistoryDate(value?: string): string | undefined {
+  if (!value) return undefined;
+  if (!DATE_ONLY_PATTERN.test(value)) {
+    throw new Error('日期格式应为 YYYY-MM-DD');
+  }
+  const [year, month, day]: number[] = value
+    .split('-')
+    .map((part: string) => Number(part));
+  const validationDate: Date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    validationDate.getUTCFullYear() !== year ||
+    validationDate.getUTCMonth() !== month - 1 ||
+    validationDate.getUTCDate() !== day
+  ) {
+    throw new Error('日期格式应为 YYYY-MM-DD');
+  }
+  return value;
+}
+
+function normalizeHistoryKeyword(value?: string): string | undefined {
+  const keyword: string = value?.trim().slice(0, 100) || '';
+  return keyword || undefined;
 }
 
 function calculateDurationMs(startedAt: Date, completedAt: Date): number {
@@ -44,5 +94,7 @@ export {
   calculateDurationMs,
   formatDuration,
   getConversionTypeLabel,
+  normalizeHistoryDateRange,
+  normalizeHistoryKeyword,
   normalizeHistoryPagination,
 };
