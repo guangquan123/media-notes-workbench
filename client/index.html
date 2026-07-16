@@ -1,26 +1,25 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/icons/zhiji-logo.svg?v=2" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/zhiji-logo.svg?v=2" />
+    <link rel="manifest" href="/site.webmanifest?v=2" />
+    <meta name="application-name" content="知迹学习台" />
+    <meta name="apple-mobile-web-app-title" content="知迹学习台" />
+    <title>知迹学习台</title>
+    <script>
+      try {
+        window.__platform__ = JSON.parse('{{{__platform__}}}');
+      } catch (e) {
+        console.error('Failed to parse __platform__', e);
+      }
+    </script>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/favicon.svg">
-  <link rel="manifest" href="/site.webmanifest">
-  <meta name="application-name" content="知迹学习台">
-  <meta name="apple-mobile-web-app-title" content="知迹学习台">
-  <title>知迹学习台</title>
-  <script>
-    try {
-      window.__platform__ = JSON.parse('{{{__platform__}}}');
-    } catch (e) {
-      console.error('Failed to parse __platform__', e);
-    }
-  </script>
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/index.tsx"></script>
-</body>
-
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
 </html>

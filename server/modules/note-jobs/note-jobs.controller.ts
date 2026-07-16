@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -13,7 +14,10 @@ import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Request, Response } from 'express';
 import type {
   CreateNoteJobRequest,
+  MarkNoteProcessedBatchRequest,
+  MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
+  NoteProcessingStatus,
   NoteStyle,
   UpdateNoteTemplateConfigRequest,
 } from '@shared/api.interface';
@@ -22,6 +26,7 @@ import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
+import { normalizeHistoryPagination } from './note-history.utils';
 
 interface AuthenticatedRequest extends Request {
   userContext: {
@@ -51,8 +56,24 @@ export class NoteJobsController {
 
   @NeedLogin()
   @Get('history')
-  history(@Req() req: AuthenticatedRequest) {
-    return this.noteHistoryService.list(req.userContext.userId);
+  history(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('processingStatus') processingStatus?: NoteProcessingStatus,
+  ) {
+    if (
+      processingStatus &&
+      processingStatus !== 'pending' &&
+      processingStatus !== 'processed'
+    ) {
+      throw new BadRequestException('不支持的处理状态筛选');
+    }
+    const pagination = normalizeHistoryPagination(page, pageSize);
+    return this.noteHistoryService.list(req.userContext.userId, {
+      ...pagination,
+      processingStatus,
+    });
   }
 
   @NeedLogin()
@@ -61,19 +82,39 @@ export class NoteJobsController {
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
   ): Promise<MarkNoteProcessedResponse> {
-    const reviewTask = await this.noteHistoryService.getReviewTask(
-      id,
-      req.userContext.userId,
-    );
-    if (reviewTask.taskSyncStatus === 'failed') {
-      throw new BadRequestException('飞书待处理任务未创建成功，暂不能同步完成');
-    }
-    if (reviewTask.larkTaskGuid) {
-      await this.noteReviewTaskService.complete(reviewTask.larkTaskGuid);
-    }
+    await this.markRecordProcessed(id, req.userContext.userId);
     const processedAt = new Date();
-    await this.noteHistoryService.markProcessed(id, req.userContext.userId);
     return { processedAt: processedAt.toISOString() };
+  }
+
+  @NeedLogin()
+  @Post('history/mark-processed')
+  async markProcessedBatch(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: MarkNoteProcessedBatchRequest,
+  ): Promise<MarkNoteProcessedBatchResponse> {
+    const jobIds: string[] = Array.from(new Set(body.jobIds || []));
+    if (jobIds.length === 0 || jobIds.length > 10) {
+      throw new BadRequestException('请选择 1 至 10 条待处理记录');
+    }
+    const processedJobIds: string[] = [];
+    const skippedJobIds: string[] = [];
+    const failed: Array<{ jobId: string; message: string }> = [];
+    for (const jobId of jobIds) {
+      try {
+        const wasProcessed: boolean = await this.markRecordProcessed(
+          jobId,
+          req.userContext.userId,
+        );
+        if (wasProcessed) processedJobIds.push(jobId);
+        else skippedJobIds.push(jobId);
+      } catch (error) {
+        const message: string =
+          error instanceof Error ? error.message : '处理失败';
+        failed.push({ jobId, message });
+      }
+    }
+    return { failed, processedJobIds, skippedJobIds };
   }
 
   @NeedLogin()
@@ -144,5 +185,24 @@ export class NoteJobsController {
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.noteJobsService.get(id, req.userContext.userId);
+  }
+
+  private async markRecordProcessed(
+    jobId: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    const reviewTask = await this.noteHistoryService.getReviewTask(
+      jobId,
+      ownerId,
+    );
+    if (reviewTask.processingStatus === 'processed') return false;
+    if (reviewTask.taskSyncStatus === 'failed') {
+      throw new BadRequestException('飞书待处理任务未创建成功，暂不能同步完成');
+    }
+    if (reviewTask.larkTaskGuid) {
+      await this.noteReviewTaskService.complete(reviewTask.larkTaskGuid);
+    }
+    await this.noteHistoryService.markProcessed(jobId, ownerId);
+    return true;
   }
 }

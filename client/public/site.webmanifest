@@ -7,7 +7,7 @@
   "theme_color": "#111315",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/icons/zhiji-logo.svg?v=2",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

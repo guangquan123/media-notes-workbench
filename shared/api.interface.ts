@@ -139,10 +139,34 @@ export interface NoteConversionRecord {
 
 export interface NoteConversionHistoryResponse {
   items: NoteConversionRecord[];
+  pagination: NoteConversionHistoryPagination;
+}
+
+export interface NoteConversionHistoryPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface NoteConversionHistoryQuery {
+  page?: number;
+  pageSize?: number;
+  processingStatus?: NoteProcessingStatus;
 }
 
 export interface MarkNoteProcessedResponse {
   processedAt: string;
+}
+
+export interface MarkNoteProcessedBatchRequest {
+  jobIds: string[];
+}
+
+export interface MarkNoteProcessedBatchResponse {
+  failed: Array<{ jobId: string; message: string }>;
+  processedJobIds: string[];
+  skippedJobIds: string[];
 }
 
 export type ArticlePlatform = 'source' | 'wechat' | 'zhihu' | 'douyin';

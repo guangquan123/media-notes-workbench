@@ -1,5 +1,20 @@
 import type { NoteSourceType, SourcePlatform } from '@shared/api.interface';
 
+const HISTORY_PAGE_SIZE = 10;
+
+function normalizeHistoryPagination(
+  pageValue?: string,
+  pageSizeValue?: string,
+): { page: number; pageSize: number } {
+  const parsedPage: number = Number.parseInt(pageValue || '', 10);
+  const parsedPageSize: number = Number.parseInt(pageSizeValue || '', 10);
+  return {
+    page: Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    pageSize:
+      parsedPageSize === HISTORY_PAGE_SIZE ? parsedPageSize : HISTORY_PAGE_SIZE,
+  };
+}
+
 function calculateDurationMs(startedAt: Date, completedAt: Date): number {
   return Math.max(0, completedAt.getTime() - startedAt.getTime());
 }
@@ -25,4 +40,9 @@ function getConversionTypeLabel(
   return sourcePlatform === 'douyin' ? '抖音视频' : 'B站视频';
 }
 
-export { calculateDurationMs, formatDuration, getConversionTypeLabel };
+export {
+  calculateDurationMs,
+  formatDuration,
+  getConversionTypeLabel,
+  normalizeHistoryPagination,
+};

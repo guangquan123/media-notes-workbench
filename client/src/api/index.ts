@@ -6,7 +6,10 @@ import type {
   ArticleExportReadiness,
   CreateArticleExportJobRequest,
   CreateNoteJobRequest,
+  MarkNoteProcessedBatchRequest,
+  MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
+  NoteConversionHistoryQuery,
   NoteConversionHistoryResponse,
   NoteJob,
   NoteStyle,
@@ -101,11 +104,26 @@ export async function getNoteJob(id: string): Promise<NoteJob> {
   return response.data;
 }
 
-export async function getNoteConversionHistory(): Promise<NoteConversionHistoryResponse> {
+export async function getNoteConversionHistory(
+  query: NoteConversionHistoryQuery,
+): Promise<NoteConversionHistoryResponse> {
   const response = await axiosForBackend({
     url: '/api/note-jobs/history',
     method: 'GET',
+    params: query,
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function markNoteProcessedBatch(
+  input: MarkNoteProcessedBatchRequest,
+): Promise<MarkNoteProcessedBatchResponse> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/history/mark-processed',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }

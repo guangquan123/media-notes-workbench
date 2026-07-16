@@ -108,13 +108,13 @@ export default function EntryPage() {
                 const Icon = item.icon;
                 return (
                   <Card
-                    className="group relative flex min-h-[360px] flex-col overflow-hidden border-black/8 bg-white/88 shadow-[0_20px_60px_rgba(18,24,40,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#4d5dff]/30 hover:shadow-[0_26px_70px_rgba(44,59,150,0.1)]"
+                    className="group relative flex min-h-[360px] flex-col overflow-hidden border-black/8 bg-white/88 shadow-[0_20px_60px_rgba(18,24,40,0.06)] backdrop-blur-xl transition duration-300 motion-reduce:transition-none hover:-translate-y-2 hover:scale-[1.015] hover:border-[#4d5dff]/45 hover:shadow-[0_30px_80px_rgba(44,59,150,0.16)] focus-within:-translate-y-2 focus-within:scale-[1.015] focus-within:border-[#4d5dff]/45 focus-within:shadow-[0_30px_80px_rgba(44,59,150,0.16)]"
                     key={item.href}
                   >
-                    <div className="pointer-events-none absolute -right-16 -top-16 size-40 rounded-full bg-[#4d5dff]/8 blur-3xl transition group-hover:bg-[#4d5dff]/14" />
+                    <div className="pointer-events-none absolute -right-16 -top-16 size-40 rounded-full bg-[#4d5dff]/8 blur-3xl transition duration-500 motion-reduce:transition-none group-hover:scale-150 group-hover:bg-[#4d5dff]/25 group-focus-within:scale-150 group-focus-within:bg-[#4d5dff]/25" />
                     <CardHeader className="relative space-y-4 p-6 pb-3">
-                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-[#f3f4ff] px-3 py-1 text-xs font-semibold text-black/58">
-                        <Icon className="size-3.5" />
+                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-[#f3f4ff] px-3 py-1 text-xs font-semibold text-black/58 transition duration-300 motion-reduce:transition-none group-hover:-translate-y-0.5 group-hover:border-[#4d5dff]/35 group-hover:bg-[#eaecff] group-hover:text-[#3848d7] group-focus-within:-translate-y-0.5 group-focus-within:border-[#4d5dff]/35 group-focus-within:bg-[#eaecff] group-focus-within:text-[#3848d7]">
+                        <Icon className="size-3.5 transition duration-300 motion-reduce:transition-none group-hover:scale-110 group-focus-within:scale-110" />
                         {item.badge}
                       </div>
                       <CardTitle className="text-2xl tracking-[-0.04em] text-[#111315]">
@@ -128,7 +128,7 @@ export default function EntryPage() {
                       <div className="grid grid-cols-3 gap-2">
                         {item.bullets.map((bullet: string) => (
                           <div
-                            className="rounded-xl border border-black/7 bg-[#f7f7f5] px-2 py-3 text-center text-xs leading-5 text-black/52"
+                            className="rounded-xl border border-black/7 bg-[#f7f7f5] px-2 py-3 text-center text-xs leading-5 text-black/52 transition duration-300 motion-reduce:transition-none group-hover:border-[#4d5dff]/20 group-hover:bg-white group-hover:text-black/65 group-focus-within:border-[#4d5dff]/20 group-focus-within:bg-white group-focus-within:text-black/65"
                             key={bullet}
                           >
                             {bullet}
@@ -137,7 +137,7 @@ export default function EntryPage() {
                       </div>
                       <Button
                         asChild
-                        className="mt-auto h-11 w-full rounded-xl bg-[#111315] text-white shadow-sm hover:bg-[#4d5dff]"
+                        className="mt-auto h-11 w-full rounded-xl bg-[#111315] text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#4d5dff] group-hover:shadow-[0_12px_28px_rgba(77,93,255,0.28)] group-focus-within:bg-[#4d5dff] group-focus-within:shadow-[0_12px_28px_rgba(77,93,255,0.28)] hover:bg-[#4d5dff]"
                       >
                         <Link to={item.href}>
                           {item.cta}
@@ -150,7 +150,6 @@ export default function EntryPage() {
               })}
             </div>
           </section>
-
         </div>
       </div>
     </main>

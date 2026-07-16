@@ -2,6 +2,7 @@ import {
   calculateDurationMs,
   formatDuration,
   getConversionTypeLabel,
+  normalizeHistoryPagination,
 } from '../../server/modules/note-jobs/note-history.utils';
 
 describe('note conversion history utilities', () => {
@@ -31,5 +32,16 @@ describe('note conversion history utilities', () => {
     expect(getConversionTypeLabel('video')).toBe('本地视频');
     expect(getConversionTypeLabel('audio')).toBe('录音');
     expect(getConversionTypeLabel('document')).toBe('文档资料');
+  });
+
+  it('normalizes history pagination to the supported page size and range', () => {
+    expect(normalizeHistoryPagination('0', '999')).toEqual({
+      page: 1,
+      pageSize: 10,
+    });
+    expect(normalizeHistoryPagination('3', '10')).toEqual({
+      page: 3,
+      pageSize: 10,
+    });
   });
 });

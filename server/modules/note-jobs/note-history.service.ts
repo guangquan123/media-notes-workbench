@@ -3,7 +3,7 @@ import {
   DRIZZLE_DATABASE,
   type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 
 import { noteConversionRecords } from '@server/database/schema';
 import type {
@@ -58,6 +58,7 @@ interface ConversionRecordRow {
 
 interface ReviewTaskRow {
   larkTaskGuid: string | null;
+  processingStatus: string;
   taskSyncStatus: string;
 }
 
@@ -116,7 +117,27 @@ export class NoteHistoryService {
       .where(eq(noteConversionRecords.jobId, input.jobId));
   }
 
-  async list(ownerId: string): Promise<NoteConversionHistoryResponse> {
+  async list(
+    ownerId: string,
+    input: {
+      page: number;
+      pageSize: number;
+      processingStatus?: NoteProcessingStatus;
+    },
+  ): Promise<NoteConversionHistoryResponse> {
+    const conditions = [eq(noteConversionRecords.ownerId, ownerId)];
+    if (input.processingStatus) {
+      conditions.push(
+        eq(noteConversionRecords.processingStatus, input.processingStatus),
+      );
+    }
+    const whereClause = and(...conditions);
+    const countRows: Array<{ total: number }> = await this.db
+      .select({ total: count() })
+      .from(noteConversionRecords)
+      .where(whereClause);
+    const totalItems: number = Number(countRows[0]?.total || 0);
+    const offset: number = (input.page - 1) * input.pageSize;
     const rows: ConversionRecordRow[] = await this.db
       .select({
         id: noteConversionRecords.id,
@@ -142,9 +163,10 @@ export class NoteHistoryService {
         taskSyncError: noteConversionRecords.taskSyncError,
       })
       .from(noteConversionRecords)
-      .where(eq(noteConversionRecords.ownerId, ownerId))
+      .where(whereClause)
       .orderBy(desc(noteConversionRecords.startedAt))
-      .limit(100);
+      .limit(input.pageSize)
+      .offset(offset);
 
     const items: NoteConversionRecord[] = rows.map(
       (row: ConversionRecordRow): NoteConversionRecord => ({
@@ -172,7 +194,15 @@ export class NoteHistoryService {
         taskSyncError: row.taskSyncError,
       }),
     );
-    return { items };
+    return {
+      items,
+      pagination: {
+        page: input.page,
+        pageSize: input.pageSize,
+        totalItems,
+        totalPages: Math.ceil(totalItems / input.pageSize),
+      },
+    };
   }
 
   async updateRawDocumentUrl(
@@ -235,6 +265,7 @@ export class NoteHistoryService {
     const rows: ReviewTaskRow[] = await this.db
       .select({
         larkTaskGuid: noteConversionRecords.larkTaskGuid,
+        processingStatus: noteConversionRecords.processingStatus,
         taskSyncStatus: noteConversionRecords.taskSyncStatus,
       })
       .from(noteConversionRecords)
