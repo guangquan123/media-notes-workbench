@@ -122,11 +122,26 @@ export const noteTemplateConfigs = pgTable("note_template_configs", {
   ownerId: userProfile("owner_id").notNull(),
   noteStyle: varchar("note_style", { length: 32 }).notNull(),
   content: text("content").notNull(),
+  draftContent: text("draft_content"),
+  activeVersionId: uuid("active_version_id"),
   createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("note_template_configs_owner_style_key").on(table.ownerId, table.noteStyle),
   index("note_template_configs_owner_idx").on(table.ownerId),
+]);
+
+export const noteTemplateVersions = pgTable("note_template_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: userProfile("owner_id").notNull(),
+  noteStyle: varchar("note_style", { length: 32 }).notNull(),
+  versionNumber: integer("version_number").notNull(),
+  content: text("content").notNull(),
+  publishedAt: customTimestamptz("published_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_template_versions_owner_id_note_style_version_number_key").on(table.ownerId, table.noteStyle, table.versionNumber),
+  index("note_template_versions_owner_style_idx").on(table.ownerId, table.noteStyle, table.versionNumber),
 ]);
 
 export const noteConversionRecords = pgTable("note_conversion_records", {
@@ -144,6 +159,9 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   error: text("error"),
   rawDocumentUrl: text("raw_document_url"),
   rawTranscript: text("raw_transcript"),
+  noteStyle: varchar("note_style", { length: 32 }),
+  promptVersionId: uuid("prompt_version_id"),
+  promptContent: text("prompt_content"),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)
@@ -156,3 +174,4 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
 // table aliases
 export const noteConversionRecordsTable = noteConversionRecords;
 export const noteTemplateConfigsTable = noteTemplateConfigs;
+export const noteTemplateVersionsTable = noteTemplateVersions;

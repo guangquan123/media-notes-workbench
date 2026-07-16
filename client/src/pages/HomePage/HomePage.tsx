@@ -9,6 +9,7 @@ import {
   Headphones,
   LoaderCircle,
   Sparkles,
+  Waypoints,
   WandSparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -271,7 +272,7 @@ export default function HomePage() {
         <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-2xl bg-[#fb7299] text-white shadow-sm">
-              <WandSparkles className="size-5" />
+              <Waypoints className="size-5" />
             </div>
             <div>
               <p className="text-sm font-semibold">知迹学习台</p>

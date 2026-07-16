@@ -10,12 +10,24 @@ export type NoteSourceType =
 export type NoteStyle = 'learning' | 'meeting';
 
 export interface NoteTemplateConfig {
+  activeVersionId?: string;
+  activeVersionNumber?: number;
   content: string;
   description: string;
+  draftContent: string;
+  history: NotePromptVersion[];
   isDefault: boolean;
   label: string;
+  publishedContent: string;
   style: NoteStyle;
   updatedAt?: string;
+}
+
+export interface NotePromptVersion {
+  content: string;
+  id: string;
+  publishedAt: string;
+  versionNumber: number;
 }
 
 export interface NoteTemplateConfigResponse {
@@ -112,6 +124,9 @@ export interface NoteConversionRecord {
   rawDocumentUrl: string | null;
   rawTranscriptAvailable: boolean;
   documentUrl: string | null;
+  noteStyle: NoteStyle | null;
+  promptContent: string | null;
+  promptVersionId: string | null;
 }
 
 export interface NoteConversionHistoryResponse {

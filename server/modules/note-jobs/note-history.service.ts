@@ -12,6 +12,7 @@ import type {
   NoteConversionRecord,
   NoteJob,
   NoteSourceType,
+  NoteStyle,
 } from '@shared/api.interface';
 import {
   calculateDurationMs,
@@ -42,6 +43,9 @@ interface ConversionRecordRow {
   rawDocumentUrl: string | null;
   rawTranscript: string | null;
   documentUrl: string | null;
+  noteStyle: string | null;
+  promptContent: string | null;
+  promptVersionId: string | null;
 }
 
 interface RawTranscriptRow {
@@ -114,6 +118,9 @@ export class NoteHistoryService {
         rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
         rawTranscript: noteConversionRecords.rawTranscript,
         documentUrl: noteConversionRecords.documentUrl,
+        noteStyle: noteConversionRecords.noteStyle,
+        promptContent: noteConversionRecords.promptContent,
+        promptVersionId: noteConversionRecords.promptVersionId,
       })
       .from(noteConversionRecords)
       .where(eq(noteConversionRecords.ownerId, ownerId))
@@ -135,6 +142,9 @@ export class NoteHistoryService {
         rawDocumentUrl: row.rawDocumentUrl,
         rawTranscriptAvailable: Boolean(row.rawTranscript?.trim()),
         documentUrl: row.documentUrl,
+        noteStyle: this.toNoteStyle(row.noteStyle),
+        promptContent: row.promptContent,
+        promptVersionId: row.promptVersionId,
       }),
     );
     return { items };
@@ -156,6 +166,18 @@ export class NoteHistoryService {
     await this.db
       .update(noteConversionRecords)
       .set({ rawTranscript: transcript })
+      .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async updatePromptSnapshot(
+    jobId: string,
+    noteStyle: NoteStyle,
+    promptContent: string,
+    promptVersionId: string | null,
+  ): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({ noteStyle, promptContent, promptVersionId })
       .where(eq(noteConversionRecords.jobId, jobId));
   }
 
@@ -201,5 +223,10 @@ export class NoteHistoryService {
   private toStatus(value: string): ConversionStatus {
     if (value === 'completed' || value === 'failed') return value;
     return 'processing';
+  }
+
+  private toNoteStyle(value: string | null): NoteStyle | null {
+    if (value === 'learning' || value === 'meeting') return value;
+    return null;
   }
 }

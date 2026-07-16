@@ -284,10 +284,17 @@ export class NoteJobsService {
         videoTitle,
         transcript,
       );
-      const styleRequirements = await this.noteTemplateService.getContent(
+      const promptSnapshot = await this.noteTemplateService.getActivePrompt(
         ownerId,
         input.noteStyle,
       );
+      await this.noteHistoryService.updatePromptSnapshot(
+        id,
+        input.noteStyle,
+        promptSnapshot.content,
+        promptSnapshot.versionId,
+      );
+      const styleRequirements: string = promptSnapshot.content;
       this.update(id, 'summarizing', 74, '依据已整理，正在撰写学习笔记…');
       const markdown = await this.summarize({
         transcript,
@@ -467,10 +474,17 @@ export class NoteJobsService {
       title,
       parsedContent,
     );
-    const styleRequirements = await this.noteTemplateService.getContent(
+    const promptSnapshot = await this.noteTemplateService.getActivePrompt(
       ownerId,
       input.noteStyle,
     );
+    await this.noteHistoryService.updatePromptSnapshot(
+      id,
+      input.noteStyle,
+      promptSnapshot.content,
+      promptSnapshot.versionId,
+    );
+    const styleRequirements: string = promptSnapshot.content;
     const markdown: string = await this.summarizeDocument({
       content: parsedContent,
       editorResearch,

@@ -141,6 +141,17 @@ export async function updateNoteTemplate(
   return response.data;
 }
 
+export async function publishNoteTemplate(
+  style: NoteStyle,
+): Promise<NoteTemplateConfig> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/templates/${style}/publish`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getArticleExportReadiness(): Promise<ArticleExportReadiness> {
   return requestWithCache(articleExportReadinessState, async () => {
     const response = await axiosForBackend({

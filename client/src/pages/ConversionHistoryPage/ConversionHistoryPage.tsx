@@ -221,6 +221,14 @@ export default function ConversionHistoryPage() {
                         >
                           {getStatusCopy(record)}
                         </Badge>
+                        {record.noteStyle ? (
+                          <Badge variant="outline">
+                            {record.noteStyle === 'learning'
+                              ? '学习笔记'
+                              : '会议纪要'}
+                            {record.promptVersionId ? ' · 已存提示词快照' : ''}
+                          </Badge>
+                        ) : null}
                       </div>
                       <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">
                         {record.title}

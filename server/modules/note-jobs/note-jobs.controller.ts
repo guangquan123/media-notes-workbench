@@ -97,11 +97,23 @@ export class NoteJobsController {
     if (style !== 'learning' && style !== 'meeting') {
       throw new BadRequestException('不支持的笔记风格');
     }
-    return this.noteTemplateService.update(
+    return this.noteTemplateService.saveDraft(
       req.userContext.userId,
       style,
       body.content,
     );
+  }
+
+  @NeedLogin()
+  @Post('templates/:style/publish')
+  publishTemplate(
+    @Req() req: AuthenticatedRequest,
+    @Param('style') style: NoteStyle,
+  ) {
+    if (style !== 'learning' && style !== 'meeting') {
+      throw new BadRequestException('不支持的笔记风格');
+    }
+    return this.noteTemplateService.publish(req.userContext.userId, style);
   }
 
   @NeedLogin()
