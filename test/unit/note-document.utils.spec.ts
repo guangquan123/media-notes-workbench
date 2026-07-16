@@ -17,11 +17,28 @@ describe('note document utilities', () => {
 
     expect(markdown).toContain('# 原始转录稿');
     expect(markdown).toContain('| 标题 | 信息密度优化 |');
-    expect(markdown).toContain('```text');
-    expect(markdown).toContain('第一行原文\n第二行原文');
+    expect(markdown).not.toContain('```text');
+    expect(markdown).toContain('第一行原文\n\n第二行原文');
   });
 
   it('uses a dedicated title for the raw transcript document', () => {
     expect(buildRawDocumentTitle('详细笔记')).toBe('原文：详细笔记');
+  });
+
+  it('formats continuous transcript text into readable paragraphs', () => {
+    const markdown = buildRawTranscriptMarkdown({
+      duration: '12:34',
+      generatedDate: '2026-07-05',
+      sourceLabel: 'B站视频',
+      sourceUrl: 'https://www.bilibili.com/video/BV1xxxxxxx',
+      title: '信息密度优化',
+      transcript: '第一句话说明背景。第二句话说明方法！第三句话给出结论？',
+      uploader: 'UP 主',
+    });
+
+    expect(markdown).not.toContain('```text');
+    expect(markdown).toContain(
+      '第一句话说明背景。\n\n第二句话说明方法！\n\n第三句话给出结论？',
+    );
   });
 });

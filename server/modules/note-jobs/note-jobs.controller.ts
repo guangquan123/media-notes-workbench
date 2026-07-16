@@ -7,9 +7,10 @@ import {
   Post,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type {
   CreateNoteJobRequest,
   NoteStyle,
@@ -18,6 +19,7 @@ import type {
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
+import { buildRawTranscriptMarkdown } from './note-document.utils';
 
 interface AuthenticatedRequest extends Request {
   userContext: {
@@ -48,6 +50,35 @@ export class NoteJobsController {
   @Get('history')
   history(@Req() req: AuthenticatedRequest) {
     return this.noteHistoryService.list(req.userContext.userId);
+  }
+
+  @NeedLogin()
+  @Get('history/:id/raw-transcript')
+  async downloadRawTranscript(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<string> {
+    const transcript = await this.noteHistoryService.getRawTranscript(
+      id,
+      req.userContext.userId,
+    );
+    const date: string = transcript.startedAt.toISOString().slice(0, 10);
+    const fileName: string = `原文-${transcript.title.slice(0, 80)}-${date}.md`;
+    response.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    );
+    return buildRawTranscriptMarkdown({
+      duration: '详见原文档',
+      generatedDate: date,
+      sourceLabel: transcript.sourceLabel,
+      sourceUrl: transcript.rawDocumentUrl || '未保留原始链接',
+      title: transcript.title,
+      transcript: transcript.rawTranscript,
+      uploader: '详见原文档',
+    });
   }
 
   @NeedLogin()

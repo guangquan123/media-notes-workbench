@@ -15,8 +15,7 @@ export function buildRawDocumentTitle(title: string): string {
 export function buildRawTranscriptMarkdown(
   input: BuildRawTranscriptMarkdownInput,
 ): string {
-  const fence = input.transcript.includes('```') ? '````' : '```';
-  const transcript = input.transcript.trim();
+  const transcript = formatTranscriptForReading(input.transcript);
   return [
     '# 原始转录稿',
     '',
@@ -35,9 +34,21 @@ export function buildRawTranscriptMarkdown(
     '',
     '## 完整转录',
     '',
-    `${fence}text`,
     transcript,
-    fence,
     '',
   ].join('\n');
+}
+
+function formatTranscriptForReading(transcript: string): string {
+  const paragraphs: string[] = transcript
+    .replace(/\r\n?/gu, '\n')
+    .split(/\n+/u)
+    .flatMap((line: string) => {
+      const sentences: string[] =
+        line.match(/[^。！？!?；;]+[。！？!?；;]?/gu) || [];
+      return sentences
+        .map((sentence: string) => sentence.trim())
+        .filter((sentence: string) => Boolean(sentence));
+    });
+  return paragraphs.join('\n\n').trim();
 }

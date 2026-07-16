@@ -257,6 +257,7 @@ export class NoteJobsService {
       }
       const transcript = transcripts.join('\n\n');
       if (!transcript.trim()) throw new Error('转录结果为空');
+      await this.persistRawTranscript(id, transcript);
 
       this.update(id, 'publishing', 66, '转录完成，正在归档原文…');
       const rawDocumentUrl = await this.createRawTranscriptDocument({
@@ -421,6 +422,7 @@ export class NoteJobsService {
           `[来源 ${index + 1}：${item.fileName}]\n${item.content}`,
       )
       .join('\n\n');
+    await this.persistRawTranscript(id, parsedContent);
     const parseQuality = parsedItems.some(
       (item: (typeof parsedItems)[number]) => item.parseQuality === 'needs_ocr',
     )
@@ -1612,6 +1614,21 @@ export class NoteJobsService {
     } catch (error) {
       this.logger.warn(
         `更新任务 ${id} 的原文链接失败: ${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    }
+  }
+
+  private async persistRawTranscript(
+    id: string,
+    transcript: string,
+  ): Promise<void> {
+    try {
+      await this.noteHistoryService.updateRawTranscript(id, transcript);
+    } catch (error) {
+      this.logger.warn(
+        `保存任务 ${id} 的原文内容失败: ${
           error instanceof Error ? error.message : '未知错误'
         }`,
       );

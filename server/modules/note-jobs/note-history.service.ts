@@ -1,9 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   DRIZZLE_DATABASE,
   type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import { noteConversionRecords } from '@server/database/schema';
 import type {
@@ -40,7 +40,16 @@ interface ConversionRecordRow {
   startedAt: Date;
   completedAt: Date | null;
   rawDocumentUrl: string | null;
+  rawTranscript: string | null;
   documentUrl: string | null;
+}
+
+interface RawTranscriptRow {
+  rawDocumentUrl: string | null;
+  rawTranscript: string | null;
+  sourceLabel: string;
+  startedAt: Date;
+  title: string;
 }
 
 @Injectable()
@@ -103,6 +112,7 @@ export class NoteHistoryService {
         startedAt: noteConversionRecords.startedAt,
         completedAt: noteConversionRecords.completedAt,
         rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
+        rawTranscript: noteConversionRecords.rawTranscript,
         documentUrl: noteConversionRecords.documentUrl,
       })
       .from(noteConversionRecords)
@@ -123,6 +133,7 @@ export class NoteHistoryService {
         startedAt: row.startedAt.toISOString(),
         completedAt: row.completedAt?.toISOString() || null,
         rawDocumentUrl: row.rawDocumentUrl,
+        rawTranscriptAvailable: Boolean(row.rawTranscript?.trim()),
         documentUrl: row.documentUrl,
       }),
     );
@@ -139,6 +150,40 @@ export class NoteHistoryService {
         rawDocumentUrl,
       })
       .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async updateRawTranscript(jobId: string, transcript: string): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({ rawTranscript: transcript })
+      .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async getRawTranscript(
+    jobId: string,
+    ownerId: string,
+  ): Promise<RawTranscriptRow> {
+    const rows: RawTranscriptRow[] = await this.db
+      .select({
+        rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
+        rawTranscript: noteConversionRecords.rawTranscript,
+        sourceLabel: noteConversionRecords.sourceLabel,
+        startedAt: noteConversionRecords.startedAt,
+        title: noteConversionRecords.title,
+      })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+        ),
+      )
+      .limit(1);
+    const record: RawTranscriptRow | undefined = rows[0];
+    if (!record?.rawTranscript?.trim()) {
+      throw new NotFoundException('该历史记录没有可下载的原文内容');
+    }
+    return record;
   }
 
   private toSourceType(value: string): NoteSourceType {

@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Clock3,
+  Download,
   FileAudio,
   FileText,
   FileVideo,
@@ -16,9 +17,10 @@ import {
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { getNoteConversionHistory } from '@/api';
+import { downloadRawTranscript, getNoteConversionHistory } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { downloadBlob } from '@/utils/download';
 import type {
   NoteConversionRecord,
   NoteSourceType,
@@ -86,6 +88,16 @@ export default function ConversionHistoryPage() {
   useEffect(() => {
     void loadRecords();
   }, []);
+
+  const downloadTranscript = async (record: NoteConversionRecord) => {
+    try {
+      const blob: Blob = await downloadRawTranscript(record.jobId);
+      downloadBlob(blob, `原文-${record.jobId}.md`);
+      toast.success('原文下载已开始');
+    } catch {
+      toast.error('原文下载失败，请稍后重试');
+    }
+  };
 
   return (
     <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
@@ -259,6 +271,16 @@ export default function ConversionHistoryPage() {
                             查看原文
                             <ArrowUpRight className="size-4" />
                           </a>
+                        </Button>
+                      ) : null}
+                      {record.rawTranscriptAvailable ? (
+                        <Button
+                          className="w-full rounded-xl border-black/10 bg-white text-black/72 hover:bg-black/5 md:w-auto"
+                          onClick={() => void downloadTranscript(record)}
+                          variant="outline"
+                        >
+                          下载原文
+                          <Download className="size-4" />
                         </Button>
                       ) : null}
                       {!record.documentUrl && !record.rawDocumentUrl && (

@@ -110,6 +110,7 @@ export interface NoteConversionRecord {
   startedAt: string;
   completedAt: string | null;
   rawDocumentUrl: string | null;
+  rawTranscriptAvailable: boolean;
   documentUrl: string | null;
 }
 

@@ -109,6 +109,16 @@ export async function getNoteConversionHistory(): Promise<NoteConversionHistoryR
   return response.data;
 }
 
+export async function downloadRawTranscript(jobId: string): Promise<Blob> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/raw-transcript`,
+    method: 'GET',
+    responseType: 'blob',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getNoteTemplates(): Promise<NoteTemplateConfigResponse> {
   const response = await axiosForBackend({
     url: '/api/note-jobs/templates',

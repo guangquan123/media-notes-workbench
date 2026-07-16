@@ -68,16 +68,32 @@ export default function EntryPage() {
               <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
                 <Sparkles className="size-5" />
               </div>
-              <p className="text-sm font-semibold tracking-wide">学习工作台</p>
+              <div>
+                <p className="text-sm font-semibold tracking-wide">
+                  知迹学习台
+                </p>
+                <p className="text-xs text-black/42">
+                  让每份资料都留下可追溯的知识轨迹
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button asChild className="rounded-full bg-[#111315] text-white hover:bg-[#4d5dff]" size="sm">
+              <Button
+                asChild
+                className="rounded-full bg-[#111315] text-white hover:bg-[#4d5dff]"
+                size="sm"
+              >
                 <Link to="/note-templates">
                   <Settings2 className="size-3.5" />
                   提示词配置
                 </Link>
               </Button>
-              <Button asChild className="rounded-full bg-white/90 text-black/65 hover:bg-white" size="sm" variant="outline">
+              <Button
+                asChild
+                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
+                size="sm"
+                variant="outline"
+              >
                 <Link to="/conversion-history">
                   <History className="size-3.5" />
                   转化记录
@@ -133,6 +149,29 @@ export default function EntryPage() {
                 );
               })}
             </div>
+          </section>
+
+          <section className="mb-8 rounded-3xl border border-[#4d5dff]/15 bg-[#f3f4ff]/70 p-5 shadow-[0_16px_45px_rgba(44,59,150,0.06)] md:flex md:items-center md:justify-between md:p-6">
+            <div className="flex items-start gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#4d5dff] text-white">
+                <Settings2 className="size-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">按你的方式生成</p>
+                <p className="mt-1 text-sm leading-6 text-black/48">
+                  配置学习笔记与会议纪要的提示词，让每次整理更贴合你的工作方法。
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              className="mt-4 rounded-xl bg-[#111315] text-white hover:bg-[#4d5dff] md:mt-0"
+            >
+              <Link to="/note-templates">
+                配置提示词
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </section>
 
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 py-5 text-xs text-black/40">

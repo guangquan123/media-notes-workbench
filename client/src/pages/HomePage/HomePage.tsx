@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Check,
   Clipboard,
+  Download,
   FileText,
   Headphones,
   LoaderCircle,
@@ -16,7 +17,13 @@ import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { createNoteJob, getNoteJob, getReadiness } from '@/api';
+import {
+  createNoteJob,
+  downloadRawTranscript,
+  getNoteJob,
+  getReadiness,
+} from '@/api';
+import { downloadBlob } from '@/utils/download';
 import type {
   NoteJob,
   NoteStyle,
@@ -213,6 +220,17 @@ export default function HomePage() {
     setNoteStyle('learning');
   }
 
+  async function downloadCurrentRawTranscript() {
+    if (!job) return;
+    try {
+      const blob: Blob = await downloadRawTranscript(job.id);
+      downloadBlob(blob, `原文-${job.id}.md`);
+      toast.success('原文下载已开始');
+    } catch {
+      toast.error('原文下载失败，请稍后重试');
+    }
+  }
+
   if (!readiness) {
     return (
       <main className="grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-6 text-[#161616]">
@@ -256,8 +274,8 @@ export default function HomePage() {
               <WandSparkles className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">视频学习笔记助手</p>
-              <p className="text-xs text-black/45">从视频到飞书，一键完成</p>
+              <p className="text-sm font-semibold">知迹学习台</p>
+              <p className="text-xs text-black/45">从资料到可追溯知识</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -519,6 +537,16 @@ export default function HomePage() {
                     >
                       查看原始转录
                       <ArrowUpRight className="ml-2 size-4" />
+                    </Button>
+                  )}
+                  {job.rawDocumentUrl && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
+                      onClick={() => void downloadCurrentRawTranscript()}
+                      variant="outline"
+                    >
+                      下载原文
+                      <Download className="ml-2 size-4" />
                     </Button>
                   )}
                   {['completed', 'failed'].includes(job.stage) && (
