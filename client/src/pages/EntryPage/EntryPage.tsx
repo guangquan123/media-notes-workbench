@@ -102,7 +102,7 @@ export default function EntryPage() {
             </div>
           </header>
 
-          <section className="flex flex-1 items-center py-8 lg:py-12">
+          <section className="flex flex-1 items-center py-10 lg:py-14">
             <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {FEATURE_CARDS.map((item) => {
                 const Icon = item.icon;
@@ -151,18 +151,6 @@ export default function EntryPage() {
             </div>
           </section>
 
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 py-5 text-xs text-black/40">
-            <span>选择资料类型后开始生成学习笔记</span>
-            <div className="flex items-center gap-2">
-              <Link
-                className="transition hover:text-black"
-                to="/conversion-history"
-              >
-                <History className="mr-1 inline size-3.5" />
-                转化记录
-              </Link>
-            </div>
-          </footer>
         </div>
       </div>
     </main>

@@ -109,6 +109,8 @@ export interface SystemReadiness {
 }
 
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
+export type NoteProcessingStatus = 'pending' | 'processed';
+export type TaskSyncStatus = 'not_created' | 'created' | 'failed';
 
 export interface NoteConversionRecord {
   id: string;
@@ -127,10 +129,20 @@ export interface NoteConversionRecord {
   noteStyle: NoteStyle | null;
   promptContent: string | null;
   promptVersionId: string | null;
+  processingStatus: NoteProcessingStatus;
+  processedAt: string | null;
+  larkTaskGuid: string | null;
+  larkTaskUrl: string | null;
+  taskSyncStatus: TaskSyncStatus;
+  taskSyncError: string | null;
 }
 
 export interface NoteConversionHistoryResponse {
   items: NoteConversionRecord[];
+}
+
+export interface MarkNoteProcessedResponse {
+  processedAt: string;
 }
 
 export type ArticlePlatform = 'source' | 'wechat' | 'zhihu' | 'douyin';

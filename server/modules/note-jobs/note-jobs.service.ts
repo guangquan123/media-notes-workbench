@@ -6,6 +6,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
+import { AuthNPaasService } from '@lark-apaas/nestjs-authnpaas';
 import { spawn } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
@@ -50,6 +51,7 @@ import { NoteHistoryService } from './note-history.service';
 import { getParseQuality } from './pdf-note.utils';
 import { buildDocumentRawMarkdown } from './document-note.utils';
 import { NoteTemplateService } from './note-template.service';
+import { NoteReviewTaskService } from './note-review-task.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -71,6 +73,7 @@ interface SourceProfile {
 
 interface StoredNoteJob {
   job: NoteJob;
+  larkUserId: string | null;
   ownerId: string;
 }
 
@@ -106,7 +109,9 @@ export class NoteJobsService {
 
   constructor(
     @Inject() private readonly capabilityService: CapabilityService,
+    private readonly authNPaasService: AuthNPaasService,
     private readonly noteHistoryService: NoteHistoryService,
+    private readonly noteReviewTaskService: NoteReviewTaskService,
     private readonly noteTemplateService: NoteTemplateService,
   ) {}
 
@@ -171,14 +176,23 @@ export class NoteJobsService {
       createdAt: now,
       updatedAt: now,
     };
+    let larkUserId: string | null = null;
+    try {
+      larkUserId = await this.authNPaasService.getCurrentUserLarkUserId();
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`无法获取当前用户飞书账号: ${message}`);
+    }
     await this.noteHistoryService.create(job, ownerId);
-    this.jobs.set(job.id, { job, ownerId });
+    this.jobs.set(job.id, { job, larkUserId, ownerId });
     void this.run(
       job.id,
       validatedInput,
       ownerId,
       sourcePlatform,
       cookieBrowser,
+      larkUserId,
     );
     return job;
   }
@@ -197,6 +211,7 @@ export class NoteJobsService {
     ownerId: string,
     sourcePlatform?: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
+    larkUserId?: string | null,
   ) {
     const workDir = await mkdtemp(join(tmpdir(), 'video-note-'));
     try {
@@ -206,7 +221,7 @@ export class NoteJobsService {
         throw new Error('未找到 lark-cli，请先安装并登录飞书');
       }
       if (input.sourceType === 'pdf' || input.sourceType === 'document') {
-        await this.runDocument(id, workDir, input, ownerId);
+        await this.runDocument(id, workDir, input, ownerId, larkUserId);
         return;
       }
       if (
@@ -349,6 +364,7 @@ export class NoteJobsService {
         rawDocumentUrl,
         documentUrl,
       });
+      await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : '未知错误';
       const message = sourcePlatform
@@ -380,6 +396,7 @@ export class NoteJobsService {
       { sourceType: 'pdf' | 'document' }
     >,
     ownerId: string,
+    larkUserId?: string | null,
   ): Promise<void> {
     this.update(id, 'preparing', 14, '正在安全读取文档文件…');
     const parsedItems: Array<{
@@ -538,6 +555,7 @@ export class NoteJobsService {
       rawDocumentUrl,
       documentUrl,
     });
+    await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
   }
 
   private async preparePlatformMedia(
@@ -1599,12 +1617,53 @@ export class NoteJobsService {
     if (!current) return;
     this.jobs.set(id, {
       ownerId: current.ownerId,
+      larkUserId: current.larkUserId,
       job: {
         ...current.job,
         ...update,
         updatedAt: new Date().toISOString(),
       },
     });
+  }
+
+  private async createReviewTask(
+    jobId: string,
+    title: string,
+    documentUrl: string,
+    larkUserId?: string | null,
+  ): Promise<void> {
+    if (!larkUserId) {
+      await this.noteHistoryService.updateReviewTaskFailure(
+        jobId,
+        '无法识别当前用户的飞书账号，未创建待处理任务',
+      );
+      this.patch(jobId, { message: '笔记已创建，但待处理任务未创建' });
+      return;
+    }
+    try {
+      const task = await this.noteReviewTaskService.create({
+        documentUrl,
+        jobId,
+        larkUserId,
+        title,
+      });
+      await this.noteHistoryService.updateReviewTask(jobId, task);
+      this.patch(jobId, { message: '完成！飞书笔记和待处理任务已创建。' });
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`创建任务 ${jobId} 的飞书待处理任务失败: ${message}`);
+      await this.noteHistoryService
+        .updateReviewTaskFailure(jobId, message)
+        .catch((historyError: unknown) => {
+          const historyMessage: string =
+            historyError instanceof Error ? historyError.message : '未知错误';
+          this.logger.warn(
+            `保存任务 ${jobId} 的待处理任务失败状态失败: ${historyMessage}`,
+          );
+        });
+      this.patch(jobId, { message: '笔记已创建，但待处理任务未创建' });
+    }
   }
 
   private async persistTitle(id: string, title: string): Promise<void> {

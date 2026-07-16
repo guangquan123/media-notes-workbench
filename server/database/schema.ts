@@ -162,6 +162,12 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   noteStyle: varchar("note_style", { length: 32 }),
   promptVersionId: uuid("prompt_version_id"),
   promptContent: text("prompt_content"),
+  processingStatus: varchar("processing_status", { length: 32 }).notNull().default('pending'),
+  processedAt: customTimestamptz("processed_at", { precision: 6 }),
+  larkTaskGuid: varchar("lark_task_guid", { length: 255 }),
+  larkTaskUrl: text("lark_task_url"),
+  taskSyncStatus: varchar("task_sync_status", { length: 32 }).notNull().default('not_created'),
+  taskSyncError: text("task_sync_error"),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)
@@ -169,6 +175,7 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
 }, (table) => [
   uniqueIndex("note_conversion_records_job_id_key").on(table.jobId),
   index("note_conversion_records_owner_completed_idx").on(table.ownerId, table.completedAt, table.startedAt),
+  index("note_conversion_records_owner_processing_idx").on(table.ownerId, table.processingStatus, table.startedAt),
 ]);
 
 // table aliases

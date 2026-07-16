@@ -17,7 +17,11 @@ import {
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { downloadRawTranscript, getNoteConversionHistory } from '@/api';
+import {
+  downloadRawTranscript,
+  getNoteConversionHistory,
+  markNoteProcessed,
+} from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { downloadBlob } from '@/utils/download';
@@ -52,6 +56,17 @@ const SOURCE_STYLES: Record<
   },
 };
 
+type ProcessingFilter = 'all' | 'pending' | 'processed';
+
+const PROCESSING_FILTERS: Array<{
+  label: string;
+  value: ProcessingFilter;
+}> = [
+  { label: '全部', value: 'all' },
+  { label: '待处理', value: 'pending' },
+  { label: '已处理', value: 'processed' },
+];
+
 function getStatusCopy(record: NoteConversionRecord): string {
   if (record.status === 'completed') return '已完成';
   if (record.status === 'failed') return '失败';
@@ -70,6 +85,15 @@ export default function ConversionHistoryPage() {
   const [records, setRecords] = useState<NoteConversionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [processingFilter, setProcessingFilter] =
+    useState<ProcessingFilter>('all');
+  const [markingJobId, setMarkingJobId] = useState<string | null>(null);
+
+  const visibleRecords = records.filter((record: NoteConversionRecord) =>
+    processingFilter === 'all'
+      ? true
+      : record.processingStatus === processingFilter,
+  );
 
   const loadRecords = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -96,6 +120,19 @@ export default function ConversionHistoryPage() {
       toast.success('原文下载已开始');
     } catch {
       toast.error('原文下载失败，请稍后重试');
+    }
+  };
+
+  const markProcessed = async (record: NoteConversionRecord) => {
+    setMarkingJobId(record.jobId);
+    try {
+      await markNoteProcessed(record.jobId);
+      await loadRecords(true);
+      toast.success('已标记处理完成，并同步完成飞书待处理任务');
+    } catch {
+      toast.error('标记处理失败，请稍后重试');
+    } finally {
+      setMarkingJobId(null);
     }
   };
 
@@ -149,11 +186,7 @@ export default function ConversionHistoryPage() {
                 在这里一目了然。
               </h1>
             </div>
-            {!loading && records.length > 0 && (
-              <p className="text-sm text-black/42">
-                最近 {records.length} 条记录
-              </p>
-            )}
+            {!loading && records.length > 0 && <div className="flex flex-wrap items-center justify-end gap-2"><p className="mr-2 text-sm text-black/42">最近 {records.length} 条记录</p>{PROCESSING_FILTERS.map((filter) => <Button className={processingFilter === filter.value ? 'bg-[#161616] text-white hover:bg-[#161616]' : 'border-black/8 bg-white text-black/58'} key={filter.value} onClick={() => setProcessingFilter(filter.value)} size="sm" variant="outline">{filter.label}</Button>)}</div>}
           </div>
 
           {loading ? (
@@ -163,13 +196,13 @@ export default function ConversionHistoryPage() {
                 <p className="mt-3 text-sm text-black/45">正在整理历史记录…</p>
               </div>
             </div>
-          ) : records.length === 0 ? (
+          ) : visibleRecords.length === 0 ? (
             <div className="grid min-h-72 place-items-center rounded-[2rem] border border-dashed border-black/12 bg-white/75 px-6 text-center">
               <div>
                 <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-black/5 text-black/35">
                   <History className="size-6" />
                 </div>
-                <h2 className="mt-5 text-lg font-semibold">还没有转化记录</h2>
+                <h2 className="mt-5 text-lg font-semibold">没有符合条件的转化记录</h2>
                 <p className="mt-2 text-sm leading-6 text-black/45">
                   完成一次视频或录音转化后，记录会自动出现在这里。
                 </p>
@@ -183,7 +216,7 @@ export default function ConversionHistoryPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {records.map((record: NoteConversionRecord) => {
+              {visibleRecords.map((record: NoteConversionRecord) => {
                 const sourceStyle = SOURCE_STYLES[record.sourceType];
                 return (
                   <article
@@ -221,6 +254,18 @@ export default function ConversionHistoryPage() {
                         >
                           {getStatusCopy(record)}
                         </Badge>
+                        <Badge
+                          className={
+                            record.processingStatus === 'processed'
+                              ? 'border-transparent bg-emerald-50 text-emerald-700'
+                              : 'border-transparent bg-amber-50 text-amber-700'
+                          }
+                          variant="outline"
+                        >
+                          {record.processingStatus === 'processed'
+                            ? '已处理'
+                            : '待处理'}
+                        </Badge>
                         {record.noteStyle ? (
                           <Badge variant="outline">
                             {record.noteStyle === 'learning'
@@ -250,6 +295,22 @@ export default function ConversionHistoryPage() {
                     </div>
 
                     <div className="flex flex-col gap-2 md:items-end">
+                      {record.larkTaskUrl ? (
+                        <Button
+                          asChild
+                          className="w-full rounded-xl border-black/10 bg-white text-black/72 hover:bg-black/5 md:w-auto"
+                          variant="outline"
+                        >
+                          <a
+                            href={record.larkTaskUrl}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            查看待处理任务
+                            <ArrowUpRight className="size-4" />
+                          </a>
+                        </Button>
+                      ) : null}
                       {record.documentUrl ? (
                         <Button
                           asChild
@@ -289,6 +350,23 @@ export default function ConversionHistoryPage() {
                         >
                           下载原文
                           <Download className="size-4" />
+                        </Button>
+                      ) : null}
+                      {record.status === 'completed' ? (
+                        <Button
+                          className="w-full rounded-xl bg-[#161616] text-white hover:bg-[#3370ff] md:w-auto"
+                          disabled={
+                            record.processingStatus === 'processed' ||
+                            markingJobId === record.jobId
+                          }
+                          onClick={() => void markProcessed(record)}
+                        >
+                          <CheckCircle2 className="size-4" />
+                          {record.processingStatus === 'processed'
+                            ? '已处理'
+                            : markingJobId === record.jobId
+                              ? '同步中'
+                              : '标记已处理'}
                         </Button>
                       ) : null}
                       {!record.documentUrl && !record.rawDocumentUrl && (

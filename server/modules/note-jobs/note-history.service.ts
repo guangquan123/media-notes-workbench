@@ -13,6 +13,8 @@ import type {
   NoteJob,
   NoteSourceType,
   NoteStyle,
+  NoteProcessingStatus,
+  TaskSyncStatus,
 } from '@shared/api.interface';
 import {
   calculateDurationMs,
@@ -46,6 +48,17 @@ interface ConversionRecordRow {
   noteStyle: string | null;
   promptContent: string | null;
   promptVersionId: string | null;
+  processingStatus: string;
+  processedAt: Date | null;
+  larkTaskGuid: string | null;
+  larkTaskUrl: string | null;
+  taskSyncStatus: string;
+  taskSyncError: string | null;
+}
+
+interface ReviewTaskRow {
+  larkTaskGuid: string | null;
+  taskSyncStatus: string;
 }
 
 interface RawTranscriptRow {
@@ -121,6 +134,12 @@ export class NoteHistoryService {
         noteStyle: noteConversionRecords.noteStyle,
         promptContent: noteConversionRecords.promptContent,
         promptVersionId: noteConversionRecords.promptVersionId,
+        processingStatus: noteConversionRecords.processingStatus,
+        processedAt: noteConversionRecords.processedAt,
+        larkTaskGuid: noteConversionRecords.larkTaskGuid,
+        larkTaskUrl: noteConversionRecords.larkTaskUrl,
+        taskSyncStatus: noteConversionRecords.taskSyncStatus,
+        taskSyncError: noteConversionRecords.taskSyncError,
       })
       .from(noteConversionRecords)
       .where(eq(noteConversionRecords.ownerId, ownerId))
@@ -145,6 +164,12 @@ export class NoteHistoryService {
         noteStyle: this.toNoteStyle(row.noteStyle),
         promptContent: row.promptContent,
         promptVersionId: row.promptVersionId,
+        processingStatus: this.toProcessingStatus(row.processingStatus),
+        processedAt: row.processedAt?.toISOString() || null,
+        larkTaskGuid: row.larkTaskGuid,
+        larkTaskUrl: row.larkTaskUrl,
+        taskSyncStatus: this.toTaskSyncStatus(row.taskSyncStatus),
+        taskSyncError: row.taskSyncError,
       }),
     );
     return { items };
@@ -179,6 +204,62 @@ export class NoteHistoryService {
       .update(noteConversionRecords)
       .set({ noteStyle, promptContent, promptVersionId })
       .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async updateReviewTask(
+    jobId: string,
+    task: { guid: string; url: string | null },
+  ): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({
+        larkTaskGuid: task.guid,
+        larkTaskUrl: task.url,
+        taskSyncError: null,
+        taskSyncStatus: 'created',
+      })
+      .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async updateReviewTaskFailure(jobId: string, error: string): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({
+        taskSyncError: error.slice(0, 4000),
+        taskSyncStatus: 'failed',
+      })
+      .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async getReviewTask(jobId: string, ownerId: string): Promise<ReviewTaskRow> {
+    const rows: ReviewTaskRow[] = await this.db
+      .select({
+        larkTaskGuid: noteConversionRecords.larkTaskGuid,
+        taskSyncStatus: noteConversionRecords.taskSyncStatus,
+      })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+        ),
+      )
+      .limit(1);
+    const record: ReviewTaskRow | undefined = rows[0];
+    if (!record) throw new NotFoundException('未找到对应的转化记录');
+    return record;
+  }
+
+  async markProcessed(jobId: string, ownerId: string): Promise<void> {
+    await this.db
+      .update(noteConversionRecords)
+      .set({ processingStatus: 'processed', processedAt: new Date() })
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+        ),
+      );
   }
 
   async getRawTranscript(
@@ -228,5 +309,14 @@ export class NoteHistoryService {
   private toNoteStyle(value: string | null): NoteStyle | null {
     if (value === 'learning' || value === 'meeting') return value;
     return null;
+  }
+
+  private toProcessingStatus(value: string): NoteProcessingStatus {
+    return value === 'processed' ? 'processed' : 'pending';
+  }
+
+  private toTaskSyncStatus(value: string): TaskSyncStatus {
+    if (value === 'created' || value === 'failed') return value;
+    return 'not_created';
   }
 }

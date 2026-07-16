@@ -6,6 +6,7 @@ import type {
   ArticleExportReadiness,
   CreateArticleExportJobRequest,
   CreateNoteJobRequest,
+  MarkNoteProcessedResponse,
   NoteConversionHistoryResponse,
   NoteJob,
   NoteStyle,
@@ -115,6 +116,17 @@ export async function downloadRawTranscript(jobId: string): Promise<Blob> {
     method: 'GET',
     responseType: 'blob',
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function markNoteProcessed(
+  jobId: string,
+): Promise<MarkNoteProcessedResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/mark-processed`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }

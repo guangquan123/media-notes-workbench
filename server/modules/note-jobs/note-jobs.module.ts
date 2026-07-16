@@ -3,9 +3,15 @@ import { NoteJobsController } from './note-jobs.controller';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
+import { NoteReviewTaskService } from './note-review-task.service';
 
 @Module({
   controllers: [NoteJobsController],
-  providers: [NoteHistoryService, NoteJobsService, NoteTemplateService],
+  providers: [
+    NoteHistoryService,
+    NoteJobsService,
+    NoteReviewTaskService,
+    NoteTemplateService,
+  ],
 })
 export class NoteJobsModule {}

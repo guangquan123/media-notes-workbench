@@ -18,6 +18,13 @@ import {
 } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import type {
   NotePromptVersion,
@@ -60,6 +67,7 @@ export default function NoteTemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const selectedTemplate = useMemo(
     () =>
@@ -202,9 +210,7 @@ export default function NoteTemplatesPage() {
               <p className="text-xs text-black/45">保存为草稿，发布后才正式生效</p>
             </div>
           </div>
-          <Link className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm text-black/62 shadow-sm transition hover:border-black/15 hover:text-black" to="/">
-            <ArrowLeft className="size-4" />返回入口
-          </Link>
+          <div className="flex flex-wrap gap-2"><Button className="rounded-full" onClick={() => setHistoryOpen(true)} variant="outline"><History className="size-4" />历史版本（{selectedTemplate?.history.length || 0}）</Button><Link className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm text-black/62 shadow-sm transition hover:border-black/15 hover:text-black" to="/"><ArrowLeft className="size-4" />返回入口</Link></div>
         </header>
 
         <section className="grid gap-7 py-8 lg:grid-cols-[0.28fr_0.72fr]">
@@ -241,7 +247,13 @@ export default function NoteTemplatesPage() {
               <div className="mt-3 flex justify-between gap-3 text-xs text-black/40"><span>系统真实性约束仍会保留。</span><span>{content.length.toLocaleString()} / {MAX_TEMPLATE_LENGTH.toLocaleString()} 字符</span></div>
             </section>
 
-            <section className="rounded-[1.8rem] border border-black/8 bg-white p-5 md:p-7">
+            <Dialog onOpenChange={setHistoryOpen} open={historyOpen}>
+              <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto rounded-[1.8rem] p-5 md:p-7">
+                <DialogHeader>
+                  <DialogTitle>提示词历史版本</DialogTitle>
+                  <DialogDescription>当前生效版本置顶；可勾选两个版本进行差异对比。</DialogDescription>
+                </DialogHeader>
+                <section className="pt-2">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="flex items-center gap-2 text-lg font-semibold"><History className="size-5 text-[#3370ff]" />发布历史</p><p className="mt-1 text-sm text-black/45">勾选两个版本即可查看行级差异。</p></div><span className="rounded-full bg-[#edf3ff] px-3 py-1 text-xs font-medium text-[#2864ea]">已选 {selectedVersionIds.length}/2</span></div>
               <div className="mt-5 space-y-2">
                 {orderPromptVersions(
@@ -255,7 +267,9 @@ export default function NoteTemplatesPage() {
                 {selectedTemplate?.history.length === 0 && <p className="rounded-2xl bg-[#fafaf8] p-4 text-sm text-black/45">尚无已发布的自定义版本。保存草稿后点击“发布生效”。</p>}
               </div>
               {diffLines.length > 0 && <div className="mt-5 overflow-hidden rounded-2xl border border-black/8"><div className="flex items-center gap-2 border-b border-black/8 bg-[#fafaf8] px-4 py-3 text-sm font-semibold"><GitCompareArrows className="size-4 text-[#3370ff]" />V{Math.min(...comparedVersions.map((version: NotePromptVersion) => version.versionNumber))} → V{Math.max(...comparedVersions.map((version: NotePromptVersion) => version.versionNumber))}</div><pre className="max-h-96 overflow-auto p-4 text-xs leading-6">{diffLines.map((line: DiffLine, index: number) => <div className={line.type === 'added' ? 'bg-emerald-50 text-emerald-800' : line.type === 'removed' ? 'bg-rose-50 text-rose-800' : 'text-black/55'} key={`${line.type}-${index}`}>{line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}{line.content}</div>)}</pre></div>}
-            </section>
+                </section>
+              </DialogContent>
+            </Dialog>
           </div>
         </section>
       </div>

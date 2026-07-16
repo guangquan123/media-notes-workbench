@@ -13,12 +13,14 @@ import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Request, Response } from 'express';
 import type {
   CreateNoteJobRequest,
+  MarkNoteProcessedResponse,
   NoteStyle,
   UpdateNoteTemplateConfigRequest,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
+import { NoteReviewTaskService } from './note-review-task.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
 
 interface AuthenticatedRequest extends Request {
@@ -33,6 +35,7 @@ export class NoteJobsController {
     private readonly noteJobsService: NoteJobsService,
     private readonly noteHistoryService: NoteHistoryService,
     private readonly noteTemplateService: NoteTemplateService,
+    private readonly noteReviewTaskService: NoteReviewTaskService,
   ) {}
 
   @Get('readiness')
@@ -50,6 +53,27 @@ export class NoteJobsController {
   @Get('history')
   history(@Req() req: AuthenticatedRequest) {
     return this.noteHistoryService.list(req.userContext.userId);
+  }
+
+  @NeedLogin()
+  @Post('history/:id/mark-processed')
+  async markProcessed(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<MarkNoteProcessedResponse> {
+    const reviewTask = await this.noteHistoryService.getReviewTask(
+      id,
+      req.userContext.userId,
+    );
+    if (reviewTask.taskSyncStatus === 'failed') {
+      throw new BadRequestException('飞书待处理任务未创建成功，暂不能同步完成');
+    }
+    if (reviewTask.larkTaskGuid) {
+      await this.noteReviewTaskService.complete(reviewTask.larkTaskGuid);
+    }
+    const processedAt = new Date();
+    await this.noteHistoryService.markProcessed(id, req.userContext.userId);
+    return { processedAt: processedAt.toISOString() };
   }
 
   @NeedLogin()
