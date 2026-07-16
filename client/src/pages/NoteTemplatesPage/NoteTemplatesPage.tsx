@@ -24,6 +24,7 @@ import type {
   NoteStyle,
   NoteTemplateConfig,
 } from '@shared/api.interface';
+import { orderPromptVersions } from './prompt-version-display.utils';
 
 const TEMPLATE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
 const MAX_TEMPLATE_LENGTH = 60000;
@@ -243,7 +244,14 @@ export default function NoteTemplatesPage() {
             <section className="rounded-[1.8rem] border border-black/8 bg-white p-5 md:p-7">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="flex items-center gap-2 text-lg font-semibold"><History className="size-5 text-[#3370ff]" />发布历史</p><p className="mt-1 text-sm text-black/45">勾选两个版本即可查看行级差异。</p></div><span className="rounded-full bg-[#edf3ff] px-3 py-1 text-xs font-medium text-[#2864ea]">已选 {selectedVersionIds.length}/2</span></div>
               <div className="mt-5 space-y-2">
-                {selectedTemplate?.history.map((version: NotePromptVersion) => <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-black/8 px-4 py-3" key={version.id}><Checkbox checked={selectedVersionIds.includes(version.id)} id={version.id} onCheckedChange={(checked: boolean) => toggleVersion(version.id, checked)} /><label className="min-w-24 cursor-pointer text-sm font-semibold" htmlFor={version.id}>V{version.versionNumber}</label><span className="mr-auto text-xs text-black/45">{new Date(version.publishedAt).toLocaleString('zh-CN', { hour12: false })}</span><Button className="h-8 px-3" onClick={() => void copyVersion(version)} size="sm" variant="outline"><ClipboardCopy className="size-3.5" />复制</Button></div>)}
+                {orderPromptVersions(
+                  selectedTemplate?.activeVersionId,
+                  selectedTemplate?.history || [],
+                ).map((version: NotePromptVersion) => {
+                  const isActive: boolean =
+                    version.id === selectedTemplate?.activeVersionId;
+                  return <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${isActive ? 'border-[#3370ff]/35 bg-[#edf3ff]/60' : 'border-black/8'}`} key={version.id}><Checkbox checked={selectedVersionIds.includes(version.id)} id={version.id} onCheckedChange={(checked: boolean) => toggleVersion(version.id, checked)} /><label className="min-w-14 cursor-pointer text-sm font-semibold" htmlFor={version.id}>V{version.versionNumber}</label>{isActive ? <span className="rounded-full bg-[#3370ff] px-2 py-0.5 text-[11px] font-medium text-white">使用中</span> : <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] text-black/48">历史版本</span>}<span className="mr-auto text-xs text-black/45">{new Date(version.publishedAt).toLocaleString('zh-CN', { hour12: false })}</span><Button className="h-8 px-3" onClick={() => void copyVersion(version)} size="sm" variant="outline"><ClipboardCopy className="size-3.5" />复制</Button></div>;
+                })}
                 {selectedTemplate?.history.length === 0 && <p className="rounded-2xl bg-[#fafaf8] p-4 text-sm text-black/45">尚无已发布的自定义版本。保存草稿后点击“发布生效”。</p>}
               </div>
               {diffLines.length > 0 && <div className="mt-5 overflow-hidden rounded-2xl border border-black/8"><div className="flex items-center gap-2 border-b border-black/8 bg-[#fafaf8] px-4 py-3 text-sm font-semibold"><GitCompareArrows className="size-4 text-[#3370ff]" />V{Math.min(...comparedVersions.map((version: NotePromptVersion) => version.versionNumber))} → V{Math.max(...comparedVersions.map((version: NotePromptVersion) => version.versionNumber))}</div><pre className="max-h-96 overflow-auto p-4 text-xs leading-6">{diffLines.map((line: DiffLine, index: number) => <div className={line.type === 'added' ? 'bg-emerald-50 text-emerald-800' : line.type === 'removed' ? 'bg-rose-50 text-rose-800' : 'text-black/55'} key={`${line.type}-${index}`}>{line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}{line.content}</div>)}</pre></div>}
