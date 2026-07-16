@@ -1,7 +1,7 @@
 # 内容工作台：项目说明、实现复盘与维护手册
 
 > 对应妙搭应用 `app_179bn4jet6k`，开发分支为 `sprint/default`。项目已经从单一的
-> “知迹学习台”演进为包含两个独立入口的内容工作台：
+> “Media Notes Workbench（多媒体笔记工作台）”演进为包含两个独立入口的内容工作台：
 >
 > 1. 视频学习笔记：B站/抖音视频 -> 音频 -> 转录稿 -> 结构化学习笔记 -> 飞书文档。
 > 2. 飞书文章导出：飞书文档 -> 统一内容结构 -> 微信公众号/知乎/抖音稿件 ->
@@ -493,7 +493,7 @@ lsof -nP -iTCP:8081 -sTCP:LISTEN
 
 ### 8.3 推荐启动
 
-双击 `启动知迹学习台.command`，或执行：
+双击 `启动多媒体笔记工作台.command`，或执行：
 
 ```bash
 CLIENT_DEV_PORT=8081 npm run dev:local
@@ -775,7 +775,7 @@ node -e "JSON.parse(require('fs').readFileSync('server/capabilities/bilibili-not
 | `shared/api.interface.ts` | 前后端共享请求、任务和 artifact 类型 |
 | `client/src/index.tsx` | Router basename 处理 |
 | `scripts/dev-local.js` | 本地环境同步、启动和日志 |
-| `启动知迹学习台.command` | macOS 一键启动 |
+| `启动多媒体笔记工作台.command` | macOS 一键启动 |
 
 ## 16. 维护修改指南
 

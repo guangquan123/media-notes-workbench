@@ -1,8 +1,8 @@
-# 知迹学习台
+# Media Notes Workbench（多媒体笔记工作台）
 
 > 让每份学习资料都留下可追溯的知识轨迹。
 
-知迹学习台是一个面向个人学习、研究和知识管理的本地内容处理工作台。它把分散在
+Media Notes Workbench 是一个面向个人学习、研究和知识管理的本地内容处理工作台。它把分散在
 B站、抖音、本地课程视频、录音和文档中的信息，转化为可复核的结构化学习笔记，并
 归档到飞书。项目同时提供飞书文章的多平台稿件导出能力，帮助将已有内容适配为
 微信公众号、知乎或抖音的人工发布稿。
@@ -16,7 +16,7 @@ B站、抖音、本地课程视频、录音和文档中的信息，转化为可�
 难以复盘，报告和课件很难提炼重点；而已有飞书文章再发布到不同平台又需要重复改写和
 排版。
 
-知迹学习台将这些重复环节收敛为一套工作流：
+Media Notes Workbench 将这些重复环节收敛为一套工作流：
 
 ```mermaid
 flowchart LR
@@ -81,7 +81,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant U as 用户
-    participant W as 知迹学习台
+    participant W as 多媒体笔记工作台
     participant L as 本地工具
     participant AI as 妙搭 AI 能力
     participant F as 飞书
@@ -179,7 +179,7 @@ lark-cli auth status --json --verify
 npm install
 ```
 
-推荐直接双击 [启动知迹学习台.command](/Users/yangjie/YJ/codex_workspace/b站学习笔记项目/启动知迹学习台.command)。
+推荐直接双击 [启动多媒体笔记工作台.command](启动多媒体笔记工作台.command)。
 该启动器会启动本地服务，等待后端 3000 端口和页面均可访问后，自动打开应用。
 
 也可以在终端启动：
@@ -229,7 +229,7 @@ server/                         NestJS 后端
   database/                     转换记录、提示词版本等数据结构与迁移
 shared/api.interface.ts         前后端共享请求和响应类型
 scripts/dev-local.js            本地开发启动与日志汇聚
-启动知迹学习台.command          macOS 双击启动器
+启动多媒体笔记工作台.command      macOS 双击启动器
 docs/PROJECT_GUIDE.md           更完整的历史实现复盘与维护参考
 ```
 

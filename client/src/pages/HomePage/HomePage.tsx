@@ -275,7 +275,7 @@ export default function HomePage() {
               <Waypoints className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">知迹学习台</p>
+              <p className="text-sm font-semibold">多媒体笔记工作台</p>
               <p className="text-xs text-black/45">从资料到可追溯知识</p>
             </div>
           </div>

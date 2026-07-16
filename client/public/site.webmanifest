@@ -1,6 +1,6 @@
 {
-  "name": "知迹学习台",
-  "short_name": "知迹学习台",
+  "name": "Media Notes Workbench",
+  "short_name": "多媒体笔记",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f6f7f5",

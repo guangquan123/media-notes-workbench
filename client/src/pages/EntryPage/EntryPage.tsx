@@ -70,7 +70,7 @@ export default function EntryPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold tracking-wide">
-                  知迹学习台
+                  多媒体笔记工作台
                 </p>
                 <p className="text-xs text-black/42">
                   让每份资料都留下可追溯的知识轨迹

@@ -177,7 +177,7 @@
       "<rootDir>/test/unit/**/*.spec.ts"
     ]
   },
-  "name": "fullstack-nestjs-template",
+  "name": "media-notes-workbench",
   "overrides": {
     "dayjs": "^1.11.15"
   },

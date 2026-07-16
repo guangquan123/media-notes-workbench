@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_URL="http://localhost:8081/app/app_179bn4jet6k/"
 
-echo "正在启动 知迹学习台…"
+echo "正在启动 多媒体笔记工作台…"
 echo "服务完全就绪后会自动打开：$APP_URL"
 echo "保持这个终端窗口开启即可；按 Control+C 可停止服务。"
 echo

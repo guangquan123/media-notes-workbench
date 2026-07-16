@@ -99,7 +99,7 @@ const OperationManualPage = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">
-                知迹学习台操作手册
+                多媒体笔记工作台操作手册
               </h1>
               <p className="mt-0.5 text-sm text-zinc-500">
                 从资料输入到飞书待处理，一次看懂完整使用流程。
