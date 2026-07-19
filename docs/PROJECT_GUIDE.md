@@ -476,7 +476,7 @@ server/capabilities/bilibili-note-writer.json
 ### 8.1 安装
 
 ```bash
-cd "/Users/yangjie/YJ/codex_workspace/b站学习笔记项目"
+cd "/Users/yangjie/YJ/codex_workspace/media-notes-workbench"
 npm install
 ```
 
