@@ -7,6 +7,7 @@ import {
   normalizePlatformSourceUrl,
   validateDocumentInput,
   getDouyinAudioFallbackArgs,
+  isDouyinTransientMediaError,
   isAudioRematrixError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
 import { DEFAULT_NOTE_TEMPLATES } from '../../server/modules/note-jobs/note-template.defaults';
@@ -265,5 +266,14 @@ describe('note job request validation', () => {
       isAudioRematrixError('Rematrix is needed between 42 channels and stereo'),
     ).toBe(true);
     expect(isAudioRematrixError('HTTP error 403')).toBe(false);
+  });
+
+  it('retries a Douyin stream when the upstream TLS connection closes', () => {
+    expect(
+      isDouyinTransientMediaError(
+        '[tls] IO error: End of file\nError opening input files: End of file',
+      ),
+    ).toBe(true);
+    expect(isDouyinTransientMediaError('HTTP 403 Forbidden')).toBe(false);
   });
 });

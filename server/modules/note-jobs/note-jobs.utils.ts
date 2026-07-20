@@ -79,6 +79,21 @@ export function isAudioRematrixError(message: string): boolean {
   );
 }
 
+export function isDouyinTransientMediaError(message: string): boolean {
+  const normalizedMessage: string = message.toLowerCase();
+  return (
+    normalizedMessage.includes('end of file') ||
+    normalizedMessage.includes('io error') ||
+    normalizedMessage.includes('socket hang up') ||
+    normalizedMessage.includes('connection reset') ||
+    normalizedMessage.includes('fetch failed') ||
+    normalizedMessage.includes('network error') ||
+    normalizedMessage.includes('http 408') ||
+    normalizedMessage.includes('http 429') ||
+    /http 5\d\d/u.test(normalizedMessage)
+  );
+}
+
 export function validateNoteStyle(value?: string): NoteStyle {
   if (!value) return 'learning';
   if (NOTE_STYLES.includes(value as NoteStyle)) {

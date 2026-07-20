@@ -37,6 +37,7 @@ import type {
 import {
   getDouyinAudioFallbackArgs,
   isAudioRematrixError,
+  isDouyinTransientMediaError,
   MAX_MEDIA_SIZE_BYTES,
   normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
@@ -89,6 +90,7 @@ interface StoredNoteJob {
 const MEDIA_DOWNLOAD_CONCURRENCY = 2;
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
+const DOUYIN_MEDIA_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
@@ -978,16 +980,14 @@ export class NoteJobsService {
     mediaUrl: string,
     audioPath: string,
   ): Promise<void> {
+    const videoPath: string = join(dirname(audioPath), 'douyin-source.mp4');
+    await this.downloadDouyinMedia(mediaUrl, videoPath);
     const baseArgs: string[] = [
       '-hide_banner',
       '-loglevel',
       'error',
-      '-user_agent',
-      this.getDouyinMobileUserAgent(),
-      '-referer',
-      'https://www.iesdouyin.com/',
       '-i',
-      mediaUrl,
+      videoPath,
       '-vn',
     ];
     const outputArgs: string[] = [
@@ -1010,6 +1010,52 @@ export class NoteJobsService {
         ...getDouyinAudioFallbackArgs(),
         ...outputArgs,
       ]);
+    }
+  }
+
+  private async downloadDouyinMedia(
+    mediaUrl: string,
+    destination: string,
+  ): Promise<void> {
+    const maxAttempts: number = DOUYIN_MEDIA_RETRY_DELAYS_MS.length + 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      await rm(destination, { force: true });
+      try {
+        const response: Response = await fetch(mediaUrl, {
+          headers: {
+            Accept: '*/*',
+            'Accept-Encoding': 'identity',
+            Referer: 'https://www.douyin.com/',
+            'User-Agent': this.getDouyinMobileUserAgent(),
+          },
+          redirect: 'follow',
+        });
+        if (!response.ok || !response.body) {
+          throw new Error(`HTTP ${response.status}：抖音播放流不可用`);
+        }
+        validateMediaDownloadUrl(response.url);
+        await pipeline(
+          Readable.fromWeb(response.body),
+          createWriteStream(destination),
+        );
+        const downloadedMedia = await stat(destination);
+        if (downloadedMedia.size === 0) {
+          throw new Error('抖音播放流返回空文件');
+        }
+        return;
+      } catch (error) {
+        const message: string =
+          error instanceof Error ? error.message : '未知网络错误';
+        const retryDelay: number | undefined =
+          DOUYIN_MEDIA_RETRY_DELAYS_MS[attempt - 1];
+        if (!retryDelay || !isDouyinTransientMediaError(message)) {
+          throw error;
+        }
+        this.logger.warn(
+          `抖音播放流连接中断，第 ${attempt}/${maxAttempts} 次下载失败，${retryDelay / 1000} 秒后自动重试: ${message}`,
+        );
+        await this.delay(retryDelay);
+      }
     }
   }
 
@@ -1696,6 +1742,9 @@ export class NoteJobsService {
         message.includes('keyring'))
     ) {
       return `无法读取浏览器登录状态。请允许终端访问浏览器数据/钥匙串，或改选另一个已登录 ${profile.label} 的浏览器。`;
+    }
+    if (platform === 'douyin' && isDouyinTransientMediaError(message)) {
+      return '抖音播放流连接被上游提前关闭，已自动重试 3 次仍未成功。请稍后重新提交；若持续发生，请在普通浏览器打开 douyin.com 后选择该浏览器再试。';
     }
     return message;
   }
