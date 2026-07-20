@@ -55,6 +55,15 @@ import { NoteReviewTaskService } from './note-review-task.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
+interface CapabilityTextRetryInput {
+  readonly pluginInstanceId: string;
+  readonly actionKey: string;
+  readonly outputMode: 'stream';
+  readonly pluginInput: Record<string, unknown>;
+  readonly textFields: readonly string[];
+  readonly emptyResultMessage: string;
+}
+
 interface VideoMetadata {
   title?: string;
   uploader?: string;
@@ -79,6 +88,7 @@ interface StoredNoteJob {
 
 const MEDIA_DOWNLOAD_CONCURRENCY = 2;
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
+const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
@@ -1188,22 +1198,21 @@ export class NoteJobsService {
   }): Promise<string> {
     const pluginInstanceId = 'pdf-note-quality-reviewer';
     const actionKey = 'textGenerate';
-    const pluginInput = {
+    const pluginInput: Record<string, unknown> = {
       draft_note: input.draftNote,
       note_style: input.noteStyle,
       source_text: input.sourceText,
       style_requirements: input.styleRequirements,
     };
     try {
-      const streamResult = await this.capabilityService
-        .load(pluginInstanceId)
-        .callStream(actionKey, pluginInput);
-      const reviewedNote = await this.collectCapabilityText(streamResult, [
-        'content',
-        'response',
-      ]);
-      if (!reviewedNote.trim()) throw new Error('文档质量审核插件没有返回内容');
-      return reviewedNote.trim();
+      return await this.callCapabilityTextWithRateLimitRetry({
+        pluginInstanceId,
+        actionKey,
+        outputMode: 'stream',
+        pluginInput,
+        textFields: ['content', 'response'],
+        emptyResultMessage: '文档质量审核插件没有返回内容',
+      });
     } catch (error) {
       this.logger.error(
         JSON.stringify({
@@ -1214,6 +1223,18 @@ export class NoteJobsService {
           error: error instanceof Error ? error.message : 'Unknown error',
         }),
       );
+      if (this.isCapabilityRateLimitError(error)) {
+        this.logger.warn(
+          JSON.stringify({
+            pluginInstanceId,
+            actionKey,
+            outputMode: 'stream',
+            fallback: 'draft_note',
+            reason: this.getErrorMessage(error),
+          }),
+        );
+        return input.draftNote.trim();
+      }
       throw new Error(
         `文档笔记质量审核失败：${
           error instanceof Error ? error.message : '未知错误'
@@ -1231,24 +1252,21 @@ export class NoteJobsService {
     const pluginInstanceId = 'note-quality-reviewer';
     const actionKey = 'textGenerate';
     const outputMode = 'stream';
-    const pluginInput = {
+    const pluginInput: Record<string, unknown> = {
       draft_note: input.draftNote,
       note_style: input.noteStyle,
       source_text: input.transcript,
       style_requirements: input.styleRequirements,
     };
     try {
-      const streamResult = await this.capabilityService
-        .load(pluginInstanceId)
-        .callStream(actionKey, pluginInput);
-      const reviewedNote = await this.collectCapabilityText(streamResult, [
-        'content',
-        'response',
-      ]);
-      if (!reviewedNote.trim()) {
-        throw new Error('质量审核插件没有返回修订后的笔记');
-      }
-      return reviewedNote.trim();
+      return await this.callCapabilityTextWithRateLimitRetry({
+        pluginInstanceId,
+        actionKey,
+        outputMode,
+        pluginInput,
+        textFields: ['content', 'response'],
+        emptyResultMessage: '质量审核插件没有返回修订后的笔记',
+      });
     } catch (error) {
       this.logger.error(
         JSON.stringify({
@@ -1259,6 +1277,18 @@ export class NoteJobsService {
           error: error instanceof Error ? error.message : 'Unknown error',
         }),
       );
+      if (this.isCapabilityRateLimitError(error)) {
+        this.logger.warn(
+          JSON.stringify({
+            pluginInstanceId,
+            actionKey,
+            outputMode,
+            fallback: 'draft_note',
+            reason: this.getErrorMessage(error),
+          }),
+        );
+        return input.draftNote.trim();
+      }
       throw new Error(
         `笔记质量审核失败：${
           error instanceof Error ? error.message : '未知错误'
@@ -1327,6 +1357,49 @@ export class NoteJobsService {
     throw new Error('搜索插件未返回可读取的数据流');
   }
 
+  private async callCapabilityTextWithRateLimitRetry(
+    input: CapabilityTextRetryInput,
+  ): Promise<string> {
+    for (
+      let attemptIndex = 0;
+      attemptIndex <= CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS.length;
+      attemptIndex += 1
+    ) {
+      try {
+        const streamResult = await this.capabilityService
+          .load(input.pluginInstanceId)
+          .callStream(input.actionKey, input.pluginInput);
+        const text = await this.collectCapabilityText(
+          streamResult,
+          input.textFields,
+        );
+        if (!text.trim()) throw new Error(input.emptyResultMessage);
+        return text.trim();
+      } catch (error) {
+        const retryDelayMs =
+          CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS[attemptIndex];
+        const shouldRetry =
+          retryDelayMs !== undefined && this.isCapabilityRateLimitError(error);
+
+        if (!shouldRetry) throw error;
+
+        this.logger.warn(
+          JSON.stringify({
+            pluginInstanceId: input.pluginInstanceId,
+            actionKey: input.actionKey,
+            outputMode: input.outputMode,
+            attempt: attemptIndex + 1,
+            retryDelayMs,
+            error: this.getErrorMessage(error),
+          }),
+        );
+        await this.delay(retryDelayMs);
+      }
+    }
+
+    throw new Error('插件限流重试失败');
+  }
+
   private async collectCapabilityText(
     value: unknown,
     fields: readonly string[],
@@ -1341,6 +1414,30 @@ export class NoteJobsService {
       content = delta.startsWith(content) ? delta : content + delta;
     }
     return content;
+  }
+
+  private isCapabilityRateLimitError(error: unknown): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    return (
+      message.includes('请求过于频繁') ||
+      message.includes('稍后再试') ||
+      message.includes('too many requests') ||
+      message.includes('rate limit') ||
+      message.includes('throttl') ||
+      message.includes('429')
+    );
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    return 'Unknown error';
+  }
+
+  private async delay(delayMs: number): Promise<void> {
+    await new Promise<void>((resolve: () => void) => {
+      setTimeout(resolve, delayMs);
+    });
   }
 
   private isCapabilityStream(
