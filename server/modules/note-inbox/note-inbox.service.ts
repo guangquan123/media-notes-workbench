@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { noteConversionRecords, noteInboxBindings, noteInboxMedia, noteInboxMessages } from '@server/database/schema';
@@ -26,7 +26,7 @@ export class NoteInboxService implements OnModuleInit, OnModuleDestroy {
     await this.sync(); return this.getStatus(input.ownerId);
   }
   async listMessages(ownerId: string): Promise<NoteInboxMessageListResponse> {
-    const rows = await this.db.select({ id: noteInboxMessages.id, messageId: noteInboxMessages.messageId, subject: noteInboxMessages.subject, originalUrl: noteInboxMessages.originalUrl, platform: noteInboxMessages.platform, status: noteInboxMessages.status, statusReason: noteInboxMessages.statusReason, messageCreatedAt: noteInboxMessages.messageCreatedAt, duplicateOfMessageId: noteInboxMessages.duplicateOfMessageId, jobId: noteInboxMedia.jobId, mediaTitle: noteInboxMedia.title, conversionStatus: noteConversionRecords.status }).from(noteInboxMessages).leftJoin(noteInboxMedia, eq(noteInboxMessages.mediaId, noteInboxMedia.id)).leftJoin(noteConversionRecords, eq(noteInboxMedia.jobId, noteConversionRecords.jobId)).where(eq(noteInboxMessages.ownerId, ownerId)).orderBy(desc(noteInboxMessages.messageCreatedAt), desc(noteInboxMessages.id)).limit(100);
+    const rows = await this.db.select({ id: noteInboxMessages.id, messageId: noteInboxMessages.messageId, subject: noteInboxMessages.subject, originalUrl: noteInboxMessages.originalUrl, platform: noteInboxMessages.platform, status: noteInboxMessages.status, statusReason: noteInboxMessages.statusReason, messageCreatedAt: noteInboxMessages.messageCreatedAt, duplicateOfMessageId: noteInboxMessages.duplicateOfMessageId, jobId: noteInboxMedia.jobId, mediaTitle: noteInboxMedia.title, conversionStatus: noteConversionRecords.status }).from(noteInboxMessages).leftJoin(noteInboxMedia, eq(noteInboxMessages.mediaId, noteInboxMedia.id)).leftJoin(noteConversionRecords, eq(noteInboxMedia.jobId, noteConversionRecords.jobId)).where(and(eq(noteInboxMessages.ownerId, ownerId), ne(noteInboxMessages.status, 'IGNORED'))).orderBy(desc(noteInboxMessages.messageCreatedAt), desc(noteInboxMessages.id)).limit(100);
     const items = rows.map((row) => ({ ...row, platform: row.platform as SourcePlatform | null, status: row.status === 'DUPLICATE' ? 'DUPLICATE' : row.conversionStatus === 'completed' ? 'SUCCEEDED' : row.conversionStatus === 'failed' ? 'FAILED' : row.status as InboxMessageStatus, messageCreatedAt: row.messageCreatedAt?.toISOString() || null }));
     return { items, summary: summarizeInboxMessages(items) };
   }
