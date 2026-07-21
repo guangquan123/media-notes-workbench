@@ -39,6 +39,20 @@ process.env.MIAODA_LOCAL_DEV = '1';
 // 先建 logs/,防止任何步骤(尤其是 spawn 子进程前的 shell redirect)因父目录不存在挂掉
 const LOG_DIR = process.env.LOG_DIR || 'logs';
 fs.mkdirSync(LOG_DIR, { recursive: true });
+const PID_DIR = 'pids';
+const PID_PATH = path.join(PID_DIR, 'dev-local.pid');
+fs.mkdirSync(PID_DIR, { recursive: true });
+fs.writeFileSync(PID_PATH, String(process.pid), 'utf8');
+
+const clearPidFile = () => {
+  try {
+    if (fs.readFileSync(PID_PATH, 'utf8').trim() === String(process.pid)) {
+      fs.unlinkSync(PID_PATH);
+    }
+  } catch {
+    /* PID file has already been removed or replaced */
+  }
+};
 
 // 1. env pull
 console.log('[dev-local] (1/5) env pull...');
@@ -162,10 +176,12 @@ child.on('close', (code) => {
   } catch {
     /* already closed */
   }
+  clearPidFile();
   process.exit(code ?? 0);
 });
 child.on('error', (err) => {
   console.error('[dev-local] 启动失败:', err.message);
   console.error('[dev-local] 如缺 concurrently,运行: npm install');
+  clearPidFile();
   process.exit(1);
 });

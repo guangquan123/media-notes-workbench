@@ -200,6 +200,7 @@
     "precommit": "node scripts/hooks/run-precommit.js",
     "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
     "start": "NODE_ENV=production node main.js",
+    "stop": "node ./scripts/stop.js",
     "stylelint": "stylelint client/src/**/*.css --quiet",
     "test": "jest",
     "test:e2e": "jest --config test/e2e/jest.config.js",
