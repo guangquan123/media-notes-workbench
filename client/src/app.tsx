@@ -12,6 +12,7 @@ import NoteTemplatesPage from './pages/NoteTemplatesPage/NoteTemplatesPage';
 import OperationManualPage from './pages/OperationManualPage/OperationManualPage';
 import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import HomePage from './pages/HomePage/HomePage';
+import NoteInboxPage from './pages/NoteInboxPage/NoteInboxPage';
 
 const RoutesComponent = () => {
   return (
@@ -19,6 +20,7 @@ const RoutesComponent = () => {
       <Route element={<Layout />}>
         <Route index element={<EntryPage />} />
         <Route path="video-notes" element={<HomePage />} />
+        <Route path="note-inbox" element={<NoteInboxPage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
         <Route path="document-notes" element={<PdfNotesPage />} />

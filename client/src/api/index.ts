@@ -6,12 +6,14 @@ import type {
   ArticleExportReadiness,
   CreateArticleExportJobRequest,
   CreateNoteJobRequest,
+  ConfigureNoteInboxRequest,
   MarkNoteProcessedBatchRequest,
   MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
   NoteConversionHistoryQuery,
   NoteConversionHistoryResponse,
   NoteJob,
+  NoteInboxStatus,
   NoteStyle,
   NoteTemplateConfig,
   NoteTemplateConfigResponse,
@@ -93,6 +95,36 @@ export async function createNoteJob(
     logger.error('创建学习笔记任务失败', error);
     throw error;
   }
+}
+
+export async function getNoteInboxStatus(): Promise<NoteInboxStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-inbox',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function configureNoteInbox(
+  input: ConfigureNoteInboxRequest,
+): Promise<NoteInboxStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-inbox/configure',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function syncNoteInbox(): Promise<NoteInboxStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-inbox/sync',
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
 }
 
 export async function getNoteJob(id: string): Promise<NoteJob> {

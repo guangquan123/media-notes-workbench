@@ -6,6 +6,7 @@ import { GlobalExceptionFilter } from './common/filters/exception.filter';
 import { ArticleExportModule } from './modules/article-export/article-export.module';
 import { ViewModule } from './modules/view/view.module';
 import { NoteJobsModule } from './modules/note-jobs/note-jobs.module';
+import { NoteInboxModule } from './modules/note-inbox/note-inbox.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NoteJobsModule } from './modules/note-jobs/note-jobs.module';
     // ====== @route-section: business-modules START ======
     ArticleExportModule,
     NoteJobsModule,
+    NoteInboxModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

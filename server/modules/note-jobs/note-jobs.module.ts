@@ -13,5 +13,6 @@ import { NoteReviewTaskService } from './note-review-task.service';
     NoteReviewTaskService,
     NoteTemplateService,
   ],
+  exports: [NoteJobsService],
 })
 export class NoteJobsModule {}

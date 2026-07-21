@@ -5,6 +5,7 @@ import {
   FileText,
   FileVideo,
   History,
+  MessageSquareText,
   Settings2,
   Waypoints,
 } from 'lucide-react';
@@ -86,6 +87,17 @@ export default function EntryPage() {
                 <Link to="/note-templates">
                   <Settings2 className="size-3.5" />
                   提示词配置
+                </Link>
+              </Button>
+              <Button
+                asChild
+                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
+                size="sm"
+                variant="outline"
+              >
+                <Link to="/note-inbox">
+                  <MessageSquareText className="size-3.5" />
+                  飞书收集箱
                 </Link>
               </Button>
               <Button

@@ -151,6 +151,30 @@ export class NoteJobsService {
   }
 
   async create(input: CreateNoteJobRequest, ownerId: string): Promise<NoteJob> {
+    let larkUserId: string | null = null;
+    try {
+      larkUserId = await this.authNPaasService.getCurrentUserLarkUserId();
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`无法获取当前用户飞书账号: ${message}`);
+    }
+    return this.createForOwner(input, ownerId, larkUserId);
+  }
+
+  async createFromInbox(
+    input: CreateNoteJobRequest,
+    ownerId: string,
+    larkUserId: string,
+  ): Promise<NoteJob> {
+    return this.createForOwner(input, ownerId, larkUserId);
+  }
+
+  private async createForOwner(
+    input: CreateNoteJobRequest,
+    ownerId: string,
+    larkUserId: string | null,
+  ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
     const sourceType: NoteSourceType = validatedInput.sourceType;
     const sourcePlatform =
@@ -188,14 +212,6 @@ export class NoteJobsService {
       createdAt: now,
       updatedAt: now,
     };
-    let larkUserId: string | null = null;
-    try {
-      larkUserId = await this.authNPaasService.getCurrentUserLarkUserId();
-    } catch (error) {
-      const message: string =
-        error instanceof Error ? error.message : '未知错误';
-      this.logger.warn(`无法获取当前用户飞书账号: ${message}`);
-    }
     await this.noteHistoryService.create(job, ownerId);
     this.jobs.set(job.id, { job, larkUserId, ownerId });
     void this.run(

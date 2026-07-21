@@ -74,6 +74,18 @@ export interface CreateNoteJobRequest {
   mediaItems?: UploadedMediaInput[];
 }
 
+export interface ConfigureNoteInboxRequest {
+  chatId: string;
+  noteStyle: NoteStyle;
+}
+
+export interface NoteInboxStatus {
+  chatId?: string;
+  configured: boolean;
+  lastError?: string;
+  seenCount: number;
+}
+
 export interface NoteJob {
   id: string;
   stage: JobStage;
