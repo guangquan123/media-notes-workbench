@@ -86,6 +86,7 @@ export class NoteJobsController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('keyword') keyword?: string,
+    @Query('jobId') jobId?: string,
   ) {
     if (
       processingStatus &&
@@ -107,6 +108,7 @@ export class NoteJobsController {
         ...dateRange,
         ...pagination,
         keyword: normalizeHistoryKeyword(keyword),
+        jobId: jobId?.trim() || undefined,
         processingStatus,
         sourceType,
         status,

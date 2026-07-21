@@ -120,6 +120,7 @@ export default function ConversionHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
+  const jobId = searchParams.get('jobId') || undefined;
   const [appliedKeyword, setAppliedKeyword] = useState(
     searchParams.get('keyword') || '',
   );
@@ -158,6 +159,7 @@ export default function ConversionHistoryPage() {
         dateFrom,
         dateTo,
         keyword: appliedKeyword || undefined,
+        jobId,
         page,
         pageSize: PAGE_SIZE,
         processingStatus,
@@ -187,6 +189,7 @@ export default function ConversionHistoryPage() {
     void loadRecords();
   }, [
     appliedKeyword,
+    jobId,
     dateFrom,
     dateTo,
     page,

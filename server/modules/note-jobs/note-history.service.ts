@@ -71,6 +71,7 @@ interface RawTranscriptRow {
 }
 
 interface HistoryListInput {
+  jobId?: string;
   keyword?: string;
   page: number;
   pageSize: number;
@@ -141,6 +142,7 @@ export class NoteHistoryService {
         ilike(noteConversionRecords.title, `%${keywordPattern}%`),
       );
     }
+    if (input.jobId) conditions.push(eq(noteConversionRecords.jobId, input.jobId));
     if (input.processingStatus) {
       conditions.push(
         eq(noteConversionRecords.processingStatus, input.processingStatus),
