@@ -41,8 +41,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function parseInboxMessages(payload: unknown): InboxMessage[] {
-  if (!isRecord(payload) || !Array.isArray(payload.messages)) return [];
-  return payload.messages.flatMap((item: unknown): InboxMessage[] => {
+  if (!isRecord(payload)) return [];
+  const messageContainer = isRecord(payload.data) ? payload.data : payload;
+  if (!Array.isArray(messageContainer.messages)) return [];
+  return messageContainer.messages.flatMap((item: unknown): InboxMessage[] => {
     if (!isRecord(item)) return [];
     const messageId = item.message_id;
     const content = item.content;

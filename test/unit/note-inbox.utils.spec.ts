@@ -1,6 +1,7 @@
 import {
   extractSupportedPlatformUrl,
   isValidInboxChatId,
+  parseInboxMessages,
 } from '../../server/modules/note-inbox/note-inbox.utils';
 
 describe('note inbox URL extraction', () => {
@@ -29,5 +30,26 @@ describe('note inbox URL extraction', () => {
   it('accepts only Feishu chat identifiers', () => {
     expect(isValidInboxChatId('oc_abcdef123')).toBe(true);
     expect(isValidInboxChatId('chat-123')).toBe(false);
+  });
+
+  it('reads messages from the lark-cli response envelope', () => {
+    const messages = parseInboxMessages({
+      ok: true,
+      data: {
+        messages: [
+          {
+            content: 'https://v.douyin.com/example/',
+            message_id: 'om_example',
+          },
+        ],
+      },
+    });
+
+    expect(messages).toEqual([
+      {
+        content: 'https://v.douyin.com/example/',
+        messageId: 'om_example',
+      },
+    ]);
   });
 });
