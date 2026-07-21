@@ -87,6 +87,7 @@ export class NoteJobsController {
     @Query('dateTo') dateTo?: string,
     @Query('keyword') keyword?: string,
     @Query('jobId') jobId?: string,
+    @Query('sourceChannel') sourceChannel?: 'feishu_inbox' | 'manual',
   ) {
     if (
       processingStatus &&
@@ -109,6 +110,7 @@ export class NoteJobsController {
         ...pagination,
         keyword: normalizeHistoryKeyword(keyword),
         jobId: jobId?.trim() || undefined,
+        sourceChannel,
         processingStatus,
         sourceType,
         status,

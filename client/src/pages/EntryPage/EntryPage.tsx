@@ -106,6 +106,17 @@ export default function EntryPage() {
                 size="sm"
                 variant="outline"
               >
+                <Link to="/note-inbox/messages">
+                  <MessageSquareText className="size-3.5" />
+                  收集消息
+                </Link>
+              </Button>
+              <Button
+                asChild
+                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
+                size="sm"
+                variant="outline"
+              >
                 <Link to="/conversion-history">
                   <History className="size-3.5" />
                   转化记录

@@ -237,6 +237,7 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   larkTaskUrl: text("lark_task_url"),
   taskSyncStatus: varchar("task_sync_status", { length: 32 }).notNull().default('not_created'),
   taskSyncError: text("task_sync_error"),
+  sourceChannel: varchar("source_channel", { length: 32 }).notNull().default('manual'),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)

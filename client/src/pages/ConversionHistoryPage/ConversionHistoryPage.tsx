@@ -121,6 +121,7 @@ export default function ConversionHistoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const jobId = searchParams.get('jobId') || undefined;
+  const sourceChannel = searchParams.get('sourceChannel') === 'feishu_inbox' ? 'feishu_inbox' : undefined;
   const [appliedKeyword, setAppliedKeyword] = useState(
     searchParams.get('keyword') || '',
   );
@@ -160,6 +161,7 @@ export default function ConversionHistoryPage() {
         dateTo,
         keyword: appliedKeyword || undefined,
         jobId,
+        sourceChannel,
         page,
         pageSize: PAGE_SIZE,
         processingStatus,
@@ -190,6 +192,7 @@ export default function ConversionHistoryPage() {
   }, [
     appliedKeyword,
     jobId,
+    sourceChannel,
     dateFrom,
     dateTo,
     page,
@@ -201,6 +204,7 @@ export default function ConversionHistoryPage() {
   useEffect(() => {
     const nextSearchParams = new URLSearchParams();
     if (appliedKeyword) nextSearchParams.set('keyword', appliedKeyword);
+    if (sourceChannel) nextSearchParams.set('sourceChannel', sourceChannel);
     if (sourceType) nextSearchParams.set('sourceType', sourceType);
     if (status) nextSearchParams.set('status', status);
     if (processingStatus) {
@@ -406,6 +410,16 @@ export default function ConversionHistoryPage() {
                   {selectionMode ? '退出批量处理' : '批量处理'}
                 </Button>
               ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setSearchParams({ sourceChannel: 'feishu_inbox' })}
+                size="sm"
+                variant={sourceChannel ? 'default' : 'outline'}
+              >
+                飞书收集箱
+              </Button>
+              {sourceChannel ? <Button onClick={() => setSearchParams({})} size="sm" variant="outline">查看全部来源</Button> : null}
             </div>
             <HistoryFilterControls
               keyword={keyword}

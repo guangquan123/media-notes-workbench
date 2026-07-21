@@ -72,6 +72,7 @@ interface RawTranscriptRow {
 
 interface HistoryListInput {
   jobId?: string;
+  sourceChannel?: 'feishu_inbox' | 'manual';
   keyword?: string;
   page: number;
   pageSize: number;
@@ -143,6 +144,7 @@ export class NoteHistoryService {
       );
     }
     if (input.jobId) conditions.push(eq(noteConversionRecords.jobId, input.jobId));
+    if (input.sourceChannel) conditions.push(eq(noteConversionRecords.sourceChannel, input.sourceChannel));
     if (input.processingStatus) {
       conditions.push(
         eq(noteConversionRecords.processingStatus, input.processingStatus),

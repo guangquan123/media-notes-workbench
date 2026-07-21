@@ -170,6 +170,7 @@ export interface NoteConversionHistoryPagination {
 
 export interface NoteConversionHistoryQuery {
   jobId?: string;
+  sourceChannel?: 'feishu_inbox' | 'manual';
   dateFrom?: string;
   dateTo?: string;
   keyword?: string;
