@@ -1,7 +1,7 @@
 /* eslint-disable */
 /** auto generated, do not edit */
 import { sql } from 'drizzle-orm';
-import { index, integer, pgTable, text, uniqueIndex, uuid, varchar, customType } from "drizzle-orm/pg-core"
+import { boolean, foreignKey, index, integer, pgTable, text, uniqueIndex, uuid, varchar, customType } from "drizzle-orm/pg-core"
 
 export const customTimestamptz = customType<{
   data: Date;
@@ -117,18 +117,73 @@ export const fileAttachmentArray = customType<{
   },
 });
 
-export const noteTemplateConfigs = pgTable("note_template_configs", {
+export const noteInboxMessages = pgTable("note_inbox_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
-  ownerId: userProfile("owner_id").notNull(),
-  noteStyle: varchar("note_style", { length: 32 }).notNull(),
-  content: text("content").notNull(),
-  draftContent: text("draft_content"),
-  activeVersionId: uuid("active_version_id"),
+  bindingId: uuid("binding_id").notNull(),
+  mediaId: uuid("media_id"),
+  ownerId: varchar("owner_id", { length: 255 }).notNull(),
+  messageId: varchar("message_id", { length: 255 }).notNull(),
+  senderLarkUserId: varchar("sender_lark_user_id", { length: 255 }),
+  messageContent: text("message_content").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  originalUrl: text("original_url"),
+  platform: varchar("platform", { length: 32 }),
+  status: varchar("status", { length: 32 }).notNull(),
+  statusReason: varchar("status_reason", { length: 512 }),
+  messageCreatedAt: customTimestamptz("message_created_at", { precision: 6 }),
+  duplicateOfMessageId: varchar("duplicate_of_message_id", { length: 255 }),
   createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
-  uniqueIndex("note_template_configs_owner_style_key").on(table.ownerId, table.noteStyle),
-  index("note_template_configs_owner_idx").on(table.ownerId),
+  uniqueIndex("note_inbox_messages_binding_message_key").on(table.bindingId, table.messageId),
+  index("note_inbox_messages_owner_created_idx").on(table.ownerId, table.messageCreatedAt, table.id),
+  index("note_inbox_messages_owner_status_created_idx").on(table.ownerId, table.status, table.messageCreatedAt),
+  foreignKey({
+    columns: [table.bindingId],
+    foreignColumns: [noteInboxBindings.id],
+    name: "note_inbox_messages_binding_id_fkey",
+  }),
+  foreignKey({
+    columns: [table.mediaId],
+    foreignColumns: [noteInboxMedia.id],
+    name: "note_inbox_messages_media_id_fkey",
+  }),
+]);
+
+export const noteInboxMedia = pgTable("note_inbox_media", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: varchar("owner_id", { length: 255 }).notNull(),
+  platform: varchar("platform", { length: 32 }).notNull(),
+  canonicalKey: varchar("canonical_key", { length: 1024 }).notNull(),
+  canonicalUrl: text("canonical_url").notNull(),
+  title: varchar("title", { length: 255 }),
+  status: varchar("status", { length: 32 }).notNull().default('QUEUED'),
+  jobId: uuid("job_id").unique(),
+  noteStyle: varchar("note_style", { length: 32 }).notNull(),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_inbox_media_job_id_key").on(table.jobId),
+  uniqueIndex("note_inbox_media_owner_source_key").on(table.ownerId, table.platform, table.canonicalKey),
+  index("note_inbox_media_owner_status_created_idx").on(table.ownerId, table.status, table.createdAt),
+]);
+
+export const noteInboxBindings = pgTable("note_inbox_bindings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: varchar("owner_id", { length: 255 }).notNull().unique(),
+  chatId: varchar("chat_id", { length: 255 }).notNull(),
+  larkUserId: varchar("lark_user_id", { length: 255 }).notNull(),
+  noteStyle: varchar("note_style", { length: 32 }).notNull().default('learning'),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  lastSyncedAt: customTimestamptz("last_synced_at", { precision: 6 }),
+  lastSyncError: text("last_sync_error"),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_inbox_bindings_owner_id_key").on(table.ownerId),
+  uniqueIndex("note_inbox_bindings_owner_chat_key").on(table.ownerId, table.chatId),
 ]);
 
 export const noteTemplateVersions = pgTable("note_template_versions", {
@@ -142,6 +197,20 @@ export const noteTemplateVersions = pgTable("note_template_versions", {
 }, (table) => [
   uniqueIndex("note_template_versions_owner_id_note_style_version_number_key").on(table.ownerId, table.noteStyle, table.versionNumber),
   index("note_template_versions_owner_style_idx").on(table.ownerId, table.noteStyle, table.versionNumber),
+]);
+
+export const noteTemplateConfigs = pgTable("note_template_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: userProfile("owner_id").notNull(),
+  noteStyle: varchar("note_style", { length: 32 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  draftContent: text("draft_content"),
+  activeVersionId: uuid("active_version_id"),
+}, (table) => [
+  uniqueIndex("note_template_configs_owner_style_key").on(table.ownerId, table.noteStyle),
+  index("note_template_configs_owner_idx").on(table.ownerId),
 ]);
 
 export const noteConversionRecords = pgTable("note_conversion_records", {
@@ -180,5 +249,8 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
 
 // table aliases
 export const noteConversionRecordsTable = noteConversionRecords;
+export const noteInboxBindingsTable = noteInboxBindings;
+export const noteInboxMediaTable = noteInboxMedia;
+export const noteInboxMessagesTable = noteInboxMessages;
 export const noteTemplateConfigsTable = noteTemplateConfigs;
 export const noteTemplateVersionsTable = noteTemplateVersions;

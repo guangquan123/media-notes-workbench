@@ -24,6 +24,12 @@ export class NoteInboxController {
   }
 
   @NeedLogin()
+  @Get('messages')
+  getMessages(@Req() req: Request) {
+    return this.noteInboxService.listMessages(req.userContext.userId);
+  }
+
+  @NeedLogin()
   @Post('configure')
   async configure(@Req() req: Request, @Body() body: ConfigureInboxRequest) {
     if (!body.chatId) throw new BadRequestException('请填写飞书会话 ID');

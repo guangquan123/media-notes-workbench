@@ -14,6 +14,7 @@ import type {
   NoteConversionHistoryResponse,
   NoteJob,
   NoteInboxStatus,
+  NoteInboxMessageListResponse,
   NoteStyle,
   NoteTemplateConfig,
   NoteTemplateConfigResponse,
@@ -124,6 +125,11 @@ export async function syncNoteInbox(): Promise<NoteInboxStatus> {
     method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  return response.data;
+}
+
+export async function getNoteInboxMessages(): Promise<NoteInboxMessageListResponse> {
+  const response = await axiosForBackend({ url: '/api/note-inbox/messages', method: 'GET', timeout: JOB_READ_TIMEOUT_MS });
   return response.data;
 }
 

@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import {
   configureNoteInbox,
   getNoteInboxStatus,
+  getNoteInboxMessages,
   syncNoteInbox,
 } from '@/api';
-import type { NoteInboxStatus, NoteStyle } from '@shared/api.interface';
+import type { NoteInboxMessageListResponse, NoteInboxStatus, NoteStyle } from '@shared/api.interface';
 
 export default function NoteInboxPage() {
   const [chatId, setChatId] = useState('');
@@ -17,11 +18,13 @@ export default function NoteInboxPage() {
   const [status, setStatus] = useState<NoteInboxStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [messages, setMessages] = useState<NoteInboxMessageListResponse | null>(null);
 
   async function refresh(): Promise<void> {
     try {
       const next: NoteInboxStatus = await getNoteInboxStatus();
       setStatus(next);
+      if (next.configured) setMessages(await getNoteInboxMessages());
       setChatId((current: string) => current || next.chatId || '');
     } catch {
       toast.error('无法读取飞书收集箱状态');
@@ -46,6 +49,7 @@ export default function NoteInboxPage() {
         noteStyle,
       });
       setStatus(next);
+      setMessages(await getNoteInboxMessages());
       toast.success('收集箱已绑定，之后的新消息会自动处理');
     } catch {
       toast.error('绑定失败，请检查会话 ID 与飞书授权');
@@ -59,6 +63,7 @@ export default function NoteInboxPage() {
     try {
       const next: NoteInboxStatus = await syncNoteInbox();
       setStatus(next);
+      setMessages(await getNoteInboxMessages());
       if (next.lastError) toast.error(next.lastError);
       else toast.success('已检查最新飞书消息');
     } catch {
@@ -124,7 +129,7 @@ export default function NoteInboxPage() {
               <CircleCheck className="mt-0.5 size-5 shrink-0 text-emerald-600" />
               <div>
                 <p className="font-semibold">已绑定收集箱</p>
-                <p className="mt-1 leading-5">已记录 {status.seenCount} 条消息。{status.lastError || '新链接会自动进入视频学习笔记流程。'}</p>
+                <p className="mt-1 leading-5">已收到 {status.summary?.totalMessages ?? 0} 条链接消息。{status.lastError || '新链接会自动进入视频学习笔记流程。'}</p>
               </div>
             </div>
           ) : null}
@@ -139,6 +144,23 @@ export default function NoteInboxPage() {
               立即检查
             </Button>
           </div>
+          {messages && (
+            <section className="border-t border-black/8 pt-6" data-ai-section-type="card-list">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="text-lg font-semibold">飞书消息</h2><p className="mt-1 text-xs text-black/50">按发送时间排序：成功 {messages.summary.succeeded}，处理中 {messages.summary.processing + messages.summary.queued}，重复 {messages.summary.duplicates}，失败 {messages.summary.failed}</p></div>
+                <Button size="sm" variant="outline" onClick={() => void refresh()}><RefreshCw className="size-4" />刷新</Button>
+              </div>
+              <div className="mt-4 divide-y border-y border-black/8 bg-white">
+                {messages.items.length === 0 ? <p className="p-5 text-sm text-black/50">尚未收到支持的链接消息。</p> : messages.items.map((message) => (
+                  <div className="p-4" key={message.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-2"><p className="font-medium">{message.mediaTitle || message.subject}</p><span className="text-xs text-black/55">{message.status === 'DUPLICATE' ? '重复，已关联原任务' : message.status}</span></div>
+                    <p className="mt-1 break-all text-xs text-black/50">{message.originalUrl || message.statusReason}</p>
+                    <p className="mt-2 text-xs text-black/40">{message.platform === 'douyin' ? '抖音' : message.platform === 'bilibili' ? 'B站' : '其他'} · {message.messageCreatedAt ? new Date(message.messageCreatedAt).toLocaleString() : '同步时记录'}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </section>
       </div>
     </main>

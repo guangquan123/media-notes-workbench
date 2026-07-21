@@ -84,7 +84,14 @@ export interface NoteInboxStatus {
   configured: boolean;
   lastError?: string;
   seenCount: number;
+  lastSyncedAt?: string;
+  summary?: NoteInboxSummary;
 }
+
+export type InboxMessageStatus = 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'DUPLICATE' | 'IGNORED';
+export interface NoteInboxSummary { totalMessages: number; succeeded: number; processing: number; queued: number; failed: number; duplicates: number; ignored: number; }
+export interface NoteInboxMessage { id: string; messageId: string; subject: string; originalUrl: string | null; platform: SourcePlatform | null; status: InboxMessageStatus; statusReason: string | null; messageCreatedAt: string | null; duplicateOfMessageId: string | null; jobId: string | null; mediaTitle: string | null; }
+export interface NoteInboxMessageListResponse { items: NoteInboxMessage[]; summary: NoteInboxSummary; }
 
 export interface NoteJob {
   id: string;
