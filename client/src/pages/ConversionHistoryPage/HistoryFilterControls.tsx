@@ -22,11 +22,13 @@ import type {
   NoteProcessingStatus,
   NoteSourceType,
 } from '@shared/api.interface';
+import type { ConversionSourceChannel } from './conversion-history-search-params';
 
 interface HistoryFilterValues {
   dateFrom?: string;
   dateTo?: string;
   processingStatus?: NoteProcessingStatus;
+  sourceChannel?: ConversionSourceChannel;
   sourceType?: NoteSourceType;
   status?: ConversionStatus;
 }
@@ -38,6 +40,9 @@ interface HistoryFilterControlsProps {
   onKeywordSubmit: () => void;
   onProcessingStatusChange: (value: NoteProcessingStatus | undefined) => void;
   onReset: () => void;
+  onSourceChannelChange: (
+    value: ConversionSourceChannel | undefined,
+  ) => void;
   onSourceTypeChange: (value: NoteSourceType | undefined) => void;
   onStatusChange: (value: ConversionStatus | undefined) => void;
   values: HistoryFilterValues;
@@ -50,6 +55,12 @@ const SOURCE_OPTIONS: Array<{ label: string; value: string }> = [
   { label: '录音', value: 'audio' },
   { label: '文档', value: 'document' },
   { label: 'PDF', value: 'pdf' },
+];
+
+const SOURCE_CHANNEL_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: '全部来源', value: 'all' },
+  { label: '飞书收集箱', value: 'feishu_inbox' },
+  { label: '手工提交', value: 'manual' },
 ];
 
 const STATUS_OPTIONS: Array<{ label: string; value: string }> = [
@@ -75,6 +86,11 @@ function parseSourceType(value: string): NoteSourceType | undefined {
   ) {
     return value;
   }
+  return undefined;
+}
+
+function parseSourceChannel(value: string): ConversionSourceChannel | undefined {
+  if (value === 'feishu_inbox' || value === 'manual') return value;
   return undefined;
 }
 
@@ -109,6 +125,7 @@ export function HistoryFilterControls({
   onKeywordSubmit,
   onProcessingStatusChange,
   onReset,
+  onSourceChannelChange,
   onSourceTypeChange,
   onStatusChange,
   values,
@@ -124,13 +141,14 @@ export function HistoryFilterControls({
     values.dateFrom ||
     values.dateTo ||
     values.processingStatus ||
+    values.sourceChannel ||
     values.sourceType ||
     values.status,
   );
 
   return (
     <div className="rounded-2xl border border-black/8 bg-white/82 p-3 shadow-[0_10px_30px_rgba(40,35,29,0.04)]">
-      <div className="grid gap-2 lg:grid-cols-[minmax(12rem,1.35fr)_repeat(3,minmax(9rem,1fr))_auto]">
+      <div className="grid gap-2 xl:grid-cols-[minmax(12rem,1.35fr)_repeat(4,minmax(9rem,1fr))_auto]">
         <div className="flex min-w-0 gap-2">
           <Input
             aria-label="按笔记标题搜索"
@@ -151,6 +169,25 @@ export function HistoryFilterControls({
             <Search className="size-4" />
           </Button>
         </div>
+        <Select
+          onValueChange={(value: string) =>
+            onSourceChannelChange(parseSourceChannel(value))
+          }
+          value={values.sourceChannel || 'all'}
+        >
+          <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+            <SelectValue placeholder="来源渠道" />
+          </SelectTrigger>
+          <SelectContent>
+            {SOURCE_CHANNEL_OPTIONS.map(
+              (option: { label: string; value: string }) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ),
+            )}
+          </SelectContent>
+        </Select>
         <Select
           onValueChange={(value: string) =>
             onSourceTypeChange(parseSourceType(value))

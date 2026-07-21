@@ -47,6 +47,10 @@ import type {
   NoteSourceType,
 } from '@shared/api.interface';
 import { HistoryFilterControls } from './HistoryFilterControls';
+import {
+  buildConversionHistorySearchParams,
+  type ConversionSourceChannel,
+} from './conversion-history-search-params';
 
 const PAGE_SIZE = 10;
 
@@ -112,6 +116,13 @@ function getDateParam(value: string | null): string | undefined {
   return value && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
 }
 
+function getSourceChannel(
+  value: string | null,
+): ConversionSourceChannel | undefined {
+  if (value === 'feishu_inbox' || value === 'manual') return value;
+  return undefined;
+}
+
 export default function ConversionHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<NoteConversionRecord[]>([]);
@@ -121,7 +132,9 @@ export default function ConversionHistoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const jobId = searchParams.get('jobId') || undefined;
-  const sourceChannel = searchParams.get('sourceChannel') === 'feishu_inbox' ? 'feishu_inbox' : undefined;
+  const [sourceChannel, setSourceChannel] = useState<
+    ConversionSourceChannel | undefined
+  >(getSourceChannel(searchParams.get('sourceChannel')));
   const [appliedKeyword, setAppliedKeyword] = useState(
     searchParams.get('keyword') || '',
   );
@@ -202,25 +215,28 @@ export default function ConversionHistoryPage() {
   ]);
 
   useEffect(() => {
-    const nextSearchParams = new URLSearchParams();
-    if (appliedKeyword) nextSearchParams.set('keyword', appliedKeyword);
-    if (sourceChannel) nextSearchParams.set('sourceChannel', sourceChannel);
-    if (sourceType) nextSearchParams.set('sourceType', sourceType);
-    if (status) nextSearchParams.set('status', status);
-    if (processingStatus) {
-      nextSearchParams.set('processingStatus', processingStatus);
-    }
-    if (dateFrom) nextSearchParams.set('dateFrom', dateFrom);
-    if (dateTo) nextSearchParams.set('dateTo', dateTo);
-    if (page > 1) nextSearchParams.set('page', String(page));
+    const nextSearchParams: URLSearchParams =
+      buildConversionHistorySearchParams({
+        dateFrom,
+        dateTo,
+        jobId,
+        keyword: appliedKeyword || undefined,
+        page,
+        processingStatus,
+        sourceChannel,
+        sourceType,
+        status,
+      });
     setSearchParams(nextSearchParams, { replace: true });
   }, [
     appliedKeyword,
     dateFrom,
     dateTo,
+    jobId,
     page,
     processingStatus,
     setSearchParams,
+    sourceChannel,
     sourceType,
     status,
   ]);
@@ -297,6 +313,7 @@ export default function ConversionHistoryPage() {
   const resetFilters = () => {
     setKeyword('');
     setAppliedKeyword('');
+    setSourceChannel(undefined);
     setSourceType(undefined);
     setStatus(undefined);
     setProcessingStatus(undefined);
@@ -308,6 +325,14 @@ export default function ConversionHistoryPage() {
 
   const changeSourceType = (value: NoteSourceType | undefined) => {
     setSourceType(value);
+    setPage(1);
+    setSelectedJobIds([]);
+  };
+
+  const changeSourceChannel = (
+    value: ConversionSourceChannel | undefined,
+  ) => {
+    setSourceChannel(value);
     setPage(1);
     setSelectedJobIds([]);
   };
@@ -411,16 +436,6 @@ export default function ConversionHistoryPage() {
                 </Button>
               ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => setSearchParams({ sourceChannel: 'feishu_inbox' })}
-                size="sm"
-                variant={sourceChannel ? 'default' : 'outline'}
-              >
-                飞书收集箱
-              </Button>
-              {sourceChannel ? <Button onClick={() => setSearchParams({})} size="sm" variant="outline">查看全部来源</Button> : null}
-            </div>
             <HistoryFilterControls
               keyword={keyword}
               onDateRangeChange={changeDateRange}
@@ -432,12 +447,14 @@ export default function ConversionHistoryPage() {
               }}
               onProcessingStatusChange={changeProcessingStatus}
               onReset={resetFilters}
+              onSourceChannelChange={changeSourceChannel}
               onSourceTypeChange={changeSourceType}
               onStatusChange={changeStatus}
               values={{
                 dateFrom,
                 dateTo,
                 processingStatus,
+                sourceChannel,
                 sourceType,
                 status,
               }}
