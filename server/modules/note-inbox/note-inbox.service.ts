@@ -6,14 +6,26 @@ import { noteConversionRecords, noteInboxBindings, noteInboxMedia, noteInboxMess
 import type { InboxMessageStatus, NoteInboxMessageListResponse, NoteInboxStatus, NoteStyle, SourcePlatform } from '@shared/api.interface';
 import { NoteJobsService } from '../note-jobs/note-jobs.service';
 import { buildInboxSubject, classifyInboxLink, summarizeInboxMessages } from './note-inbox-ledger.utils';
-import { extractSupportedPlatformUrl, isValidInboxChatId, parseInboxMessages } from './note-inbox.utils';
+import {
+  extractSupportedPlatformUrl,
+  isValidInboxChatId,
+  parseInboxMessages,
+  runBackgroundTask,
+} from './note-inbox.utils';
 
 const POLL_INTERVAL_MS = 30_000;
 @Injectable()
 export class NoteInboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NoteInboxService.name); private pollTimer?: NodeJS.Timeout; private polling = false;
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase, private readonly noteJobsService: NoteJobsService) {}
-  async onModuleInit(): Promise<void> { this.pollTimer = setInterval(() => void this.sync(), POLL_INTERVAL_MS); this.pollTimer.unref(); void this.sync(); }
+  async onModuleInit(): Promise<void> {
+    this.pollTimer = setInterval(
+      () => this.syncInBackground(),
+      POLL_INTERVAL_MS,
+    );
+    this.pollTimer.unref();
+    this.syncInBackground();
+  }
   onModuleDestroy(): void { if (this.pollTimer) clearInterval(this.pollTimer); }
   async getStatus(ownerId: string): Promise<NoteInboxStatus> {
     const binding = await this.getBinding(ownerId); if (!binding) return { configured: false, seenCount: 0 };
@@ -33,6 +45,16 @@ export class NoteInboxService implements OnModuleInit, OnModuleDestroy {
     if (this.polling) return; this.polling = true;
     try { const bindings = await this.db.select().from(noteInboxBindings).where(eq(noteInboxBindings.isEnabled, true)); for (const binding of bindings) await this.syncBinding(binding); }
     finally { this.polling = false; }
+  }
+  private syncInBackground(): void {
+    runBackgroundTask(
+      () => this.sync(),
+      (error: unknown): void => {
+        const details: string =
+          error instanceof Error ? error.stack || error.message : String(error);
+        this.logger.error(`飞书收件箱后台同步失败: ${details}`);
+      },
+    );
   }
   private async syncBinding(binding: typeof noteInboxBindings.$inferSelect): Promise<void> {
     try { const messages = await this.fetchMessages(binding.chatId); for (const message of messages) await this.recordMessage(binding, message); await this.db.update(noteInboxBindings).set({ lastSyncedAt: new Date(), lastSyncError: null, updatedAt: new Date() }).where(eq(noteInboxBindings.id, binding.id)); }
