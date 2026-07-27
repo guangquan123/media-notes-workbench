@@ -1,0 +1,22 @@
+[
+  {
+    "query": "项目启动阶段有哪些风险和应对措施",
+    "expectedPathPattern": "一文掌握如何轻松搞定项目风险管理.md"
+  },
+  {
+    "query": "WorkBuddy Obsidian IMA 知识飞轮",
+    "expectedPathPattern": "专题-WorkBuddy-Obsidian-IMA知识飞轮试运行.md"
+  },
+  {
+    "query": "Codex Obsidian 个人知识库",
+    "expectedPathPattern": "2026-07-10-AI工具与知识库升级卡片.md"
+  },
+  {
+    "query": "售前解决方案制作框架",
+    "expectedPathPattern": "对IT项目售前解决方案制作的一些思考.md"
+  },
+  {
+    "query": "数据标准执行检查贯标 新建系统",
+    "expectedPathPattern": "数据标准在数据治理中的落地实践.md"
+  }
+]

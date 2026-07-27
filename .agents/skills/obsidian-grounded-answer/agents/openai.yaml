@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Obsidian Grounded Answer'
+  short_description: 'Supplement answers with cited local Obsidian evidence.'
+  default_prompt: 'Use $obsidian-grounded-answer to solve this with relevant evidence from my Obsidian knowledge base.'
