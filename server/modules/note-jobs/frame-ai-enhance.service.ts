@@ -103,8 +103,8 @@ export class FrameAiEnhanceService {
             rawContent = delta.startsWith(rawContent) ? delta : rawContent + delta;
           }
         }
-      } else if (streamResult && typeof (streamResult as Record<string, unknown>).output !== 'undefined') {
-        const output = (streamResult as Record<string, unknown>).output;
+      } else if (streamResult && typeof (streamResult as unknown as Record<string, unknown>).output !== 'undefined') {
+        const output = (streamResult as unknown as Record<string, unknown>).output;
         if (output && Symbol.asyncIterator in Object(output)) {
           for await (const chunk of output as AsyncIterable<Record<string, unknown>>) {
             const delta =

@@ -1663,6 +1663,7 @@ export class NoteJobsService {
 
   private async createRawTranscriptDocument(input: {
     duration: string;
+    generatedDate: string;
     sourceLabel: string;
     sourceUrl: string;
     title: string;
