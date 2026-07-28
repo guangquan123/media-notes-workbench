@@ -442,8 +442,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
           </Link>
         </header>
 
-        <section className="grid flex-1 items-center gap-12 py-12 lg:grid-cols-[1.05fr_.95fr]">
-          <div className="max-w-xl">
+        <section className="grid min-w-0 flex-1 items-center gap-12 py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
+          <div className="min-w-0 max-w-xl">
             <div
               className="mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium"
               style={{
@@ -506,7 +506,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
+          <div className="min-w-0 rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
             {!job && !uploading ? (
               <>
                 <p className="text-lg font-semibold tracking-tight">
@@ -628,7 +628,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   )}
               </>
             ) : (
-              <div className="flex min-h-[390px] flex-col justify-between">
+              <div className="flex min-h-[390px] min-w-0 flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -637,7 +637,13 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                           ? '笔记已经准备好'
                           : `正在处理${sourceLabel}`}
                       </p>
-                      <p className="mt-1 truncate text-sm text-black/45">
+                      <p
+                        className="mt-1 truncate text-sm text-black/45"
+                        title={
+                          job?.mediaFileName ||
+                          files.map((item: File) => item.name).join('、')
+                        }
+                      >
                         {job?.mediaFileName ||
                           files.map((item: File) => item.name).join('、')}
                       </p>
