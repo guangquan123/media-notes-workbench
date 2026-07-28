@@ -1,9 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { basename, dirname } from 'node:path';
 import type { KeyFrame } from './frame-extraction.service';
 
 type CommandResult = { stderr: string; stdout: string };
+
+interface FrameUploadCommand {
+  args: string[];
+  cwd: string;
+}
 
 @Injectable()
 export class FrameUploadService {
@@ -50,19 +56,12 @@ export class FrameUploadService {
   }
 
   private async uploadSingleFrame(filePath: string): Promise<string> {
-    const commandResult = await runCommand('lark-cli', [
-      'im',
-      'images',
-      'create',
-      '--as',
-      'user',
-      '--data',
-      JSON.stringify({ image_type: 'message' }),
-      '--file',
-      `image=${filePath}`,
-      '--format',
-      'json',
-    ]);
+    const uploadCommand = buildFrameUploadCommand(filePath);
+    const commandResult = await runCommand(
+      'lark-cli',
+      uploadCommand.args,
+      uploadCommand.cwd,
+    );
     const response = JSON.parse(commandResult.stdout) as {
       code?: number;
       data?: { image_key?: string };
@@ -79,12 +78,35 @@ export class FrameUploadService {
   }
 }
 
+function buildFrameUploadCommand(filePath: string): FrameUploadCommand {
+  return {
+    args: [
+      'im',
+      'images',
+      'create',
+      '--as',
+      'user',
+      '--data',
+      JSON.stringify({ image_type: 'message' }),
+      '--file',
+      `image=${basename(filePath)}`,
+      '--format',
+      'json',
+    ],
+    cwd: dirname(filePath),
+  };
+}
+
 async function runCommand(
   command: string,
   args: string[],
+  cwd: string,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const process = spawn(command, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     process.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
@@ -98,3 +120,5 @@ async function runCommand(
     process.on('error', reject);
   });
 }
+
+export { buildFrameUploadCommand };
