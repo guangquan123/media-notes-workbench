@@ -117,6 +117,34 @@ export const fileAttachmentArray = customType<{
   },
 });
 
+export const noteJobFrames = pgTable("note_job_frames", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").notNull(),
+  ownerId: userProfile("owner_id").notNull(),
+  sourceIndex: integer("source_index").notNull().default(0),
+  sourceFileName: varchar("source_file_name", { length: 255 }).notNull(),
+  timestampMs: integer("timestamp_ms").notNull(),
+  globalTimestampMs: integer("global_timestamp_ms").notNull(),
+  extractionType: varchar("extraction_type", { length: 16 }).notNull(),
+  originalAssetRef: text("original_asset_ref"),
+  perceptualHash: varchar("perceptual_hash", { length: 32 }),
+  analysisJson: text("analysis_json"),
+  scoresJson: text("scores_json"),
+  selectionStatus: varchar("selection_status", { length: 16 }).notNull().default('candidate'),
+  selectedBy: varchar("selected_by", { length: 16 }),
+  displayOrder: integer("display_order"),
+  derivativeAssetRef: text("derivative_asset_ref"),
+  derivativeStatus: varchar("derivative_status", { length: 24 }).notNull().default('not_requested'),
+  failureCode: varchar("failure_code", { length: 64 }),
+  createdAt: customTimestamptz("created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: customTimestamptz("updated_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("note_job_frames_job_source_time_type_key").on(table.jobId, table.sourceIndex, table.timestampMs, table.extractionType),
+  index("note_job_frames_job_time_idx").on(table.jobId, table.globalTimestampMs),
+  index("note_job_frames_job_status_idx").on(table.jobId, table.selectionStatus, table.displayOrder),
+  index("note_job_frames_owner_job_idx").on(table.ownerId, table.jobId),
+]);
+
 export const noteInboxMessages = pgTable("note_inbox_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   bindingId: uuid("binding_id").notNull(),
@@ -238,6 +266,13 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   taskSyncStatus: varchar("task_sync_status", { length: 32 }).notNull().default('not_created'),
   taskSyncError: text("task_sync_error"),
   sourceChannel: varchar("source_channel", { length: 32 }).notNull().default('manual'),
+  visualOptionsJson: text("visual_options_json"),
+  visualSummaryJson: text("visual_summary_json"),
+  draftMarkdown: text("draft_markdown"),
+  frameSelectionRevision: integer("frame_selection_revision").notNull().default(0),
+  currentStage: varchar("current_stage", { length: 48 }),
+  progress: integer("progress"),
+  statusMessage: text("status_message"),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)
@@ -253,5 +288,6 @@ export const noteConversionRecordsTable = noteConversionRecords;
 export const noteInboxBindingsTable = noteInboxBindings;
 export const noteInboxMediaTable = noteInboxMedia;
 export const noteInboxMessagesTable = noteInboxMessages;
+export const noteJobFramesTable = noteJobFrames;
 export const noteTemplateConfigsTable = noteTemplateConfigs;
 export const noteTemplateVersionsTable = noteTemplateVersions;

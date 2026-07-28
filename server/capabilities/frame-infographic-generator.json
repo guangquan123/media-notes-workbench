@@ -5,11 +5,8 @@
   "paramsSchema": {
     "content": {
       "type": "string",
+      "description": "从原始截图识别出的文字或图表内容",
       "required": true
-    },
-    "frame_summary": {
-      "type": "string",
-      "required": false
     }
   },
   "formValue": {

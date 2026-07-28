@@ -51,6 +51,7 @@ export type JobStage =
   | 'extracting-frames'
   | 'uploading-frames'
   | 'analyzing-frames'
+  | 'awaiting-frame-review'
   | 'summarizing'
   | 'publishing'
   | 'completed'
@@ -93,6 +94,108 @@ export interface PairedMediaAlignmentResult {
   status: PairedMediaAlignmentStatus;
 }
 
+export type FrameDensity = 'compact' | 'standard' | 'detailed';
+
+export type FrameOutputMode =
+  | 'original'
+  | 'original_with_ai_notes'
+  | 'original_with_ai_derivative';
+
+export type NoteVisualOptions =
+  | { mode: 'disabled' }
+  | {
+      allowExternalAi: boolean;
+      density: FrameDensity;
+      mode: 'automatic' | 'review';
+      outputMode: FrameOutputMode;
+    };
+
+export type VisualPipelineStatus =
+  | 'disabled'
+  | 'processing'
+  | 'awaiting_review'
+  | 'completed'
+  | 'partial'
+  | 'failed';
+
+export interface VisualPipelineWarning {
+  code:
+    | 'FRAME_EXTRACTION_FAILED'
+    | 'FRAME_UPLOAD_PARTIAL'
+    | 'FRAME_AI_PARTIAL'
+    | 'FRAME_DERIVATIVE_PARTIAL'
+    | 'NO_USEFUL_FRAMES';
+  message: string;
+}
+
+export interface VisualPipelineSummary {
+  analyzedCount: number;
+  candidateCount: number;
+  derivativeCount: number;
+  extractedCount: number;
+  selectedCount: number;
+  status: VisualPipelineStatus;
+  uploadedCount: number;
+  warnings: VisualPipelineWarning[];
+}
+
+export type FrameSelectionStatus = 'candidate' | 'selected' | 'rejected';
+export type FrameDerivativeStatus =
+  | 'not_requested'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export interface NoteJobFrame {
+  analysis?: {
+    chartDesc: string;
+    hasChart: boolean;
+    hasText: boolean;
+    score: number;
+    summary: string;
+    text: string;
+  };
+  derivativeStatus: FrameDerivativeStatus;
+  derivativeUrl?: string;
+  displayOrder: number | null;
+  extractionType: 'scene' | 'interval';
+  globalTimestampMs: number;
+  id: string;
+  originalUrl: string;
+  score: number;
+  selectionStatus: FrameSelectionStatus;
+  sourceFileName: string;
+  sourceIndex: number;
+  timestampMs: number;
+}
+
+export interface NoteJobFrameListResponse {
+  items: NoteJobFrame[];
+  page: number;
+  pageSize: number;
+  revision: number;
+  totalItems: number;
+}
+
+export interface UpdateFrameSelectionRequest {
+  orderedFrameIds: string[];
+  revision: number;
+  selectedFrameIds: string[];
+}
+
+export interface UpdateFrameSelectionResponse {
+  revision: number;
+  selectedFrameIds: string[];
+}
+
+export interface GenerateFrameDerivativeRequest {
+  instruction?: string;
+}
+
+export interface PublishFrameSelectionRequest {
+  selectionRevision: number;
+}
+
 export interface CreateNoteJobRequest {
   sourceType?: NoteSourceType;
   noteStyle?: NoteStyle;
@@ -102,6 +205,7 @@ export interface CreateNoteJobRequest {
   media?: UploadedMediaInput;
   mediaItems?: UploadedMediaInput[];
   pairedMedia?: PairedMediaInput;
+  visualOptions?: NoteVisualOptions;
 }
 
 export interface ConfigureNoteInboxRequest {
@@ -136,6 +240,8 @@ export interface NoteJob {
   pageCount?: number;
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
+  visualOptions?: NoteVisualOptions;
+  visualSummary?: VisualPipelineSummary;
   videoTitle?: string;
   rawDocumentUrl?: string;
   documentUrl?: string;

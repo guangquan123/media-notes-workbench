@@ -1,17 +1,25 @@
 {
   "id": "frame-image-understanding",
   "pluginKey": "@official-plugins/ai-image-understanding",
+  "pluginVersion": "1.0.20",
   "paramsSchema": {
     "images": {
       "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "format": "plugin-image-url",
+      "description": "待分析的视频截图 URL",
       "required": true
-    },
-    "prompt": {
-      "type": "string",
-      "required": false
     }
   },
   "formValue": {
+    "modelID": "2015",
+    "modelParams": {
+      "temperature": 0.5,
+      "maxTokens": 8192
+    },
+    "images": "{{input.images}}",
     "prompt": "请仔细分析这张视频截图，提取以下信息并以 JSON 格式返回：\n\n1. 画面是否包含文字内容（PPT、幻灯片、白板、字幕等）？\n   - hasText: true/false\n   - text: 如果有，请完整转录所有可见文字内容\n\n2. 画面是否包含图表、公式、流程图、思维导图等结构化视觉内容？\n   - hasChart: true/false\n   - chartDesc: 如果有，描述图表的类型、结构和关键数据点\n\n3. 画面的核心信息摘要（30字以内）\n   - summary: 简洁描述画面的主要信息点\n\n4. 信息价值评分（1-5分，5分最高）\n   - score: 综合评估该帧的信息密度和重要性\n   - 5分：包含关键知识点、重要图表或核心结论\n   - 3分：有一定信息量但非核心内容\n   - 1分：无实质性信息（纯装饰、空白、过渡画面等）\n\n请严格按照以下 JSON 格式返回，不要包含任何其他文字：\n{\"hasText\": false, \"text\": \"\", \"hasChart\": false, \"chartDesc\": \"\", \"summary\": \"\", \"score\": 1}"
   }
 }

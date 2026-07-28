@@ -1,6 +1,7 @@
 {
   "actionPlugins": {
     "@official-plugins/ai-doc-parser": "1.0.16",
+    "@official-plugins/ai-image-understanding": "1.0.20",
     "@official-plugins/ai-search-summary": "1.0.11",
     "@official-plugins/ai-text-generate": "1.0.17",
     "@official-plugins/ai-text-to-image": "1.0.19"
@@ -203,6 +204,7 @@
     "stop": "node ./scripts/stop.js",
     "stylelint": "stylelint client/src/**/*.css --quiet",
     "test": "jest",
+    "test:frame-plugins": "ts-node --project tsconfig.node.json scripts/smoke-frame-plugins.ts",
     "test:e2e": "jest --config test/e2e/jest.config.js",
     "test:watch": "jest --watch",
     "type:check": "concurrently -n \"server,client\" -c \"blue,green\" \"npm run type:check:server\" \"npm run type:check:client\"",
