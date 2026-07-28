@@ -35,6 +35,13 @@ import type {
   SystemReadiness,
   UploadedMediaPart,
   UploadedMediaInput,
+  NoteVisualOptions,
+  VisualPipelineSummary,
+  GenerateFrameDerivativeRequest,
+  NoteJobFrameListResponse,
+  PublishFrameSelectionRequest,
+  UpdateFrameSelectionRequest,
+  UpdateFrameSelectionResponse,
 } from '@shared/api.interface';
 import {
   getDouyinAudioFallbackArgs,
@@ -59,6 +66,11 @@ import { FrameExtractionService, KeyFrame } from './frame-extraction.service';
 import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
+import { FrameReviewService } from './frame-review.service';
+import {
+  buildVisualWarnings,
+  selectKeyFrames,
+} from './frame-selection.utils';
 import {
   buildEnergyEnvelope,
   estimateAudioAlignment,
@@ -140,6 +152,7 @@ const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
 export class NoteJobsService {
   private readonly logger = new Logger(NoteJobsService.name);
   private readonly jobs = new Map<string, StoredNoteJob>();
+  private readonly publishingVisualJobs = new Set<string>();
   private readonly whisperModelPath = join(
     process.cwd(),
     'models',
@@ -156,6 +169,7 @@ export class NoteJobsService {
     private readonly frameUploadService: FrameUploadService,
     private readonly frameAiEnhanceService: FrameAiEnhanceService,
     private readonly frameInsertionService: FrameInsertionService,
+    private readonly frameReviewService: FrameReviewService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -249,8 +263,36 @@ export class NoteJobsService {
                 .join('、'),
       createdAt: now,
       updatedAt: now,
+      visualOptions: validatedInput.visualOptions,
+      visualSummary:
+        validatedInput.visualOptions.mode === 'disabled'
+          ? {
+              analyzedCount: 0,
+              candidateCount: 0,
+              derivativeCount: 0,
+              extractedCount: 0,
+              selectedCount: 0,
+              status: 'disabled',
+              uploadedCount: 0,
+              warnings: [],
+            }
+          : {
+              analyzedCount: 0,
+              candidateCount: 0,
+              derivativeCount: 0,
+              extractedCount: 0,
+              selectedCount: 0,
+              status: 'processing',
+              uploadedCount: 0,
+              warnings: [],
+            },
     };
     await this.noteHistoryService.create(job, ownerId);
+    await this.frameReviewService.saveJobState(job.id, {
+      job,
+      options: job.visualOptions,
+      summary: job.visualSummary,
+    });
     this.jobs.set(job.id, { job, larkUserId, ownerId });
     void this.run(
       job.id,
@@ -269,6 +311,149 @@ export class NoteJobsService {
       throw new NotFoundException('任务不存在或服务已重启');
     }
     return stored.job;
+  }
+
+  async getAvailable(id: string, ownerId: string): Promise<NoteJob> {
+    const stored = this.jobs.get(id);
+    if (stored?.ownerId === ownerId) return stored.job;
+    return this.frameReviewService.getJobSnapshot(id, ownerId);
+  }
+
+  listFrames(
+    id: string,
+    ownerId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<NoteJobFrameListResponse> {
+    return this.frameReviewService.list(id, ownerId, page, pageSize);
+  }
+
+  updateFrameSelection(
+    id: string,
+    ownerId: string,
+    input: UpdateFrameSelectionRequest,
+  ): Promise<UpdateFrameSelectionResponse> {
+    return this.frameReviewService.updateSelection(id, ownerId, input);
+  }
+
+  async generateFrameDerivative(
+    id: string,
+    frameId: string,
+    ownerId: string,
+    input: GenerateFrameDerivativeRequest,
+  ): Promise<{ derivativeUrl: string }> {
+    const state = await this.frameReviewService.getPersistedVisualJob(
+      id,
+      ownerId,
+    );
+    if (
+      state.visualOptions.mode === 'disabled' ||
+      !state.visualOptions.allowExternalAi
+    ) {
+      throw new BadRequestException('当前任务未允许将截图发送给外部 AI');
+    }
+    if (state.currentStage !== 'awaiting-frame-review') {
+      throw new BadRequestException('当前任务不处于关键画面确认阶段');
+    }
+    const frames = await this.frameReviewService.getSelectedFrames(id, ownerId);
+    const frame = frames.find((item) => item.id === frameId);
+    if (!frame?.imageKey) throw new NotFoundException('关键帧不存在或尚未上传');
+    const analysis =
+      frame.analysis || (await this.frameAiEnhanceService.analyzeFrame(frame));
+    const derivativeAnalysis = input?.instruction?.trim()
+      ? {
+          ...analysis,
+          text: `${analysis.text}\n补充要求：${input.instruction.trim().slice(0, 500)}`,
+        }
+      : analysis;
+    const derivativeUrl = await this.frameAiEnhanceService.generateDerivative(
+      frame,
+      derivativeAnalysis,
+    );
+    if (!derivativeUrl) throw new Error('AI 派生图未返回有效图片');
+    await this.frameReviewService.updateDerivative(
+      id,
+      ownerId,
+      frameId,
+      derivativeUrl,
+      analysis,
+    );
+    return { derivativeUrl };
+  }
+
+  async publishFrameSelection(
+    id: string,
+    ownerId: string,
+    input: PublishFrameSelectionRequest,
+  ): Promise<NoteJob> {
+    if (this.publishingVisualJobs.has(id)) {
+      throw new BadRequestException('任务正在发布，请勿重复提交');
+    }
+    const snapshot = await this.getAvailable(id, ownerId);
+    if (snapshot.stage === 'completed' && snapshot.documentUrl) return snapshot;
+    const state = await this.frameReviewService.getPersistedVisualJob(
+      id,
+      ownerId,
+    );
+    if (state.frameSelectionRevision !== input.selectionRevision) {
+      throw new BadRequestException('关键帧选择版本已变化，请刷新后重试');
+    }
+    if (!state.draftMarkdown?.trim()) {
+      throw new BadRequestException('任务尚未生成可发布的笔记草稿');
+    }
+    if (state.currentStage !== 'awaiting-frame-review') {
+      throw new BadRequestException('当前任务不处于关键画面确认阶段');
+    }
+    this.publishingVisualJobs.add(id);
+    try {
+      const frames = await this.frameReviewService.getSelectedFrames(id, ownerId);
+      const markdownWithFrames = this.frameInsertionService.insertFramesIntoMarkdown(
+        state.draftMarkdown,
+        frames,
+      );
+      const noteTitle =
+        this.extractMarkdownTitle(state.draftMarkdown) ||
+        snapshot.videoTitle ||
+        '会议培训笔记';
+      const publishingJob: NoteJob = {
+        ...snapshot,
+        message: '选择已确认，正在发布飞书文档…',
+        progress: 92,
+        stage: 'publishing',
+        updatedAt: new Date().toISOString(),
+      };
+      const stored = this.jobs.get(id);
+      if (stored?.ownerId === ownerId) stored.job = publishingJob;
+      await this.frameReviewService.saveJobState(id, { job: publishingJob });
+      const documentUrl = await this.createLarkDocument(
+        noteTitle,
+        markdownWithFrames,
+      );
+      const completedJob: NoteJob = {
+        ...publishingJob,
+        documentUrl,
+        message: '完成！飞书学习笔记已创建。',
+        progress: 100,
+        stage: 'completed',
+        updatedAt: new Date().toISOString(),
+        visualSummary: publishingJob.visualSummary
+          ? { ...publishingJob.visualSummary, status: 'completed' }
+          : undefined,
+      };
+      if (stored?.ownerId === ownerId) stored.job = completedJob;
+      await this.noteHistoryService.finishExisting(id, ownerId, {
+        documentUrl,
+        rawDocumentUrl: completedJob.rawDocumentUrl,
+        status: 'completed',
+      });
+      await this.frameReviewService.saveJobState(id, {
+        job: completedJob,
+        summary: completedJob.visualSummary,
+      });
+      return completedJob;
+    } finally {
+      this.publishingVisualJobs.delete(id);
+    }
   }
 
   private async run(
@@ -360,6 +545,8 @@ export class NoteJobsService {
           id,
           workDir,
           preparedPairedMedia.videoPath,
+          input.visualOptions,
+          ownerId,
         );
         const transcriptionPromise: Promise<{
           auxiliarySegments: TranscriptSegment[];
@@ -418,11 +605,17 @@ export class NoteJobsService {
         this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
         let audioParts: string[] = [];
         if (input.sourceType !== 'audio') {
-          const videoPath = await this.findVideoPath(workDir);
-          if (videoPath) {
+          const videoPaths = await this.findVideoPaths(workDir);
+          if (videoPaths.length > 0) {
             [audioParts, keyFrames] = await Promise.all([
               this.splitAudioIfNeeded(preparedMedia.audioPath, workDir),
-              this.extractAndUploadFrames(id, workDir, videoPath),
+              this.extractAndUploadFrames(
+                id,
+                workDir,
+                videoPaths,
+                input.visualOptions,
+                ownerId,
+              ),
             ]);
           } else {
             audioParts = await this.splitAudioIfNeeded(
@@ -515,6 +708,38 @@ export class NoteJobsService {
         styleRequirements,
         transcript,
       });
+      if (
+        input.visualOptions.mode === 'review' &&
+        keyFrames.some((frame) => frame.imageKey)
+      ) {
+        const draftMarkdown = rawDocumentUrl
+          ? this.appendRawDocumentReference(reviewedMarkdown, rawDocumentUrl)
+          : reviewedMarkdown;
+        const visualSummary: VisualPipelineSummary = {
+          ...(this.get(id, ownerId).visualSummary || {
+            analyzedCount: 0,
+            candidateCount: keyFrames.length,
+            derivativeCount: 0,
+            extractedCount: keyFrames.length,
+            selectedCount: keyFrames.length,
+            uploadedCount: keyFrames.filter((frame) => frame.imageKey).length,
+            warnings: [],
+          }),
+          status: 'awaiting_review',
+        };
+        this.patch(id, {
+          message: '关键画面已准备好，请确认选择和顺序后发布。',
+          progress: 86,
+          stage: 'awaiting-frame-review',
+          visualSummary,
+        });
+        await this.frameReviewService.saveJobState(id, {
+          draftMarkdown,
+          job: this.get(id, ownerId),
+          summary: visualSummary,
+        });
+        return;
+      }
       this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
       const markdownWithFrames = keyFrames.length > 0
         ? this.frameInsertionService.insertFramesIntoMarkdown(reviewedMarkdown, keyFrames)
@@ -2093,36 +2318,140 @@ export class NoteJobsService {
   private async extractAndUploadFrames(
     id: string,
     workDir: string,
-    videoPath: string,
+    videoInput: string | string[],
+    visualOptions: NoteVisualOptions,
+    ownerId: string,
   ): Promise<KeyFrame[]> {
+    if (visualOptions.mode === 'disabled') return [];
     try {
       this.update(id, 'extracting-frames', 38, '正在提取视频关键画面…');
-      const rawFrames = await this.frameExtractionService.extractKeyFrames(videoPath, workDir);
-      if (rawFrames.length === 0) return [];
-      
-      this.update(id, 'uploading-frames', 41, `正在上传 ${rawFrames.length} 张截图…`);
-      const uploadedFrames = await this.frameUploadService.uploadFrames(rawFrames);
-      
-      this.update(id, 'analyzing-frames', 43, '正在 AI 识别截图内容…');
-      const enhancedFrames = await this.frameAiEnhanceService.enhanceFrames(uploadedFrames);
-      
+      const videoPaths = Array.isArray(videoInput) ? videoInput : [videoInput];
+      let offsetSec = 0;
+      const rawFrames: KeyFrame[] = [];
+      for (let index = 0; index < videoPaths.length; index += 1) {
+        const videoPath = videoPaths[index];
+        const [frames, duration] = await Promise.all([
+          this.frameExtractionService.extractKeyFrames(
+            videoPath,
+            workDir,
+            index,
+            offsetSec,
+          ),
+          this.frameExtractionService.getVideoDuration(videoPath),
+        ]);
+        rawFrames.push(...frames);
+        offsetSec += duration;
+      }
+      const selectedFrames = selectKeyFrames(
+        rawFrames,
+        visualOptions.density,
+        offsetSec || rawFrames.at(-1)?.globalTimestamp || 1,
+      );
+      if (selectedFrames.length === 0) {
+        const summary: VisualPipelineSummary = {
+          analyzedCount: 0,
+          candidateCount: rawFrames.length,
+          derivativeCount: 0,
+          extractedCount: rawFrames.length,
+          selectedCount: 0,
+          status: 'partial',
+          uploadedCount: 0,
+          warnings: buildVisualWarnings({
+            analyzed: 0,
+            extracted: rawFrames.length,
+            requestedAi: false,
+            selected: 0,
+            uploaded: 0,
+          }),
+        };
+        this.patch(id, { visualSummary: summary });
+        await this.frameReviewService.saveJobState(id, { summary });
+        return [];
+      }
+
+      this.update(
+        id,
+        'uploading-frames',
+        41,
+        `已筛选 ${selectedFrames.length}/${rawFrames.length} 张关键画面，正在上传…`,
+      );
+      const uploadedFrames =
+        await this.frameUploadService.uploadFrames(selectedFrames);
+
+      this.update(id, 'analyzing-frames', 43, '正在识别关键画面内容…');
+      const enhancedFrames = await this.frameAiEnhanceService.enhanceFrames(
+        uploadedFrames,
+        {
+          allowExternalAi: visualOptions.allowExternalAi,
+          generateDerivatives:
+            visualOptions.outputMode === 'original_with_ai_derivative',
+        },
+      );
+      await this.frameReviewService.saveCandidates(
+        id,
+        ownerId,
+        enhancedFrames,
+      );
+      const uploadedCount = enhancedFrames.filter((frame) => frame.imageKey).length;
+      const analyzedCount = enhancedFrames.filter((frame) => frame.analysis).length;
+      const warnings = buildVisualWarnings({
+        analyzed: analyzedCount,
+        extracted: rawFrames.length,
+        requestedAi: visualOptions.allowExternalAi,
+        selected: selectedFrames.length,
+        uploaded: uploadedCount,
+      });
+      const summary: VisualPipelineSummary = {
+        analyzedCount,
+        candidateCount: rawFrames.length,
+        derivativeCount: enhancedFrames.filter((frame) => frame.derivativeUrl)
+          .length,
+        extractedCount: rawFrames.length,
+        selectedCount: selectedFrames.length,
+        status: warnings.length === 0 ? 'completed' : 'partial',
+        uploadedCount,
+        warnings,
+      };
+      this.patch(id, { visualSummary: summary });
+      await this.frameReviewService.saveJobState(id, { summary });
       return enhancedFrames;
     } catch (err) {
       this.logger.warn(`帧提取流程失败，继续不含截图: ${String(err)}`);
+      const summary: VisualPipelineSummary = {
+        analyzedCount: 0,
+        candidateCount: 0,
+        derivativeCount: 0,
+        extractedCount: 0,
+        selectedCount: 0,
+        status: 'failed',
+        uploadedCount: 0,
+        warnings: [
+          {
+            code: 'FRAME_EXTRACTION_FAILED',
+            message: err instanceof Error ? err.message : '关键帧处理失败',
+          },
+        ],
+      };
+      this.patch(id, { visualSummary: summary });
+      await this.frameReviewService.saveJobState(id, { summary });
       return [];
     }
   }
 
-  private async findVideoPath(workDir: string): Promise<string | undefined> {
+  private async findVideoPaths(workDir: string): Promise<string[]> {
     try {
       const { readdir } = await import('node:fs/promises');
       const files = await readdir(workDir);
-      const videoFile = files.find((f) =>
-        /\.(mp4|mkv|mov|webm|avi|flv|ts)$/iu.test(f) && !f.includes('audio'),
-      );
-      return videoFile ? join(workDir, videoFile) : undefined;
+      return files
+        .filter(
+          (fileName) =>
+            /\.(mp4|mkv|mov|webm|avi|flv|ts)$/iu.test(fileName) &&
+            !fileName.includes('audio'),
+        )
+        .sort()
+        .map((fileName) => join(workDir, fileName));
     } catch {
-      return undefined;
+      return [];
     }
   }
 
@@ -2307,7 +2636,7 @@ export class NoteJobsService {
   private patch(id: string, update: Partial<NoteJob>) {
     const current = this.jobs.get(id);
     if (!current) return;
-    this.jobs.set(id, {
+    const next: StoredNoteJob = {
       ownerId: current.ownerId,
       larkUserId: current.larkUserId,
       job: {
@@ -2315,7 +2644,17 @@ export class NoteJobsService {
         ...update,
         updatedAt: new Date().toISOString(),
       },
-    });
+    };
+    this.jobs.set(id, next);
+    void this.frameReviewService
+      .saveJobState(id, {
+        job: next.job,
+        options: update.visualOptions,
+        summary: update.visualSummary,
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(`持久化任务阶段失败: ${String(error)}`);
+      });
   }
 
   private async createReviewTask(

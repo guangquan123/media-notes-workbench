@@ -8,6 +8,7 @@ import { FrameExtractionService } from './frame-extraction.service';
 import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
+import { FrameReviewService } from './frame-review.service';
 
 @Module({
   controllers: [NoteJobsController],
@@ -20,6 +21,7 @@ import { FrameInsertionService } from './frame-insertion.service';
     FrameUploadService,
     FrameAiEnhanceService,
     FrameInsertionService,
+    FrameReviewService,
   ],
   exports: [NoteJobsService],
 })

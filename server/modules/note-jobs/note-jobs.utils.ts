@@ -3,10 +3,12 @@ import type {
   CreateNoteJobRequest,
   NoteStyle,
   NoteSourceType,
+  NoteVisualOptions,
   PairedMediaInput,
   SourcePlatform,
   UploadedMediaInput,
 } from '@shared/api.interface';
+import { normalizeVisualOptions } from './frame-selection.utils';
 import { DEFAULT_NOTE_TEMPLATES } from './note-template.defaults';
 import {
   getDocumentMimeType,
@@ -30,24 +32,28 @@ interface PlatformJobInput {
   sourceType: 'platform';
   noteStyle: NoteStyle;
   url: string;
+  visualOptions: NoteVisualOptions;
 }
 
 interface MediaJobInput {
   sourceType: 'video' | 'audio';
   noteStyle: NoteStyle;
   mediaItems: UploadedMediaInput[];
+  visualOptions: NoteVisualOptions;
 }
 
 interface PairedJobInput {
   noteStyle: NoteStyle;
   pairedMedia: PairedMediaInput;
   sourceType: 'paired';
+  visualOptions: NoteVisualOptions;
 }
 
 interface DocumentJobInput {
   sourceType: 'document' | 'pdf';
   noteStyle: NoteStyle;
   mediaItems: UploadedMediaInput[];
+  visualOptions: NoteVisualOptions;
 }
 
 type ValidatedNoteJobInput =
@@ -246,11 +252,17 @@ export function validateNoteJobRequest(
 ): ValidatedNoteJobInput {
   const sourceType: NoteSourceType = input.sourceType || 'platform';
   const noteStyle: NoteStyle = validateNoteStyle(input.noteStyle);
+  const visualOptions: NoteVisualOptions =
+    sourceType === 'video' ||
+    sourceType === 'paired' ||
+    sourceType === 'platform'
+      ? normalizeVisualOptions(input.visualOptions)
+      : { mode: 'disabled' };
   if (sourceType === 'platform') {
     if (!input.url?.trim()) {
       throw new BadRequestException('请粘贴需要处理的视频地址');
     }
-    return { sourceType, noteStyle, url: input.url };
+    return { sourceType, noteStyle, url: input.url, visualOptions };
   }
   if (sourceType === 'paired') {
     if (!input.pairedMedia) {
@@ -295,6 +307,7 @@ export function validateNoteJobRequest(
             alignment.mode === 'manual' ? alignment.audioOffsetMs : undefined,
         },
       },
+      visualOptions,
     };
   }
   if (
@@ -344,6 +357,7 @@ export function validateNoteJobRequest(
       sourceType,
       noteStyle,
       mediaItems: validatedMediaItems,
+      visualOptions,
     };
   }
   if (sourceType !== 'video' && sourceType !== 'audio') {
@@ -366,6 +380,7 @@ export function validateNoteJobRequest(
     sourceType,
     noteStyle,
     mediaItems: validatedMediaItems,
+    visualOptions,
   };
 }
 

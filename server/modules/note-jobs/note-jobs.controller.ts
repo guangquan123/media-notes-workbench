@@ -21,6 +21,9 @@ import type {
   NoteProcessingStatus,
   NoteSourceType,
   NoteStyle,
+  GenerateFrameDerivativeRequest,
+  PublishFrameSelectionRequest,
+  UpdateFrameSelectionRequest,
   UpdateNoteTemplateConfigRequest,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
@@ -229,9 +232,69 @@ export class NoteJobsController {
   }
 
   @NeedLogin()
+  @Get(':id/frames')
+  frames(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.noteJobsService.listFrames(
+      id,
+      req.userContext.userId,
+      Number(page) || 1,
+      Number(pageSize) || 24,
+    );
+  }
+
+  @NeedLogin()
+  @Put(':id/frame-selection')
+  updateFrameSelection(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: UpdateFrameSelectionRequest,
+  ) {
+    return this.noteJobsService.updateFrameSelection(
+      id,
+      req.userContext.userId,
+      body,
+    );
+  }
+
+  @NeedLogin()
+  @Put(':id/frames/:frameId/derivative')
+  generateFrameDerivative(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('frameId') frameId: string,
+    @Body() body: GenerateFrameDerivativeRequest,
+  ) {
+    return this.noteJobsService.generateFrameDerivative(
+      id,
+      frameId,
+      req.userContext.userId,
+      body,
+    );
+  }
+
+  @NeedLogin()
+  @Put(':id/publication')
+  publishFrameSelection(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: PublishFrameSelectionRequest,
+  ) {
+    return this.noteJobsService.publishFrameSelection(
+      id,
+      req.userContext.userId,
+      body,
+    );
+  }
+
+  @NeedLogin()
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.noteJobsService.get(id, req.userContext.userId);
+    return this.noteJobsService.getAvailable(id, req.userContext.userId);
   }
 
   private async markRecordProcessed(

@@ -130,6 +130,36 @@ export class NoteHistoryService {
       .where(eq(noteConversionRecords.jobId, input.jobId));
   }
 
+  async finishExisting(
+    jobId: string,
+    ownerId: string,
+    input: {
+      documentUrl: string;
+      rawDocumentUrl?: string;
+      status: Exclude<ConversionStatus, 'processing'>;
+    },
+  ): Promise<void> {
+    const rows = await this.db
+      .select({ startedAt: noteConversionRecords.startedAt })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+        ),
+      )
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException('任务不存在');
+    await this.finish({
+      completedAt: new Date(),
+      documentUrl: input.documentUrl,
+      jobId,
+      rawDocumentUrl: input.rawDocumentUrl,
+      startedAt: rows[0].startedAt,
+      status: input.status,
+    });
+  }
+
   async list(
     ownerId: string,
     input: HistoryListInput,

@@ -14,7 +14,14 @@ export class FrameAiEnhanceService {
    * 批量 AI 增强所有帧：识别内容 + 可选信息图生成
    * 并发数 = 2（避免 AI 限流）
    */
-  async enhanceFrames(frames: KeyFrame[]): Promise<KeyFrame[]> {
+  async enhanceFrames(
+    frames: KeyFrame[],
+    options: { allowExternalAi: boolean; generateDerivatives: boolean },
+  ): Promise<KeyFrame[]> {
+    if (!options.allowExternalAi) {
+      this.logger.log('用户未允许外部 AI，跳过截图 AI 识别');
+      return frames;
+    }
     const uploadedFrames = frames.filter((f) => f.imageKey);
     if (uploadedFrames.length === 0) {
       this.logger.warn('没有成功上传的帧，跳过 AI 增强');
@@ -44,16 +51,15 @@ export class FrameAiEnhanceService {
             );
 
             // Step 2: 对高价值帧生成优化信息图
-            if (this.shouldGenerateInfoGraphic(analysis)) {
+            if (
+              options.generateDerivatives &&
+              this.shouldGenerateInfoGraphic(analysis)
+            ) {
               try {
-                const infoGraphicKey = await this.generateInfoGraphic(frame, analysis);
-                if (infoGraphicKey) {
-                  result[frameIdx].analysis = {
-                    ...analysis,
-                    isInfoGraphic: true,
-                    infoGraphicKey,
-                  };
-                  this.logger.log(`帧 ${frameIdx + 1} 信息图生成成功: ${infoGraphicKey}`);
+                const derivativeUrl = await this.generateDerivative(frame, analysis);
+                if (derivativeUrl) {
+                  result[frameIdx].derivativeUrl = derivativeUrl;
+                  this.logger.log(`帧 ${frameIdx + 1} 信息图生成成功: ${derivativeUrl}`);
                 }
               } catch (err) {
                 this.logger.warn(`帧 ${frameIdx + 1} 信息图生成失败，使用原图: ${String(err)}`);
@@ -72,7 +78,7 @@ export class FrameAiEnhanceService {
   /**
    * AI 识别单帧图片内容（OCR + 图表识别）
    */
-  private async analyzeFrame(frame: KeyFrame): Promise<FrameAnalysis> {
+  async analyzeFrame(frame: KeyFrame): Promise<FrameAnalysis> {
     const defaultAnalysis: FrameAnalysis = {
       hasText: false,
       text: '',
@@ -84,7 +90,8 @@ export class FrameAiEnhanceService {
 
     try {
       // 构建飞书图片 URL（从 image_key 转换）
-      const imageUrl = this.buildFeishuImageUrl(frame.imageKey!);
+      const imageUrl =
+        frame.previewDataUrl || this.buildFeishuImageUrl(frame.imageKey!);
 
       const streamResult = await this.capabilityService
         .load('frame-image-understanding')
@@ -152,7 +159,7 @@ export class FrameAiEnhanceService {
   /**
    * 对高价值帧生成 AI 优化信息图
    */
-  private async generateInfoGraphic(
+  async generateDerivative(
     frame: KeyFrame,
     analysis: FrameAnalysis,
   ): Promise<string | undefined> {
@@ -163,8 +170,10 @@ export class FrameAiEnhanceService {
       .load('frame-infographic-generator')
       .call('textToImage', { content })) as { images?: string[] };
 
-    const imageUrl = result.images?.find((img) => /^https?:\/\//u.test(img));
-    return imageUrl;
+    const imageUrl = result.images?.find(
+      (image) => /^https?:\/\//u.test(image) || image.startsWith('/'),
+    );
+    return imageUrl ? this.resolvePluginImageUrl(imageUrl) : undefined;
   }
 
   /**
@@ -173,5 +182,15 @@ export class FrameAiEnhanceService {
    */
   private buildFeishuImageUrl(imageKey: string): string {
     return `https://open.feishu.cn/open-apis/im/v1/images/${imageKey}`;
+  }
+
+  private resolvePluginImageUrl(value: string): string {
+    if (/^https?:\/\//u.test(value)) return value;
+    const platformBase =
+      process.env.MIAODA_DEV_PLATFORM_BASE ||
+      process.env.MIAODA_PLATFORM_BASE ||
+      '';
+    if (!platformBase) return value;
+    return new URL(value, platformBase).toString();
   }
 }

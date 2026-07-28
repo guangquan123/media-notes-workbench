@@ -120,7 +120,7 @@ export class FrameInsertionService {
     for (const frame of frames) {
       // 计算帧属于哪个章节
       const sectionIdx = Math.min(
-        Math.floor(frame.timestamp / sectionDuration),
+        Math.floor((frame.globalTimestamp ?? frame.timestamp) / sectionDuration),
         sections.length - 1,
       );
       if (!result[sectionIdx]) result[sectionIdx] = [];
@@ -151,32 +151,20 @@ export class FrameInsertionService {
    * 构建单帧的 Markdown 图片块（含 AI 描述）
    */
   private buildImageBlock(frame: KeyFrame): string {
-    const timeStr = this.formatTimestamp(frame.timestamp);
+    const timeStr = this.formatTimestamp(
+      frame.globalTimestamp ?? frame.timestamp,
+    );
     const analysis = frame.analysis;
 
-    // 图片 key：优先使用信息图，其次用原截图
-    const displayKey =
-      analysis?.isInfoGraphic && analysis.infoGraphicKey
-        ? analysis.infoGraphicKey
-        : frame.imageKey!;
+    const originalUrl = /^https?:\/\//u.test(frame.imageKey!)
+      ? frame.imageKey!
+      : `https://open.feishu.cn/open-apis/im/v1/images/${frame.imageKey}`;
 
-    // 飞书文档支持 img_xxx 格式的 image_key 直接嵌入
-    // 使用飞书 IM 图片 URL 格式，lark-cli docs +create 会自动处理
-    const imageUrl = /^https?:\/\//u.test(displayKey)
-      ? displayKey
-      : `https://open.feishu.cn/open-apis/im/v1/images/${displayKey}`;
-
-    let block = `![视频截图 ${timeStr}](${imageUrl})`;
+    let block = `![视频原始截图 ${timeStr}](${originalUrl})`;
 
     // 添加 AI 描述
     if (analysis) {
-      if (analysis.isInfoGraphic) {
-        block += `\n\n> 🎨 **AI 优化版本**（原画面经 AI 重新整理排版）`;
-        if (analysis.text || analysis.chartDesc) {
-          const desc = analysis.hasText ? analysis.text : analysis.chartDesc;
-          block += `\n> ${desc.slice(0, 200).replace(/\n/g, ' ')}`;
-        }
-      } else if (analysis.summary || analysis.text || analysis.hasChart) {
+      if (analysis.summary || analysis.text || analysis.hasChart) {
         const desc = analysis.hasText && analysis.text
           ? `**文字内容**：${analysis.text.slice(0, 150)}`
           : analysis.hasChart
@@ -186,6 +174,11 @@ export class FrameInsertionService {
           block += `\n\n> 🤖 **AI 识别**：${desc.replace(/\n/g, ' ')}`;
         }
       }
+    }
+    if (frame.derivativeUrl) {
+      block += `\n\n![AI 派生信息图 ${timeStr}](${frame.derivativeUrl})`;
+      block +=
+        '\n\n> 🎨 **AI 派生版本**：用于提升可读性；原始截图保留在上方，内容以原图和文字稿为准。';
     }
 
     return block;

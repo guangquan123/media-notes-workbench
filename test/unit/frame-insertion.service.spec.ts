@@ -11,7 +11,14 @@ describe('FrameInsertionService', () => {
   it('should skip insertion if no frames have imageKey', () => {
     const markdown = '# 笔记标题\n\n## 1. 导言\n这是正文内容。';
     const frames: KeyFrame[] = [
-      { timestamp: 10, filePath: '/tmp/f1.jpg', type: 'scene' },
+      {
+        timestamp: 10,
+        filePath: '/tmp/f1.jpg',
+        id: '1',
+        sourceFileName: 'video.mp4',
+        sourceIndex: 0,
+        type: 'scene',
+      },
     ];
     const result = service.insertFramesIntoMarkdown(markdown, frames);
     expect(result).toBe(markdown);
@@ -23,6 +30,9 @@ describe('FrameInsertionService', () => {
       {
         timestamp: 15,
         filePath: '/tmp/f1.jpg',
+        id: '1',
+        sourceFileName: 'video.mp4',
+        sourceIndex: 0,
         type: 'scene',
         imageKey: 'img_test_123',
         analysis: {
@@ -38,7 +48,7 @@ describe('FrameInsertionService', () => {
 
     const result = service.insertFramesIntoMarkdown(markdown, frames, 120);
 
-    expect(result).toContain('![视频截图 00:15](https://open.feishu.cn/open-apis/im/v1/images/img_test_123)');
+    expect(result).toContain('![视频原始截图 00:15](https://open.feishu.cn/open-apis/im/v1/images/img_test_123)');
     expect(result).toContain('🤖 **AI 识别**：**文字内容**：PPT: 神经网络架构图');
   });
 
@@ -48,8 +58,12 @@ describe('FrameInsertionService', () => {
       {
         timestamp: 45,
         filePath: '/tmp/f2.jpg',
+        id: '2',
+        sourceFileName: 'video.mp4',
+        sourceIndex: 0,
         type: 'scene',
         imageKey: 'img_orig_456',
+        derivativeUrl: 'https://cdn.example.com/infographic.png',
         analysis: {
           hasText: true,
           text: '核心公式：E=mc^2',
@@ -57,15 +71,14 @@ describe('FrameInsertionService', () => {
           chartDesc: '',
           summary: '质能方程',
           score: 5,
-          isInfoGraphic: true,
-          infoGraphicKey: 'https://cdn.example.com/infographic.png',
         },
       },
     ];
 
     const result = service.insertFramesIntoMarkdown(markdown, frames, 60);
 
-    expect(result).toContain('![视频截图 00:45](https://cdn.example.com/infographic.png)');
-    expect(result).toContain('🎨 **AI 优化版本**');
+    expect(result).toContain('img_orig_456');
+    expect(result).toContain('![AI 派生信息图 00:45](https://cdn.example.com/infographic.png)');
+    expect(result).toContain('原始截图保留在上方');
   });
 });
