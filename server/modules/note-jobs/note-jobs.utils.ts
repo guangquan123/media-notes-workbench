@@ -3,6 +3,7 @@ import type {
   CreateNoteJobRequest,
   NoteStyle,
   NoteSourceType,
+  PairedMediaInput,
   SourcePlatform,
   UploadedMediaInput,
 } from '@shared/api.interface';
@@ -18,7 +19,7 @@ const MAX_MEDIA_PART_COUNT = MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
 const MAX_DOCUMENT_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_DOCUMENT_COUNT = 10;
 const MEDIA_MIME_PREFIX: Record<
-  Exclude<NoteSourceType, 'platform' | 'pdf' | 'document'>,
+  Exclude<NoteSourceType, 'platform' | 'pdf' | 'document' | 'paired'>,
   string
 > = {
   video: 'video/',
@@ -37,6 +38,12 @@ interface MediaJobInput {
   mediaItems: UploadedMediaInput[];
 }
 
+interface PairedJobInput {
+  noteStyle: NoteStyle;
+  pairedMedia: PairedMediaInput;
+  sourceType: 'paired';
+}
+
 interface DocumentJobInput {
   sourceType: 'document' | 'pdf';
   noteStyle: NoteStyle;
@@ -46,6 +53,7 @@ interface DocumentJobInput {
 type ValidatedNoteJobInput =
   | PlatformJobInput
   | MediaJobInput
+  | PairedJobInput
   | DocumentJobInput;
 
 const NOTE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
@@ -243,6 +251,51 @@ export function validateNoteJobRequest(
       throw new BadRequestException('请粘贴需要处理的视频地址');
     }
     return { sourceType, noteStyle, url: input.url };
+  }
+  if (sourceType === 'paired') {
+    if (!input.pairedMedia) {
+      throw new BadRequestException('请选择主视频和辅助录音');
+    }
+    const video: UploadedMediaInput = validateMediaInput(
+      input.pairedMedia.video,
+      'video',
+    );
+    let auxiliaryAudio: UploadedMediaInput;
+    try {
+      auxiliaryAudio = validateMediaInput(
+        input.pairedMedia.auxiliaryAudio,
+        'audio',
+      );
+    } catch {
+      throw new BadRequestException('请选择有效的辅助录音');
+    }
+    if (video.fileSize + auxiliaryAudio.fileSize > MAX_MEDIA_SIZE_BYTES) {
+      throw new BadRequestException('视频和辅助录音累计不能超过 10 GB');
+    }
+    const alignment = input.pairedMedia.alignment || { mode: 'auto' as const };
+    if (!['auto', 'manual'].includes(alignment.mode)) {
+      throw new BadRequestException('不支持的时间对齐方式');
+    }
+    if (
+      alignment.mode === 'manual' &&
+      (!Number.isFinite(alignment.audioOffsetMs) ||
+        Math.abs(alignment.audioOffsetMs || 0) > 4 * 60 * 60 * 1_000)
+    ) {
+      throw new BadRequestException('请填写有效的手动时间偏移');
+    }
+    return {
+      sourceType,
+      noteStyle,
+      pairedMedia: {
+        video,
+        auxiliaryAudio,
+        alignment: {
+          mode: alignment.mode,
+          audioOffsetMs:
+            alignment.mode === 'manual' ? alignment.audioOffsetMs : undefined,
+        },
+      },
+    };
   }
   if (
     sourceType !== 'video' &&

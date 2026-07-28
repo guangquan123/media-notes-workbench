@@ -61,6 +61,7 @@ const SOURCE_STYLES: Record<
   platform: { accent: '#fb7299', background: '#fff0f5' },
   video: { accent: '#e86f3d', background: '#fff2eb' },
   audio: { accent: '#168b75', background: '#eaf8f4' },
+  paired: { accent: '#4d5dff', background: '#eef1ff' },
   pdf: { accent: '#3370ff', background: '#edf3ff' },
   document: { accent: '#3370ff', background: '#edf3ff' },
 };
@@ -88,6 +89,7 @@ function getSourceType(value: string | null): NoteSourceType | undefined {
     value === 'platform' ||
     value === 'video' ||
     value === 'audio' ||
+    value === 'paired' ||
     value === 'document' ||
     value === 'pdf'
   ) {

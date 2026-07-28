@@ -19,6 +19,75 @@ describe('note job request validation', () => {
     fileSize: 32 * 1024 * 1024,
     mimeType: 'video/mp4',
   };
+  const audio = {
+    downloadUrl: 'https://storage.example.com/uploads/lesson.m4a',
+    fileName: 'lesson.m4a',
+    fileSize: 16 * 1024 * 1024,
+    mimeType: 'audio/mp4',
+  };
+
+  it('accepts a paired video and auxiliary audio job', () => {
+    const result = validateNoteJobRequest({
+      sourceType: 'paired',
+      noteStyle: 'meeting',
+      pairedMedia: {
+        video,
+        auxiliaryAudio: audio,
+        alignment: { mode: 'auto' },
+      },
+    });
+
+    expect(result.sourceType).toBe('paired');
+    expect(
+      result.sourceType === 'paired' &&
+        result.pairedMedia.auxiliaryAudio.fileName,
+    ).toBe('lesson.m4a');
+  });
+
+  it('rejects paired jobs when the auxiliary source is not audio', () => {
+    expect(() =>
+      validateNoteJobRequest({
+        sourceType: 'paired',
+        pairedMedia: {
+          video,
+          auxiliaryAudio: video,
+          alignment: { mode: 'auto' },
+        },
+      }),
+    ).toThrow('辅助录音');
+  });
+
+  it('accepts a bounded manual alignment offset', () => {
+    const result = validateNoteJobRequest({
+      sourceType: 'paired',
+      pairedMedia: {
+        video,
+        auxiliaryAudio: audio,
+        alignment: {
+          mode: 'manual',
+          audioOffsetMs: 30_000,
+        },
+      },
+    });
+
+    expect(
+      result.sourceType === 'paired' &&
+        result.pairedMedia.alignment.audioOffsetMs,
+    ).toBe(30_000);
+  });
+
+  it('rejects a manual alignment without a finite offset', () => {
+    expect(() =>
+      validateNoteJobRequest({
+        sourceType: 'paired',
+        pairedMedia: {
+          video,
+          auxiliaryAudio: audio,
+          alignment: { mode: 'manual' },
+        },
+      }),
+    ).toThrow('手动时间偏移');
+  });
 
   it('accepts a local video job with safe uploaded media metadata', () => {
     const result = validateNoteJobRequest({

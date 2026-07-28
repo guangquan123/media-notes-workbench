@@ -359,6 +359,7 @@ export class NoteHistoryService {
     if (
       value === 'video' ||
       value === 'audio' ||
+      value === 'paired' ||
       value === 'document' ||
       value === 'pdf'
     ) {

@@ -49,6 +49,7 @@ function isNoteSourceType(value: string): value is NoteSourceType {
     value === 'platform' ||
     value === 'video' ||
     value === 'audio' ||
+    value === 'paired' ||
     value === 'document' ||
     value === 'pdf'
   );

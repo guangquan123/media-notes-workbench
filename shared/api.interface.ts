@@ -4,6 +4,7 @@ export type NoteSourceType =
   | 'platform'
   | 'video'
   | 'audio'
+  | 'paired'
   | 'document'
   | 'pdf';
 
@@ -45,6 +46,7 @@ export type JobStage =
   | 'preparing'
   | 'parsing'
   | 'downloading'
+  | 'aligning'
   | 'transcribing'
   | 'extracting-frames'
   | 'uploading-frames'
@@ -67,6 +69,30 @@ export interface UploadedMediaPart {
   fileSize: number;
 }
 
+export type PairedMediaAlignmentMode = 'auto' | 'manual';
+
+export interface PairedMediaAlignmentInput {
+  audioOffsetMs?: number;
+  mode: PairedMediaAlignmentMode;
+}
+
+export interface PairedMediaInput {
+  alignment: PairedMediaAlignmentInput;
+  auxiliaryAudio: UploadedMediaInput;
+  video: UploadedMediaInput;
+}
+
+export type PairedMediaAlignmentStatus =
+  | 'aligned'
+  | 'manual'
+  | 'needs_review';
+
+export interface PairedMediaAlignmentResult {
+  audioOffsetMs: number;
+  score: number | null;
+  status: PairedMediaAlignmentStatus;
+}
+
 export interface CreateNoteJobRequest {
   sourceType?: NoteSourceType;
   noteStyle?: NoteStyle;
@@ -75,6 +101,7 @@ export interface CreateNoteJobRequest {
   cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
   media?: UploadedMediaInput;
   mediaItems?: UploadedMediaInput[];
+  pairedMedia?: PairedMediaInput;
 }
 
 export interface ConfigureNoteInboxRequest {
@@ -108,6 +135,7 @@ export interface NoteJob {
   fileHash?: string;
   pageCount?: number;
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
+  pairedAlignment?: PairedMediaAlignmentResult;
   videoTitle?: string;
   rawDocumentUrl?: string;
   documentUrl?: string;

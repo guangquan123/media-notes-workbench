@@ -29,6 +29,8 @@ import type {
   NoteJob,
   NoteStyle,
   NoteSourceType,
+  PairedMediaAlignmentResult,
+  PairedMediaInput,
   SourcePlatform,
   SystemReadiness,
   UploadedMediaPart,
@@ -57,6 +59,14 @@ import { FrameExtractionService, KeyFrame } from './frame-extraction.service';
 import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
+import {
+  buildEnergyEnvelope,
+  estimateAudioAlignment,
+  fuseTranscriptSegments,
+  parseWhisperJson,
+  type FusedTranscriptResult,
+  type TranscriptSegment,
+} from './paired-media.utils';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -77,6 +87,15 @@ interface VideoMetadata {
   mediaUrl?: string;
 }
 
+interface PreparedPairedMedia {
+  auxiliaryAudioPath: string;
+  metadata: VideoMetadata;
+  sourceLabel: string;
+  sourceUrl: string;
+  videoAudioPath: string;
+  videoPath: string;
+}
+
 interface SourceProfile {
   readonly label: string;
   readonly urlHosts: readonly string[];
@@ -95,6 +114,10 @@ const MEDIA_DOWNLOAD_CONCURRENCY = 2;
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
 const DOUYIN_MEDIA_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
+const ALIGNMENT_SAMPLE_RATE = 4_000;
+const ALIGNMENT_BUCKET_MS = 1_000;
+const ALIGNMENT_MAX_OFFSET_MS = 30 * 60 * 1_000;
+const TIMESTAMPED_AUDIO_CHUNK_MS = 20 * 60 * 1_000;
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
@@ -196,7 +219,9 @@ export class NoteJobsService {
           ? '本地视频'
           : sourceType === 'audio'
             ? '录音文件'
-          : '文档资料';
+            : sourceType === 'paired'
+              ? '双源会议/培训'
+              : '文档资料';
     const cookieBrowser =
       sourceType === 'platform'
         ? this.validateCookieBrowser(input.cookieBrowser)
@@ -214,9 +239,14 @@ export class NoteJobsService {
       mediaFileName:
         validatedInput.sourceType === 'platform'
           ? undefined
-          : validatedInput.mediaItems
-              .map((media: UploadedMediaInput) => media.fileName)
-              .join('、'),
+          : validatedInput.sourceType === 'paired'
+            ? [
+                validatedInput.pairedMedia.video.fileName,
+                validatedInput.pairedMedia.auxiliaryAudio.fileName,
+              ].join('、')
+            : validatedInput.mediaItems
+                .map((media: UploadedMediaInput) => media.fileName)
+                .join('、'),
       createdAt: now,
       updatedAt: now,
     };
@@ -263,6 +293,7 @@ export class NoteJobsService {
       if (
         input.sourceType !== 'video' &&
         input.sourceType !== 'audio' &&
+        input.sourceType !== 'paired' &&
         input.sourceType !== 'platform'
       ) {
         throw new Error('不支持的内容来源');
@@ -278,52 +309,150 @@ export class NoteJobsService {
       if (input.sourceType === 'platform' && !sourcePlatform) {
         throw new Error('视频平台信息不完整');
       }
-      const preparedMedia =
-        input.sourceType === 'platform'
-          ? await this.preparePlatformMedia(
+      const preparedPairedMedia: PreparedPairedMedia | undefined =
+        input.sourceType === 'paired'
+          ? await this.preparePairedMedia(
               id,
               workDir,
-              input.url,
-              sourcePlatform,
-              cookieBrowser,
+              input.pairedMedia,
             )
-          : await this.prepareUploadedMedia(id, workDir, input);
-      const { audioPath, metadata, sourceUrl, sourceLabel } = preparedMedia;
+          : undefined;
+      const preparedMedia =
+        input.sourceType === 'paired'
+          ? undefined
+          : input.sourceType === 'platform'
+            ? await this.preparePlatformMedia(
+                id,
+                workDir,
+                input.url,
+                sourcePlatform,
+                cookieBrowser,
+              )
+            : await this.prepareUploadedMedia(id, workDir, input);
+      const metadata: VideoMetadata =
+        preparedPairedMedia?.metadata || preparedMedia!.metadata;
+      const sourceUrl: string =
+        preparedPairedMedia?.sourceUrl || preparedMedia!.sourceUrl;
+      const sourceLabel: string =
+        preparedPairedMedia?.sourceLabel || preparedMedia!.sourceLabel;
       const videoTitle = metadata.title || `${sourceLabel}学习笔记`;
       this.patch(id, { videoTitle });
       await this.persistTitle(id, videoTitle);
-      this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
-      
+
       let keyFrames: KeyFrame[] = [];
-      let audioParts: string[] = [];
-      if (input.sourceType !== 'audio') {
-        const videoPath = await this.findVideoPath(workDir);
-        if (videoPath) {
-          [audioParts, keyFrames] = await Promise.all([
-            this.splitAudioIfNeeded(audioPath, workDir),
-            this.extractAndUploadFrames(id, workDir, videoPath),
-          ]);
-        } else {
-          audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
+      let transcript = '';
+      let archiveTranscript = '';
+      if (input.sourceType === 'paired' && preparedPairedMedia) {
+        const alignment: PairedMediaAlignmentResult =
+          await this.resolvePairedAlignment(
+            id,
+            workDir,
+            preparedPairedMedia,
+            input.pairedMedia,
+          );
+        this.patch(id, { pairedAlignment: alignment });
+        if (alignment.status === 'needs_review') {
+          throw new Error(
+            '无法可靠确认视频与辅助录音的时间关系。请确认两份文件属于同一场内容，或改用手动时间偏移后重试。',
+          );
         }
-      } else {
-        audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
-      }
-      const transcripts: string[] = [];
-      for (let index = 0; index < audioParts.length; index += 1) {
-        if (audioParts.length > 1) {
+        const framePromise: Promise<KeyFrame[]> = this.extractAndUploadFrames(
+          id,
+          workDir,
+          preparedPairedMedia.videoPath,
+        );
+        const transcriptionPromise: Promise<{
+          auxiliarySegments: TranscriptSegment[];
+          videoSegments: TranscriptSegment[];
+        }> = (async () => {
           this.update(
             id,
             'transcribing',
-            44 + Math.round((index / audioParts.length) * 20),
-            `正在转录第 ${index + 1}/${audioParts.length} 段音频…`,
+            44,
+            '正在分别转录视频音轨和辅助录音…',
+          );
+          const videoSegments: TranscriptSegment[] =
+            await this.transcribeTimestamped(
+              id,
+              preparedPairedMedia.videoAudioPath,
+              workDir,
+              'video-track',
+            );
+          this.update(
+            id,
+            'transcribing',
+            54,
+            '视频音轨已完成，正在转录辅助录音…',
+          );
+          const auxiliarySegments: TranscriptSegment[] =
+            await this.transcribeTimestamped(
+              id,
+              preparedPairedMedia.auxiliaryAudioPath,
+              workDir,
+              'auxiliary-track',
+            );
+          return { auxiliarySegments, videoSegments };
+        })();
+        const [extractedFrames, transcriptions] = await Promise.all([
+          framePromise,
+          transcriptionPromise,
+        ]);
+        const { auxiliarySegments, videoSegments } = transcriptions;
+        const fused: FusedTranscriptResult = fuseTranscriptSegments({
+          audioOffsetMs: alignment.audioOffsetMs,
+          auxiliarySegments,
+          videoSegments,
+        });
+        if (!fused.markdown.trim()) throw new Error('双源转录结果为空');
+        transcript = this.buildPairedSummaryTranscript(fused, alignment);
+        archiveTranscript = this.buildPairedArchiveTranscript({
+          alignment,
+          auxiliaryFileName: input.pairedMedia.auxiliaryAudio.fileName,
+          auxiliarySegments,
+          fused,
+          videoFileName: input.pairedMedia.video.fileName,
+          videoSegments,
+        });
+        keyFrames = extractedFrames;
+      } else if (preparedMedia) {
+        this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
+        let audioParts: string[] = [];
+        if (input.sourceType !== 'audio') {
+          const videoPath = await this.findVideoPath(workDir);
+          if (videoPath) {
+            [audioParts, keyFrames] = await Promise.all([
+              this.splitAudioIfNeeded(preparedMedia.audioPath, workDir),
+              this.extractAndUploadFrames(id, workDir, videoPath),
+            ]);
+          } else {
+            audioParts = await this.splitAudioIfNeeded(
+              preparedMedia.audioPath,
+              workDir,
+            );
+          }
+        } else {
+          audioParts = await this.splitAudioIfNeeded(
+            preparedMedia.audioPath,
+            workDir,
           );
         }
-        transcripts.push(await this.transcribe(id, audioParts[index]));
+        const transcripts: string[] = [];
+        for (let index = 0; index < audioParts.length; index += 1) {
+          if (audioParts.length > 1) {
+            this.update(
+              id,
+              'transcribing',
+              44 + Math.round((index / audioParts.length) * 20),
+              `正在转录第 ${index + 1}/${audioParts.length} 段音频…`,
+            );
+          }
+          transcripts.push(await this.transcribe(id, audioParts[index]));
+        }
+        transcript = transcripts.join('\n\n');
+        archiveTranscript = transcript;
       }
-      const transcript = transcripts.join('\n\n');
       if (!transcript.trim()) throw new Error('转录结果为空');
-      await this.persistRawTranscript(id, transcript);
+      await this.persistRawTranscript(id, archiveTranscript);
 
       this.update(id, 'publishing', 66, '转录完成，正在归档原文…');
       const rawDocumentUrl = await this.createRawTranscriptDocument({
@@ -337,7 +466,7 @@ export class NoteJobsService {
         sourceLabel,
         sourceUrl,
         title: videoTitle,
-        transcript,
+        transcript: archiveTranscript,
         uploader: metadata.uploader || '未知',
       });
       if (rawDocumentUrl) {
@@ -734,6 +863,339 @@ export class NoteJobsService {
     };
   }
 
+  private async preparePairedMedia(
+    id: string,
+    workDir: string,
+    input: PairedMediaInput,
+  ): Promise<PreparedPairedMedia> {
+    this.update(id, 'preparing', 12, '正在读取主视频和辅助录音…');
+    const videoExtension: string =
+      input.video.fileName
+        .split('.')
+        .pop()
+        ?.replace(/[^a-z0-9]/giu, '') || 'mp4';
+    const audioExtension: string =
+      input.auxiliaryAudio.fileName
+        .split('.')
+        .pop()
+        ?.replace(/[^a-z0-9]/giu, '') || 'm4a';
+    const videoPath: string = join(
+      workDir,
+      `paired-video.${videoExtension}`,
+    );
+    const auxiliarySourcePath: string = join(
+      workDir,
+      `paired-audio.${audioExtension}`,
+    );
+    await Promise.all([
+      this.downloadUploadedMedia(id, input.video, videoPath),
+      this.downloadUploadedMedia(
+        id,
+        input.auxiliaryAudio,
+        auxiliarySourcePath,
+      ),
+    ]);
+
+    this.update(id, 'preparing', 24, '文件读取完成，正在提取两路音轨…');
+    const videoAudioPath: string = join(workDir, 'paired-video-audio.mp3');
+    const auxiliaryAudioPath: string = join(
+      workDir,
+      'paired-auxiliary-audio.mp3',
+    );
+    await Promise.all([
+      this.extractAudioTrack(id, input.video.fileName, videoPath, videoAudioPath),
+      this.extractAudioTrack(
+        id,
+        input.auxiliaryAudio.fileName,
+        auxiliarySourcePath,
+        auxiliaryAudioPath,
+      ),
+    ]);
+    const durationSeconds: number =
+      await this.getMediaDurationSeconds(videoPath);
+    return {
+      auxiliaryAudioPath,
+      metadata: {
+        duration_string: this.formatDuration(Math.round(durationSeconds)),
+        title:
+          input.video.fileName.replace(/[.][^.]+$/u, '') ||
+          '双源会议或培训',
+        uploader: '本地双源文件',
+      },
+      sourceLabel: '双源会议/培训',
+      sourceUrl: [
+        `主视频：${input.video.fileName}`,
+        `辅助录音：${input.auxiliaryAudio.fileName}`,
+      ].join('；'),
+      videoAudioPath,
+      videoPath,
+    };
+  }
+
+  private async extractAudioTrack(
+    id: string,
+    fileName: string,
+    sourcePath: string,
+    audioPath: string,
+  ): Promise<void> {
+    await this.measureStep(
+      id,
+      'extract_paired_audio',
+      { fileName },
+      () =>
+        this.runCommand('ffmpeg', [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-i',
+          sourcePath,
+          '-vn',
+          '-codec:a',
+          'libmp3lame',
+          '-q:a',
+          '5',
+          '-y',
+          audioPath,
+        ]),
+    );
+  }
+
+  private async resolvePairedAlignment(
+    id: string,
+    workDir: string,
+    media: PreparedPairedMedia,
+    input: PairedMediaInput,
+  ): Promise<PairedMediaAlignmentResult> {
+    if (input.alignment.mode === 'manual') {
+      return {
+        audioOffsetMs: Math.round(input.alignment.audioOffsetMs || 0),
+        score: null,
+        status: 'manual',
+      };
+    }
+    this.update(
+      id,
+      'aligning',
+      32,
+      '正在比对两路声音并计算时间偏移…',
+    );
+    const [videoEnvelope, auxiliaryEnvelope]: [number[], number[]] =
+      await Promise.all([
+        this.createAlignmentEnvelope(
+          media.videoAudioPath,
+          workDir,
+          'video',
+        ),
+        this.createAlignmentEnvelope(
+          media.auxiliaryAudioPath,
+          workDir,
+          'auxiliary',
+        ),
+      ]);
+    return estimateAudioAlignment(
+      videoEnvelope,
+      auxiliaryEnvelope,
+      ALIGNMENT_BUCKET_MS,
+      ALIGNMENT_MAX_OFFSET_MS,
+    );
+  }
+
+  private async createAlignmentEnvelope(
+    audioPath: string,
+    workDir: string,
+    prefix: string,
+  ): Promise<number[]> {
+    const rawPath: string = join(workDir, `${prefix}-alignment.pcm`);
+    await this.runCommand('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      audioPath,
+      '-ac',
+      '1',
+      '-ar',
+      String(ALIGNMENT_SAMPLE_RATE),
+      '-f',
+      's16le',
+      '-codec:a',
+      'pcm_s16le',
+      '-y',
+      rawPath,
+    ]);
+    const raw: Buffer = await readFile(rawPath);
+    const sampleCount: number = Math.floor(raw.byteLength / 2);
+    const samples: Int16Array = new Int16Array(
+      raw.buffer,
+      raw.byteOffset,
+      sampleCount,
+    );
+    return buildEnergyEnvelope(
+      samples,
+      ALIGNMENT_SAMPLE_RATE,
+      ALIGNMENT_BUCKET_MS,
+    );
+  }
+
+  private async transcribeTimestamped(
+    id: string,
+    audioPath: string,
+    workDir: string,
+    prefix: string,
+  ): Promise<TranscriptSegment[]> {
+    const parts: string[] = await this.splitAudioIfNeeded(
+      audioPath,
+      workDir,
+      prefix,
+    );
+    const segments: TranscriptSegment[] = [];
+    for (let index = 0; index < parts.length; index += 1) {
+      const outputBase: string = join(
+        workDir,
+        `${prefix}-transcript-${String(index).padStart(3, '0')}`,
+      );
+      await this.measureStep(
+        id,
+        'transcribe_paired_audio',
+        {
+          part: index + 1,
+          partCount: parts.length,
+          source: prefix,
+        },
+        () =>
+          this.runCommand('whisper-cli', [
+            '--threads',
+            String(WHISPER_THREAD_COUNT),
+            '--model',
+            this.whisperModelPath,
+            '--language',
+            'zh',
+            '--output-json',
+            '--output-file',
+            outputBase,
+            '--no-prints',
+            '--file',
+            parts[index],
+          ]),
+      );
+      const parsed: TranscriptSegment[] = parseWhisperJson(
+        await readFile(`${outputBase}.json`, 'utf8'),
+      );
+      const partOffsetMs: number = index * TIMESTAMPED_AUDIO_CHUNK_MS;
+      segments.push(
+        ...parsed.map(
+          (segment: TranscriptSegment): TranscriptSegment => ({
+            ...segment,
+            startMs: segment.startMs + partOffsetMs,
+            endMs: segment.endMs + partOffsetMs,
+          }),
+        ),
+      );
+    }
+    return segments;
+  }
+
+  private async getMediaDurationSeconds(mediaPath: string): Promise<number> {
+    const result: CommandResult = await this.runCommand('ffprobe', [
+      '-v',
+      'quiet',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      mediaPath,
+    ]);
+    const duration: number = Number.parseFloat(result.stdout.trim());
+    return Number.isFinite(duration) ? duration : 0;
+  }
+
+  private buildPairedSummaryTranscript(
+    fused: FusedTranscriptResult,
+    alignment: PairedMediaAlignmentResult,
+  ): string {
+    const qualityNotice: string =
+      fused.conflictCount > 0
+        ? `发现 ${fused.conflictCount} 个双路冲突片段，涉及数字、术语或不同表述时必须标记“待核对”，不得自行裁决。`
+        : '两路转写未发现需要保留的直接冲突。';
+    return [
+      '## 双源证据说明',
+      '',
+      `- 辅助录音相对视频时间偏移：${alignment.audioOffsetMs} 毫秒`,
+      `- 双路一致片段：${fused.corroboratedCount}`,
+      `- 单路证据片段：${fused.singleSourceCount}`,
+      `- ${qualityNotice}`,
+      '',
+      '## 融合时间线',
+      '',
+      fused.markdown,
+    ].join('\n');
+  }
+
+  private buildPairedArchiveTranscript(input: {
+    alignment: PairedMediaAlignmentResult;
+    auxiliaryFileName: string;
+    auxiliarySegments: TranscriptSegment[];
+    fused: FusedTranscriptResult;
+    videoFileName: string;
+    videoSegments: TranscriptSegment[];
+  }): string {
+    const scoreLabel: string =
+      input.alignment.score === null
+        ? '手动设置'
+        : input.alignment.score.toFixed(3);
+    return [
+      '# 双源融合原文',
+      '',
+      '> 视频音轨与辅助录音分别转写后按时间对齐。双路冲突会完整保留，不自动猜测。',
+      '',
+      '## 对齐与质量信息',
+      '',
+      `- 主视频：${input.videoFileName}`,
+      `- 辅助录音：${input.auxiliaryFileName}`,
+      `- 辅助录音相对视频偏移：${input.alignment.audioOffsetMs} 毫秒`,
+      `- 对齐方式：${input.alignment.status}`,
+      `- 对齐相关度：${scoreLabel}`,
+      `- 双路一致片段：${input.fused.corroboratedCount}`,
+      `- 冲突片段：${input.fused.conflictCount}`,
+      `- 单路证据片段：${input.fused.singleSourceCount}`,
+      '',
+      '## 融合时间线',
+      '',
+      input.fused.markdown,
+      '',
+      '## 辅助录音逐段转写',
+      '',
+      this.formatTranscriptSegments(input.auxiliarySegments),
+      '',
+      '## 视频音轨逐段转写',
+      '',
+      this.formatTranscriptSegments(input.videoSegments),
+    ].join('\n');
+  }
+
+  private formatTranscriptSegments(segments: TranscriptSegment[]): string {
+    return segments
+      .map(
+        (segment: TranscriptSegment): string =>
+          `[${this.formatMilliseconds(segment.startMs)}–${this.formatMilliseconds(segment.endMs)}] ${segment.text}`,
+      )
+      .join('\n\n');
+  }
+
+  private formatMilliseconds(valueMs: number): string {
+    const totalSeconds: number = Math.max(0, Math.floor(valueMs / 1_000));
+    const hours: number = Math.floor(totalSeconds / 3_600);
+    const minutes: number = Math.floor((totalSeconds % 3_600) / 60);
+    const seconds: number = totalSeconds % 60;
+    return [
+      hours > 0 ? String(hours).padStart(2, '0') : undefined,
+      String(minutes).padStart(2, '0'),
+      String(seconds).padStart(2, '0'),
+    ]
+      .filter((part: string | undefined): part is string => Boolean(part))
+      .join(':');
+  }
+
   private async mergeAudioFiles(
     audioPaths: string[],
     workDir: string,
@@ -1118,11 +1580,12 @@ export class NoteJobsService {
   private async splitAudioIfNeeded(
     audioPath: string,
     workDir: string,
+    prefix = 'chunk',
   ): Promise<string[]> {
     const audioStat = await stat(audioPath);
     if (audioStat.size <= 24 * 1024 * 1024) return [audioPath];
 
-    const chunkTemplate = join(workDir, 'chunk-%03d.mp3');
+    const chunkTemplate = join(workDir, `${prefix}-%03d.mp3`);
     await this.runCommand('ffmpeg', [
       '-hide_banner',
       '-loglevel',
@@ -1138,7 +1601,9 @@ export class NoteJobsService {
       chunkTemplate,
     ]);
     const chunks = (await readdir(workDir))
-      .filter((name) => /^chunk-\d+\.mp3$/.test(name))
+      .filter((name: string) =>
+        new RegExp(`^${prefix}-\\d+[.]mp3$`, 'u').test(name),
+      )
       .sort()
       .map((name) => join(workDir, name));
     if (!chunks.length) throw new Error('长音频自动切片失败');

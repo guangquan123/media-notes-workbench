@@ -35,7 +35,7 @@ import type {
 } from '@shared/api.interface';
 
 interface MediaNotePageProps {
-  sourceType: Exclude<NoteSourceType, 'platform' | 'pdf'>;
+  sourceType: Exclude<NoteSourceType, 'platform' | 'pdf' | 'paired'>;
 }
 
 interface PageCopy {

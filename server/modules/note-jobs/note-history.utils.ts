@@ -85,6 +85,7 @@ function getConversionTypeLabel(
 ): string {
   if (sourceType === 'video') return '本地视频';
   if (sourceType === 'audio') return '录音';
+  if (sourceType === 'paired') return '双源会议/培训';
   if (sourceType === 'document') return '文档资料';
   if (sourceType === 'pdf') return 'PDF 资料';
   return sourcePlatform === 'douyin' ? '抖音视频' : 'B站视频';

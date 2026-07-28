@@ -53,6 +53,7 @@ const SOURCE_OPTIONS: Array<{ label: string; value: string }> = [
   { label: '平台视频', value: 'platform' },
   { label: '本地视频', value: 'video' },
   { label: '录音', value: 'audio' },
+  { label: '双源会议/培训', value: 'paired' },
   { label: '文档', value: 'document' },
   { label: 'PDF', value: 'pdf' },
 ];
@@ -81,6 +82,7 @@ function parseSourceType(value: string): NoteSourceType | undefined {
     value === 'platform' ||
     value === 'video' ||
     value === 'audio' ||
+    value === 'paired' ||
     value === 'document' ||
     value === 'pdf'
   ) {

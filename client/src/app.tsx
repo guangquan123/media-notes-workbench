@@ -14,6 +14,7 @@ import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import HomePage from './pages/HomePage/HomePage';
 import NoteInboxPage from './pages/NoteInboxPage/NoteInboxPage';
 import NoteInboxMessagesPage from './pages/NoteInboxMessagesPage/NoteInboxMessagesPage';
+import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
 
 const RoutesComponent = () => {
   return (
@@ -25,6 +26,7 @@ const RoutesComponent = () => {
         <Route path="note-inbox/messages" element={<NoteInboxMessagesPage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
+        <Route path="paired-media-notes" element={<PairedMediaNotesPage />} />
         <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />

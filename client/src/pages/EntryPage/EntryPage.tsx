@@ -6,6 +6,7 @@ import {
   FileVideo,
   History,
   MessageSquareText,
+  ScanSearch,
   Settings2,
   Waypoints,
 } from 'lucide-react';
@@ -21,6 +22,15 @@ import {
 } from '@/components/ui/card';
 
 const FEATURE_CARDS = [
+  {
+    href: '/paired-media-notes',
+    icon: ScanSearch,
+    title: '双源会议 / 培训笔记',
+    description: '同时上传视频和录音，对齐后用画面与语音交叉验证。',
+    badge: '视频 + 录音',
+    bullets: ['时间对齐', '关键画面', '冲突标记'],
+    cta: '上传双文件',
+  },
   {
     href: '/video-notes',
     icon: BookOpenText,
@@ -137,7 +147,7 @@ export default function EntryPage() {
           </header>
 
           <section className="flex flex-1 items-center py-10 lg:py-14">
-            <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURE_CARDS.map((item) => {
                 const Icon = item.icon;
                 return (
