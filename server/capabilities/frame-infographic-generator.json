@@ -1,0 +1,20 @@
+{
+  "id": "frame-infographic-generator",
+  "pluginKey": "@official-plugins/ai-text-to-image",
+  "pluginVersion": "1.0.19",
+  "paramsSchema": {
+    "content": {
+      "type": "string",
+      "required": true
+    },
+    "frame_summary": {
+      "type": "string",
+      "required": false
+    }
+  },
+  "formValue": {
+    "prompt": "请将以下视频截图中的内容重新设计为清晰美观的信息图：\n\n内容：{{input.content}}\n\n要求：\n- 白色或浅灰背景，专业简洁排版\n- 突出关键数据、结构和层级关系\n- 中文内容，字体清晰可读\n- 如果是文字内容，用卡片式或列表式布局\n- 如果是图表内容，用流程图或思维导图风格重新绘制\n- 16:9 横版比例",
+    "ratio": "16:9",
+    "watermark": false
+  }
+}

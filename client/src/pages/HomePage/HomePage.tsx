@@ -6,6 +6,7 @@ import {
   Clipboard,
   Download,
   FileText,
+  FileVideo,
   Headphones,
   LoaderCircle,
   Sparkles,
@@ -33,11 +34,19 @@ import type {
 } from '@shared/api.interface';
 
 const stageLabels = [
-  ['downloading', '拉取音频', Headphones],
+  ['downloading', '拉取视频', Headphones],
+  ['extracting-frames', '处理画面', FileVideo],
   ['transcribing', '语音转文字', FileText],
   ['summarizing', '生成学习笔记', Sparkles],
   ['publishing', '写入飞书', ArrowUpRight],
 ] as const;
+
+const getLogicalStage = (stage?: string) => {
+  if (['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(stage || '')) {
+    return 'extracting-frames';
+  }
+  return stage;
+};
 
 const sourcePlatformLabels: Record<SourcePlatform, string> = {
   bilibili: 'B站',
@@ -315,15 +324,16 @@ export default function HomePage() {
               你只需要负责检查和学习。
             </p>
 
-            <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
               {stageLabels.map(([stage, label, Icon], index) => {
+                const currentStage = getLogicalStage(job?.stage);
                 const stageIndex = stageLabels.findIndex(
-                  ([item]) => item === job?.stage,
+                  ([item]) => item === currentStage,
                 );
                 const done =
                   job?.stage === 'completed' ||
                   (stageIndex >= 0 && index < stageIndex);
-                const active = job?.stage === stage;
+                const active = currentStage === stage;
                 return (
                   <div
                     className={`stage-card ${active ? 'is-active' : ''}`}

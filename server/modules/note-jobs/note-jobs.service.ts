@@ -53,6 +53,10 @@ import { getParseQuality } from './pdf-note.utils';
 import { buildDocumentRawMarkdown } from './document-note.utils';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
+import { FrameExtractionService, KeyFrame } from './frame-extraction.service';
+import { FrameUploadService } from './frame-upload.service';
+import { FrameAiEnhanceService } from './frame-ai-enhance.service';
+import { FrameInsertionService } from './frame-insertion.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -125,6 +129,10 @@ export class NoteJobsService {
     private readonly noteHistoryService: NoteHistoryService,
     private readonly noteReviewTaskService: NoteReviewTaskService,
     private readonly noteTemplateService: NoteTemplateService,
+    private readonly frameExtractionService: FrameExtractionService,
+    private readonly frameUploadService: FrameUploadService,
+    private readonly frameAiEnhanceService: FrameAiEnhanceService,
+    private readonly frameInsertionService: FrameInsertionService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -285,7 +293,22 @@ export class NoteJobsService {
       this.patch(id, { videoTitle });
       await this.persistTitle(id, videoTitle);
       this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
-      const audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
+      
+      let keyFrames: KeyFrame[] = [];
+      let audioParts: string[] = [];
+      if (input.sourceType !== 'audio') {
+        const videoPath = await this.findVideoPath(workDir);
+        if (videoPath) {
+          [audioParts, keyFrames] = await Promise.all([
+            this.splitAudioIfNeeded(audioPath, workDir),
+            this.extractAndUploadFrames(id, workDir, videoPath),
+          ]);
+        } else {
+          audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
+        }
+      } else {
+        audioParts = await this.splitAudioIfNeeded(audioPath, workDir);
+      }
       const transcripts: string[] = [];
       for (let index = 0; index < audioParts.length; index += 1) {
         if (audioParts.length > 1) {
@@ -364,10 +387,13 @@ export class NoteJobsService {
         transcript,
       });
       this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
-      const knowledgeMapUrl = await this.generateKnowledgeMap(reviewedMarkdown);
-      const summaryMarkdown = knowledgeMapUrl
-        ? this.insertKnowledgeMap(reviewedMarkdown, knowledgeMapUrl)
+      const markdownWithFrames = keyFrames.length > 0
+        ? this.frameInsertionService.insertFramesIntoMarkdown(reviewedMarkdown, keyFrames)
         : reviewedMarkdown;
+      const knowledgeMapUrl = await this.generateKnowledgeMap(markdownWithFrames);
+      const summaryMarkdown = knowledgeMapUrl
+        ? this.insertKnowledgeMap(markdownWithFrames, knowledgeMapUrl)
+        : markdownWithFrames;
       const finalMarkdown = rawDocumentUrl
         ? this.appendRawDocumentReference(summaryMarkdown, rawDocumentUrl)
         : summaryMarkdown;
@@ -620,10 +646,13 @@ export class NoteJobsService {
         'mp3',
         '--audio-quality',
         '5',
+        '--keep-video',
         '--output',
-        join(workDir, 'audio.%(ext)s'),
+        join(workDir, 'source.%(ext)s'),
         url,
       ]);
+      const { rename } = await import('node:fs/promises');
+      await rename(join(workDir, 'source.mp3'), audioPath);
     }
     return {
       audioPath,
@@ -1596,9 +1625,44 @@ export class NoteJobsService {
     return parsed.data.document.url;
   }
 
+  private async extractAndUploadFrames(
+    id: string,
+    workDir: string,
+    videoPath: string,
+  ): Promise<KeyFrame[]> {
+    try {
+      this.update(id, 'extracting-frames', 38, '正在提取视频关键画面…');
+      const rawFrames = await this.frameExtractionService.extractKeyFrames(videoPath, workDir);
+      if (rawFrames.length === 0) return [];
+      
+      this.update(id, 'uploading-frames', 41, `正在上传 ${rawFrames.length} 张截图…`);
+      const uploadedFrames = await this.frameUploadService.uploadFrames(rawFrames);
+      
+      this.update(id, 'analyzing-frames', 43, '正在 AI 识别截图内容…');
+      const enhancedFrames = await this.frameAiEnhanceService.enhanceFrames(uploadedFrames);
+      
+      return enhancedFrames;
+    } catch (err) {
+      this.logger.warn(`帧提取流程失败，继续不含截图: ${String(err)}`);
+      return [];
+    }
+  }
+
+  private async findVideoPath(workDir: string): Promise<string | undefined> {
+    try {
+      const { readdir } = await import('node:fs/promises');
+      const files = await readdir(workDir);
+      const videoFile = files.find((f) =>
+        /\.(mp4|mkv|mov|webm|avi|flv|ts)$/iu.test(f) && !f.includes('audio'),
+      );
+      return videoFile ? join(workDir, videoFile) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private async createRawTranscriptDocument(input: {
     duration: string;
-    generatedDate: string;
     sourceLabel: string;
     sourceUrl: string;
     title: string;

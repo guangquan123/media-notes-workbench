@@ -115,10 +115,18 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
 const MEDIA_PROCESS_STAGES = [
   ['uploading', '安全上传'],
   ['preparing', '整理媒体'],
+  ['extracting-frames', '处理画面'],
   ['transcribing', '语音转文字'],
   ['summarizing', '生成笔记'],
   ['publishing', '写入飞书'],
 ] as const;
+
+const getLogicalStage = (stage?: string) => {
+  if (['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(stage || '')) {
+    return 'extracting-frames';
+  }
+  return stage;
+};
 
 const PDF_PROCESS_STAGES = [
   ['uploading', '安全上传'],
@@ -435,9 +443,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
               {copy.description}
             </p>
-            <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-6">
               {processStages.map(([stage, label], index) => {
-                const currentStage = uploading ? 'uploading' : job?.stage;
+                const currentStage = uploading ? 'uploading' : getLogicalStage(job?.stage);
                 const currentIndex = processStages.findIndex(
                   (entry: readonly [string, string]) =>
                     entry[0] === currentStage,
