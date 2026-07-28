@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
+import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
+import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
 import {
   deleteUploadedFiles,
   uploadMediaFile,
@@ -31,6 +33,7 @@ import type {
   NoteJob,
   NoteStyle,
   NoteSourceType,
+  NoteVisualOptions,
   SystemReadiness,
 } from '@shared/api.interface';
 
@@ -180,6 +183,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     sourceType === 'document' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
   const [files, setFiles] = useState<File[]>([]);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
+  const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
+    allowExternalAi: false,
+    density: 'standard',
+    mode: 'automatic',
+    outputMode: 'original',
+  });
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>([]);
@@ -188,7 +197,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [uploadedBytes, setUploadedBytes] = useState(0);
   const [uploadPartLabel, setUploadPartLabel] = useState('');
   const running: boolean = Boolean(
-    job && !['completed', 'failed'].includes(job.stage),
+    job &&
+      !['completed', 'failed', 'awaiting-frame-review'].includes(job.stage),
   );
   const selectedFileSize: number = files.reduce(
     (total: number, item: File) => total + item.size,
@@ -273,7 +283,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
         if (
           uploadedMedia.length > 0 &&
-          ['completed', 'failed'].includes(next.stage)
+          ['completed', 'failed', 'awaiting-frame-review'].includes(next.stage)
         ) {
           try {
             await deleteUploadedFiles(uploadedMedia);
@@ -348,6 +358,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         sourceType,
         noteStyle,
         mediaItems,
+        visualOptions:
+          sourceType === 'video' ? visualOptions : { mode: 'disabled' },
       });
       setJob(created);
     } catch (error: unknown) {
@@ -381,6 +393,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setJob(null);
     setFiles([]);
     setNoteStyle('learning');
+    setVisualOptions({
+      allowExternalAi: false,
+      density: 'standard',
+      mode: 'automatic',
+      outputMode: 'original',
+    });
     setUploadedBytes(0);
     setUploadPartLabel('');
   };
@@ -575,6 +593,13 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                     value={noteStyle}
                   />
                 </div>
+                {sourceType === 'video' && (
+                  <VisualOptionsPanel
+                    disabled={submitting}
+                    onChange={setVisualOptions}
+                    value={visualOptions}
+                  />
+                )}
 
                 <Button
                   className="mt-6 h-12 w-full rounded-xl text-white shadow-lg"
@@ -649,6 +674,14 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       {job.error}
                     </div>
                   )}
+                  {job?.visualSummary?.warnings.map((warning) => (
+                    <div
+                      className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"
+                      key={warning.code}
+                    >
+                      {warning.message}
+                    </div>
+                  ))}
                   {job?.stage === 'completed' && (
                     <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                       <div className="flex items-center gap-3">
@@ -713,6 +746,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             )}
           </div>
         </section>
+        {job?.stage === 'awaiting-frame-review' && (
+          <FrameReviewPanel job={job} onPublished={setJob} />
+        )}
         <footer className="flex flex-col gap-2 border-t border-black/6 py-5 text-xs text-black/35 sm:flex-row sm:items-center sm:justify-between">
           <span>上传文件仅用于生成个人学习笔记</span>
           <span>异步处理 · 实时进度 · 临时文件自动清理</span>

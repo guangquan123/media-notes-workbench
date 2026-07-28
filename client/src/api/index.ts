@@ -20,6 +20,11 @@ import type {
   NoteTemplateConfigResponse,
   SystemReadiness,
   UpdateNoteTemplateConfigRequest,
+  GenerateFrameDerivativeRequest,
+  NoteJobFrameListResponse,
+  PublishFrameSelectionRequest,
+  UpdateFrameSelectionRequest,
+  UpdateFrameSelectionResponse,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -138,6 +143,60 @@ export async function getNoteJob(id: string): Promise<NoteJob> {
     url: `/api/note-jobs/${id}`,
     method: 'GET',
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getNoteJobFrames(
+  id: string,
+  page = 1,
+  pageSize = 100,
+): Promise<NoteJobFrameListResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/${id}/frames`,
+    method: 'GET',
+    params: { page, pageSize },
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateNoteJobFrameSelection(
+  id: string,
+  input: UpdateFrameSelectionRequest,
+): Promise<UpdateFrameSelectionResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/${id}/frame-selection`,
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function generateNoteJobFrameDerivative(
+  id: string,
+  frameId: string,
+  input: GenerateFrameDerivativeRequest = {},
+): Promise<{ derivativeUrl: string }> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/${id}/frames/${frameId}/derivative`,
+    method: 'PUT',
+    data: input,
+    timeout: 120_000,
+  });
+  return response.data;
+}
+
+export async function publishNoteJobFrameSelection(
+  id: string,
+  input: PublishFrameSelectionRequest,
+): Promise<NoteJob> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/${id}/publication`,
+    method: 'PUT',
+    data: input,
+    timeout: 120_000,
   });
   return response.data;
 }

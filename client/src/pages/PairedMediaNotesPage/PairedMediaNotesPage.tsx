@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 
 import { createNoteJob, getNoteJob, getReadiness } from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
+import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
+import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
 import {
   deleteUploadedFiles,
   uploadMediaFile,
@@ -28,6 +30,7 @@ import { formatFileSize } from '@/utils/file-size';
 import type {
   NoteJob,
   NoteStyle,
+  NoteVisualOptions,
   PairedMediaAlignmentMode,
   SystemReadiness,
 } from '@shared/api.interface';
@@ -47,6 +50,12 @@ export default function PairedMediaNotesPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('meeting');
+  const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
+    allowExternalAi: false,
+    density: 'standard',
+    mode: 'review',
+    outputMode: 'original',
+  });
   const [alignmentMode, setAlignmentMode] =
     useState<PairedMediaAlignmentMode>('auto');
   const [manualOffsetSeconds, setManualOffsetSeconds] = useState('0');
@@ -60,7 +69,8 @@ export default function PairedMediaNotesPage() {
   const selectedBytes: number =
     (videoFile?.size || 0) + (audioFile?.size || 0);
   const running: boolean = Boolean(
-    job && !['completed', 'failed'].includes(job.stage),
+    job &&
+      !['completed', 'failed', 'awaiting-frame-review'].includes(job.stage),
   );
 
   useEffect(() => {
@@ -99,7 +109,9 @@ export default function PairedMediaNotesPage() {
         setJob(next);
         if (next.stage === 'completed') toast.success('双源笔记已经创建');
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (['completed', 'failed'].includes(next.stage)) {
+        if (
+          ['completed', 'failed', 'awaiting-frame-review'].includes(next.stage)
+        ) {
           try {
             await deleteUploadedFiles(uploadedMedia);
             setUploadedMedia([]);
@@ -185,6 +197,7 @@ export default function PairedMediaNotesPage() {
                 : undefined,
           },
         },
+        visualOptions,
       });
       setJob(created);
     } catch (error: unknown) {
@@ -219,6 +232,12 @@ export default function PairedMediaNotesPage() {
     setNoteStyle('meeting');
     setAlignmentMode('auto');
     setManualOffsetSeconds('0');
+    setVisualOptions({
+      allowExternalAi: false,
+      density: 'standard',
+      mode: 'review',
+      outputMode: 'original',
+    });
     setUploadedBytes(0);
     setUploadLabel('');
   };
@@ -375,6 +394,11 @@ export default function PairedMediaNotesPage() {
                     value={noteStyle}
                   />
                 </div>
+                <VisualOptionsPanel
+                  disabled={submitting}
+                  onChange={setVisualOptions}
+                  value={visualOptions}
+                />
                 <Button
                   className="mt-6 h-12 w-full rounded-xl bg-[#4d5dff] text-white hover:bg-[#3f4edb]"
                   disabled={
@@ -443,6 +467,14 @@ export default function PairedMediaNotesPage() {
                       {job.error}
                     </div>
                   )}
+                  {job?.visualSummary?.warnings.map((warning) => (
+                    <div
+                      className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"
+                      key={warning.code}
+                    >
+                      {warning.message}
+                    </div>
+                  ))}
                   {job?.stage === 'completed' && (
                     <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                       双路转写、关键画面和冲突清单已经写入飞书文档。
@@ -480,6 +512,9 @@ export default function PairedMediaNotesPage() {
             )}
           </div>
         </section>
+        {job?.stage === 'awaiting-frame-review' && (
+          <FrameReviewPanel job={job} onPublished={setJob} />
+        )}
       </div>
     </main>
   );
