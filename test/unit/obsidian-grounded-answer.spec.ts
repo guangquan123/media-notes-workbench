@@ -15,6 +15,12 @@ const execFileAsync = promisify(execFile);
 const repositoryRoot = process.cwd();
 const skillRoot = path.join(
   repositoryRoot,
+  'scripts',
+  'skills',
+  'obsidian-grounded-answer',
+);
+const discoverableProjectSkillRoot = path.join(
+  repositoryRoot,
   '.agents',
   'skills',
   'obsidian-grounded-answer',
@@ -99,6 +105,13 @@ async function search(
 }
 
 describe('system-level Obsidian retrieval routing', () => {
+  it('keeps the versioned source outside the project Skill discovery root', async () => {
+    await expect(
+      stat(discoverableProjectSkillRoot),
+    ).rejects.toThrow();
+    await expect(stat(path.join(skillRoot, 'SKILL.md'))).resolves.toBeDefined();
+  });
+
   it('forces retrieval when the user explicitly references their knowledge base', async () => {
     const { stdout } = await execFileAsync(
       process.execPath,
