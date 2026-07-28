@@ -7,6 +7,8 @@ import {
   normalizePlatformSourceUrl,
   validateDocumentInput,
   getDouyinAudioFallbackArgs,
+  getMediaDownloadConcurrency,
+  isInterruptedProcessingStage,
   isDouyinTransientMediaError,
   isAudioRematrixError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
@@ -294,9 +296,9 @@ describe('note job request validation', () => {
       ],
     });
 
-    expect(
-      result.sourceType === 'document' && result.mediaItems.length,
-    ).toBe(2);
+    expect(result.sourceType === 'document' && result.mediaItems.length).toBe(
+      2,
+    );
   });
 
   it('rejects unsupported files for a document job', () => {
@@ -344,5 +346,27 @@ describe('note job request validation', () => {
       ),
     ).toBe(true);
     expect(isDouyinTransientMediaError('HTTP 403 Forbidden')).toBe(false);
+  });
+});
+
+describe('note job runtime safeguards', () => {
+  it('uses up to four concurrent workers for multipart media downloads', () => {
+    expect(getMediaDownloadConcurrency(1)).toBe(1);
+    expect(getMediaDownloadConcurrency(2)).toBe(2);
+    expect(getMediaDownloadConcurrency(38)).toBe(4);
+  });
+
+  it('rejects invalid media part counts', () => {
+    expect(() => getMediaDownloadConcurrency(0)).toThrow(
+      '媒体分片数必须是正整数',
+    );
+  });
+
+  it('distinguishes restart-interrupted stages from durable stages', () => {
+    expect(isInterruptedProcessingStage('preparing')).toBe(true);
+    expect(isInterruptedProcessingStage('transcribing')).toBe(true);
+    expect(isInterruptedProcessingStage('awaiting-frame-review')).toBe(false);
+    expect(isInterruptedProcessingStage('completed')).toBe(false);
+    expect(isInterruptedProcessingStage('failed')).toBe(false);
   });
 });

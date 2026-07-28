@@ -45,8 +45,10 @@ import type {
 } from '@shared/api.interface';
 import {
   getDouyinAudioFallbackArgs,
+  getMediaDownloadConcurrency,
   isAudioRematrixError,
   isDouyinTransientMediaError,
+  isInterruptedProcessingStage,
   MAX_MEDIA_SIZE_BYTES,
   normalizePlatformSourceUrl,
   validateMediaDownloadUrl,
@@ -67,10 +69,7 @@ import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
-import {
-  buildVisualWarnings,
-  selectKeyFrames,
-} from './frame-selection.utils';
+import { buildVisualWarnings, selectKeyFrames } from './frame-selection.utils';
 import {
   buildEnergyEnvelope,
   estimateAudioAlignment,
@@ -122,7 +121,6 @@ interface StoredNoteJob {
   ownerId: string;
 }
 
-const MEDIA_DOWNLOAD_CONCURRENCY = 2;
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
 const DOUYIN_MEDIA_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
@@ -316,6 +314,13 @@ export class NoteJobsService {
   async getAvailable(id: string, ownerId: string): Promise<NoteJob> {
     const stored = this.jobs.get(id);
     if (stored?.ownerId === ownerId) return stored.job;
+    const snapshot = await this.frameReviewService.getJobSnapshot(id, ownerId);
+    if (!isInterruptedProcessingStage(snapshot.stage)) return snapshot;
+
+    const error =
+      '服务重启后任务执行上下文已丢失。为避免任务一直显示处理中，系统已结束该任务；请重新提交，新的任务会使用加速后的分片下载。';
+    this.logger.warn(`任务 ${id} 因服务重启中断，已标记为失败`);
+    await this.noteHistoryService.failInterrupted(id, ownerId, error);
     return this.frameReviewService.getJobSnapshot(id, ownerId);
   }
 
@@ -406,11 +411,15 @@ export class NoteJobsService {
     }
     this.publishingVisualJobs.add(id);
     try {
-      const frames = await this.frameReviewService.getSelectedFrames(id, ownerId);
-      const markdownWithFrames = this.frameInsertionService.insertFramesIntoMarkdown(
-        state.draftMarkdown,
-        frames,
+      const frames = await this.frameReviewService.getSelectedFrames(
+        id,
+        ownerId,
       );
+      const markdownWithFrames =
+        this.frameInsertionService.insertFramesIntoMarkdown(
+          state.draftMarkdown,
+          frames,
+        );
       const noteTitle =
         this.extractMarkdownTitle(state.draftMarkdown) ||
         snapshot.videoTitle ||
@@ -496,11 +505,7 @@ export class NoteJobsService {
       }
       const preparedPairedMedia: PreparedPairedMedia | undefined =
         input.sourceType === 'paired'
-          ? await this.preparePairedMedia(
-              id,
-              workDir,
-              input.pairedMedia,
-            )
+          ? await this.preparePairedMedia(id, workDir, input.pairedMedia)
           : undefined;
       const preparedMedia =
         input.sourceType === 'paired'
@@ -741,10 +746,15 @@ export class NoteJobsService {
         return;
       }
       this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
-      const markdownWithFrames = keyFrames.length > 0
-        ? this.frameInsertionService.insertFramesIntoMarkdown(reviewedMarkdown, keyFrames)
-        : reviewedMarkdown;
-      const knowledgeMapUrl = await this.generateKnowledgeMap(markdownWithFrames);
+      const markdownWithFrames =
+        keyFrames.length > 0
+          ? this.frameInsertionService.insertFramesIntoMarkdown(
+              reviewedMarkdown,
+              keyFrames,
+            )
+          : reviewedMarkdown;
+      const knowledgeMapUrl =
+        await this.generateKnowledgeMap(markdownWithFrames);
       const summaryMarkdown = knowledgeMapUrl
         ? this.insertKnowledgeMap(markdownWithFrames, knowledgeMapUrl)
         : markdownWithFrames;
@@ -1104,20 +1114,18 @@ export class NoteJobsService {
         .split('.')
         .pop()
         ?.replace(/[^a-z0-9]/giu, '') || 'm4a';
-    const videoPath: string = join(
-      workDir,
-      `paired-video.${videoExtension}`,
-    );
+    const videoPath: string = join(workDir, `paired-video.${videoExtension}`);
     const auxiliarySourcePath: string = join(
       workDir,
       `paired-audio.${audioExtension}`,
     );
     await Promise.all([
-      this.downloadUploadedMedia(id, input.video, videoPath),
+      this.downloadUploadedMedia(id, input.video, videoPath, 2),
       this.downloadUploadedMedia(
         id,
         input.auxiliaryAudio,
         auxiliarySourcePath,
+        2,
       ),
     ]);
 
@@ -1128,7 +1136,12 @@ export class NoteJobsService {
       'paired-auxiliary-audio.mp3',
     );
     await Promise.all([
-      this.extractAudioTrack(id, input.video.fileName, videoPath, videoAudioPath),
+      this.extractAudioTrack(
+        id,
+        input.video.fileName,
+        videoPath,
+        videoAudioPath,
+      ),
       this.extractAudioTrack(
         id,
         input.auxiliaryAudio.fileName,
@@ -1143,8 +1156,7 @@ export class NoteJobsService {
       metadata: {
         duration_string: this.formatDuration(Math.round(durationSeconds)),
         title:
-          input.video.fileName.replace(/[.][^.]+$/u, '') ||
-          '双源会议或培训',
+          input.video.fileName.replace(/[.][^.]+$/u, '') || '双源会议或培训',
         uploader: '本地双源文件',
       },
       sourceLabel: '双源会议/培训',
@@ -1163,25 +1175,21 @@ export class NoteJobsService {
     sourcePath: string,
     audioPath: string,
   ): Promise<void> {
-    await this.measureStep(
-      id,
-      'extract_paired_audio',
-      { fileName },
-      () =>
-        this.runCommand('ffmpeg', [
-          '-hide_banner',
-          '-loglevel',
-          'error',
-          '-i',
-          sourcePath,
-          '-vn',
-          '-codec:a',
-          'libmp3lame',
-          '-q:a',
-          '5',
-          '-y',
-          audioPath,
-        ]),
+    await this.measureStep(id, 'extract_paired_audio', { fileName }, () =>
+      this.runCommand('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        sourcePath,
+        '-vn',
+        '-codec:a',
+        'libmp3lame',
+        '-q:a',
+        '5',
+        '-y',
+        audioPath,
+      ]),
     );
   }
 
@@ -1198,19 +1206,10 @@ export class NoteJobsService {
         status: 'manual',
       };
     }
-    this.update(
-      id,
-      'aligning',
-      32,
-      '正在比对两路声音并计算时间偏移…',
-    );
+    this.update(id, 'aligning', 32, '正在比对两路声音并计算时间偏移…');
     const [videoEnvelope, auxiliaryEnvelope]: [number[], number[]] =
       await Promise.all([
-        this.createAlignmentEnvelope(
-          media.videoAudioPath,
-          workDir,
-          'video',
-        ),
+        this.createAlignmentEnvelope(media.videoAudioPath, workDir, 'video'),
         this.createAlignmentEnvelope(
           media.auxiliaryAudioPath,
           workDir,
@@ -1455,6 +1454,9 @@ export class NoteJobsService {
     id: string,
     media: UploadedMediaInput,
     destination: string,
+    concurrencyLimit: number = getMediaDownloadConcurrency(
+      media.parts?.length || 1,
+    ),
   ): Promise<void> {
     const parts: UploadedMediaPart[] = media.parts || [
       {
@@ -1463,6 +1465,13 @@ export class NoteJobsService {
       },
     ];
     const completedTemporaryPaths: string[] = [];
+    let completedPartCount: number = 0;
+    let reportedQuarter: number = 0;
+    const initialProgress: number = this.jobs.get(id)?.job.progress || 14;
+    const downloadConcurrency: number = Math.min(
+      concurrencyLimit,
+      getMediaDownloadConcurrency(parts.length),
+    );
     try {
       const temporaryPaths: string[] = await this.measureStep(
         id,
@@ -1471,11 +1480,12 @@ export class NoteJobsService {
           fileName: media.fileName,
           fileSize: media.fileSize,
           partCount: parts.length,
+          concurrency: downloadConcurrency,
         },
         () =>
           mapWithConcurrency(
             parts,
-            MEDIA_DOWNLOAD_CONCURRENCY,
+            downloadConcurrency,
             async (part: UploadedMediaPart, index: number): Promise<string> => {
               const temporaryPath: string = join(
                 dirname(destination),
@@ -1483,6 +1493,28 @@ export class NoteJobsService {
               );
               completedTemporaryPaths.push(temporaryPath);
               await this.downloadUploadedMediaPart(part, temporaryPath, 'wx');
+              completedPartCount += 1;
+              const completedQuarter: number = Math.floor(
+                (completedPartCount * 4) / parts.length,
+              );
+              if (
+                completedQuarter > reportedQuarter ||
+                completedPartCount === parts.length
+              ) {
+                reportedQuarter = completedQuarter;
+                const currentProgress: number =
+                  this.jobs.get(id)?.job.progress || initialProgress;
+                this.update(
+                  id,
+                  'preparing',
+                  Math.max(
+                    currentProgress,
+                    initialProgress +
+                      Math.round((completedPartCount / parts.length) * 8),
+                  ),
+                  `正在读取 ${media.fileName}：已完成 ${completedPartCount}/${parts.length} 个分片`,
+                );
+              }
               return temporaryPath;
             },
           ),
@@ -2387,13 +2419,13 @@ export class NoteJobsService {
             visualOptions.outputMode === 'original_with_ai_derivative',
         },
       );
-      await this.frameReviewService.saveCandidates(
-        id,
-        ownerId,
-        enhancedFrames,
-      );
-      const uploadedCount = enhancedFrames.filter((frame) => frame.imageKey).length;
-      const analyzedCount = enhancedFrames.filter((frame) => frame.analysis).length;
+      await this.frameReviewService.saveCandidates(id, ownerId, enhancedFrames);
+      const uploadedCount = enhancedFrames.filter(
+        (frame) => frame.imageKey,
+      ).length;
+      const analyzedCount = enhancedFrames.filter(
+        (frame) => frame.analysis,
+      ).length;
       const warnings = buildVisualWarnings({
         analyzed: analyzedCount,
         extracted: rawFrames.length,

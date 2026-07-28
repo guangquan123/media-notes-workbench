@@ -160,6 +160,44 @@ export class NoteHistoryService {
     });
   }
 
+  async failInterrupted(
+    jobId: string,
+    ownerId: string,
+    error: string,
+  ): Promise<void> {
+    const rows = await this.db
+      .select({ startedAt: noteConversionRecords.startedAt })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+          eq(noteConversionRecords.status, 'processing'),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return;
+    const completedAt = new Date();
+    await this.db
+      .update(noteConversionRecords)
+      .set({
+        completedAt,
+        currentStage: 'failed',
+        durationMs: calculateDurationMs(row.startedAt, completedAt),
+        error: error.slice(0, 4000),
+        status: 'failed',
+        statusMessage: '服务重启导致处理任务中断，请重新提交',
+      })
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+          eq(noteConversionRecords.status, 'processing'),
+        ),
+      );
+  }
+
   async list(
     ownerId: string,
     input: HistoryListInput,
@@ -173,8 +211,12 @@ export class NoteHistoryService {
         ilike(noteConversionRecords.title, `%${keywordPattern}%`),
       );
     }
-    if (input.jobId) conditions.push(eq(noteConversionRecords.jobId, input.jobId));
-    if (input.sourceChannel) conditions.push(eq(noteConversionRecords.sourceChannel, input.sourceChannel));
+    if (input.jobId)
+      conditions.push(eq(noteConversionRecords.jobId, input.jobId));
+    if (input.sourceChannel)
+      conditions.push(
+        eq(noteConversionRecords.sourceChannel, input.sourceChannel),
+      );
     if (input.processingStatus) {
       conditions.push(
         eq(noteConversionRecords.processingStatus, input.processingStatus),

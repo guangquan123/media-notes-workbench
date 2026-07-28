@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type {
   CreateNoteJobRequest,
+  JobStage,
   NoteStyle,
   NoteSourceType,
   NoteVisualOptions,
@@ -16,6 +17,7 @@ import {
 } from './document-note.utils';
 
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
+const MAX_MEDIA_DOWNLOAD_CONCURRENCY = 4;
 const MAX_MEDIA_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MAX_MEDIA_PART_COUNT = MAX_MEDIA_SIZE_BYTES / MAX_MEDIA_PART_SIZE_BYTES;
 const MAX_DOCUMENT_SIZE_BYTES = 200 * 1024 * 1024;
@@ -27,6 +29,17 @@ const MEDIA_MIME_PREFIX: Record<
   video: 'video/',
   audio: 'audio/',
 };
+
+export function getMediaDownloadConcurrency(partCount: number): number {
+  if (!Number.isInteger(partCount) || partCount < 1) {
+    throw new Error('媒体分片数必须是正整数');
+  }
+  return Math.min(MAX_MEDIA_DOWNLOAD_CONCURRENCY, partCount);
+}
+
+export function isInterruptedProcessingStage(stage: JobStage): boolean {
+  return !['completed', 'failed', 'awaiting-frame-review'].includes(stage);
+}
 
 interface PlatformJobInput {
   sourceType: 'platform';
