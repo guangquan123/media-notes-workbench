@@ -90,6 +90,7 @@ import {
   TencentAsrTranscriptionService,
   type TencentAsrTranscriptResult,
 } from './tencent-asr-transcription.service';
+import { ExternalModelSettingsService } from './external-model-settings.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -199,6 +200,7 @@ export class NoteJobsService {
     private readonly frameInsertionService: FrameInsertionService,
     private readonly frameReviewService: FrameReviewService,
     private readonly tencentAsrTranscriptionService: TencentAsrTranscriptionService,
+    private readonly externalModelSettingsService: ExternalModelSettingsService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -2003,6 +2005,13 @@ export class NoteJobsService {
     sourceLabel: string;
     generatedDate: string;
   }): Promise<string> {
+    const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
+      sourceText: input.transcript,
+      styleRequirements: input.styleRequirements,
+      title: input.title,
+      sourceKind: '转录稿',
+    });
+    if (externalMarkdown) return externalMarkdown;
     const pluginInstanceId = 'bilibili-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {
@@ -2041,6 +2050,66 @@ export class NoteJobsService {
       throw new Error(
         `妙搭内置 AI 生成笔记失败：${error instanceof Error ? error.message : '未知错误'}`,
       );
+    }
+  }
+
+  private async summarizeWithExternalModel(input: {
+    sourceText: string;
+    sourceKind: string;
+    styleRequirements: string;
+    title: string;
+  }): Promise<string | undefined> {
+    const credentials = await this.externalModelSettingsService.getCredentials();
+    if (!credentials) return undefined;
+
+    const controller = new AbortController();
+    const timeout = setTimeout((): void => controller.abort(), 180_000);
+    try {
+      const response: Response = await fetch(
+        `${credentials.baseUrl}/chat/completions`,
+        {
+          body: JSON.stringify({
+            max_tokens: 8192,
+            messages: [
+              {
+                content:
+                  '你是严谨的中文知识管理编辑。只根据给定原文写 Markdown 笔记，不得编造。专有名词、数字或结论无法确认时标记“待核对”。严格服从用户提示词，不要输出解释或致歉。',
+                role: 'system',
+              },
+              {
+                content: `标题：${input.title}\n\n用户提示词：\n${input.styleRequirements}\n\n${input.sourceKind}：\n${input.sourceText}`,
+                role: 'user',
+              },
+            ],
+            model: credentials.model,
+            stream: false,
+            temperature: 0.3,
+          }),
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as {
+        choices?: Array<{ message?: { content?: unknown } }>;
+      };
+      const content = payload.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        throw new Error('服务未返回文本内容');
+      }
+      return content.trim();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(
+        `外部模型 ${credentials.model} 生成失败，将回退内置模型：${message}`,
+      );
+      return undefined;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -2093,6 +2162,13 @@ export class NoteJobsService {
     sourceUrl: string;
     title: string;
   }): Promise<string> {
+    const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
+      sourceText: input.content,
+      styleRequirements: input.styleRequirements,
+      title: input.title,
+      sourceKind: '文档原文',
+    });
+    if (externalMarkdown) return externalMarkdown;
     const pluginInstanceId = 'pdf-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {

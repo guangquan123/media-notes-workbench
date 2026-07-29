@@ -324,6 +324,27 @@ export interface TencentAsrConnectionStatus {
   message: string;
 }
 
+export interface ExternalModelSettings {
+  apiKeyConfigured: boolean;
+  baseUrl: string;
+  configured: boolean;
+  enabled: boolean;
+  model: string;
+}
+
+export interface UpdateExternalModelSettingsRequest {
+  /** 留空表示保留已保存的 API Key。 */
+  apiKey?: string;
+  baseUrl: string;
+  enabled: boolean;
+  model: string;
+}
+
+export interface ExternalModelConnectionStatus {
+  checkedAt: string;
+  message: string;
+}
+
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
 export type NoteProcessingStatus = 'pending' | 'processed';
 export type TaskSyncStatus = 'not_created' | 'created' | 'failed';

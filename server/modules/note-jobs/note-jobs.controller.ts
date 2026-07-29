@@ -26,12 +26,14 @@ import type {
   UpdateFrameSelectionRequest,
   UpdateNoteTemplateConfigRequest,
   UpdateTencentAsrSettingsRequest,
+  UpdateExternalModelSettingsRequest,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { TencentAsrSettingsService } from './tencent-asr-settings.service';
+import { ExternalModelSettingsService } from './external-model-settings.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
 import {
   normalizeHistoryDateRange,
@@ -68,6 +70,7 @@ export class NoteJobsController {
     private readonly noteTemplateService: NoteTemplateService,
     private readonly noteReviewTaskService: NoteReviewTaskService,
     private readonly tencentAsrSettingsService: TencentAsrSettingsService,
+    private readonly externalModelSettingsService: ExternalModelSettingsService,
   ) {}
 
   @Get('readiness')
@@ -91,6 +94,24 @@ export class NoteJobsController {
   @Post('transcription-settings/test-connection')
   testTranscriptionConnection() {
     return this.tencentAsrSettingsService.testConnection();
+  }
+
+  @NeedLogin()
+  @Get('model-settings')
+  modelSettings() {
+    return this.externalModelSettingsService.getPublicSettings();
+  }
+
+  @NeedLogin()
+  @Put('model-settings')
+  updateModelSettings(@Body() body: UpdateExternalModelSettingsRequest) {
+    return this.externalModelSettingsService.update(body);
+  }
+
+  @NeedLogin()
+  @Post('model-settings/test-connection')
+  testModelConnection() {
+    return this.externalModelSettingsService.testConnection();
   }
 
   @NeedLogin()

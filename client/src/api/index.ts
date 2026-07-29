@@ -21,8 +21,11 @@ import type {
   SystemReadiness,
   TencentAsrSettings,
   TencentAsrConnectionStatus,
+  ExternalModelConnectionStatus,
+  ExternalModelSettings,
   UpdateTencentAsrSettingsRequest,
   UpdateNoteTemplateConfigRequest,
+  UpdateExternalModelSettingsRequest,
   GenerateFrameDerivativeRequest,
   NoteJobFrameListResponse,
   PublishFrameSelectionRequest,
@@ -115,6 +118,29 @@ export async function testTencentAsrConnection(): Promise<TencentAsrConnectionSt
     url: '/api/note-jobs/transcription-settings/test-connection',
     method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getExternalModelSettings(): Promise<ExternalModelSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/model-settings', method: 'GET', timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateExternalModelSettings(
+  input: UpdateExternalModelSettingsRequest,
+): Promise<ExternalModelSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/model-settings', method: 'PUT', data: input, timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testExternalModelConnection(): Promise<ExternalModelConnectionStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/model-settings/test-connection', method: 'POST', timeout: 30_000,
   });
   return response.data;
 }

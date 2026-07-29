@@ -11,6 +11,7 @@ import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
 import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
+import { ExternalModelSettingsService } from './external-model-settings.service';
 
 @Module({
   controllers: [NoteJobsController],
@@ -26,6 +27,7 @@ import { TencentAsrTranscriptionService } from './tencent-asr-transcription.serv
     FrameReviewService,
     TencentAsrSettingsService,
     TencentAsrTranscriptionService,
+    ExternalModelSettingsService,
   ],
   exports: [NoteJobsService],
 })

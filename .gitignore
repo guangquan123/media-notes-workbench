@@ -13,6 +13,7 @@ build/
 .media-inbox-state.json
 .minutes-transcription-state.json
 .tencent-asr-config.json
+.external-model-config.json
 
 # Logs
 npm-debug.log*
