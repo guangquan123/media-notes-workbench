@@ -129,8 +129,8 @@ describe('note job request validation', () => {
   });
 
   it('provides editable default templates for learning and meeting notes', () => {
-    expect(DEFAULT_NOTE_TEMPLATES.learning.content).toContain('知识框架');
-    expect(DEFAULT_NOTE_TEMPLATES.meeting.content).toContain('待办');
+    expect(DEFAULT_NOTE_TEMPLATES.learning.content).toContain('核心知识体系');
+    expect(DEFAULT_NOTE_TEMPLATES.meeting.content).toContain('三、会后待办');
   });
 
   it('rejects audio MIME types for a local video job', () => {

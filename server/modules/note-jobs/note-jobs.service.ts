@@ -91,6 +91,11 @@ import {
   type TencentAsrTranscriptResult,
 } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
+import {
+  NoteSummaryPipelineService,
+  type GenerateHighQualityNoteResult,
+  type NoteSummaryPipelineProgress,
+} from './note-summary-pipeline.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -201,6 +206,7 @@ export class NoteJobsService {
     private readonly frameReviewService: FrameReviewService,
     private readonly tencentAsrTranscriptionService: TencentAsrTranscriptionService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
+    private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
@@ -222,8 +228,13 @@ export class NoteJobsService {
       tencentAsr,
       tencentAsrEnabled: tencentAsr,
       ready: ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
-      platformReady: ytDlp && ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
-      mediaReady: ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
+      platformReady:
+        ytDlp &&
+        ffmpeg &&
+        larkCli &&
+        (tencentAsr || (whisperCli && whisperModel)),
+      mediaReady:
+        ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
       documentReady: larkCli,
       pdfReady: larkCli,
     };
@@ -690,10 +701,7 @@ export class NoteJobsService {
         archiveTranscript = transcript;
       }
       if (!transcript.trim()) throw new Error('转录结果为空');
-      const transcriptionProvider:
-        | 'tencent_asr'
-        | 'local_whisper'
-        | 'mixed' =
+      const transcriptionProvider: 'tencent_asr' | 'local_whisper' | 'mixed' =
         transcriptionProviders.size > 1
           ? 'mixed'
           : transcriptionProviders.has('local_whisper')
@@ -742,10 +750,11 @@ export class NoteJobsService {
         );
       }
 
-      this.update(id, 'summarizing', 70, '原文已归档，正在检索补充依据…');
-      const editorResearch = await this.researchEvidence(
-        videoTitle,
-        transcript,
+      this.update(
+        id,
+        'summarizing',
+        70,
+        '原文已归档，正在启动高质量总结流水线…',
       );
       const promptSnapshot = await this.noteTemplateService.getActivePrompt(
         ownerId,
@@ -758,42 +767,30 @@ export class NoteJobsService {
         promptSnapshot.versionId,
       );
       const styleRequirements: string = promptSnapshot.content;
-      this.update(id, 'summarizing', 74, '依据已整理，正在撰写学习笔记…');
-      const markdown = await this.summarize({
-        jobId: id,
-        transcript,
-        editorResearch,
-        noteStyle: input.noteStyle,
-        styleRequirements,
-        title: videoTitle,
-        uploader: metadata.uploader || '未知',
-        duration: metadata.duration_string || '未知',
-        sourceUrl,
-        sourceLabel,
-        generatedDate: new Intl.DateTimeFormat('zh-CN', {
-          timeZone: 'Asia/Shanghai',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(new Date()),
-      });
+      const summaryResult: GenerateHighQualityNoteResult =
+        await this.noteSummaryPipelineService.generate({
+          sourceText: transcript,
+          noteStyle: input.noteStyle,
+          onProgress: (progress: NoteSummaryPipelineProgress): void =>
+            this.updateSummaryPipelineProgress(id, progress),
+          sourceTitle: videoTitle,
+          styleRequirements,
+        });
       this.patch(id, {
         summaryGeneration: {
-          ...(this.get(id, ownerId).summaryGeneration || {
-            modelName: '妙搭内置 AI',
-            provider: 'builtin',
-          }),
+          modelName: summaryResult.modelName,
+          provider: summaryResult.provider,
+          qualityScore: summaryResult.quality.score,
           stage: 'reviewing',
         },
       });
-      this.update(id, 'summarizing', 80, '初稿已完成，正在校验完整性和真实性…');
-      const reviewedMarkdown = await this.reviewNoteQuality({
-        draftNote: markdown,
-        noteStyle: input.noteStyle,
-        styleRequirements,
-        transcript,
-        transcriptQualityWarnings: transcriptQuality.warnings,
-      });
+      this.update(
+        id,
+        'summarizing',
+        84,
+        `质量门禁已通过（${summaryResult.quality.score} 分），正在整理发布内容…`,
+      );
+      const reviewedMarkdown: string = summaryResult.markdown;
       if (
         input.visualOptions.mode === 'review' &&
         keyFrames.some((frame) => frame.imageKey)
@@ -990,11 +987,7 @@ export class NoteJobsService {
       await this.persistRawDocument(id, rawDocumentUrl);
     }
 
-    this.update(id, 'summarizing', 58, '正在提炼知识框架与核心观点…');
-    const editorResearch: string = await this.researchEvidence(
-      title,
-      parsedContent,
-    );
+    this.update(id, 'summarizing', 58, '正在启动高质量总结流水线…');
     const promptSnapshot = await this.noteTemplateService.getActivePrompt(
       ownerId,
       input.noteStyle,
@@ -1006,39 +999,30 @@ export class NoteJobsService {
       promptSnapshot.versionId,
     );
     const styleRequirements: string = promptSnapshot.content;
-    const markdown: string = await this.summarizeDocument({
-      jobId: id,
-      content: parsedContent,
-      editorResearch,
-      fileHash: primaryItem.fileHash,
-      fileName: input.mediaItems
-        .map((media: UploadedMediaInput) => media.fileName)
-        .join('、'),
-      generatedDate,
-      noteStyle: input.noteStyle,
-      styleRequirements,
-      parseQuality,
-      sourceUrl: input.mediaItems
-        .map((media: UploadedMediaInput) => media.downloadUrl)
-        .join('、'),
-      title,
-    });
+    const summaryResult: GenerateHighQualityNoteResult =
+      await this.noteSummaryPipelineService.generate({
+        noteStyle: input.noteStyle,
+        onProgress: (progress: NoteSummaryPipelineProgress): void =>
+          this.updateSummaryPipelineProgress(id, progress),
+        sourceText: parsedContent,
+        sourceTitle: title,
+        styleRequirements,
+      });
     this.patch(id, {
       summaryGeneration: {
-        ...(this.get(id, ownerId).summaryGeneration || {
-          modelName: '妙搭内置 AI',
-          provider: 'builtin',
-        }),
+        modelName: summaryResult.modelName,
+        provider: summaryResult.provider,
+        qualityScore: summaryResult.quality.score,
         stage: 'reviewing',
       },
     });
-    this.update(id, 'summarizing', 78, '正在核验笔记与文档原文的一致性…');
-    const reviewedMarkdown: string = await this.reviewDocumentNote({
-      draftNote: markdown,
-      noteStyle: input.noteStyle,
-      styleRequirements,
-      sourceText: parsedContent,
-    });
+    this.update(
+      id,
+      'summarizing',
+      84,
+      `质量门禁已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
+    );
+    const reviewedMarkdown: string = summaryResult.markdown;
     this.update(id, 'summarizing', 86, '正在生成知识框架图…');
     const knowledgeMapUrl: string | undefined =
       await this.generateKnowledgeMap(reviewedMarkdown);
@@ -1386,7 +1370,9 @@ export class NoteJobsService {
     } catch (error) {
       const cloudError: string =
         error instanceof Error ? error.message : '未知错误';
-      this.logger.warn(`腾讯云 ASR 转录失败，准备检查本地兜底能力: ${cloudError}`);
+      this.logger.warn(
+        `腾讯云 ASR 转录失败，准备检查本地兜底能力: ${cloudError}`,
+      );
       if (!readiness.whisperCli || !readiness.whisperModel) {
         throw new Error(
           `腾讯云 ASR 高质量转录失败，且本机转录兜底不可用：${cloudError}`,
@@ -2043,13 +2029,14 @@ export class NoteJobsService {
         },
       });
     }
-    const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
-      jobId: input.jobId,
-      sourceText: input.transcript,
-      styleRequirements: input.styleRequirements,
-      title: input.title,
-      sourceKind: '转录稿',
-    });
+    const externalMarkdown: string | undefined =
+      await this.summarizeWithExternalModel({
+        jobId: input.jobId,
+        sourceText: input.transcript,
+        styleRequirements: input.styleRequirements,
+        title: input.title,
+        sourceKind: '转录稿',
+      });
     if (externalMarkdown) return externalMarkdown;
     this.patch(input.jobId, {
       summaryGeneration: {
@@ -2106,7 +2093,8 @@ export class NoteJobsService {
     styleRequirements: string;
     title: string;
   }): Promise<string | undefined> {
-    const credentials = await this.externalModelSettingsService.getCredentials();
+    const credentials =
+      await this.externalModelSettingsService.getCredentials();
     if (!credentials) return undefined;
     this.patch(input.jobId, {
       summaryGeneration: {
@@ -2229,13 +2217,14 @@ export class NoteJobsService {
         },
       });
     }
-    const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
-      jobId: input.jobId,
-      sourceText: input.content,
-      styleRequirements: input.styleRequirements,
-      title: input.title,
-      sourceKind: '文档原文',
-    });
+    const externalMarkdown: string | undefined =
+      await this.summarizeWithExternalModel({
+        jobId: input.jobId,
+        sourceText: input.content,
+        styleRequirements: input.styleRequirements,
+        title: input.title,
+        sourceKind: '文档原文',
+      });
     if (externalMarkdown) return externalMarkdown;
     this.patch(input.jobId, {
       summaryGeneration: {
@@ -2951,6 +2940,44 @@ export class NoteJobsService {
     message: string,
   ) {
     this.patch(id, { stage, progress, message });
+  }
+
+  private updateSummaryPipelineProgress(
+    id: string,
+    progress: NoteSummaryPipelineProgress,
+  ): void {
+    const stageProgress: number =
+      progress.stage === 'extracting'
+        ? 72
+        : progress.stage === 'structuring'
+          ? 76
+          : progress.stage === 'reviewing'
+            ? 80
+            : progress.stage === 'repairing'
+              ? 82
+              : 74;
+    const stageMessage: string =
+      progress.stage === 'extracting'
+        ? `正在构建证据账本${progress.attempt ? `（分块 ${progress.attempt}）` : ''}…`
+        : progress.stage === 'structuring'
+          ? '证据账本已完成，正在生成结构化笔记…'
+          : progress.stage === 'reviewing'
+            ? '初稿已完成，正在核验真实性与信息覆盖…'
+            : progress.stage === 'repairing'
+              ? `质量门禁发现遗漏，正在进行第 ${progress.attempt || 1} 次定向修订…`
+              : '正在执行高质量总结流水线…';
+    this.patch(id, {
+      message: stageMessage,
+      progress: stageProgress,
+      stage: 'summarizing',
+      summaryGeneration: {
+        attempt: progress.attempt,
+        modelName: progress.modelName,
+        provider: progress.provider,
+        qualityScore: progress.qualityScore,
+        stage: progress.stage,
+      },
+    });
   }
 
   private completedSummaryGeneration(

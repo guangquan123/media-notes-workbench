@@ -281,13 +281,18 @@ export interface NoteJob {
 export type SummaryGenerationStage =
   | 'preparing'
   | 'generating'
+  | 'extracting'
+  | 'structuring'
   | 'reviewing'
+  | 'repairing'
   | 'completed'
   | 'fallback';
 
 export interface SummaryGenerationInfo {
+  attempt?: number;
   modelName: string;
   provider: 'external_model' | 'builtin';
+  qualityScore?: number;
   stage: SummaryGenerationStage;
 }
 
