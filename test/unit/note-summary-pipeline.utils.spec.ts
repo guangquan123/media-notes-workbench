@@ -4,6 +4,7 @@ import {
   buildEvidenceMergePrompt,
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
+  assessEvidenceMergeIntegrity,
   splitSourceText,
 } from '../../server/modules/note-jobs/note-summary-pipeline.utils';
 
@@ -33,7 +34,8 @@ describe('note summary pipeline utilities', () => {
     const prompt: string = buildEvidenceExtractionPrompt(chunk, 1);
 
     expect(prompt).toContain('证据账本');
-    expect(prompt).toContain('所有数字');
+    expect(prompt).toContain('所有影响范围');
+    expect(prompt).toContain('完整保留事实、数字');
     expect(prompt).toContain('转写原话');
     expect(prompt).toContain('[S01]');
     expect(prompt).toContain('不得补充');
@@ -47,6 +49,39 @@ describe('note summary pipeline utilities', () => {
     expect(prompt).toContain('不得删除任何唯一数字');
     expect(prompt).toContain('保留 [S01]');
     expect(prompt).toContain('[S02][风险]');
+  });
+
+  it('detects source, type and number loss during evidence compaction', () => {
+    const integrity = assessEvidenceMergeIntegrity(
+      [
+        '[S01][数字] 数据库实例约 30 万。',
+        '[S02][风险] 合并实例会导致版本无法升级。',
+        '[S03][数字] 项目投入 3 个工程月完成改造。',
+        '[S03][案例] 项目通过改造解决了实例冲突。',
+      ].join('\n'),
+      '[S01][数字] 数据库实例约 30 万。',
+    );
+
+    expect(integrity.passed).toBe(false);
+    expect(integrity.missingSourceIds).toEqual(['[S02]', '[S03]']);
+    expect(integrity.missingEvidenceTypes).toEqual(['风险', '案例']);
+    expect(integrity.missingNumbers).toContain('3');
+  });
+
+  it('accepts evidence compaction that preserves integrity signals', () => {
+    const integrity = assessEvidenceMergeIntegrity(
+      [
+        '[S01][数字] 数据库实例约 30 万。',
+        '[S02][风险] 合并实例会导致版本无法升级。',
+      ].join('\n'),
+      '[S01][S02][数字] 数据库实例约 30 万。\n' +
+        '[S02][风险] 合并实例会导致版本无法升级。',
+    );
+
+    expect(integrity.passed).toBe(true);
+    expect(integrity.missingSourceIds).toEqual([]);
+    expect(integrity.missingEvidenceTypes).toEqual([]);
+    expect(integrity.missingNumbers).toEqual([]);
   });
 
   it('uses flexible learning modules and the fixed three-part meeting contract', () => {
@@ -65,7 +100,8 @@ describe('note summary pipeline utilities', () => {
 
     expect(learningPrompt).toContain('# 标题');
     expect(learningPrompt).toContain('延续平台已发布的学习/培训笔记结构');
-    expect(learningPrompt).toContain('按证据决定是否出现');
+    expect(learningPrompt).toContain('证据驱动规则');
+    expect(learningPrompt).toContain('必须输出对应独立模块');
     expect(learningPrompt).not.toContain('必须包含全部 10 章');
     expect(meetingPrompt).toContain('只允许三个一级内容模块');
     expect(meetingPrompt).toContain('一、会议议程');
@@ -204,14 +240,15 @@ describe('note summary pipeline utilities', () => {
 
 ## 一页复习
 必须记住 12 个数据库和 3 名工程人员两个关键规模信息。`,
-      sourceText: '平台有 4 种模板，项目包含 12 个数据库，改造投入 3 名工程人员。',
+      sourceText:
+        '平台有 4 种模板，项目包含 12 个数据库，改造投入 3 名工程人员。',
     });
 
     expect(result.sourceNumberCount).toBe(2);
     expect(result.numberCoverage).toBe(1);
   });
 
-  it('treats number coverage as a repair signal instead of a hard failure', () => {
+  it('rejects low coverage of explicitly extracted important numbers', () => {
     const result = assessNoteQuality({
       noteStyle: 'learning',
       note: `# 数据培训笔记
@@ -236,6 +273,137 @@ describe('note summary pipeline utilities', () => {
     expect(result.numberCoverage).toBe(0.25);
     expect(result.failedChecks.join('\n')).toContain('数字覆盖率');
     expect(result.score).toBeGreaterThanOrEqual(80);
+    expect(result.passed).toBe(false);
+  });
+
+  it('rejects a learning note that omits evidence-driven detail modules', () => {
+    const evidenceLedger: string = [
+      '[S01][关系] 数据治理、指标平台和智能体之间存在调用链路。',
+      '[S01][步骤] 上线前先确认模型，再检查权限，最后发布。',
+      '[S02][案例] 客户合并数据库实例后投入了额外改造工作。',
+      '[S02][对比] 模型直连正常，通过网关中转后性能下降。',
+      '[S02][数字] 项目包含 12 个产品库。',
+      '[S02][风险] 合并实例可能导致版本无法升级。',
+      '[S03][术语] Dataset 指用于生成问答对的数据集插件。',
+      '[S03][待研究] 需要确认知识图谱模型兼容范围。',
+    ].join('\n');
+    const result = assessNoteQuality({
+      evidenceLedger,
+      noteStyle: 'learning',
+      note: `# 平台培训笔记
+
+## 一、内容概览
+本次培训介绍平台功能和项目实施问题。
+
+## 二、核心结论与关键要点
+平台实施需要兼顾数据、模型和权限。
+
+## 三、核心知识体系
+> 转写原话：“平台实施需要系统评估。” [S01]
+
+正文只保留了概括性知识，没有展开案例和风险。
+
+## 四、一页复习
+记住平台实施需要系统评估。`,
+      sourceText: '平台培训原文。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failedChecks.join('\n')).toContain('知识关系与整体逻辑');
+    expect(result.failedChecks.join('\n')).toContain('重要案例');
+    expect(result.failedChecks.join('\n')).toContain('关键数据与重要事实');
+    expect(result.failedChecks.join('\n')).toContain('风险、误区与注意事项');
+    expect(result.failedChecks.join('\n')).toContain('关键术语');
+    expect(result.failedChecks.join('\n')).toContain('仍需进一步研究的问题');
+  });
+
+  it('rejects a note that does not cover every evidence source chunk', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: [
+        '[S01][事实] 第一部分介绍平台背景。',
+        '[S02][事实] 第二部分介绍项目限制。',
+        '[S03][事实] 第三部分介绍交付结论。',
+      ].join('\n'),
+      noteStyle: 'learning',
+      note: `# 项目培训笔记
+
+## 内容概览
+介绍平台背景。[S01]
+## 核心结论与关键要点
+整理项目要点。
+## 核心知识体系
+> 转写原话：“介绍平台背景。” [S01]
+## 一页复习
+复习平台背景。`,
+      sourceText: '项目培训原文。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failedChecks.join('\n')).toContain('来源分块');
+    expect(result.failedChecks.join('\n')).toContain('S02');
+    expect(result.failedChecks.join('\n')).toContain('S03');
+  });
+
+  it('accepts a detailed learning note that covers every evidence category', () => {
+    const evidenceLedger: string = [
+      '[S01][关系] 数据治理、指标平台和智能体之间存在调用链路。',
+      '[S01][步骤] 上线前先确认模型，再检查权限，最后发布。',
+      '[S02][案例] 客户合并数据库实例后投入了额外改造工作。',
+      '[S02][对比] 模型直连正常，通过网关中转后性能下降。',
+      '[S02][数字] 项目包含 12 个产品库。',
+      '[S02][风险] 合并实例可能导致版本无法升级。',
+      '[S03][术语] Dataset 指用于生成问答对的数据集插件。',
+      '[S03][待研究] 需要确认知识图谱模型兼容范围。',
+    ].join('\n');
+    const result = assessNoteQuality({
+      evidenceLedger,
+      noteStyle: 'learning',
+      note: `# 平台实施与智能体培训笔记
+
+## 一、内容概览
+本次培训覆盖数据链路、上线流程和项目实施风险。[S01][S02]
+
+## 二、核心结论与关键要点
+项目实施既要理解平台关系，也要保留客户案例与限制条件。[S02]
+
+## 三、核心知识体系
+> 转写原话：“上线前需要先确认模型和权限。” [S01]
+
+## 四、一页复习
+必须记住平台关系、上线顺序和实例合并风险。
+
+## 五、知识关系与整体逻辑
+整理归纳：数据治理经过指标平台连接智能体，形成完整调用链路。[S01]
+
+## 六、方法、流程与复用清单
+1. 确认模型。
+2. 检查权限。
+3. 发布应用。[S01]
+
+## 七、重要案例
+客户合并数据库实例后产生额外改造工作。[S02]
+
+## 八、对比与区别
+模型直连正常，而通过网关中转后性能下降。[S02]
+
+## 九、关键数据与重要事实
+| 数据 | 含义 |
+|-|-|
+| 12 个产品库 | 项目数据规模 | [S02]
+
+## 十、风险、误区与注意事项
+实例合并存在版本无法升级的明确风险；原文未给出应对方案。[S02]
+
+## 十一、关键术语
+Dataset 是用于生成问答对的数据集插件。[S03]
+
+## 十二、仍需进一步研究的问题
+需要确认知识图谱模型的兼容范围。[S03]`,
+      sourceText: '平台培训原文。',
+    });
+
+    expect(result.evidenceCoverage).toBe(1);
+    expect(result.sourceAnchorCoverage).toBe(1);
     expect(result.passed).toBe(true);
   });
 
@@ -358,6 +526,66 @@ ${longList}
     expect(result.failedChecks.join('\n')).toContain('额外一级模块');
   });
 
+  it('rejects a meeting note that drops disagreements and risks', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: [
+        '[S01][分歧] 甲方建议本周上线，乙方认为测试尚未完成。',
+        '[S02][风险] 未完成回归测试会增加生产故障风险。',
+        '[S03][限制] 上线前依赖客户开放防火墙端口。',
+      ].join('\n'),
+      noteStyle: 'meeting',
+      note: `# 项目会议纪要
+
+## 一、会议议程
+讨论上线安排。
+## 二、会议内容
+会议讨论了上线安排。[S01]
+## 三、会后待办
+暂无明确待办。
+
+纪要状态：会议已完成讨论。`,
+      sourceText: '项目会议原文。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failedChecks.join('\n')).toContain('分歧');
+    expect(result.failedChecks.join('\n')).toContain('风险');
+    expect(result.failedChecks.join('\n')).toContain('限制');
+  });
+
+  it('accepts a meeting note that preserves disagreements, risks and limits', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: [
+        '[S01][分歧] 甲方建议本周上线，乙方认为测试尚未完成。',
+        '[S02][风险] 未完成回归测试会增加生产故障风险。',
+        '[S03][限制] 上线前依赖客户开放防火墙端口。',
+      ].join('\n'),
+      noteStyle: 'meeting',
+      note: `# 项目会议纪要
+
+## 一、会议议程
+讨论上线安排与测试条件。
+
+## 二、会议内容
+- 分歧：甲方建议本周上线，乙方认为测试尚未完成。[S01]
+- 风险：未完成回归测试会增加生产故障风险。[S02]
+- 限制与依赖：上线前依赖客户开放防火墙端口。[S03]
+- 会议未形成明确结论，最终上线日期待确认。
+
+## 三、会后待办
+| 待办事项 | 负责人 | 截止时间 | 输出结果 | 依赖 |
+|-|-|-|-|-|
+| 完成回归测试并确认端口 | 待确认 | 待确认 | 测试结果 | 客户开放端口 |
+
+纪要状态：1 个议题未形成明确结论，1 项待办信息待确认。`,
+      sourceText: '项目会议原文。',
+    });
+
+    expect(result.evidenceCoverage).toBe(1);
+    expect(result.sourceAnchorCoverage).toBe(1);
+    expect(result.passed).toBe(true);
+  });
+
   it('builds a repair prompt from concrete failed checks', () => {
     const prompt: string = buildNoteRepairPrompt({
       draftNote: '# 草稿',
@@ -372,5 +600,6 @@ ${longList}
     expect(prompt).toContain('数字覆盖率只有 50%');
     expect(prompt).toContain('只使用证据账本');
     expect(prompt).toContain('输出修订后的完整 Markdown');
+    expect(prompt).toContain('逐类核对');
   });
 });

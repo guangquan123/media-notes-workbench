@@ -10,12 +10,13 @@ describe('note template version utilities', () => {
     expect(getNextPromptVersionNumber(7)).toBe(8);
   });
 
-  it('keeps learning modules adaptive instead of forcing ten chapters', () => {
+  it('makes learning detail modules evidence-driven instead of always empty', () => {
     const content: string = DEFAULT_NOTE_TEMPLATES.learning.content;
 
     expect(content).toContain('标题与四个核心模块');
     expect(content).toContain('四个核心模块');
-    expect(content).toContain('按证据决定是否输出');
+    expect(content).toContain('采用证据驱动规则');
+    expect(content).toContain('必须输出并覆盖全部独有条目');
     expect(content).not.toContain('会议议程');
     expect(content).not.toContain('会议内容');
     expect(content).not.toContain('会后待办');

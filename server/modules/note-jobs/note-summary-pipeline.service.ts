@@ -8,12 +8,14 @@ import type {
 } from '@shared/api.interface';
 import { mapWithConcurrency } from '@shared/async.utils';
 import {
+  assessEvidenceMergeIntegrity,
   assessNoteQuality,
   buildEvidenceExtractionPrompt,
   buildEvidenceMergePrompt,
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
   splitSourceText,
+  type EvidenceMergeIntegrity,
   type NoteQualityAssessment,
   type SourceTextChunk,
 } from './note-summary-pipeline.utils';
@@ -57,7 +59,7 @@ export interface GenerateHighQualityNoteResult {
   quality: NoteQualityAssessment;
 }
 
-const PIPELINE_ENGINE_VERSION = 'note-summary-v2';
+const PIPELINE_ENGINE_VERSION = 'note-summary-v2-detailed-20260729';
 const EVIDENCE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const EVIDENCE_CACHE_LIMIT = 20;
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -105,7 +107,11 @@ export class NoteSummaryPipelineService {
     });
     let finalModel: PipelineModelResult = structureResult;
 
-    for (let attempt = 1; attempt <= MAX_REPAIR_ATTEMPTS; attempt += 1) {
+    for (
+      let attempt = 1;
+      attempt <= MAX_REPAIR_ATTEMPTS && !quality.passed;
+      attempt += 1
+    ) {
       input.onProgress({
         attempt,
         modelName: finalModel.modelName,
@@ -187,7 +193,7 @@ export class NoteSummaryPipelineService {
       async (chunk: SourceTextChunk): Promise<string> => {
         const result: PipelineModelResult = await this.generateModelText(
           buildEvidenceExtractionPrompt(chunk, chunks.length),
-          6_000,
+          8_000,
         );
         input.onProgress({
           attempt: chunk.index,
@@ -239,6 +245,14 @@ export class NoteSummaryPipelineService {
         },
       );
       const mergedLedger: string = mergedParts.join('\n\n');
+      const mergeIntegrity: EvidenceMergeIntegrity =
+        assessEvidenceMergeIntegrity(compactedLedger, mergedLedger);
+      if (!mergeIntegrity.passed) {
+        this.logger.warn(
+          `证据账本压缩会丢失完整性信号，已放弃本轮压缩并保留原账本：缺少来源 ${mergeIntegrity.missingSourceIds.join('、') || '无'}；缺少类型 ${mergeIntegrity.missingEvidenceTypes.join('、') || '无'}；缺少数字 ${mergeIntegrity.missingNumbers.join('、') || '无'}`,
+        );
+        break;
+      }
       if (mergedLedger.length >= compactedLedger.length) break;
       compactedLedger = mergedLedger;
     }
