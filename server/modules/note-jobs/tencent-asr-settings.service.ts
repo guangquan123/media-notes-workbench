@@ -1,8 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import COS from 'cos-nodejs-sdk-v5';
+import * as TencentCloud from 'tencentcloud-sdk-nodejs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   TencentAsrSettings,
+  TencentAsrConnectionStatus,
   UpdateTencentAsrSettingsRequest,
 } from '@shared/api.interface';
 
@@ -70,6 +73,39 @@ export class TencentAsrSettingsService {
     await rename(tempPath, this.configPath);
     this.current = next;
     return this.getPublicSettings();
+  }
+
+  async testConnection(): Promise<TencentAsrConnectionStatus> {
+    const current: TencentAsrCredentials = await this.load();
+    if (!this.isConfigured(current)) {
+      throw new BadRequestException('请先填写 SecretId、SecretKey、地域和存储桶。');
+    }
+    const cos = new COS({
+      SecretId: current.secretId,
+      SecretKey: current.secretKey,
+    });
+    await cos.headBucket({ Bucket: current.bucket, Region: current.region });
+    const asr = new TencentCloud.asr.v20190614.Client({
+      credential: {
+        secretId: current.secretId,
+        secretKey: current.secretKey,
+      },
+      region: current.region,
+    });
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+    }).format(new Date());
+    await asr.GetUsageByDate({
+      BizNameList: ['asr_rec'],
+      EndDate: today,
+      StartDate: today,
+    });
+    return {
+      asrConnected: true,
+      checkedAt: new Date().toISOString(),
+      cosConnected: true,
+      message: 'COS 存储桶和腾讯云录音文件识别均可访问。',
+    };
   }
 
   private async load(): Promise<TencentAsrCredentials> {

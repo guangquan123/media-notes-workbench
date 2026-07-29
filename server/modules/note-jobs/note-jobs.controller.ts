@@ -88,6 +88,12 @@ export class NoteJobsController {
   }
 
   @NeedLogin()
+  @Post('transcription-settings/test-connection')
+  testTranscriptionConnection() {
+    return this.tencentAsrSettingsService.testConnection();
+  }
+
+  @NeedLogin()
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() body: CreateNoteJobRequest) {
     return this.noteJobsService.create(body, req.userContext.userId);

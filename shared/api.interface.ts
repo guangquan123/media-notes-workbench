@@ -315,6 +315,13 @@ export interface UpdateTencentAsrSettingsRequest {
   speakerDiarization?: boolean;
 }
 
+export interface TencentAsrConnectionStatus {
+  asrConnected: boolean;
+  checkedAt: string;
+  cosConnected: boolean;
+  message: string;
+}
+
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
 export type NoteProcessingStatus = 'pending' | 'processed';
 export type TaskSyncStatus = 'not_created' | 'created' | 'failed';

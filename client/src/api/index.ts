@@ -20,6 +20,7 @@ import type {
   NoteTemplateConfigResponse,
   SystemReadiness,
   TencentAsrSettings,
+  TencentAsrConnectionStatus,
   UpdateTencentAsrSettingsRequest,
   UpdateNoteTemplateConfigRequest,
   GenerateFrameDerivativeRequest,
@@ -104,6 +105,15 @@ export async function updateTencentAsrSettings(
     url: '/api/note-jobs/transcription-settings',
     method: 'PUT',
     data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testTencentAsrConnection(): Promise<TencentAsrConnectionStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/transcription-settings/test-connection',
+    method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
