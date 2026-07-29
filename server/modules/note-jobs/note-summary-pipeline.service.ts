@@ -34,6 +34,7 @@ import {
   ExternalModelSettingsService,
   type ExternalModelCredentials,
 } from './external-model-settings.service';
+import { augmentEvidenceLedgerWithSourceAnchors } from './note-summary-source-anchors.utils';
 
 interface EvidenceCacheEntry {
   evidenceLedger: string;
@@ -77,7 +78,7 @@ export interface GenerateHighQualityNoteResult {
   quality: NoteQualityAssessment;
 }
 
-const PIPELINE_ENGINE_VERSION = 'note-summary-v3-source-audit-20260729';
+const PIPELINE_ENGINE_VERSION = 'note-summary-v3-source-anchors-20260730';
 const EVIDENCE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const EVIDENCE_CACHE_LIMIT = 20;
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -323,11 +324,12 @@ export class NoteSummaryPipelineService {
           provider: auditResult.provider,
           stage: 'extracting',
         });
-        return mergeEvidenceGapAudit(
+        const auditedLedger: string = mergeEvidenceGapAudit(
           extractionResult.text,
           auditResult.text,
           chunk.content,
         );
+        return augmentEvidenceLedgerWithSourceAnchors(auditedLedger, chunk);
       },
     );
     const evidenceLedger: string = await this.compactEvidenceLedger(

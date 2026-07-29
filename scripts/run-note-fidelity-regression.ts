@@ -6,6 +6,12 @@ import { AppModule } from '../server/app.module';
 import type { ExternalModelCredentials } from '../server/modules/note-jobs/external-model-settings.service';
 import { ExternalModelSettingsService } from '../server/modules/note-jobs/external-model-settings.service';
 import { NoteSummaryPipelineService } from '../server/modules/note-jobs/note-summary-pipeline.service';
+import { extractHighValueSourceAnchors } from '../server/modules/note-jobs/note-summary-source-anchors.utils';
+import {
+  splitSourceText,
+  type EvidenceRecord,
+  type SourceTextChunk,
+} from '../server/modules/note-jobs/note-summary-pipeline.utils';
 
 interface FidelityExpectation {
   id: string;
@@ -61,6 +67,24 @@ async function main(): Promise<void> {
   const expectations: FidelityExpectations = JSON.parse(
     await readFile(resolve(expectationsArg), 'utf8'),
   ) as FidelityExpectations;
+  const sourceAnchors: EvidenceRecord[] = splitSourceText(sourceText).flatMap(
+    (chunk: SourceTextChunk): EvidenceRecord[] =>
+      extractHighValueSourceAnchors(
+        chunk.content,
+        `S${String(chunk.index).padStart(2, '0')}`,
+      ),
+  );
+  const sourceAnchorCharacters: number = sourceAnchors.reduce(
+    (total: number, record: EvidenceRecord): number =>
+      total + record.statement.length,
+    0,
+  );
+  const sourceAnchorsByType: Record<string, number> = sourceAnchors.reduce<
+    Record<string, number>
+  >((counts: Record<string, number>, record: EvidenceRecord) => {
+    counts[record.type] = (counts[record.type] || 0) + 1;
+    return counts;
+  }, {});
 
   let markdown: string;
   let quality: unknown = null;
@@ -140,6 +164,12 @@ async function main(): Promise<void> {
       images: countMatches(markdown, /^!\[[^\]]*\]\([^)]+\)$/gmu),
       lengthRatio: Number(lengthRatio.toFixed(3)),
       referenceEffectiveLength,
+      sourceAnchorCharacters,
+      sourceAnchorCount: sourceAnchors.length,
+      sourceAnchorRatio: Number(
+        (sourceAnchorCharacters / Math.max(1, sourceText.length)).toFixed(3),
+      ),
+      sourceAnchorsByType,
       sourceImages: countMatches(sourceText, /^!\[[^\]]*\]\([^)]+\)$/gmu),
       tables: countMatches(markdown, /^\|.*\|$/gmu),
     },

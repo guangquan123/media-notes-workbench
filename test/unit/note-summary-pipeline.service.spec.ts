@@ -202,6 +202,82 @@ describe('NoteSummaryPipelineService', () => {
     expect(result.quality.passed).toBe(true);
   });
 
+  it('adds deterministic source anchors when both model extraction passes omit a fact', async () => {
+    const firstEvidence: string = JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-001',
+      sourceId: 'S01',
+      statement: '平台提供提示词生成器。',
+      type: '事实',
+    });
+    const completeNote: string = `# 智能体培训笔记
+
+## 一、内容概览
+培训介绍提示词工具与知识图谱边界。[E-S01-001][E-S01-002]
+
+## 二、核心结论与关键要点
+平台提供提示词生成器；模型版本在 3.5 以上时知识图谱可能无法生成。[E-S01-001][E-S01-002]
+
+## 三、核心知识体系
+提示词生成器可辅助生成初稿。[E-S01-001]
+
+## 四、风险、误区与注意事项
+模型版本在 3.5 以上时，知识图谱可能搞不出来。[E-S01-002]
+
+## 五、一页复习
+记住提示词生成器和知识图谱版本边界。`;
+    const callStream = jest.fn(
+      async (
+        _actionKey: string,
+        input: Record<string, unknown>,
+      ): Promise<AsyncIterable<Record<string, unknown>>> => {
+        const instruction: string = String(input.task_instruction || '');
+        if (instruction.includes('高精度内容提取员')) {
+          return createTextStream(firstEvidence);
+        }
+        if (instruction.includes('证据缺口审计员')) {
+          return createTextStream('NO_MISSING_EVIDENCE');
+        }
+        if (instruction.includes('证据覆盖规划员')) {
+          expect(instruction).toContain('E-S01-002');
+          expect(instruction).toContain('3.5 以上');
+          return createTextStream(
+            '- [E-S01-001] 提示词生成器\n- [E-S01-002] 知识图谱版本边界',
+          );
+        }
+        if (instruction.includes('独立事实审校员')) {
+          return createTextStream(
+            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
+          );
+        }
+        return createTextStream(completeNote);
+      },
+    );
+    const capabilityService = {
+      load: (): { callStream: typeof callStream } => ({ callStream }),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async (): Promise<undefined> => undefined,
+    } as unknown as ExternalModelSettingsService;
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+    );
+
+    const result = await service.generate({
+      noteStyle: 'learning',
+      onProgress: (): void => undefined,
+      sourceText:
+        '平台提供提示词生成器。模型版本在 3.5 以上时，知识图谱可能搞不出来。',
+      sourceTitle: '智能体培训',
+      styleRequirements: '输出详细笔记。',
+    });
+
+    expect(result.evidenceLedger).toContain('3.5 以上');
+    expect(result.quality.missingEvidenceIds).toEqual([]);
+  });
+
   it('repairs a contradiction reported by the independent fact audit', async () => {
     const wrongNote: string = `# 完整培训笔记
 
