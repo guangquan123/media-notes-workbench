@@ -51,7 +51,7 @@ export class TencentAsrTranscriptionService {
     input.onProgress?.('腾讯云 ASR 大模型正在识别音频…');
     const client = new TencentCloud.asr.v20190614.Client({
       credential: { secretId: config.secretId, secretKey: config.secretKey },
-      region: config.region,
+      region: config.asrRegion,
     });
     const created = await client.CreateRecTask({
       ChannelNum: 1,

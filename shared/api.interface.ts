@@ -294,6 +294,7 @@ export interface SystemReadiness {
 }
 
 export interface TencentAsrSettings {
+  asrRegion: string;
   bucket: string;
   configured: boolean;
   enabled: boolean;
@@ -305,6 +306,7 @@ export interface TencentAsrSettings {
 }
 
 export interface UpdateTencentAsrSettingsRequest {
+  asrRegion?: string;
   bucket: string;
   enabled: boolean;
   engineModelType?: string;

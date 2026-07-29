@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
 interface FormState {
+  asrRegion: string;
   bucket: string;
   enabled: boolean;
   engineModelType: string;
@@ -25,6 +26,7 @@ interface FormState {
 
 function toFormState(settings: TencentAsrSettings): FormState {
   return {
+    asrRegion: settings.asrRegion,
     bucket: settings.bucket,
     enabled: settings.enabled,
     engineModelType: settings.engineModelType,
@@ -110,7 +112,8 @@ export default function TranscriptionSettingsPage() {
           <div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5">
             <div className="grid gap-2"><Label htmlFor="secret-id">SecretId</Label><Input disabled={!editing} id="secret-id" onChange={(event) => update({ secretId: event.target.value })} placeholder={settings.secretId || 'AKID…'} value={form.secretId} /><p className="text-xs text-black/45">{settings.secretId ? `当前：${settings.secretId}` : '尚未保存'}</p></div>
             <div className="grid gap-2"><Label htmlFor="secret-key">SecretKey</Label><Input disabled={!editing} id="secret-key" onChange={(event) => update({ secretKey: event.target.value })} placeholder={settings.secretKeyConfigured ? '已保存；留空则不变' : '请输入 SecretKey'} type="password" value={form.secretKey} /></div>
-            <div className="grid gap-2 sm:grid-cols-2"><label className="grid gap-2"><Label htmlFor="region">地域</Label><Input disabled={!editing} id="region" onChange={(event) => update({ region: event.target.value })} value={form.region} /></label><label className="grid gap-2"><Label htmlFor="bucket">COS 存储桶</Label><Input disabled={!editing} id="bucket" onChange={(event) => update({ bucket: event.target.value })} placeholder="media-notes-asr-125…" value={form.bucket} /></label></div>
+            <div className="grid gap-2 sm:grid-cols-2"><label className="grid gap-2"><Label htmlFor="region">COS 地域</Label><Input disabled={!editing} id="region" onChange={(event) => update({ region: event.target.value })} value={form.region} /></label><label className="grid gap-2"><Label htmlFor="bucket">COS 存储桶</Label><Input disabled={!editing} id="bucket" onChange={(event) => update({ bucket: event.target.value })} placeholder="media-notes-asr-125…" value={form.bucket} /></label></div>
+            <div className="grid gap-2"><Label htmlFor="asr-region">ASR API 地域</Label><Input disabled={!editing} id="asr-region" onChange={(event) => update({ asrRegion: event.target.value })} value={form.asrRegion} /><p className="text-xs text-black/45">腾讯云语音识别 API 当前仅支持 ap-guangzhou；这不改变 COS 桶的上海地域。</p></div>
             <div className="grid gap-2"><Label htmlFor="engine">识别引擎</Label><Input disabled={!editing} id="engine" onChange={(event) => update({ engineModelType: event.target.value })} value={form.engineModelType} /><p className="text-xs text-black/45">推荐保留 16k_zh_en_2.0；适合中文、英语、方言及嘈杂音频。</p></div>
             <div className="flex items-center justify-between border-t border-black/8 pt-4"><div><p className="text-sm font-medium">说话人分离</p><p className="text-xs text-black/45">多人录音时标记说话人切换。</p></div><Switch checked={form.speakerDiarization} disabled={!editing} onCheckedChange={(speakerDiarization: boolean): void => update({ speakerDiarization })} /></div>
           </div>

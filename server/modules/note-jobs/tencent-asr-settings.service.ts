@@ -10,6 +10,7 @@ import type {
 } from '@shared/api.interface';
 
 export interface TencentAsrCredentials {
+  asrRegion: string;
   bucket: string;
   enabled: boolean;
   engineModelType: string;
@@ -20,6 +21,7 @@ export interface TencentAsrCredentials {
 }
 
 const DEFAULT_ENGINE = '16k_zh_en_2.0';
+const DEFAULT_ASR_REGION = 'ap-guangzhou';
 
 @Injectable()
 export class TencentAsrSettingsService {
@@ -29,6 +31,7 @@ export class TencentAsrSettingsService {
   async getPublicSettings(): Promise<TencentAsrSettings> {
     const current: TencentAsrCredentials = await this.load();
     return {
+      asrRegion: current.asrRegion,
       bucket: current.bucket,
       configured: this.isConfigured(current),
       enabled: current.enabled,
@@ -48,6 +51,7 @@ export class TencentAsrSettingsService {
   async update(input: UpdateTencentAsrSettingsRequest): Promise<TencentAsrSettings> {
     const current: TencentAsrCredentials = await this.load();
     const next: TencentAsrCredentials = {
+      asrRegion: input.asrRegion?.trim() || current.asrRegion,
       bucket: input.bucket.trim(),
       enabled: input.enabled,
       engineModelType: input.engineModelType?.trim() || DEFAULT_ENGINE,
@@ -90,7 +94,7 @@ export class TencentAsrSettingsService {
         secretId: current.secretId,
         secretKey: current.secretKey,
       },
-      region: current.region,
+      region: current.asrRegion,
     });
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Shanghai',
@@ -134,6 +138,7 @@ export class TencentAsrSettingsService {
 
 function normalize(input: Partial<TencentAsrCredentials>): TencentAsrCredentials {
   return {
+    asrRegion: input.asrRegion?.trim() || DEFAULT_ASR_REGION,
     bucket: input.bucket?.trim() || '',
     enabled: input.enabled === true,
     engineModelType: input.engineModelType?.trim() || DEFAULT_ENGINE,
