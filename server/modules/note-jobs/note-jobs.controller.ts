@@ -25,11 +25,13 @@ import type {
   PublishFrameSelectionRequest,
   UpdateFrameSelectionRequest,
   UpdateNoteTemplateConfigRequest,
+  UpdateTencentAsrSettingsRequest,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
+import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
 import {
   normalizeHistoryDateRange,
@@ -65,11 +67,24 @@ export class NoteJobsController {
     private readonly noteHistoryService: NoteHistoryService,
     private readonly noteTemplateService: NoteTemplateService,
     private readonly noteReviewTaskService: NoteReviewTaskService,
+    private readonly tencentAsrSettingsService: TencentAsrSettingsService,
   ) {}
 
   @Get('readiness')
   readiness() {
     return this.noteJobsService.getReadiness();
+  }
+
+  @NeedLogin()
+  @Get('transcription-settings')
+  transcriptionSettings() {
+    return this.tencentAsrSettingsService.getPublicSettings();
+  }
+
+  @NeedLogin()
+  @Put('transcription-settings')
+  updateTranscriptionSettings(@Body() body: UpdateTencentAsrSettingsRequest) {
+    return this.tencentAsrSettingsService.update(body);
   }
 
   @NeedLogin()

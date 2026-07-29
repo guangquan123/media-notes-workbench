@@ -19,6 +19,8 @@ import type {
   NoteTemplateConfig,
   NoteTemplateConfigResponse,
   SystemReadiness,
+  TencentAsrSettings,
+  UpdateTencentAsrSettingsRequest,
   UpdateNoteTemplateConfigRequest,
   GenerateFrameDerivativeRequest,
   NoteJobFrameListResponse,
@@ -84,6 +86,27 @@ export async function getReadiness(): Promise<SystemReadiness> {
     });
     return response.data;
   });
+}
+
+export async function getTencentAsrSettings(): Promise<TencentAsrSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/transcription-settings',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateTencentAsrSettings(
+  input: UpdateTencentAsrSettingsRequest,
+): Promise<TencentAsrSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/transcription-settings',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
 }
 
 export async function createNoteJob(

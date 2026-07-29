@@ -25,6 +25,21 @@ describe('note document utilities', () => {
     expect(buildRawDocumentTitle('详细笔记')).toBe('原文：详细笔记');
   });
 
+  it('records the Tencent ASR transcription provider', () => {
+    const markdown = buildRawTranscriptMarkdown({
+      duration: '12:34',
+      generatedDate: '2026-07-29',
+      sourceLabel: '录音文件',
+      sourceUrl: '用户上传的本地文件',
+      title: '项目交付复盘',
+      transcript: '原始转录内容。',
+      transcriptionProvider: 'tencent_asr',
+      uploader: '本地文件',
+    });
+
+    expect(markdown).toContain('| 转录引擎 | 腾讯云 ASR 大模型 2.0 |');
+  });
+
   it('formats continuous transcript text into readable paragraphs', () => {
     const markdown = buildRawTranscriptMarkdown({
       duration: '12:34',

@@ -5,6 +5,7 @@ interface BuildRawTranscriptMarkdownInput {
   sourceUrl: string;
   title: string;
   transcript: string;
+  transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
   uploader: string;
 }
 
@@ -30,6 +31,7 @@ export function buildRawTranscriptMarkdown(
     `| 作者 | ${input.uploader} |`,
     `| 时长 | ${input.duration} |`,
     `| 原链接 | ${input.sourceUrl} |`,
+    `| 转录引擎 | ${formatTranscriptionProvider(input.transcriptionProvider)} |`,
     `| 整理日期 | ${input.generatedDate} |`,
     '',
     '## 完整转录',
@@ -37,6 +39,15 @@ export function buildRawTranscriptMarkdown(
     transcript,
     '',
   ].join('\n');
+}
+
+function formatTranscriptionProvider(
+  provider: BuildRawTranscriptMarkdownInput['transcriptionProvider'],
+): string {
+  if (provider === 'tencent_asr') return '腾讯云 ASR 大模型 2.0';
+  if (provider === 'mixed') return '腾讯云 ASR + 本地 Whisper（部分兜底）';
+  if (provider === 'local_whisper') return '本地 Whisper（故障兜底）';
+  return '未记录';
 }
 
 function formatTranscriptForReading(transcript: string): string {

@@ -83,10 +83,7 @@ export interface PairedMediaInput {
   video: UploadedMediaInput;
 }
 
-export type PairedMediaAlignmentStatus =
-  | 'aligned'
-  | 'manual'
-  | 'needs_review';
+export type PairedMediaAlignmentStatus = 'aligned' | 'manual' | 'needs_review';
 
 export interface PairedMediaAlignmentResult {
   audioOffsetMs: number;
@@ -222,10 +219,39 @@ export interface NoteInboxStatus {
   summary?: NoteInboxSummary;
 }
 
-export type InboxMessageStatus = 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'DUPLICATE' | 'IGNORED';
-export interface NoteInboxSummary { totalMessages: number; succeeded: number; processing: number; queued: number; failed: number; duplicates: number; ignored: number; }
-export interface NoteInboxMessage { id: string; messageId: string; subject: string; originalUrl: string | null; platform: SourcePlatform | null; status: InboxMessageStatus; statusReason: string | null; messageCreatedAt: string | null; duplicateOfMessageId: string | null; jobId: string | null; mediaTitle: string | null; }
-export interface NoteInboxMessageListResponse { items: NoteInboxMessage[]; summary: NoteInboxSummary; }
+export type InboxMessageStatus =
+  | 'QUEUED'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'DUPLICATE'
+  | 'IGNORED';
+export interface NoteInboxSummary {
+  totalMessages: number;
+  succeeded: number;
+  processing: number;
+  queued: number;
+  failed: number;
+  duplicates: number;
+  ignored: number;
+}
+export interface NoteInboxMessage {
+  id: string;
+  messageId: string;
+  subject: string;
+  originalUrl: string | null;
+  platform: SourcePlatform | null;
+  status: InboxMessageStatus;
+  statusReason: string | null;
+  messageCreatedAt: string | null;
+  duplicateOfMessageId: string | null;
+  jobId: string | null;
+  mediaTitle: string | null;
+}
+export interface NoteInboxMessageListResponse {
+  items: NoteInboxMessage[];
+  summary: NoteInboxSummary;
+}
 
 export interface NoteJob {
   id: string;
@@ -240,6 +266,7 @@ export interface NoteJob {
   pageCount?: number;
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
+  transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
   visualOptions?: NoteVisualOptions;
   visualSummary?: VisualPipelineSummary;
   videoTitle?: string;
@@ -256,12 +283,36 @@ export interface SystemReadiness {
   whisperCli: boolean;
   whisperModel: boolean;
   larkCli: boolean;
+  tencentAsr: boolean;
+  tencentAsrEnabled: boolean;
   ready: boolean;
   platformReady: boolean;
   mediaReady: boolean;
   documentReady: boolean;
   /** @deprecated 旧客户端兼容字段，请使用 documentReady。 */
   pdfReady: boolean;
+}
+
+export interface TencentAsrSettings {
+  bucket: string;
+  configured: boolean;
+  enabled: boolean;
+  engineModelType: string;
+  region: string;
+  secretId: string;
+  secretKeyConfigured: boolean;
+  speakerDiarization: boolean;
+}
+
+export interface UpdateTencentAsrSettingsRequest {
+  bucket: string;
+  enabled: boolean;
+  engineModelType?: string;
+  region: string;
+  secretId: string;
+  /** 留空表示保留已保存的 SecretKey。 */
+  secretKey?: string;
+  speakerDiarization?: boolean;
 }
 
 export type ConversionStatus = 'processing' | 'completed' | 'failed';

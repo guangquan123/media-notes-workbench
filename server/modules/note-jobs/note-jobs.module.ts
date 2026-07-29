@@ -9,6 +9,8 @@ import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
+import { TencentAsrSettingsService } from './tencent-asr-settings.service';
+import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
 
 @Module({
   controllers: [NoteJobsController],
@@ -22,6 +24,8 @@ import { FrameReviewService } from './frame-review.service';
     FrameAiEnhanceService,
     FrameInsertionService,
     FrameReviewService,
+    TencentAsrSettingsService,
+    TencentAsrTranscriptionService,
   ],
   exports: [NoteJobsService],
 })

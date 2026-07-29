@@ -15,6 +15,7 @@ import HomePage from './pages/HomePage/HomePage';
 import NoteInboxPage from './pages/NoteInboxPage/NoteInboxPage';
 import NoteInboxMessagesPage from './pages/NoteInboxMessagesPage/NoteInboxMessagesPage';
 import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
+import TranscriptionSettingsPage from './pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 
 const RoutesComponent = () => {
   return (
@@ -30,6 +31,7 @@ const RoutesComponent = () => {
         <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
+        <Route path="transcription-settings" element={<TranscriptionSettingsPage />} />
         <Route path="operation-manual" element={<OperationManualPage />} />
         <Route path="conversion-history" element={<ConversionHistoryPage />} />
         <Route path="article-export" element={<ArticleExportPage />} />

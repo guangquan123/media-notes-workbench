@@ -79,6 +79,10 @@ import {
   type FusedTranscriptResult,
   type TranscriptSegment,
 } from './paired-media.utils';
+import {
+  TencentAsrTranscriptionService,
+  type TencentAsrTranscriptResult,
+} from './tencent-asr-transcription.service';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -118,6 +122,12 @@ interface PreparedMedia {
   metadata: VideoMetadata;
   sourceLabel: string;
   sourceUrl: string;
+}
+
+interface BestTranscriptResult {
+  provider: 'tencent_asr' | 'local_whisper';
+  segments: TranscriptSegment[];
+  transcript: string;
 }
 
 interface SourceProfile {
@@ -181,16 +191,18 @@ export class NoteJobsService {
     private readonly frameAiEnhanceService: FrameAiEnhanceService,
     private readonly frameInsertionService: FrameInsertionService,
     private readonly frameReviewService: FrameReviewService,
+    private readonly tencentAsrTranscriptionService: TencentAsrTranscriptionService,
   ) {}
 
   async getReadiness(): Promise<SystemReadiness> {
-    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli] =
+    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli, tencentAsr] =
       await Promise.all([
         this.commandExists('yt-dlp'),
         this.commandExists('ffmpeg'),
         this.commandExists('whisper-cli'),
         this.fileExists(this.whisperModelPath),
         this.commandExists('lark-cli'),
+        this.tencentAsrTranscriptionService.isEnabled(),
       ]);
     return {
       ytDlp,
@@ -198,9 +210,11 @@ export class NoteJobsService {
       whisperCli,
       whisperModel,
       larkCli,
-      ready: ffmpeg && whisperCli && whisperModel && larkCli,
-      platformReady: ytDlp && ffmpeg && whisperCli && whisperModel && larkCli,
-      mediaReady: ffmpeg && whisperCli && whisperModel && larkCli,
+      tencentAsr,
+      tencentAsrEnabled: tencentAsr,
+      ready: ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
+      platformReady: ytDlp && ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
+      mediaReady: ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
       documentReady: larkCli,
       pdfReady: larkCli,
     };
@@ -509,9 +523,6 @@ export class NoteJobsService {
         throw new Error('未找到 yt-dlp，请先安装 yt-dlp');
       }
       if (!readiness.ffmpeg) throw new Error('未找到 ffmpeg，请先安装 ffmpeg');
-      if (!readiness.whisperCli)
-        throw new Error('未找到 whisper-cli，请先安装 whisper-cpp');
-      if (!readiness.whisperModel) throw new Error('未找到本机 Whisper 模型');
 
       if (input.sourceType === 'platform' && !sourcePlatform) {
         throw new Error('视频平台信息不完整');
@@ -545,6 +556,7 @@ export class NoteJobsService {
       let keyFrames: KeyFrame[] = [];
       let transcript = '';
       let archiveTranscript = '';
+      const transcriptionProviders = new Set<'tencent_asr' | 'local_whisper'>();
       if (input.sourceType === 'paired' && preparedPairedMedia) {
         const alignment: PairedMediaAlignmentResult =
           await this.resolvePairedAlignment(
@@ -567,68 +579,79 @@ export class NoteJobsService {
           ownerId,
         );
         const transcriptionPromise: Promise<{
-          auxiliarySegments: TranscriptSegment[];
-          videoSegments: TranscriptSegment[];
+          auxiliary: BestTranscriptResult;
+          video: BestTranscriptResult;
         }> = (async () => {
           this.update(
             id,
             'transcribing',
             44,
-            '正在分别转录视频音轨和辅助录音…',
+            '正在分别提交两路音频到腾讯云 ASR 大模型转录…',
           );
-          const videoSegments: TranscriptSegment[] =
-            await this.transcribeTimestamped(
+          const [video, auxiliary] = await Promise.all([
+            this.transcribeBest(
               id,
               preparedPairedMedia.videoAudioPath,
               workDir,
               'video-track',
-            );
-          this.update(
-            id,
-            'transcribing',
-            54,
-            '视频音轨已完成，正在转录辅助录音…',
-          );
-          const auxiliarySegments: TranscriptSegment[] =
-            await this.transcribeTimestamped(
+              input.pairedMedia.video.fileName,
+              readiness,
+            ),
+            this.transcribeBest(
               id,
               preparedPairedMedia.auxiliaryAudioPath,
               workDir,
               'auxiliary-track',
-            );
-          return { auxiliarySegments, videoSegments };
+              input.pairedMedia.auxiliaryAudio.fileName,
+              readiness,
+            ),
+          ]);
+          return { auxiliary, video };
         })();
         const [extractedFrames, transcriptions] = await Promise.all([
           framePromise,
           transcriptionPromise,
         ]);
-        const { auxiliarySegments, videoSegments } = transcriptions;
+        const { auxiliary, video } = transcriptions;
+        transcriptionProviders.add(auxiliary.provider);
+        transcriptionProviders.add(video.provider);
         const fused: FusedTranscriptResult = fuseTranscriptSegments({
           audioOffsetMs: alignment.audioOffsetMs,
-          auxiliarySegments,
-          videoSegments,
+          auxiliarySegments: auxiliary.segments,
+          videoSegments: video.segments,
         });
         if (!fused.markdown.trim()) throw new Error('双源转录结果为空');
         transcript = this.buildPairedSummaryTranscript(fused, alignment);
         archiveTranscript = this.buildPairedArchiveTranscript({
           alignment,
           auxiliaryFileName: input.pairedMedia.auxiliaryAudio.fileName,
-          auxiliarySegments,
+          auxiliarySegments: auxiliary.segments,
           fused,
           videoFileName: input.pairedMedia.video.fileName,
-          videoSegments,
+          videoSegments: video.segments,
         });
         keyFrames = extractedFrames;
       } else if (preparedMedia) {
-        this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
-        const audioPartsBySource: string[][] = await mapWithConcurrency(
+        this.update(
+          id,
+          'transcribing',
+          44,
+          '音频已就绪，正在使用腾讯云 ASR 大模型转录…',
+        );
+        const results: BestTranscriptResult[] = await mapWithConcurrency(
           preparedMedia.audioSources,
           2,
-          async (source: PreparedAudioSource, index: number): Promise<string[]> =>
-            this.splitAudioIfNeeded(
+          async (
+            source: PreparedAudioSource,
+            index: number,
+          ): Promise<BestTranscriptResult> =>
+            this.transcribeBest(
+              id,
               source.audioPath,
               workDir,
-              `chunk-${String(index).padStart(2, '0')}`,
+              `source-${String(index).padStart(2, '0')}`,
+              source.fileName,
+              readiness,
             ),
         );
         if (input.sourceType !== 'audio') {
@@ -643,42 +666,30 @@ export class NoteJobsService {
             );
           }
         }
-        const transcripts: string[] = [];
-        const totalPartCount: number = audioPartsBySource.reduce(
-          (total: number, parts: string[]) => total + parts.length,
-          0,
+        const transcripts: string[] = results.map(
+          (result: BestTranscriptResult, sourceIndex: number): string => {
+            transcriptionProviders.add(result.provider);
+            return preparedMedia.audioSources.length > 1
+              ? `## 原始文件 ${sourceIndex + 1}：${preparedMedia.audioSources[sourceIndex].fileName}\n\n${result.transcript}`
+              : result.transcript;
+          },
         );
-        let completedPartCount = 0;
-        for (
-          let sourceIndex = 0;
-          sourceIndex < audioPartsBySource.length;
-          sourceIndex += 1
-        ) {
-          const sourceParts: string[] = audioPartsBySource[sourceIndex];
-          const sourceTranscripts: string[] = [];
-          for (const audioPart of sourceParts) {
-            completedPartCount += 1;
-            if (totalPartCount > 1) {
-              this.update(
-                id,
-                'transcribing',
-                44 + Math.round((completedPartCount / totalPartCount) * 20),
-                `正在转录第 ${completedPartCount}/${totalPartCount} 段音频…`,
-              );
-            }
-            sourceTranscripts.push(await this.transcribe(id, audioPart));
-          }
-          const sourceTranscript: string = sourceTranscripts.join('\n\n');
-          transcripts.push(
-            preparedMedia.audioSources.length > 1
-              ? `## 原始文件 ${sourceIndex + 1}：${preparedMedia.audioSources[sourceIndex].fileName}\n\n${sourceTranscript}`
-              : sourceTranscript,
-          );
-        }
         transcript = transcripts.join('\n\n');
         archiveTranscript = transcript;
       }
       if (!transcript.trim()) throw new Error('转录结果为空');
+      const transcriptionProvider:
+        | 'tencent_asr'
+        | 'local_whisper'
+        | 'mixed' =
+        transcriptionProviders.size > 1
+          ? 'mixed'
+          : transcriptionProviders.has('local_whisper')
+            ? 'local_whisper'
+            : 'tencent_asr';
+      this.patch(id, {
+        transcriptionProvider,
+      });
       await this.persistRawTranscript(id, archiveTranscript);
 
       this.update(id, 'publishing', 66, '转录完成，正在归档原文…');
@@ -694,6 +705,7 @@ export class NoteJobsService {
         sourceUrl,
         title: videoTitle,
         transcript: archiveTranscript,
+        transcriptionProvider,
         uploader: metadata.uploader || '未知',
       });
       if (rawDocumentUrl) {
@@ -701,6 +713,14 @@ export class NoteJobsService {
         await this.persistRawDocument(id, rawDocumentUrl);
       }
       const transcriptQuality = assessTranscriptQuality(archiveTranscript);
+      if (
+        transcriptionProviders.has('local_whisper') &&
+        transcriptQuality.requiresReview
+      ) {
+        throw new Error(
+          `腾讯云 ASR 不可用后启用了本地转录兜底，但结果未通过质量门禁（${transcriptQuality.warnings.join('；')}）。原文已归档，未生成可能失真的学习笔记。`,
+        );
+      }
       if (transcriptQuality.requiresReview) {
         this.update(
           id,
@@ -1295,6 +1315,63 @@ export class NoteJobsService {
       ALIGNMENT_SAMPLE_RATE,
       ALIGNMENT_BUCKET_MS,
     );
+  }
+
+  private async transcribeBest(
+    id: string,
+    audioPath: string,
+    workDir: string,
+    prefix: string,
+    displayName: string,
+    readiness: SystemReadiness,
+  ): Promise<BestTranscriptResult> {
+    try {
+      const result: TencentAsrTranscriptResult =
+        await this.tencentAsrTranscriptionService.transcribe({
+          audioPath,
+          onProgress: (message: string) =>
+            this.update(
+              id,
+              'transcribing',
+              Math.max(44, this.jobs.get(id)?.job.progress || 44),
+              message,
+            ),
+        });
+      if (!result.segments.length) {
+        throw new Error('腾讯云 ASR 转录缺少可用的时间段');
+      }
+      return {
+        provider: 'tencent_asr',
+        segments: result.segments,
+        transcript: result.transcript,
+      };
+    } catch (error) {
+      const cloudError: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`腾讯云 ASR 转录失败，准备检查本地兜底能力: ${cloudError}`);
+      if (!readiness.whisperCli || !readiness.whisperModel) {
+        throw new Error(
+          `腾讯云 ASR 高质量转录失败，且本机转录兜底不可用：${cloudError}`,
+        );
+      }
+      this.update(
+        id,
+        'transcribing',
+        Math.max(46, this.jobs.get(id)?.job.progress || 46),
+        '腾讯云 ASR 暂时不可用，正在启用本地转录兜底并执行严格质量门禁…',
+      );
+      const segments: TranscriptSegment[] = await this.transcribeTimestamped(
+        id,
+        audioPath,
+        workDir,
+        prefix,
+      );
+      return {
+        provider: 'local_whisper',
+        segments,
+        transcript: this.formatTranscriptSegments(segments),
+      };
+    }
   }
 
   private async transcribeTimestamped(
@@ -2532,6 +2609,7 @@ export class NoteJobsService {
     sourceUrl: string;
     title: string;
     transcript: string;
+    transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
     uploader: string;
   }): Promise<string | undefined> {
     const rawTitle = buildRawDocumentTitle(input.title);
