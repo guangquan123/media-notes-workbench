@@ -1,14 +1,254 @@
 import {
+  assessEvidencePlanCoverage,
   assessNoteQuality,
   buildEvidenceExtractionPrompt,
+  buildEvidenceCoveragePlanPrompt,
   buildEvidenceMergePrompt,
+  buildNoteFactAuditPrompt,
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
   assessEvidenceMergeIntegrity,
+  formatFactAuditFailures,
+  completeEvidenceCoveragePlan,
+  normalizeEvidenceCitationsForPublication,
+  normalizeStructuredEvidenceLedger,
+  parseEvidenceLedger,
+  parseNoteFactAudit,
+  preserveSourceMarkdownImages,
   splitSourceText,
 } from '../../server/modules/note-jobs/note-summary-pipeline.utils';
 
 describe('note summary pipeline utilities', () => {
+  const structuredEvidenceLedger: string = [
+    JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-001',
+      numericClaims: [
+        {
+          operator: 'gte',
+          subject: '知识图谱模型版本',
+          unit: '版本',
+          value: '3.5',
+        },
+      ],
+      sourceId: 'S01',
+      statement: '知识图谱在 3.5 以上模型版本中可能无法生成。',
+      timestamp: '99:07',
+      type: '数字',
+    }),
+    JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S02-001',
+      sourceId: 'S02',
+      statement: '平台已导入 361 名用户，客户总用户约 12000 名。',
+      timestamp: '82:02',
+      type: '事实',
+    }),
+  ].join('\n');
+
+  it('parses structured JSONL evidence with stable item identifiers', () => {
+    const records = parseEvidenceLedger(structuredEvidenceLedger);
+
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      id: 'E-S01-001',
+      sourceId: 'S01',
+      type: '数字',
+    });
+    expect(records[0].numericClaims).toEqual([
+      expect.objectContaining({ operator: 'gte', value: '3.5' }),
+    ]);
+  });
+
+  it('deterministically repairs duplicate structured evidence identifiers', () => {
+    const duplicateLedger: string = [
+      structuredEvidenceLedger.split('\n')[0],
+      JSON.stringify({
+        asrRisk: 'low',
+        certainty: 'direct',
+        id: 'E-S01-001',
+        sourceId: 'S01',
+        statement: '第二条不同事实。',
+        type: '事实',
+      }),
+    ].join('\n');
+
+    const normalized = parseEvidenceLedger(
+      normalizeStructuredEvidenceLedger(duplicateLedger),
+    );
+
+    expect(normalized.map((record) => record.id)).toEqual([
+      'E-S01-001',
+      'E-S01-002',
+    ]);
+    expect(normalized[1].statement).toBe('第二条不同事实。');
+  });
+
+  it('requires a coverage plan to map every structured evidence item', () => {
+    const result = assessEvidencePlanCoverage(
+      '## 核心知识体系\n- [E-S01-001] 说明知识图谱版本边界',
+      structuredEvidenceLedger,
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.missingEvidenceIds).toEqual(['E-S02-001']);
+  });
+
+  it('deterministically appends evidence omitted by the planning model', () => {
+    const completedPlan: string = completeEvidenceCoveragePlan(
+      '## 核心知识体系\n- [E-S01-001] 说明知识图谱版本边界',
+      structuredEvidenceLedger,
+    );
+
+    expect(completedPlan).toContain('[E-S02-001]');
+    expect(completedPlan).toContain('平台已导入 361 名用户');
+    expect(
+      assessEvidencePlanCoverage(completedPlan, structuredEvidenceLedger),
+    ).toMatchObject({ passed: true });
+  });
+
+  it('builds a coverage-plan prompt that forbids silent evidence omission', () => {
+    const prompt: string = buildEvidenceCoveragePlanPrompt({
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      sourceTitle: '智能体培训',
+      styleRequirements: '输出详细学习笔记',
+    });
+
+    expect(prompt).toContain('E-S01-001');
+    expect(prompt).toContain('每条证据');
+    expect(prompt).toContain('不得静默省略');
+  });
+
+  it('rejects semantic direction reversal even when the number is present', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      note: `# 智能体培训
+
+## 一、内容概览
+本次培训介绍知识图谱版本边界与平台用户规模。[E-S01-001][E-S02-001]
+
+## 二、核心结论与关键要点
+知识图谱在 3.5 以下模型版本中可能无法生成。平台已导入 361 名用户，客户总用户约 12000 名。
+
+## 三、核心知识体系
+> 转写原话：“模型版本迭代后可能无法生成知识图谱。” [E-S01-001]
+
+## 四、关键数据与重要事实
+平台已导入 361 名用户，客户总用户约 12000 名。[E-S02-001]
+
+## 五、一页复习
+复习知识图谱兼容边界和用户规模。`,
+      sourceText: '智能体培训原文。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.semanticContradictions.join('\n')).toContain('3.5');
+    expect(result.failedChecks.join('\n')).toContain('方向');
+  });
+
+  it('rejects notes that cite a source chunk but omit a structured evidence item', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      note: `# 智能体培训
+
+## 一、内容概览
+本次培训介绍知识图谱版本边界。[E-S01-001]
+
+## 二、核心结论与关键要点
+知识图谱在 3.5 以上模型版本中可能无法生成。[E-S01-001]
+
+## 三、核心知识体系
+> 转写原话：“模型版本迭代后可能无法生成知识图谱。” [E-S01-001]
+
+## 四、关键数据与重要事实
+知识图谱版本边界是项目适配的重要事实。[E-S01-001]
+
+## 五、一页复习
+必须核对模型版本边界。`,
+      sourceText: '智能体培训原文。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.missingEvidenceIds).toEqual(['E-S02-001']);
+    expect(result.failedChecks.join('\n')).toContain('E-S02-001');
+  });
+
+  it('parses fact-audit JSON and exposes actionable failures', () => {
+    const audit = parseNoteFactAudit(`\`\`\`json
+{"passed":false,"missingEvidenceIds":["E-S02-001"],"contradictions":[{"evidenceId":"E-S01-001","message":"把3.5以上写成3.5以下"}],"unsupportedClaims":["星巴克7x24案例"],"ambiguityIssues":[]}
+\`\`\``);
+
+    expect(audit.passed).toBe(false);
+    expect(formatFactAuditFailures(audit).join('\n')).toContain('3.5以上');
+    expect(formatFactAuditFailures(audit).join('\n')).toContain('星巴克');
+  });
+
+  it('builds an independent fact-audit prompt from evidence and draft', () => {
+    const prompt: string = buildNoteFactAuditPrompt({
+      draftNote: '# 草稿',
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      sourceTitle: '智能体培训',
+    });
+
+    expect(prompt).toContain('独立事实审校');
+    expect(prompt).toContain('主体、数值、单位、比较方向');
+    expect(prompt).toContain('unsupportedClaims');
+  });
+
+  it('replaces internal evidence IDs with source anchors for publication', () => {
+    const published: string = normalizeEvidenceCitationsForPublication(
+      '知识图谱存在版本边界。[E-S01-001][E-S01-001]\n用户规模需要核对。[E-S02-001]',
+      structuredEvidenceLedger,
+    );
+
+    expect(published).toContain('[S01]');
+    expect(published).toContain('[S02]');
+    expect(published).not.toContain('E-S');
+    expect(published).not.toContain('[S01][S01]');
+  });
+
+  it('restores source Markdown images beside semantically matching sections', () => {
+    const sourceText: string = [
+      '知识图谱演示',
+      '![知识图谱节点画布](https://example.com/graph.png)',
+      '用户管理演示',
+      '![用户导入与账号激活界面](https://example.com/users.png)',
+    ].join('\n');
+    const note: string = `# 培训笔记
+
+## 一、知识图谱与节点画布
+介绍图谱生成过程。
+
+## 二、用户导入与账号激活
+介绍平台用户管理。
+
+## 三、一页复习
+复习核心操作。`;
+
+    const restored: string = preserveSourceMarkdownImages(note, sourceText);
+
+    expect(restored).toContain('https://example.com/graph.png');
+    expect(restored).toContain('https://example.com/users.png');
+    expect(restored.indexOf('graph.png')).toBeLessThan(
+      restored.indexOf('## 二、用户导入与账号激活'),
+    );
+    expect(restored.indexOf('users.png')).toBeGreaterThan(
+      restored.indexOf('## 二、用户导入与账号激活'),
+    );
+  });
+
+  it('does not alter a note when the source contains no Markdown images', () => {
+    expect(
+      preserveSourceMarkdownImages('# 笔记\n\n正文', '纯文本原始材料'),
+    ).toBe('# 笔记\n\n正文');
+  });
+
   it('splits long source text without dropping or reordering content', () => {
     const sourceText: string = [
       '第一段：项目背景与目标。',

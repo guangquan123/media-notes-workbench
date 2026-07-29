@@ -10,12 +10,21 @@ import { mapWithConcurrency } from '@shared/async.utils';
 import {
   assessEvidenceMergeIntegrity,
   assessNoteQuality,
+  buildEvidenceCoveragePlanPrompt,
   buildEvidenceExtractionPrompt,
   buildEvidenceMergePrompt,
+  buildNoteFactAuditPrompt,
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
+  completeEvidenceCoveragePlan,
+  formatFactAuditFailures,
+  normalizeEvidenceCitationsForPublication,
+  normalizeStructuredEvidenceLedger,
+  parseNoteFactAudit,
+  preserveSourceMarkdownImages,
   splitSourceText,
   type EvidenceMergeIntegrity,
+  type NoteFactAudit,
   type NoteQualityAssessment,
   type SourceTextChunk,
 } from './note-summary-pipeline.utils';
@@ -33,6 +42,13 @@ interface PipelineModelResult {
   modelName: string;
   provider: SummaryGenerationInfo['provider'];
   text: string;
+}
+
+interface EvaluatedNoteCandidate {
+  audit: NoteFactAudit;
+  markdown: string;
+  model: PipelineModelResult;
+  quality: NoteQualityAssessment;
 }
 
 export interface NoteSummaryPipelineProgress {
@@ -59,7 +75,7 @@ export interface GenerateHighQualityNoteResult {
   quality: NoteQualityAssessment;
 }
 
-const PIPELINE_ENGINE_VERSION = 'note-summary-v2-detailed-20260729';
+const PIPELINE_ENGINE_VERSION = 'note-summary-v3-fidelity-20260729';
 const EVIDENCE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const EVIDENCE_CACHE_LIMIT = 20;
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -83,8 +99,28 @@ export class NoteSummaryPipelineService {
     input: GenerateHighQualityNoteInput,
   ): Promise<GenerateHighQualityNoteResult> {
     const evidenceLedger: string = await this.getEvidenceLedger(input);
+    const coveragePlanResult: PipelineModelResult =
+      await this.generateModelText(
+        buildEvidenceCoveragePlanPrompt({
+          evidenceLedger,
+          noteStyle: input.noteStyle,
+          sourceTitle: input.sourceTitle,
+          styleRequirements: input.styleRequirements,
+        }),
+        12_000,
+      );
+    const coveragePlan: string = completeEvidenceCoveragePlan(
+      coveragePlanResult.text,
+      evidenceLedger,
+    );
+    input.onProgress({
+      modelName: coveragePlanResult.modelName,
+      provider: coveragePlanResult.provider,
+      stage: 'structuring',
+    });
     const structureResult: PipelineModelResult = await this.generateModelText(
       buildNoteStructurePrompt({
+        coveragePlan,
         evidenceLedger,
         noteStyle: input.noteStyle,
         sourceTitle: input.sourceTitle,
@@ -98,36 +134,35 @@ export class NoteSummaryPipelineService {
       stage: 'structuring',
     });
 
-    let markdown: string = structureResult.text;
-    let quality: NoteQualityAssessment = assessNoteQuality({
+    let currentCandidate: EvaluatedNoteCandidate = await this.evaluateCandidate(
+      structureResult,
       evidenceLedger,
-      note: markdown,
-      noteStyle: input.noteStyle,
-      sourceText: input.sourceText,
-    });
-    let finalModel: PipelineModelResult = structureResult;
+      input,
+    );
+    const candidates: EvaluatedNoteCandidate[] = [currentCandidate];
 
     for (
       let attempt = 1;
-      attempt <= MAX_REPAIR_ATTEMPTS && !quality.passed;
+      attempt <= MAX_REPAIR_ATTEMPTS && !currentCandidate.quality.passed;
       attempt += 1
     ) {
       input.onProgress({
         attempt,
-        modelName: finalModel.modelName,
-        provider: finalModel.provider,
-        qualityScore: quality.score,
+        modelName: currentCandidate.model.modelName,
+        provider: currentCandidate.model.provider,
+        qualityScore: currentCandidate.quality.score,
         stage: attempt === 1 ? 'reviewing' : 'repairing',
       });
       const checks: string[] =
-        quality.failedChecks.length > 0
-          ? quality.failedChecks
+        currentCandidate.quality.failedChecks.length > 0
+          ? currentCandidate.quality.failedChecks
           : [
               '逐条核验草稿与证据账本的一致性，删除无依据内容并补回遗漏的高价值事实',
             ];
       const repairResult: PipelineModelResult = await this.generateModelText(
         buildNoteRepairPrompt({
-          draftNote: markdown,
+          coveragePlan,
+          draftNote: currentCandidate.markdown,
           evidenceLedger,
           failedChecks: checks,
           noteStyle: input.noteStyle,
@@ -136,29 +171,103 @@ export class NoteSummaryPipelineService {
         }),
         16_384,
       );
-      markdown = repairResult.text;
-      finalModel = repairResult;
-      quality = assessNoteQuality({
+      currentCandidate = await this.evaluateCandidate(
+        repairResult,
         evidenceLedger,
-        note: markdown,
-        noteStyle: input.noteStyle,
-        sourceText: input.sourceText,
-      });
-      if (quality.passed) break;
+        input,
+      );
+      candidates.push(currentCandidate);
+      if (currentCandidate.quality.passed) break;
     }
 
-    if (!quality.passed) {
+    const bestCandidate: EvaluatedNoteCandidate = candidates.reduce(
+      (
+        best: EvaluatedNoteCandidate,
+        candidate: EvaluatedNoteCandidate,
+      ): EvaluatedNoteCandidate =>
+        this.getCandidateRank(candidate) > this.getCandidateRank(best)
+          ? candidate
+          : best,
+    );
+    if (!bestCandidate.quality.passed) {
       this.logger.warn(
-        `笔记经过 ${MAX_REPAIR_ATTEMPTS} 次质量修订后仍有质量预警（${quality.score} 分），将保留最佳版本继续发布：${quality.failedChecks.join('；')}`,
+        `笔记经过 ${MAX_REPAIR_ATTEMPTS} 次质量修订后仍有质量预警（${bestCandidate.quality.score} 分），将保留最佳版本继续发布：${bestCandidate.quality.failedChecks.join('；')}`,
       );
     }
     return {
       evidenceLedger,
-      markdown,
-      modelName: finalModel.modelName,
-      provider: finalModel.provider,
-      quality,
+      markdown: normalizeEvidenceCitationsForPublication(
+        bestCandidate.markdown,
+        evidenceLedger,
+      ),
+      modelName: bestCandidate.model.modelName,
+      provider: bestCandidate.model.provider,
+      quality: bestCandidate.quality,
     };
+  }
+
+  private async evaluateCandidate(
+    model: PipelineModelResult,
+    evidenceLedger: string,
+    input: GenerateHighQualityNoteInput,
+  ): Promise<EvaluatedNoteCandidate> {
+    const markdown: string = preserveSourceMarkdownImages(
+      model.text,
+      input.sourceText,
+    );
+    const evaluatedModel: PipelineModelResult = { ...model, text: markdown };
+    const deterministicQuality: NoteQualityAssessment = assessNoteQuality({
+      evidenceLedger,
+      note: markdown,
+      noteStyle: input.noteStyle,
+      sourceText: input.sourceText,
+    });
+    const auditResult: PipelineModelResult = await this.generateModelText(
+      buildNoteFactAuditPrompt({
+        draftNote: markdown,
+        evidenceLedger,
+        noteStyle: input.noteStyle,
+        sourceTitle: input.sourceTitle,
+      }),
+      4_000,
+    );
+    const audit: NoteFactAudit = parseNoteFactAudit(auditResult.text);
+    const auditFailures: string[] = formatFactAuditFailures(audit);
+    const failedChecks: string[] = [
+      ...new Set<string>([
+        ...deterministicQuality.failedChecks,
+        ...auditFailures,
+      ]),
+    ];
+    const quality: NoteQualityAssessment = {
+      ...deterministicQuality,
+      failedChecks,
+      passed: deterministicQuality.passed && audit.passed,
+      score: Math.max(
+        0,
+        deterministicQuality.score - Math.min(40, auditFailures.length * 10),
+      ),
+    };
+    input.onProgress({
+      modelName: auditResult.modelName,
+      provider: auditResult.provider,
+      qualityScore: quality.score,
+      stage: 'reviewing',
+    });
+    return { audit, markdown, model: evaluatedModel, quality };
+  }
+
+  private getCandidateRank(candidate: EvaluatedNoteCandidate): number {
+    const auditIssueCount: number =
+      candidate.audit.ambiguityIssues.length +
+      candidate.audit.contradictions.length +
+      candidate.audit.missingEvidenceIds.length +
+      candidate.audit.unsupportedClaims.length;
+    return (
+      (candidate.quality.passed ? 10_000 : 0) +
+      candidate.quality.score * 10 -
+      auditIssueCount
+    );
   }
 
   private async getEvidenceLedger(
@@ -205,7 +314,7 @@ export class NoteSummaryPipelineService {
       },
     );
     const evidenceLedger: string = await this.compactEvidenceLedger(
-      evidenceParts.join('\n\n'),
+      normalizeStructuredEvidenceLedger(evidenceParts.join('\n')),
       input,
     );
     this.setEvidenceCache(cacheKey, evidenceLedger);
@@ -249,7 +358,7 @@ export class NoteSummaryPipelineService {
         assessEvidenceMergeIntegrity(compactedLedger, mergedLedger);
       if (!mergeIntegrity.passed) {
         this.logger.warn(
-          `证据账本压缩会丢失完整性信号，已放弃本轮压缩并保留原账本：缺少来源 ${mergeIntegrity.missingSourceIds.join('、') || '无'}；缺少类型 ${mergeIntegrity.missingEvidenceTypes.join('、') || '无'}；缺少数字 ${mergeIntegrity.missingNumbers.join('、') || '无'}`,
+          `证据账本压缩会丢失完整性信号，已放弃本轮压缩并保留原账本：缺少证据ID ${mergeIntegrity.missingEvidenceIds.join('、') || '无'}；缺少来源 ${mergeIntegrity.missingSourceIds.join('、') || '无'}；缺少类型 ${mergeIntegrity.missingEvidenceTypes.join('、') || '无'}；缺少数字 ${mergeIntegrity.missingNumbers.join('、') || '无'}`,
         );
         break;
       }

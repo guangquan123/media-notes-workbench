@@ -1,10 +1,25 @@
 import type { NoteStyle } from '@shared/api.interface';
 
 interface NoteStructurePromptInput {
+  coveragePlan?: string;
   evidenceLedger: string;
   noteStyle: NoteStyle;
   sourceTitle: string;
   styleRequirements: string;
+}
+
+interface EvidenceCoveragePlanPromptInput {
+  evidenceLedger: string;
+  noteStyle: NoteStyle;
+  sourceTitle: string;
+  styleRequirements: string;
+}
+
+interface NoteFactAuditPromptInput {
+  draftNote: string;
+  evidenceLedger: string;
+  noteStyle: NoteStyle;
+  sourceTitle: string;
 }
 
 interface NoteRepairPromptInput extends NoteStructurePromptInput {
@@ -28,25 +43,100 @@ export interface SourceTextChunk {
 
 export interface NoteQualityAssessment {
   evidenceCoverage: number;
+  evidenceItemCoverage: number;
   failedChecks: string[];
   minimumLength: number;
   missingEvidenceCoverage: string[];
+  missingEvidenceIds: string[];
   missingSections: string[];
   missingSourceIds: string[];
+  missingVisualUrls: string[];
   noteLength: number;
   numberCoverage: number;
   passed: boolean;
+  semanticContradictions: string[];
   score: number;
   sourceAnchorCoverage: number;
   sourceNumberCount: number;
   unexpectedSections: string[];
+  visualCoverage: number;
 }
 
 export interface EvidenceMergeIntegrity {
+  missingEvidenceIds: string[];
   missingEvidenceTypes: string[];
   missingNumbers: string[];
   missingSourceIds: string[];
   passed: boolean;
+}
+
+export type EvidenceType =
+  | '事实'
+  | '数字'
+  | '原话'
+  | '案例'
+  | '步骤'
+  | '风险'
+  | '限制'
+  | '术语'
+  | '关系'
+  | '对比'
+  | '观点'
+  | '结论'
+  | '建议'
+  | '待办'
+  | '分歧'
+  | '待研究';
+
+export type NumericClaimOperator =
+  | 'eq'
+  | 'gte'
+  | 'lte'
+  | 'gt'
+  | 'lt'
+  | 'increase'
+  | 'decrease'
+  | 'range';
+
+export interface NumericEvidenceClaim {
+  operator: NumericClaimOperator;
+  qualifier?: string;
+  relatedValue?: string;
+  subject: string;
+  unit?: string;
+  value: string;
+}
+
+export interface EvidenceRecord {
+  asrRisk: 'low' | 'medium' | 'high';
+  certainty: 'direct' | 'inferred' | 'uncertain';
+  id: string;
+  numericClaims?: NumericEvidenceClaim[];
+  quote?: string;
+  sourceId: string;
+  speaker?: string;
+  statement: string;
+  timestamp?: string;
+  type: EvidenceType;
+}
+
+export interface EvidencePlanAssessment {
+  evidenceCoverage: number;
+  missingEvidenceIds: string[];
+  passed: boolean;
+}
+
+export interface FactAuditIssue {
+  evidenceId?: string;
+  message: string;
+}
+
+export interface NoteFactAudit {
+  ambiguityIssues: FactAuditIssue[];
+  contradictions: FactAuditIssue[];
+  missingEvidenceIds: string[];
+  passed: boolean;
+  unsupportedClaims: string[];
 }
 
 interface EvidenceCoverageRequirement {
@@ -153,6 +243,36 @@ const PIPELINE_TRUTHFULNESS_RULES = `真实性红线：
 4. 无法确认的信息标记【待人工确认】，不得猜测。
 5. 转写内容只能称为“转写原话”；只有原文带可靠说话人标签时才能标注说话人。`;
 
+const EVIDENCE_TYPES: ReadonlySet<string> = new Set<string>([
+  '事实',
+  '数字',
+  '原话',
+  '案例',
+  '步骤',
+  '风险',
+  '限制',
+  '术语',
+  '关系',
+  '对比',
+  '观点',
+  '结论',
+  '建议',
+  '待办',
+  '分歧',
+  '待研究',
+]);
+
+const NUMERIC_OPERATORS: ReadonlySet<string> = new Set<string>([
+  'eq',
+  'gte',
+  'lte',
+  'gt',
+  'lt',
+  'increase',
+  'decrease',
+  'range',
+]);
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -175,16 +295,200 @@ function extractHeadings(note: string): string[] {
   return headings;
 }
 
-function extractEvidenceTypes(evidenceLedger: string): Set<string> {
-  const types: Set<string> = new Set<string>();
-  for (const line of evidenceLedger.split('\n')) {
-    const match: RegExpMatchArray | null = line.match(
-      /^(?:\[S\d+\])+\[([^\]]+)\]/u,
-    );
-    const evidenceType: string | undefined = match?.[1]?.trim();
-    if (evidenceType) types.add(evidenceType);
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getRequiredString(
+  value: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const candidate: unknown = value[key];
+  return typeof candidate === 'string' && candidate.trim()
+    ? candidate.trim()
+    : undefined;
+}
+
+function normalizeSourceId(sourceId: string): string {
+  return sourceId.replace(/^\[/u, '').replace(/\]$/u, '').trim();
+}
+
+function parseNumericClaims(
+  value: unknown,
+): NumericEvidenceClaim[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const claims: NumericEvidenceClaim[] = [];
+  for (const item of value) {
+    if (!isObject(item)) continue;
+    const operator: string | undefined = getRequiredString(item, 'operator');
+    const subject: string | undefined = getRequiredString(item, 'subject');
+    const claimValue: string | undefined = getRequiredString(item, 'value');
+    if (
+      !operator ||
+      !NUMERIC_OPERATORS.has(operator) ||
+      !subject ||
+      !claimValue
+    ) {
+      continue;
+    }
+    claims.push({
+      operator: operator as NumericClaimOperator,
+      qualifier: getRequiredString(item, 'qualifier'),
+      relatedValue: getRequiredString(item, 'relatedValue'),
+      subject,
+      unit: getRequiredString(item, 'unit'),
+      value: claimValue,
+    });
   }
-  return types;
+  return claims.length > 0 ? claims : undefined;
+}
+
+function parseJsonEvidenceLine(line: string): EvidenceRecord | undefined {
+  if (!line.startsWith('{') || !line.endsWith('}')) return undefined;
+  try {
+    const value: unknown = JSON.parse(line);
+    if (!isObject(value)) return undefined;
+    const id: string | undefined = getRequiredString(value, 'id');
+    const rawSourceId: string | undefined = getRequiredString(
+      value,
+      'sourceId',
+    );
+    const statement: string | undefined = getRequiredString(value, 'statement');
+    const type: string | undefined = getRequiredString(value, 'type');
+    if (
+      !id ||
+      !/^E-S\d+-\d+$/u.test(id) ||
+      !rawSourceId ||
+      !statement ||
+      !type ||
+      !EVIDENCE_TYPES.has(type)
+    ) {
+      return undefined;
+    }
+    const sourceId: string = normalizeSourceId(rawSourceId);
+    if (!/^S\d+$/u.test(sourceId)) return undefined;
+    const certaintyValue: string | undefined = getRequiredString(
+      value,
+      'certainty',
+    );
+    const asrRiskValue: string | undefined = getRequiredString(
+      value,
+      'asrRisk',
+    );
+    const certainty: EvidenceRecord['certainty'] =
+      certaintyValue === 'inferred' || certaintyValue === 'uncertain'
+        ? certaintyValue
+        : 'direct';
+    const asrRisk: EvidenceRecord['asrRisk'] =
+      asrRiskValue === 'medium' || asrRiskValue === 'high'
+        ? asrRiskValue
+        : 'low';
+    return {
+      asrRisk,
+      certainty,
+      id,
+      numericClaims: parseNumericClaims(value.numericClaims),
+      quote: getRequiredString(value, 'quote'),
+      sourceId,
+      speaker: getRequiredString(value, 'speaker'),
+      statement,
+      timestamp: getRequiredString(value, 'timestamp'),
+      type: type as EvidenceType,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseEvidenceLedger(evidenceLedger: string): EvidenceRecord[] {
+  const records: EvidenceRecord[] = [];
+  const legacyCounts: Map<string, number> = new Map<string, number>();
+  for (const rawLine of evidenceLedger.split('\n')) {
+    const line: string = rawLine.trim();
+    if (!line || /^```(?:jsonl?|text)?$/iu.test(line)) continue;
+    const structured: EvidenceRecord | undefined = parseJsonEvidenceLine(line);
+    if (structured) {
+      records.push(structured);
+      continue;
+    }
+    const legacyMatch: RegExpMatchArray | null = line.match(
+      /^((?:\[S\d+\])+)\[([^\]]+)\]\s*(.+)$/u,
+    );
+    const rawSources: string | undefined = legacyMatch?.[1];
+    const type: string | undefined = legacyMatch?.[2]?.trim();
+    const statement: string | undefined = legacyMatch?.[3]?.trim();
+    if (!rawSources || !type || !statement || !EVIDENCE_TYPES.has(type)) {
+      continue;
+    }
+    const sourceMatch: RegExpMatchArray | null = rawSources.match(/S\d+/u);
+    const sourceId: string | undefined = sourceMatch?.[0];
+    if (!sourceId) continue;
+    const nextCount: number = (legacyCounts.get(sourceId) || 0) + 1;
+    legacyCounts.set(sourceId, nextCount);
+    records.push({
+      asrRisk: statement.includes('【待人工确认】') ? 'high' : 'low',
+      certainty: statement.includes('【待人工确认】') ? 'uncertain' : 'direct',
+      id: `L-${sourceId}-${String(nextCount).padStart(3, '0')}`,
+      sourceId,
+      statement,
+      type: type as EvidenceType,
+    });
+  }
+  return records;
+}
+
+export function normalizeStructuredEvidenceLedger(
+  evidenceLedger: string,
+): string {
+  const candidateLines: string[] = evidenceLedger
+    .split('\n')
+    .map((line: string): string => line.trim())
+    .filter((line: string): boolean => line.startsWith('{'));
+  if (candidateLines.length === 0) return evidenceLedger;
+  const records: EvidenceRecord[] = candidateLines
+    .map(parseJsonEvidenceLine)
+    .filter((record: EvidenceRecord | undefined): record is EvidenceRecord =>
+      Boolean(record),
+    );
+  if (records.length !== candidateLines.length) return evidenceLedger;
+
+  const sourceCounts: Map<string, number> = new Map<string, number>();
+  return records
+    .map((record: EvidenceRecord): string => {
+      const nextCount: number = (sourceCounts.get(record.sourceId) || 0) + 1;
+      sourceCounts.set(record.sourceId, nextCount);
+      return JSON.stringify({
+        asrRisk: record.asrRisk,
+        certainty: record.certainty,
+        id: `E-${record.sourceId}-${String(nextCount).padStart(3, '0')}`,
+        ...(record.numericClaims
+          ? { numericClaims: record.numericClaims }
+          : {}),
+        ...(record.quote ? { quote: record.quote } : {}),
+        sourceId: record.sourceId,
+        ...(record.speaker ? { speaker: record.speaker } : {}),
+        statement: record.statement,
+        ...(record.timestamp ? { timestamp: record.timestamp } : {}),
+        type: record.type,
+      });
+    })
+    .join('\n');
+}
+
+function extractExplicitEvidenceIds(evidenceLedger: string): Set<string> {
+  return new Set<string>(
+    parseEvidenceLedger(evidenceLedger)
+      .filter((record: EvidenceRecord): boolean => record.id.startsWith('E-'))
+      .map((record: EvidenceRecord): string => record.id),
+  );
+}
+
+function extractEvidenceTypes(evidenceLedger: string): Set<string> {
+  return new Set<string>(
+    parseEvidenceLedger(evidenceLedger).map(
+      (record: EvidenceRecord): string => record.type,
+    ),
+  );
 }
 
 function extractSourceIds(text: string): Set<string> {
@@ -192,6 +496,9 @@ function extractSourceIds(text: string): Set<string> {
   for (const match of text.matchAll(/\[S\d+\]/gu)) {
     const sourceId: string | undefined = match[0];
     if (sourceId) sourceIds.add(sourceId);
+  }
+  for (const record of parseEvidenceLedger(text)) {
+    sourceIds.add(`[${record.sourceId}]`);
   }
   return sourceIds;
 }
@@ -237,9 +544,60 @@ function getMissingSourceIds(note: string, evidenceLedger: string): string[] {
   const expectedSourceIds: Set<string> = extractSourceIds(evidenceLedger);
   if (expectedSourceIds.size === 0) return [];
   const noteSourceIds: Set<string> = extractSourceIds(note);
+  for (const record of parseEvidenceLedger(evidenceLedger)) {
+    if (note.includes(`[${record.id}]`)) {
+      noteSourceIds.add(`[${record.sourceId}]`);
+    }
+  }
   return [...expectedSourceIds].filter(
     (sourceId: string): boolean => !noteSourceIds.has(sourceId),
   );
+}
+
+function getMissingEvidenceIds(note: string, evidenceLedger: string): string[] {
+  return [...extractExplicitEvidenceIds(evidenceLedger)].filter(
+    (evidenceId: string): boolean => !note.includes(`[${evidenceId}]`),
+  );
+}
+
+export function assessEvidencePlanCoverage(
+  coveragePlan: string,
+  evidenceLedger: string,
+): EvidencePlanAssessment {
+  const evidenceIds: Set<string> = extractExplicitEvidenceIds(evidenceLedger);
+  const missingEvidenceIds: string[] = [...evidenceIds].filter(
+    (evidenceId: string): boolean => !coveragePlan.includes(`[${evidenceId}]`),
+  );
+  return {
+    evidenceCoverage:
+      evidenceIds.size === 0
+        ? 1
+        : (evidenceIds.size - missingEvidenceIds.length) / evidenceIds.size,
+    missingEvidenceIds,
+    passed: missingEvidenceIds.length === 0,
+  };
+}
+
+export function completeEvidenceCoveragePlan(
+  coveragePlan: string,
+  evidenceLedger: string,
+): string {
+  const missingIds: Set<string> = new Set<string>(
+    assessEvidencePlanCoverage(coveragePlan, evidenceLedger).missingEvidenceIds,
+  );
+  if (missingIds.size === 0) return coveragePlan;
+  const fallbackItems: string[] = parseEvidenceLedger(evidenceLedger)
+    .filter((record: EvidenceRecord): boolean => missingIds.has(record.id))
+    .map(
+      (record: EvidenceRecord): string =>
+        `- [${record.id}] ${record.statement}${
+          record.certainty !== 'direct' || record.asrRisk === 'high'
+            ? '【待人工确认】'
+            : ''
+        }`,
+    );
+  if (fallbackItems.length === 0) return coveragePlan;
+  return `${coveragePlan.trim()}\n\n## 系统补齐的证据落点\n${fallbackItems.join('\n')}`;
 }
 
 function hasMarkdownTitle(note: string): boolean {
@@ -306,6 +664,22 @@ function extractSignificantNumbers(text: string): Set<string> {
 }
 
 function extractEvidenceLedgerNumbers(evidenceLedger: string): Set<string> {
+  const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
+  const structuredValues: string[] = records.flatMap(
+    (record: EvidenceRecord): string[] =>
+      record.numericClaims?.flatMap((claim: NumericEvidenceClaim): string[] =>
+        [claim.value, claim.relatedValue].filter(
+          (value: string | undefined): value is string => Boolean(value),
+        ),
+      ) || [],
+  );
+  if (structuredValues.length > 0) {
+    return new Set<string>(
+      structuredValues.map((value: string): string =>
+        value.replace(/,/gu, '').replace(/％/gu, '%'),
+      ),
+    );
+  }
   const numericEvidence: string = evidenceLedger
     .split('\n')
     .filter((line: string): boolean => /\]\[数字\]/u.test(line))
@@ -314,6 +688,73 @@ function extractEvidenceLedgerNumbers(evidenceLedger: string): Set<string> {
     )
     .join('\n');
   return extractSignificantNumbers(numericEvidence);
+}
+
+function getEvidenceInformationLength(evidenceLedger: string): number {
+  const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
+  if (records.length === 0) return evidenceLedger.trim().length;
+  return records.reduce(
+    (total: number, record: EvidenceRecord): number =>
+      total + record.statement.length + (record.quote?.length || 0),
+    0,
+  );
+}
+
+function findNumberWindows(note: string, value: string): string[] {
+  const windows: string[] = [];
+  let startIndex = 0;
+  while (startIndex < note.length) {
+    const matchIndex: number = note.indexOf(value, startIndex);
+    if (matchIndex < 0) break;
+    windows.push(
+      note.slice(
+        Math.max(0, matchIndex - 18),
+        Math.min(note.length, matchIndex + value.length + 18),
+      ),
+    );
+    startIndex = matchIndex + value.length;
+  }
+  return windows;
+}
+
+function getOppositeDirectionSignals(
+  operator: NumericClaimOperator,
+): readonly string[] {
+  if (operator === 'gte' || operator === 'gt') {
+    return ['以下', '低于', '小于', '不超过', '至多'];
+  }
+  if (operator === 'lte' || operator === 'lt') {
+    return ['以上', '高于', '大于', '不少于', '至少'];
+  }
+  if (operator === 'increase') return ['减少', '下降', '降低', '下调'];
+  if (operator === 'decrease') return ['增加', '上升', '提高', '上调'];
+  return [];
+}
+
+function getSemanticDirectionContradictions(
+  note: string,
+  evidenceLedger: string,
+): string[] {
+  const contradictions: string[] = [];
+  for (const record of parseEvidenceLedger(evidenceLedger)) {
+    for (const claim of record.numericClaims || []) {
+      const oppositeSignals: readonly string[] = getOppositeDirectionSignals(
+        claim.operator,
+      );
+      if (oppositeSignals.length === 0) continue;
+      const windows: string[] = findNumberWindows(note, claim.value);
+      const oppositeSignal: string | undefined = oppositeSignals.find(
+        (signal: string): boolean =>
+          windows.some((window: string): boolean => window.includes(signal)),
+      );
+      if (oppositeSignal) {
+        contradictions.push(
+          `${record.id} 的数值 ${claim.value} 比较方向与证据相反，正文出现“${oppositeSignal}”`,
+        );
+      }
+    }
+  }
+  return contradictions;
 }
 
 function getMissingSetValues(
@@ -327,6 +768,10 @@ export function assessEvidenceMergeIntegrity(
   originalLedger: string,
   mergedLedger: string,
 ): EvidenceMergeIntegrity {
+  const missingEvidenceIds: string[] = getMissingSetValues(
+    extractExplicitEvidenceIds(originalLedger),
+    extractExplicitEvidenceIds(mergedLedger),
+  );
   const missingEvidenceTypes: string[] = getMissingSetValues(
     extractEvidenceTypes(originalLedger),
     extractEvidenceTypes(mergedLedger),
@@ -340,10 +785,12 @@ export function assessEvidenceMergeIntegrity(
     extractSourceIds(mergedLedger),
   );
   return {
+    missingEvidenceIds,
     missingEvidenceTypes,
     missingNumbers,
     missingSourceIds,
     passed:
+      missingEvidenceIds.length === 0 &&
       missingEvidenceTypes.length === 0 &&
       missingNumbers.length === 0 &&
       missingSourceIds.length === 0,
@@ -367,11 +814,13 @@ function getMinimumNoteLength(
   noteStyle: NoteStyle,
   evidenceLedger?: string,
 ): number {
-  const evidenceLength: number = evidenceLedger?.trim().length || 0;
+  const evidenceLength: number = evidenceLedger
+    ? getEvidenceInformationLength(evidenceLedger)
+    : 0;
   if (evidenceLength > 0) {
     return noteStyle === 'meeting'
-      ? clamp(Math.floor(evidenceLength * 0.4), 220, 8_000)
-      : clamp(Math.floor(evidenceLength * 0.6), 300, 16_000);
+      ? clamp(Math.floor(evidenceLength * 0.65), 220, 10_000)
+      : clamp(Math.floor(evidenceLength * 0.9), 300, 20_000);
   }
   return noteStyle === 'meeting'
     ? clamp(Math.floor(sourceLength * 0.08), 220, 4_000)
@@ -382,6 +831,7 @@ function hasTraceabilitySignal(note: string, noteStyle: NoteStyle): boolean {
   if (noteStyle === 'meeting') return note.includes('纪要状态：');
   return (
     /\[S\d+\]/u.test(note) ||
+    /\[E-S\d+-\d+\]/u.test(note) ||
     note.includes('转写原话') ||
     note.includes('【待人工确认】') ||
     /^>\s+/mu.test(note)
@@ -479,13 +929,18 @@ ${PIPELINE_TRUTHFULNESS_RULES}
 
 提取规则：
 1. 逐段提取所有与主题、操作或项目判断有关的信息，不做“只挑最重要内容”的筛选；不因重复措辞而丢失新增条件。
-2. 所有影响范围、成本、进度、性能、阈值、版本、结果或决策的数字、价格、日期、人数、工期、比例和参数必须单独保留为[数字]证据。
+2. 所有影响范围、成本、进度、性能、阈值、版本、结果或决策的数字、价格、日期、人数、工期、比例和参数必须单独保留为“数字”证据。
 3. 完整保留事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧和待研究问题。
 4. 值得引用的表达写为“转写原话”，保留原有说话人和时间戳；没有说话人时不要虚构。
-5. 每条证据单独成行并以 [${sourceId}][类型] 开头；类型只能从事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧、待研究中选择。
+5. 输出严格 JSON Lines，每行一个 JSON 对象，不要使用 Markdown 代码围栏。id 从 E-${sourceId}-001 开始递增且不得重复；sourceId 固定为 ${sourceId}；type 只能从事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧、待研究中选择。
 6. 相同事实可以合并，但不同数字、条件、例外、观点归属不得合并。
 7. 疑似转写错误的专有名词保留原始写法并标记【待人工确认】，不得自行纠正后当作事实。
-8. 不输出开场白、评价或原文之外的解释。
+8. certainty 只能是 direct、inferred、uncertain；asrRisk 只能是 low、medium、high。原文直接陈述用 direct；编辑推断不得作为事实，确需保留时用 inferred；发言人记忆模糊或转写不可靠时用 uncertain。
+9. 数字证据必须填写 numericClaims。每个 numericClaims 元素包含 subject、value、operator；operator 只能是 eq、gte、lte、gt、lt、increase、decrease、range。能确认时填写 unit、relatedValue、qualifier。尤其不得把“以上”写成“以下”，不得混淆平台用户、客户总用户等不同主体。
+10. 不输出开场白、评价或原文之外的解释。
+
+单行格式示例：
+{"id":"E-${sourceId}-001","sourceId":"${sourceId}","type":"数字","statement":"知识图谱在 3.5 以上模型版本中可能无法生成。","timestamp":"99:07","speaker":"发言人1","certainty":"direct","asrRisk":"low","numericClaims":[{"subject":"知识图谱模型版本","value":"3.5","unit":"版本","operator":"gte"}]}
 
 原文分块 [${sourceId}]：
 ---BEGIN SOURCE---
@@ -499,14 +954,48 @@ export function buildEvidenceMergePrompt(evidenceLedger: string): string {
 合并红线：
 1. 不得删除任何唯一数字、单位、日期、版本号、人名、产品名、条件、例外或观点归属。
 2. 不得删除独有的案例、步骤、风险、限制、原话、关系、对比、观点、结论、建议、待办、分歧或待研究问题。
-3. 保留 [S01] 等全部来源标记；多个来源共同支持同一条证据时并列标注。
+3. 保留每行 JSON 的 id、sourceId、type、certainty、asrRisk、numericClaims 等结构化字段；任何 E-S01-001 等证据 ID 都不得删除或改写。兼容旧账本时必须保留 [S01] 等全部来源标记。
 4. 冲突信息不得擅自裁决，应并列保留并标记【存在冲突，待人工确认】。
 5. 不得补充账本之外的解释或常识。
-6. 只输出合并后的证据账本。
+6. 继续使用严格 JSON Lines，每行一个证据对象，不输出代码围栏或说明。
 
 待合并账本：
 ---BEGIN EVIDENCE LEDGER---
 ${evidenceLedger}
+---END EVIDENCE LEDGER---`;
+}
+
+export function buildEvidenceCoveragePlanPrompt(
+  input: EvidenceCoveragePlanPromptInput,
+): string {
+  const structure: string =
+    input.noteStyle === 'meeting'
+      ? '只规划“会议议程、会议内容、会后待办”三个一级内容模块。'
+      : '规划详细主笔记、证据驱动专题模块，并把“一页复习”放在所有详细内容之后。';
+  return `你是笔记证据覆盖规划员。请先规划信息放置位置，不要直接写最终笔记。
+
+${PIPELINE_TRUTHFULNESS_RULES}
+
+资料标题：${input.sourceTitle}
+笔记类型：${input.noteStyle === 'meeting' ? '会议纪要' : '学习/培训笔记'}
+${structure}
+
+规划规则：
+1. 证据账本中的每条证据都必须在计划中出现，使用原始 [E-S01-001] 证据 ID 标记；不得静默省略。
+2. 同一证据可以同时服务于详细正文和一页复习，但详细正文必须是第一落点。
+3. 数字必须与主体、单位、限定词和比较方向一起规划；案例必须规划背景、问题、处理、结果或启示。
+4. 原话、操作细节、小Bug、功能边界和项目成本不能因“不是核心结论”而删除。
+5. uncertain 或 high ASR 风险证据进入“待人工确认”或相应正文，不得改写为确定事实。
+6. 输出 Markdown 章节大纲；每个条目写“[证据ID] + 要保留的具体信息”，不输出正文。
+
+用户输出偏好：
+---BEGIN USER REQUIREMENTS---
+${input.styleRequirements}
+---END USER REQUIREMENTS---
+
+证据账本：
+---BEGIN EVIDENCE LEDGER---
+${input.evidenceLedger}
 ---END EVIDENCE LEDGER---`;
 }
 
@@ -535,6 +1024,9 @@ export function buildNoteStructurePrompt(
 方法流程、知识关系、案例、对比、关键数据、风险误区、关键术语、待研究问题采用证据驱动规则：证据账本只要出现对应类型，就必须输出对应独立模块并覆盖该类型全部独有信息；没有对应证据时才省略。
 优先保证事实密度、因果链、条件、数字、案例和可复习性，不为了字数扩写，也不为了避免重复而删除必要上下文。`;
 
+  const coveragePlan: string = input.coveragePlan?.trim()
+    ? `\n证据覆盖计划（必须逐项落实，不得只复制证据ID）：\n---BEGIN COVERAGE PLAN---\n${input.coveragePlan}\n---END COVERAGE PLAN---\n`
+    : '';
   return `你是高级中文知识管理编辑。请根据证据账本生成可直接交付的 Markdown 笔记。
 
 ${PIPELINE_TRUTHFULNESS_RULES}
@@ -549,7 +1041,7 @@ ${structureContract}
 3. 风险必须说明表现、影响和原文给出的应对；原文没有应对时写“原文未给出应对方案”。
 4. 案例按背景、问题、处理、结果或启示整理，缺失字段如实省略。
 5. 可以基于证据做关系梳理、因果归纳和跨段总结，但必须标为“整理归纳”，并与原文事实、转写原话和编辑建议区分，不能把归纳写成原文结论。
-6. 每个来源分块 [S01] 等至少在正文出现一次；重要结论、数字、案例和原话应就近保留来源标记，多来源共同支持时并列标注。
+6. 每条结构化证据必须在承载它的正文句段后就近标注 [E-S01-001] 等证据 ID；不得只把ID集中罗列在文末。系统发布时会自动转换为来源标记。
 7. 用户可以调整排版、语气和章节命名，但不能要求短摘要来降低事实覆盖，也不能删除系统要求的证据类型。
 8. 标题反映信息内容，段落简洁；允许核心结论与专题模块互相引用，但不得机械复制整段。
 9. 重点标记克制使用：🔴风险、🔵关键知识、🟠条件或待确认；不以数量充当质量。
@@ -559,6 +1051,7 @@ ${structureContract}
 ---BEGIN USER REQUIREMENTS---
 ${input.styleRequirements}
 ---END USER REQUIREMENTS---
+${coveragePlan}
 
 证据账本：
 ---BEGIN EVIDENCE LEDGER---
@@ -591,7 +1084,7 @@ ${failedChecks}
 2. 保留草稿中已正确、有证据的信息；删除重复和无依据内容。
 ${structureRepairRules}
 5. 逐类核对事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧和待研究证据；明确问题中指出缺失的类别必须补齐全部独有条目，而不是只补一个示例或空标题。
-6. 保留并补齐 [S01] 等来源标记，确保每个证据来源分块至少出现一次。
+6. 保留并补齐 [E-S01-001] 等证据ID，确保每条结构化证据在对应正文句段后就近出现；旧格式账本继续使用 [S01] 来源标记。
 7. 输出修订后的完整 Markdown，不输出评分、修改说明或分析过程。
 
 用户输出偏好：
@@ -608,6 +1101,274 @@ ${input.evidenceLedger}
 ---BEGIN DRAFT---
 ${input.draftNote}
 ---END DRAFT---`;
+}
+
+export function buildNoteFactAuditPrompt(
+  input: NoteFactAuditPromptInput,
+): string {
+  return `你是独立事实审校员。不要润色文章，只比较证据账本与草稿并输出机器可读审校结果。
+
+${PIPELINE_TRUTHFULNESS_RULES}
+
+资料标题：${input.sourceTitle}
+笔记类型：${input.noteStyle === 'meeting' ? '会议纪要' : '学习/培训笔记'}
+
+审校要求：
+1. 检查每个证据ID是否在承载其真实内容的句段后出现；仅罗列ID但没有内容仍算遗漏。
+2. 逐项核对主体、数值、单位、比较方向、限定词、时间顺序、因果关系和观点归属。
+3. 特别检查以上/以下、增加/减少、平台用户/客户总用户、原始值/调整后值等语义翻转。
+4. 检查草稿是否增加了证据账本不存在的案例、事实、数字或确定结论。
+5. uncertain、inferred 或 high ASR 风险内容如果未标记待确认，计入 ambiguityIssues。
+6. 只输出一个 JSON 对象，不要使用 Markdown 代码围栏。结构必须是：
+{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}
+7. contradictions 和 ambiguityIssues 的元素格式为 {"evidenceId":"可选","message":"具体问题"}；unsupportedClaims 为草稿中的无来源表述字符串。
+
+证据账本：
+---BEGIN EVIDENCE LEDGER---
+${input.evidenceLedger}
+---END EVIDENCE LEDGER---
+
+待审校草稿：
+---BEGIN DRAFT---
+${input.draftNote}
+---END DRAFT---`;
+}
+
+function parseFactAuditIssues(value: unknown): FactAuditIssue[] {
+  if (!Array.isArray(value)) return [];
+  const issues: FactAuditIssue[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      issues.push({ message: item.trim() });
+      continue;
+    }
+    if (!isObject(item)) continue;
+    const message: string | undefined = getRequiredString(item, 'message');
+    if (!message) continue;
+    issues.push({
+      evidenceId: getRequiredString(item, 'evidenceId'),
+      message,
+    });
+  }
+  return issues;
+}
+
+function parseStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item: unknown): item is string =>
+          typeof item === 'string' && Boolean(item.trim()),
+      )
+    : [];
+}
+
+export function parseNoteFactAudit(rawAudit: string): NoteFactAudit {
+  const startIndex: number = rawAudit.indexOf('{');
+  const endIndex: number = rawAudit.lastIndexOf('}');
+  if (startIndex < 0 || endIndex <= startIndex) {
+    return {
+      ambiguityIssues: [{ message: '事实审校结果无法解析为 JSON' }],
+      contradictions: [],
+      missingEvidenceIds: [],
+      passed: false,
+      unsupportedClaims: [],
+    };
+  }
+  try {
+    const value: unknown = JSON.parse(rawAudit.slice(startIndex, endIndex + 1));
+    if (!isObject(value)) throw new Error('审校结果不是对象');
+    const ambiguityIssues: FactAuditIssue[] = parseFactAuditIssues(
+      value.ambiguityIssues,
+    );
+    const contradictions: FactAuditIssue[] = parseFactAuditIssues(
+      value.contradictions,
+    );
+    const missingEvidenceIds: string[] = parseStringArray(
+      value.missingEvidenceIds,
+    );
+    const unsupportedClaims: string[] = parseStringArray(
+      value.unsupportedClaims,
+    );
+    const hasIssues: boolean =
+      ambiguityIssues.length > 0 ||
+      contradictions.length > 0 ||
+      missingEvidenceIds.length > 0 ||
+      unsupportedClaims.length > 0;
+    return {
+      ambiguityIssues,
+      contradictions,
+      missingEvidenceIds,
+      passed: value.passed === true && !hasIssues,
+      unsupportedClaims,
+    };
+  } catch {
+    return {
+      ambiguityIssues: [{ message: '事实审校结果无法解析为 JSON' }],
+      contradictions: [],
+      missingEvidenceIds: [],
+      passed: false,
+      unsupportedClaims: [],
+    };
+  }
+}
+
+export function formatFactAuditFailures(audit: NoteFactAudit): string[] {
+  const failures: string[] = [];
+  if (audit.missingEvidenceIds.length > 0) {
+    failures.push(
+      `事实审校发现遗漏证据：${audit.missingEvidenceIds.join('、')}`,
+    );
+  }
+  for (const issue of audit.contradictions) {
+    failures.push(
+      `事实矛盾${issue.evidenceId ? `（${issue.evidenceId}）` : ''}：${issue.message}`,
+    );
+  }
+  for (const claim of audit.unsupportedClaims) {
+    failures.push(`无来源新增事实：${claim}`);
+  }
+  for (const issue of audit.ambiguityIssues) {
+    failures.push(
+      `不确定性处理错误${issue.evidenceId ? `（${issue.evidenceId}）` : ''}：${issue.message}`,
+    );
+  }
+  return failures;
+}
+
+export function normalizeEvidenceCitationsForPublication(
+  note: string,
+  evidenceLedger: string,
+): string {
+  let published: string = note;
+  for (const record of parseEvidenceLedger(evidenceLedger)) {
+    if (!record.id.startsWith('E-')) continue;
+    published = published.split(`[${record.id}]`).join(`[${record.sourceId}]`);
+  }
+  let previous: string;
+  do {
+    previous = published;
+    published = published.replace(/(\[S\d+\])\1/gu, '$1');
+  } while (published !== previous);
+  return published;
+}
+
+interface SourceMarkdownImage {
+  alt: string;
+  markdown: string;
+  url: string;
+}
+
+function extractSourceMarkdownImages(markdown: string): SourceMarkdownImage[] {
+  const images: SourceMarkdownImage[] = [];
+  for (const rawLine of markdown.split('\n')) {
+    const line: string = rawLine.trim();
+    const match: RegExpMatchArray | null = line.match(
+      /^!\[([^\]]*)\]\(([^)]+)\)$/u,
+    );
+    const url: string | undefined = match?.[2]?.trim();
+    if (!match || !url) continue;
+    images.push({ alt: match[1]?.trim() || '', markdown: line, url });
+  }
+  return images;
+}
+
+function extractVisualSemanticTokens(text: string): Set<string> {
+  const tokens: Set<string> = new Set<string>();
+  for (const match of text
+    .toLowerCase()
+    .matchAll(/[\p{Script=Han}]+|[a-z0-9]+/gu)) {
+    const value: string | undefined = match[0];
+    if (!value) continue;
+    if (/^[a-z0-9]+$/u.test(value)) {
+      if (value.length >= 2) tokens.add(value);
+      continue;
+    }
+    for (let index = 0; index < value.length - 1; index += 1) {
+      tokens.add(value.slice(index, index + 2));
+    }
+  }
+  return tokens;
+}
+
+export function preserveSourceMarkdownImages(
+  note: string,
+  sourceText: string,
+): string {
+  const missingImages: SourceMarkdownImage[] = extractSourceMarkdownImages(
+    sourceText,
+  ).filter((image: SourceMarkdownImage): boolean => !note.includes(image.url));
+  if (missingImages.length === 0) return note;
+
+  const lines: string[] = note.split('\n');
+  const sectionStarts: number[] = lines
+    .map((line: string, index: number): number =>
+      /^##\s+/u.test(line) ? index : -1,
+    )
+    .filter((index: number): boolean => index >= 0);
+  const imagesBySection: Map<number, SourceMarkdownImage[]> = new Map();
+  const unmatchedImages: SourceMarkdownImage[] = [];
+
+  for (const image of missingImages) {
+    const imageTokens: Set<string> = extractVisualSemanticTokens(image.alt);
+    let bestSectionLine: number | undefined;
+    let bestScore = 0;
+    for (let index = 0; index < sectionStarts.length; index += 1) {
+      const startLine: number = sectionStarts[index];
+      const endLine: number = sectionStarts[index + 1] ?? lines.length;
+      const sectionTokens: Set<string> = extractVisualSemanticTokens(
+        lines.slice(startLine, endLine).join(' '),
+      );
+      const score: number = [...imageTokens].filter((token: string): boolean =>
+        sectionTokens.has(token),
+      ).length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestSectionLine = startLine;
+      }
+    }
+    if (bestSectionLine !== undefined && bestScore >= 2) {
+      const sectionImages: SourceMarkdownImage[] =
+        imagesBySection.get(bestSectionLine) || [];
+      sectionImages.push(image);
+      imagesBySection.set(bestSectionLine, sectionImages);
+    } else {
+      unmatchedImages.push(image);
+    }
+  }
+
+  for (const [sectionLine, images] of [...imagesBySection.entries()].sort(
+    (
+      [left]: [number, SourceMarkdownImage[]],
+      [right]: [number, SourceMarkdownImage[]],
+    ): number => right - left,
+  )) {
+    lines.splice(
+      sectionLine + 1,
+      0,
+      '',
+      ...images.flatMap((image: SourceMarkdownImage): string[] => [
+        image.markdown,
+        '',
+      ]),
+    );
+  }
+  if (unmatchedImages.length > 0) {
+    const reviewLine: number = lines.findIndex((line: string): boolean =>
+      /^##\s+.*一页复习/u.test(line),
+    );
+    const insertLine: number = reviewLine >= 0 ? reviewLine : lines.length;
+    lines.splice(
+      insertLine,
+      0,
+      '## 原始资料图片',
+      '',
+      ...unmatchedImages.flatMap((image: SourceMarkdownImage): string[] => [
+        image.markdown,
+        '',
+      ]),
+    );
+  }
+  return lines.join('\n');
 }
 
 export function assessNoteQuality(
@@ -644,6 +1405,39 @@ export function assessNoteQuality(
       ? 1
       : (expectedSourceIds.size - missingSourceIds.length) /
         expectedSourceIds.size;
+  const expectedEvidenceIds: Set<string> =
+    extractExplicitEvidenceIds(evidenceLedger);
+  const missingEvidenceIds: string[] = getMissingEvidenceIds(
+    input.note,
+    evidenceLedger,
+  );
+  const evidenceItemCoverage: number =
+    expectedEvidenceIds.size === 0
+      ? 1
+      : (expectedEvidenceIds.size - missingEvidenceIds.length) /
+        expectedEvidenceIds.size;
+  const semanticContradictions: string[] = getSemanticDirectionContradictions(
+    input.note,
+    evidenceLedger,
+  );
+  const sourceVisualUrls: Set<string> = new Set<string>(
+    extractSourceMarkdownImages(input.sourceText).map(
+      (image: SourceMarkdownImage): string => image.url,
+    ),
+  );
+  const noteVisualUrls: Set<string> = new Set<string>(
+    extractSourceMarkdownImages(input.note).map(
+      (image: SourceMarkdownImage): string => image.url,
+    ),
+  );
+  const missingVisualUrls: string[] = [...sourceVisualUrls].filter(
+    (url: string): boolean => !noteVisualUrls.has(url),
+  );
+  const visualCoverage: number =
+    sourceVisualUrls.size === 0
+      ? 1
+      : (sourceVisualUrls.size - missingVisualUrls.length) /
+        sourceVisualUrls.size;
   const sourceNumbers: Set<string> = input.evidenceLedger
     ? extractEvidenceLedgerNumbers(evidenceLedger)
     : extractSignificantNumbers(input.sourceText);
@@ -671,7 +1465,11 @@ export function assessNoteQuality(
   const traceabilityPoints: number = traceable ? 10 : 0;
   const stylePoints: number = overlongParagraph ? 5 : 10;
   const coveragePenalty: number =
-    (1 - evidenceCoverage) * 20 + (1 - sourceAnchorCoverage) * 10;
+    (1 - evidenceCoverage) * 20 +
+    (1 - sourceAnchorCoverage) * 10 +
+    (1 - evidenceItemCoverage) * 25 +
+    (1 - visualCoverage) * 20 +
+    Math.min(30, semanticContradictions.length * 15);
   const score: number = Math.round(
     Math.max(
       0,
@@ -706,6 +1504,19 @@ export function assessNoteQuality(
       `缺少来源分块标记：${missingSourceIds.join('、')}；需要补回这些分块中的独有信息并就近标注来源`,
     );
   }
+  if (missingEvidenceIds.length > 0) {
+    failedChecks.push(
+      `缺少结构化证据条目：${missingEvidenceIds.join('、')}；需要在承载其真实内容的句段后就近标注对应证据ID`,
+    );
+  }
+  for (const contradiction of semanticContradictions) {
+    failedChecks.push(`数字语义或比较方向错误：${contradiction}`);
+  }
+  if (missingVisualUrls.length > 0) {
+    failedChecks.push(
+      `遗漏原始资料图片：${missingVisualUrls.join('、')}；必须保留原图，不得生成替代图片冒充来源`,
+    );
+  }
   if (noteLength < minimumLength) {
     failedChecks.push(
       `有效正文约 ${noteLength} 字，低于基于证据账本信息量计算的 ${minimumLength} 字完整性下限`,
@@ -732,22 +1543,30 @@ export function assessNoteQuality(
     unexpectedSections.length > 0 ||
     missingEvidenceCoverage.length > 0 ||
     missingSourceIds.length > 0 ||
+    missingEvidenceIds.length > 0 ||
+    semanticContradictions.length > 0 ||
+    missingVisualUrls.length > 0 ||
     (sourceNumbers.size >= 3 && numberCoverage < 0.7) ||
     (evidenceLedger.trim().length >= 1_000 && noteLength < minimumLength) ||
     !traceable;
   return {
     evidenceCoverage,
+    evidenceItemCoverage,
     failedChecks,
     minimumLength,
     missingEvidenceCoverage,
+    missingEvidenceIds,
     missingSections,
     missingSourceIds,
+    missingVisualUrls,
     noteLength,
     numberCoverage,
     passed: !hasHardFailure && score >= 80,
+    semanticContradictions,
     score,
     sourceAnchorCoverage,
     sourceNumberCount: sourceNumbers.size,
     unexpectedSections,
+    visualCoverage,
   };
 }

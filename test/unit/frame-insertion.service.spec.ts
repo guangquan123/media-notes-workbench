@@ -48,8 +48,47 @@ describe('FrameInsertionService', () => {
 
     const result = service.insertFramesIntoMarkdown(markdown, frames, 120);
 
-    expect(result).toContain('![视频原始截图 00:15](https://open.feishu.cn/open-apis/im/v1/images/img_test_123)');
-    expect(result).toContain('🤖 **AI 识别**：**文字内容**：PPT: 神经网络架构图');
+    expect(result).toContain(
+      '![视频原始截图 00:15](https://open.feishu.cn/open-apis/im/v1/images/img_test_123)',
+    );
+    expect(result).toContain(
+      '🤖 **AI 识别**：**文字内容**：PPT: 神经网络架构图',
+    );
+  });
+
+  it('places an analyzed frame beside the semantically matching section', () => {
+    const markdown = `# 智能体培训
+
+## 一、知识图谱生成
+介绍模型版本、节点关系和知识图谱画布。
+
+## 二、平台用户管理
+介绍用户导入、账号激活和权限配置。`;
+    const frames: KeyFrame[] = [
+      {
+        timestamp: 5,
+        filePath: '/tmp/users.jpg',
+        id: 'users',
+        sourceFileName: 'video.mp4',
+        sourceIndex: 0,
+        type: 'scene',
+        imageKey: 'img_users',
+        analysis: {
+          hasText: true,
+          text: '平台用户导入与账号激活界面',
+          hasChart: false,
+          chartDesc: '',
+          summary: '用户管理和权限配置',
+          score: 5,
+        },
+      },
+    ];
+
+    const result = service.insertFramesIntoMarkdown(markdown, frames, 120);
+    const imageIndex: number = result.indexOf('img_users');
+
+    expect(imageIndex).toBeGreaterThan(result.indexOf('## 二、平台用户管理'));
+    expect(imageIndex).toBeLessThan(result.indexOf('介绍用户导入'));
   });
 
   it('should format infoGraphic frames with AI optimized badge', () => {
@@ -78,7 +117,9 @@ describe('FrameInsertionService', () => {
     const result = service.insertFramesIntoMarkdown(markdown, frames, 60);
 
     expect(result).toContain('img_orig_456');
-    expect(result).toContain('![AI 派生信息图 00:45](https://cdn.example.com/infographic.png)');
+    expect(result).toContain(
+      '![AI 派生信息图 00:45](https://cdn.example.com/infographic.png)',
+    );
     expect(result).toContain('原始截图保留在上方');
   });
 });

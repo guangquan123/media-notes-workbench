@@ -3,8 +3,15 @@ import { KeyFrame } from './frame-extraction.service';
 
 export interface TranscriptSegment {
   start: number; // 秒
-  end: number;   // 秒
+  end: number; // 秒
   text: string;
+}
+
+interface MarkdownSection {
+  content: string;
+  contentStartLine: number;
+  lineIdx: number;
+  title: string;
 }
 
 @Injectable()
@@ -72,26 +79,28 @@ export class FrameInsertionService {
   /**
    * 解析 Markdown 中的 ## 级别章节
    */
-  private parseSections(
-    markdown: string,
-  ): Array<{ title: string; lineIdx: number; contentStartLine: number }> {
+  private parseSections(markdown: string): MarkdownSection[] {
     const lines = markdown.split('\n');
-    const sections: Array<{
-      title: string;
-      lineIdx: number;
-      contentStartLine: number;
-    }> = [];
+    const sections: MarkdownSection[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       // 匹配 ## 级别标题（不包括 # 一级和 ### 三级以下）
       if (/^## /u.test(line) && !/^### /u.test(line)) {
         sections.push({
+          content: '',
           title: line.replace(/^##\s+/u, '').trim(),
           lineIdx: i,
           contentStartLine: i + 1, // 标题下一行
         });
       }
+    }
+    for (let index = 0; index < sections.length; index += 1) {
+      const section: MarkdownSection = sections[index];
+      const nextSection: MarkdownSection | undefined = sections[index + 1];
+      section.content = lines
+        .slice(section.contentStartLine, nextSection?.lineIdx ?? lines.length)
+        .join('\n');
     }
     return sections;
   }
@@ -101,7 +110,7 @@ export class FrameInsertionService {
    */
   private assignFramesToSections(
     frames: KeyFrame[],
-    sections: Array<{ title: string; lineIdx: number; contentStartLine: number }>,
+    sections: MarkdownSection[],
     totalDurationSec?: number,
   ): Record<number, KeyFrame[]> {
     const result: Record<number, KeyFrame[]> = {};
@@ -118,16 +127,73 @@ export class FrameInsertionService {
     const sectionDuration = estimatedDuration / sections.length;
 
     for (const frame of frames) {
-      // 计算帧属于哪个章节
-      const sectionIdx = Math.min(
-        Math.floor((frame.globalTimestamp ?? frame.timestamp) / sectionDuration),
-        sections.length - 1,
+      const semanticSectionIdx: number | undefined = this.findSemanticSection(
+        frame,
+        sections,
       );
+      const sectionIdx: number =
+        semanticSectionIdx ??
+        Math.min(
+          Math.floor(
+            (frame.globalTimestamp ?? frame.timestamp) / sectionDuration,
+          ),
+          sections.length - 1,
+        );
       if (!result[sectionIdx]) result[sectionIdx] = [];
       result[sectionIdx].push(frame);
     }
 
     return result;
+  }
+
+  private findSemanticSection(
+    frame: KeyFrame,
+    sections: MarkdownSection[],
+  ): number | undefined {
+    const analysisText: string = [
+      frame.analysis?.summary,
+      frame.analysis?.text,
+      frame.analysis?.chartDesc,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const frameTokens: Set<string> = this.extractSemanticTokens(analysisText);
+    if (frameTokens.size === 0) return undefined;
+
+    let bestIndex: number | undefined;
+    let bestScore = 0;
+    for (let index = 0; index < sections.length; index += 1) {
+      const section: MarkdownSection = sections[index];
+      const sectionTokens: Set<string> = this.extractSemanticTokens(
+        `${section.title} ${section.content}`,
+      );
+      const score: number = [...frameTokens].filter((token: string): boolean =>
+        sectionTokens.has(token),
+      ).length;
+      if (score > bestScore) {
+        bestIndex = index;
+        bestScore = score;
+      }
+    }
+    return bestScore >= 2 ? bestIndex : undefined;
+  }
+
+  private extractSemanticTokens(text: string): Set<string> {
+    const tokens: Set<string> = new Set<string>();
+    for (const match of text
+      .toLowerCase()
+      .matchAll(/[\p{Script=Han}]+|[a-z0-9]+/gu)) {
+      const value: string | undefined = match[0];
+      if (!value) continue;
+      if (/^[a-z0-9]+$/u.test(value)) {
+        if (value.length >= 2) tokens.add(value);
+        continue;
+      }
+      for (let index = 0; index < value.length - 1; index += 1) {
+        tokens.add(value.slice(index, index + 2));
+      }
+    }
+    return tokens;
   }
 
   /**
@@ -165,11 +231,12 @@ export class FrameInsertionService {
     // 添加 AI 描述
     if (analysis) {
       if (analysis.summary || analysis.text || analysis.hasChart) {
-        const desc = analysis.hasText && analysis.text
-          ? `**文字内容**：${analysis.text.slice(0, 150)}`
-          : analysis.hasChart
-          ? `**图表内容**：${analysis.chartDesc.slice(0, 150)}`
-          : analysis.summary;
+        const desc =
+          analysis.hasText && analysis.text
+            ? `**文字内容**：${analysis.text.slice(0, 150)}`
+            : analysis.hasChart
+              ? `**图表内容**：${analysis.chartDesc.slice(0, 150)}`
+              : analysis.summary;
         if (desc) {
           block += `\n\n> 🤖 **AI 识别**：${desc.replace(/\n/g, ' ')}`;
         }
