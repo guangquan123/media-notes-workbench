@@ -63,11 +63,20 @@ export interface UploadedMediaInput {
   fileSize: number;
   mimeType: string;
   parts?: UploadedMediaPart[];
+  storage?: StoredSourceObject;
 }
 
 export interface UploadedMediaPart {
   downloadUrl: string;
   fileSize: number;
+  storage?: StoredSourceObject;
+}
+
+export interface StoredSourceObject {
+  bucketId: string;
+  filePath: string;
+  fileSize: number;
+  id: string;
 }
 
 export type PairedMediaAlignmentMode = 'auto' | 'manual';
@@ -368,6 +377,73 @@ export interface ExternalModelConnectionStatus {
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
 export type NoteProcessingStatus = 'pending' | 'processed';
 export type TaskSyncStatus = 'not_created' | 'created' | 'failed';
+export type NoteRerunMode =
+  | 'initial'
+  | 'regenerate_note'
+  | 'full_reprocess';
+export type SourceAssetStatus =
+  | 'retained'
+  | 'partial'
+  | 'deleted'
+  | 'unavailable'
+  | 'remote';
+
+export interface RetainedUploadedMedia {
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  objects: StoredSourceObject[];
+  partCount: number;
+}
+
+export type RetainedNoteSource =
+  | {
+      cookieBrowser?: 'chrome' | 'safari' | 'edge' | 'firefox';
+      noteStyle: NoteStyle;
+      sourcePlatform: SourcePlatform;
+      sourceType: 'platform';
+      url: string;
+      visualOptions: NoteVisualOptions;
+    }
+  | {
+      mediaItems: RetainedUploadedMedia[];
+      noteStyle: NoteStyle;
+      sourceType: 'video' | 'audio' | 'document' | 'pdf';
+      visualOptions: NoteVisualOptions;
+    }
+  | {
+      noteStyle: NoteStyle;
+      pairedMedia: {
+        alignment: PairedMediaAlignmentInput;
+        auxiliaryAudio: RetainedUploadedMedia;
+        video: RetainedUploadedMedia;
+      };
+      sourceType: 'paired';
+      visualOptions: NoteVisualOptions;
+    };
+
+export interface NoteSourceAssetSummary {
+  deletedAt: string | null;
+  fileCount: number;
+  fileNames: string[];
+  objectCount: number;
+  status: SourceAssetStatus;
+  totalBytes: number;
+}
+
+export interface NoteSourceSnapshotResponse {
+  inUse: boolean;
+  source: RetainedNoteSource | null;
+  summary: NoteSourceAssetSummary;
+}
+
+export interface ConfirmDeletedSourceObjectsRequest {
+  objectIds: string[];
+}
+
+export interface RegenerateRawDocumentResponse {
+  rawDocumentUrl: string;
+}
 
 export interface NoteConversionRecord {
   id: string;
@@ -392,6 +468,10 @@ export interface NoteConversionRecord {
   larkTaskUrl: string | null;
   taskSyncStatus: TaskSyncStatus;
   taskSyncError: string | null;
+  parentJobId: string | null;
+  rerunMode: NoteRerunMode;
+  sourceAssets: NoteSourceAssetSummary;
+  versionNumber: number;
 }
 
 export interface NoteConversionHistoryResponse {

@@ -59,7 +59,6 @@ export default function PairedMediaNotesPage() {
   const [manualOffsetSeconds, setManualOffsetSeconds] = useState('0');
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -105,18 +104,10 @@ export default function PairedMediaNotesPage() {
         const next: NoteJob = await getNoteJob(job.id);
         if (cancelled) return;
         setJob(next);
-        if (next.stage === 'completed') toast.success('双源笔记已经创建');
-        if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (
-          ['completed', 'failed', 'awaiting-frame-review'].includes(next.stage)
-        ) {
-          try {
-            await deleteUploadedFiles(uploadedMedia);
-            setUploadedMedia([]);
-          } catch {
-            toast.warning('源文件自动清理失败，可稍后在应用文件中删除');
-          }
+        if (next.stage === 'completed') {
+          toast.success('双源笔记已经创建，源文件已保留');
         }
+        if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
         // Temporary polling failures do not interrupt the server-side task.
       } finally {
@@ -128,7 +119,7 @@ export default function PairedMediaNotesPage() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [job?.id, running, uploadedMedia]);
+  }, [job?.id, running]);
 
   const start = async () => {
     if (!videoFile || !audioFile) {
@@ -174,7 +165,6 @@ export default function PairedMediaNotesPage() {
         },
       );
       uploads = [...uploads, ...audioUploads];
-      setUploadedMedia(uploads);
       setUploadedBytes(selectedBytes);
       setUploading(false);
       const created: NoteJob = await createNoteJob({
@@ -202,7 +192,6 @@ export default function PairedMediaNotesPage() {
       if (uploads.length > 0) {
         try {
           await deleteUploadedFiles(uploads);
-          setUploadedMedia([]);
         } catch {
           toast.warning('上传文件清理失败，可稍后在应用文件中删除');
         }

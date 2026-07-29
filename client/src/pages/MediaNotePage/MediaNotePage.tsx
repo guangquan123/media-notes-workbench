@@ -22,6 +22,7 @@ import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
 import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
 import {
   deleteUploadedFiles,
+  toStoredSourceObject,
   uploadMediaFile,
   type MediaUploadProgress,
   type UploadFileData,
@@ -192,7 +193,6 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   });
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [uploadedMedia, setUploadedMedia] = useState<UploadFileData[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -280,19 +280,10 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         const next: NoteJob = await getNoteJob(job.id);
         if (cancelled) return;
         setJob(next);
-        if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
-        if (next.stage === 'failed') toast.error(next.error || '处理失败');
-        if (
-          uploadedMedia.length > 0 &&
-          ['completed', 'failed', 'awaiting-frame-review'].includes(next.stage)
-        ) {
-          try {
-            await deleteUploadedFiles(uploadedMedia);
-            setUploadedMedia([]);
-          } catch {
-            toast.warning('源文件自动清理失败，可稍后在应用文件中删除');
-          }
+        if (next.stage === 'completed') {
+          toast.success('飞书学习笔记已经创建，源文件已保留');
         }
+        if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
         // A temporary polling error should not interrupt the server-side task.
       } finally {
@@ -304,7 +295,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [job?.id, running, uploadedMedia]);
+  }, [job?.id, running]);
 
   const start = async () => {
     if (files.length === 0) {
@@ -336,7 +327,6 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         completedBytes += currentFile.size;
         setUploadedBytes(completedBytes);
       }
-      setUploadedMedia(uploaded);
       setUploading(false);
       uploadCompleted = true;
       const mediaItems = files.map((currentFile: File, index: number) => {
@@ -351,7 +341,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
               ? itemUploads.map((part: UploadFileData) => ({
                   downloadUrl: part.url,
                   fileSize: part.fileSize,
+                  storage: toStoredSourceObject(part),
                 }))
+              : undefined,
+          storage:
+            itemUploads.length === 1
+              ? toStoredSourceObject(itemUploads[0])
               : undefined,
         };
       });
@@ -367,7 +362,6 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       if (uploaded.length > 0) {
         try {
           await deleteUploadedFiles(uploaded);
-          setUploadedMedia([]);
         } catch {
           toast.warning('上传文件清理失败，可稍后在应用文件中删除');
         }

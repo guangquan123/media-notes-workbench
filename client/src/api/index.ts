@@ -7,12 +7,14 @@ import type {
   CreateArticleExportJobRequest,
   CreateNoteJobRequest,
   ConfigureNoteInboxRequest,
+  ConfirmDeletedSourceObjectsRequest,
   MarkNoteProcessedBatchRequest,
   MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
   NoteConversionHistoryQuery,
   NoteConversionHistoryResponse,
   NoteJob,
+  NoteSourceSnapshotResponse,
   NoteInboxStatus,
   NoteInboxMessageListResponse,
   NoteStyle,
@@ -31,6 +33,7 @@ import type {
   PublishFrameSelectionRequest,
   UpdateFrameSelectionRequest,
   UpdateFrameSelectionResponse,
+  RegenerateRawDocumentResponse,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -290,6 +293,63 @@ export async function downloadRawTranscript(jobId: string): Promise<Blob> {
     method: 'GET',
     responseType: 'blob',
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getNoteSourceSnapshot(
+  jobId: string,
+): Promise<NoteSourceSnapshotResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/source`,
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function confirmDeletedSourceObjects(
+  jobId: string,
+  input: ConfirmDeletedSourceObjectsRequest,
+): Promise<NoteSourceSnapshotResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/source-assets/deleted`,
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function regenerateRawDocument(
+  jobId: string,
+): Promise<RegenerateRawDocumentResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/regenerate-raw`,
+    method: 'POST',
+    timeout: 120_000,
+  });
+  return response.data;
+}
+
+export async function regenerateNote(jobId: string): Promise<NoteJob> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/regenerate-note`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function reprocessNote(
+  jobId: string,
+  input: CreateNoteJobRequest,
+): Promise<NoteJob> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/history/${jobId}/reprocess`,
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }

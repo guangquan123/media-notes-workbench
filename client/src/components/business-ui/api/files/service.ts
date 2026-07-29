@@ -4,6 +4,7 @@ import { logger } from '@lark-apaas/client-toolkit/logger';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 
 import { mapWithConcurrency } from '@shared/async.utils';
+import type { StoredSourceObject } from '@shared/api.interface';
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
@@ -24,6 +25,22 @@ export interface MediaUploadProgress {
   totalParts: number;
   totalBytes: number;
   uploadedBytes: number;
+}
+
+export interface StoredSourceDeletionResult {
+  deletedObjectIds: string[];
+  failures: Array<{ message: string; objectId: string }>;
+}
+
+export function toStoredSourceObject(
+  file: UploadFileData,
+): StoredSourceObject {
+  return {
+    bucketId: file.bucketId,
+    filePath: file.filePath,
+    fileSize: file.fileSize,
+    id: file.id,
+  };
 }
 
 export async function uploadFile(
@@ -195,4 +212,75 @@ export async function deleteUploadedFiles(
         deleteUploadedFile(file),
     ),
   );
+}
+
+export async function createSignedUrlsForStoredSourceObjects(
+  objects: readonly StoredSourceObject[],
+): Promise<Record<string, string>> {
+  const signedEntries: Array<readonly [string, string]> =
+    await mapWithConcurrency(
+      objects,
+      MEDIA_UPLOAD_CONCURRENCY,
+      async (
+        object: StoredSourceObject,
+      ): Promise<readonly [string, string]> => {
+        const dataloom = await getDataloom();
+        const bucket = dataloom.storage.from(object.bucketId);
+        const result = await bucket.createSignedUrl(
+          object.filePath,
+          24 * 60 * 60,
+        );
+        if (result.error) throw result.error;
+        return [object.id, result.data.signedUrl];
+      },
+    );
+  return Object.fromEntries(signedEntries);
+}
+
+export async function deleteStoredSourceObjects(
+  objects: readonly StoredSourceObject[],
+): Promise<StoredSourceDeletionResult> {
+  const results: Array<
+    | { deleted: true; objectId: string }
+    | { deleted: false; message: string; objectId: string }
+  > = await mapWithConcurrency(
+    objects,
+    MEDIA_UPLOAD_CONCURRENCY,
+    async (
+      object: StoredSourceObject,
+    ): Promise<
+      | { deleted: true; objectId: string }
+      | { deleted: false; message: string; objectId: string }
+    > => {
+      try {
+        await deleteUploadedFile(object);
+        return { deleted: true, objectId: object.id };
+      } catch (error) {
+        return {
+          deleted: false,
+          message: error instanceof Error ? error.message : '删除失败',
+          objectId: object.id,
+        };
+      }
+    },
+  );
+  return {
+    deletedObjectIds: results.flatMap(
+      (
+        result:
+          | { deleted: true; objectId: string }
+          | { deleted: false; message: string; objectId: string },
+      ): string[] => (result.deleted ? [result.objectId] : []),
+    ),
+    failures: results.flatMap(
+      (
+        result:
+          | { deleted: true; objectId: string }
+          | { deleted: false; message: string; objectId: string },
+      ): Array<{ message: string; objectId: string }> =>
+        'message' in result
+          ? [{ message: result.message, objectId: result.objectId }]
+          : [],
+    ),
+  };
 }

@@ -273,6 +273,12 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   currentStage: varchar("current_stage", { length: 48 }),
   progress: integer("progress"),
   statusMessage: text("status_message"),
+  sourceAssetGroupId: uuid("source_asset_group_id").notNull().defaultRandom(),
+  sourceSnapshotJson: text("source_snapshot_json"),
+  sourceDeletedAt: customTimestamptz("source_deleted_at", { precision: 6 }),
+  parentJobId: uuid("parent_job_id"),
+  rerunMode: varchar("rerun_mode", { length: 32 }).notNull().default('initial'),
+  versionNumber: integer("version_number").notNull().default(1),
   // System field: Creation time (auto-filled, do not modify)
   createdAt: customTimestamptz("_created_at", { precision: 6 }).notNull().default(sql`CURRENT_TIMESTAMP`),
   // System field: Update time (auto-filled, do not modify)
@@ -281,6 +287,9 @@ export const noteConversionRecords = pgTable("note_conversion_records", {
   uniqueIndex("note_conversion_records_job_id_key").on(table.jobId),
   index("note_conversion_records_owner_completed_idx").on(table.ownerId, table.completedAt, table.startedAt),
   index("note_conversion_records_owner_processing_idx").on(table.ownerId, table.processingStatus, table.startedAt),
+  index("note_conversion_records_owner_source_group_idx").on(table.ownerId, table.sourceAssetGroupId, table.versionNumber),
+  index("note_conversion_records_parent_job_idx").on(table.parentJobId),
+  uniqueIndex("note_conversion_records_owner_source_group_version_key").on(table.ownerId, table.sourceAssetGroupId, table.versionNumber),
 ]);
 
 // table aliases

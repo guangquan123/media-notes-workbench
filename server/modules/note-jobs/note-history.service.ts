@@ -3,7 +3,17 @@ import {
   DRIZZLE_DATABASE,
   type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
-import { and, count, desc, eq, gte, ilike, lt, type SQL } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  lt,
+  max,
+  type SQL,
+} from 'drizzle-orm';
 
 import { noteConversionRecords } from '@server/database/schema';
 import type {
@@ -11,11 +21,20 @@ import type {
   NoteConversionHistoryResponse,
   NoteConversionRecord,
   NoteJob,
+  NoteRerunMode,
+  NoteSourceSnapshotResponse,
   NoteSourceType,
   NoteStyle,
   NoteProcessingStatus,
+  RetainedNoteSource,
   TaskSyncStatus,
 } from '@shared/api.interface';
+import {
+  listRetainedSourceObjects,
+  parseRetainedNoteSource,
+  removeRetainedSourceObjects,
+  summarizeRetainedNoteSource,
+} from '@shared/note-reprocessing.utils';
 import {
   calculateDurationMs,
   formatDuration,
@@ -54,6 +73,11 @@ interface ConversionRecordRow {
   larkTaskUrl: string | null;
   taskSyncStatus: string;
   taskSyncError: string | null;
+  parentJobId: string | null;
+  rerunMode: string;
+  sourceDeletedAt: Date | null;
+  sourceSnapshotJson: string | null;
+  versionNumber: number;
 }
 
 interface ReviewTaskRow {
@@ -68,6 +92,36 @@ interface RawTranscriptRow {
   sourceLabel: string;
   startedAt: Date;
   title: string;
+}
+
+export interface CreateHistoryRecordInput {
+  parentJobId?: string;
+  rawDocumentUrl?: string;
+  rawTranscript?: string;
+  rerunMode: NoteRerunMode;
+  sourceAssetGroupId: string;
+  sourceChannel?: 'feishu_inbox' | 'manual';
+  sourceSnapshot: RetainedNoteSource | null;
+  title?: string;
+  versionNumber: number;
+}
+
+export interface ReprocessHistoryContext {
+  jobId: string;
+  noteStyle: NoteStyle;
+  parentJobId: string | null;
+  rawDocumentUrl: string | null;
+  rawTranscript: string | null;
+  rerunMode: NoteRerunMode;
+  sourceAssetGroupId: string;
+  sourceChannel: 'feishu_inbox' | 'manual';
+  sourceDeletedAt: Date | null;
+  sourceLabel: string;
+  sourceSnapshot: RetainedNoteSource | null;
+  sourceType: NoteSourceType;
+  status: ConversionStatus;
+  title: string;
+  versionNumber: number;
 }
 
 interface HistoryListInput {
@@ -90,16 +144,33 @@ export class NoteHistoryService {
     private readonly db: PostgresJsDatabase,
   ) {}
 
-  async create(job: NoteJob, ownerId: string): Promise<void> {
-    const title: string = job.mediaFileName || `${job.sourceLabel}学习笔记`;
+  async create(
+    job: NoteJob,
+    ownerId: string,
+    input: CreateHistoryRecordInput,
+  ): Promise<void> {
+    const title: string =
+      input.title ||
+      job.mediaFileName ||
+      `${job.sourceLabel}学习笔记`;
     await this.db.insert(noteConversionRecords).values({
       jobId: job.id,
       ownerId,
+      parentJobId: input.parentJobId,
+      rawDocumentUrl: input.rawDocumentUrl,
+      rawTranscript: input.rawTranscript,
+      rerunMode: input.rerunMode,
+      sourceAssetGroupId: input.sourceAssetGroupId,
+      sourceChannel: input.sourceChannel || 'manual',
       title,
       sourceType: job.sourceType,
       sourceLabel: getConversionTypeLabel(job.sourceType, job.sourcePlatform),
+      sourceSnapshotJson: input.sourceSnapshot
+        ? JSON.stringify(input.sourceSnapshot)
+        : null,
       status: 'processing',
       startedAt: new Date(job.createdAt),
+      versionNumber: input.versionNumber,
     });
   }
 
@@ -268,6 +339,11 @@ export class NoteHistoryService {
         larkTaskUrl: noteConversionRecords.larkTaskUrl,
         taskSyncStatus: noteConversionRecords.taskSyncStatus,
         taskSyncError: noteConversionRecords.taskSyncError,
+        parentJobId: noteConversionRecords.parentJobId,
+        rerunMode: noteConversionRecords.rerunMode,
+        sourceDeletedAt: noteConversionRecords.sourceDeletedAt,
+        sourceSnapshotJson: noteConversionRecords.sourceSnapshotJson,
+        versionNumber: noteConversionRecords.versionNumber,
       })
       .from(noteConversionRecords)
       .where(whereClause)
@@ -276,30 +352,42 @@ export class NoteHistoryService {
       .offset(offset);
 
     const items: NoteConversionRecord[] = rows.map(
-      (row: ConversionRecordRow): NoteConversionRecord => ({
-        id: row.id,
-        jobId: row.jobId,
-        title: row.title,
-        sourceType: this.toSourceType(row.sourceType),
-        sourceLabel: row.sourceLabel,
-        status: this.toStatus(row.status),
-        durationMs: row.durationMs,
-        durationLabel: formatDuration(row.durationMs),
-        startedAt: row.startedAt.toISOString(),
-        completedAt: row.completedAt?.toISOString() || null,
-        rawDocumentUrl: row.rawDocumentUrl,
-        rawTranscriptAvailable: Boolean(row.rawTranscript?.trim()),
-        documentUrl: row.documentUrl,
-        noteStyle: this.toNoteStyle(row.noteStyle),
-        promptContent: row.promptContent,
-        promptVersionId: row.promptVersionId,
-        processingStatus: this.toProcessingStatus(row.processingStatus),
-        processedAt: row.processedAt?.toISOString() || null,
-        larkTaskGuid: row.larkTaskGuid,
-        larkTaskUrl: row.larkTaskUrl,
-        taskSyncStatus: this.toTaskSyncStatus(row.taskSyncStatus),
-        taskSyncError: row.taskSyncError,
-      }),
+      (row: ConversionRecordRow): NoteConversionRecord => {
+        const source: RetainedNoteSource | null = parseRetainedNoteSource(
+          row.sourceSnapshotJson,
+        );
+        return {
+          id: row.id,
+          jobId: row.jobId,
+          title: row.title,
+          sourceType: this.toSourceType(row.sourceType),
+          sourceLabel: row.sourceLabel,
+          status: this.toStatus(row.status),
+          durationMs: row.durationMs,
+          durationLabel: formatDuration(row.durationMs),
+          startedAt: row.startedAt.toISOString(),
+          completedAt: row.completedAt?.toISOString() || null,
+          rawDocumentUrl: row.rawDocumentUrl,
+          rawTranscriptAvailable: Boolean(row.rawTranscript?.trim()),
+          documentUrl: row.documentUrl,
+          noteStyle: this.toNoteStyle(row.noteStyle),
+          promptContent: row.promptContent,
+          promptVersionId: row.promptVersionId,
+          processingStatus: this.toProcessingStatus(row.processingStatus),
+          processedAt: row.processedAt?.toISOString() || null,
+          larkTaskGuid: row.larkTaskGuid,
+          larkTaskUrl: row.larkTaskUrl,
+          taskSyncStatus: this.toTaskSyncStatus(row.taskSyncStatus),
+          taskSyncError: row.taskSyncError,
+          parentJobId: row.parentJobId,
+          rerunMode: this.toRerunMode(row.rerunMode),
+          sourceAssets: summarizeRetainedNoteSource(
+            source,
+            row.sourceDeletedAt?.toISOString() || null,
+          ),
+          versionNumber: row.versionNumber,
+        };
+      },
     );
     return {
       items,
@@ -329,6 +417,165 @@ export class NoteHistoryService {
       .update(noteConversionRecords)
       .set({ rawTranscript: transcript })
       .where(eq(noteConversionRecords.jobId, jobId));
+  }
+
+  async getReprocessContext(
+    jobId: string,
+    ownerId: string,
+  ): Promise<ReprocessHistoryContext> {
+    const rows = await this.db
+      .select({
+        jobId: noteConversionRecords.jobId,
+        noteStyle: noteConversionRecords.noteStyle,
+        parentJobId: noteConversionRecords.parentJobId,
+        rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
+        rawTranscript: noteConversionRecords.rawTranscript,
+        rerunMode: noteConversionRecords.rerunMode,
+        sourceAssetGroupId: noteConversionRecords.sourceAssetGroupId,
+        sourceChannel: noteConversionRecords.sourceChannel,
+        sourceDeletedAt: noteConversionRecords.sourceDeletedAt,
+        sourceLabel: noteConversionRecords.sourceLabel,
+        sourceSnapshotJson: noteConversionRecords.sourceSnapshotJson,
+        sourceType: noteConversionRecords.sourceType,
+        status: noteConversionRecords.status,
+        title: noteConversionRecords.title,
+        versionNumber: noteConversionRecords.versionNumber,
+      })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.jobId, jobId),
+          eq(noteConversionRecords.ownerId, ownerId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new NotFoundException('未找到对应的转化记录');
+    return {
+      jobId: row.jobId,
+      noteStyle: this.toNoteStyle(row.noteStyle) || 'learning',
+      parentJobId: row.parentJobId,
+      rawDocumentUrl: row.rawDocumentUrl,
+      rawTranscript: row.rawTranscript,
+      rerunMode: this.toRerunMode(row.rerunMode),
+      sourceAssetGroupId: row.sourceAssetGroupId,
+      sourceChannel:
+        row.sourceChannel === 'feishu_inbox' ? 'feishu_inbox' : 'manual',
+      sourceDeletedAt: row.sourceDeletedAt,
+      sourceLabel: row.sourceLabel,
+      sourceSnapshot: parseRetainedNoteSource(row.sourceSnapshotJson),
+      sourceType: this.toSourceType(row.sourceType),
+      status: this.toStatus(row.status),
+      title: row.title,
+      versionNumber: row.versionNumber,
+    };
+  }
+
+  async getSourceSnapshot(
+    jobId: string,
+    ownerId: string,
+  ): Promise<NoteSourceSnapshotResponse> {
+    const context: ReprocessHistoryContext = await this.getReprocessContext(
+      jobId,
+      ownerId,
+    );
+    return {
+      inUse: await this.hasProcessingVersion(
+        context.sourceAssetGroupId,
+        ownerId,
+      ),
+      source: context.sourceSnapshot,
+      summary: summarizeRetainedNoteSource(
+        context.sourceSnapshot,
+        context.sourceDeletedAt?.toISOString() || null,
+      ),
+    };
+  }
+
+  async confirmDeletedSourceObjects(
+    jobId: string,
+    ownerId: string,
+    objectIds: readonly string[],
+  ): Promise<NoteSourceSnapshotResponse> {
+    const context: ReprocessHistoryContext = await this.getReprocessContext(
+      jobId,
+      ownerId,
+    );
+    const currentIds: ReadonlySet<string> = new Set(
+      listRetainedSourceObjects(context.sourceSnapshot).map(
+        (object): string => object.id,
+      ),
+    );
+    const confirmedIds: string[] = objectIds.filter(
+      (objectId: string): boolean => currentIds.has(objectId),
+    );
+    if (confirmedIds.length === 0) {
+      return this.getSourceSnapshot(jobId, ownerId);
+    }
+    const nextSource: RetainedNoteSource | null = removeRetainedSourceObjects(
+      context.sourceSnapshot,
+      confirmedIds,
+    );
+    const deletedAt: Date | null = nextSource ? null : new Date();
+    await this.db
+      .update(noteConversionRecords)
+      .set({
+        sourceDeletedAt: deletedAt,
+        sourceSnapshotJson: nextSource ? JSON.stringify(nextSource) : null,
+      })
+      .where(
+        and(
+          eq(noteConversionRecords.ownerId, ownerId),
+          eq(
+            noteConversionRecords.sourceAssetGroupId,
+            context.sourceAssetGroupId,
+          ),
+        ),
+      );
+    return {
+      inUse: await this.hasProcessingVersion(
+        context.sourceAssetGroupId,
+        ownerId,
+      ),
+      source: nextSource,
+      summary: summarizeRetainedNoteSource(
+        nextSource,
+        deletedAt?.toISOString() || null,
+      ),
+    };
+  }
+
+  async getNextVersionNumber(
+    sourceAssetGroupId: string,
+    ownerId: string,
+  ): Promise<number> {
+    const rows: Array<{ versionNumber: number | null }> = await this.db
+      .select({ versionNumber: max(noteConversionRecords.versionNumber) })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.ownerId, ownerId),
+          eq(noteConversionRecords.sourceAssetGroupId, sourceAssetGroupId),
+        ),
+      );
+    return (rows[0]?.versionNumber || 0) + 1;
+  }
+
+  async hasProcessingVersion(
+    sourceAssetGroupId: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    const rows: Array<{ total: number }> = await this.db
+      .select({ total: count() })
+      .from(noteConversionRecords)
+      .where(
+        and(
+          eq(noteConversionRecords.ownerId, ownerId),
+          eq(noteConversionRecords.sourceAssetGroupId, sourceAssetGroupId),
+          eq(noteConversionRecords.status, 'processing'),
+        ),
+      );
+    return Number(rows[0]?.total || 0) > 0;
   }
 
   async updatePromptSnapshot(
@@ -457,5 +704,10 @@ export class NoteHistoryService {
   private toTaskSyncStatus(value: string): TaskSyncStatus {
     if (value === 'created' || value === 'failed') return value;
     return 'not_created';
+  }
+
+  private toRerunMode(value: string): NoteRerunMode {
+    if (value === 'regenerate_note' || value === 'full_reprocess') return value;
+    return 'initial';
   }
 }

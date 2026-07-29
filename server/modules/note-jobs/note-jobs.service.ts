@@ -24,9 +24,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type {
+  ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
   JobStage,
   NoteJob,
+  NoteSourceSnapshotResponse,
   NoteStyle,
   NoteSourceType,
   PairedMediaAlignmentResult,
@@ -42,6 +44,8 @@ import type {
   PublishFrameSelectionRequest,
   UpdateFrameSelectionRequest,
   UpdateFrameSelectionResponse,
+  RegenerateRawDocumentResponse,
+  RetainedNoteSource,
 } from '@shared/api.interface';
 import {
   getDouyinAudioFallbackArgs,
@@ -56,10 +60,19 @@ import {
 } from './note-jobs.utils';
 import { mapWithConcurrency } from '@shared/async.utils';
 import {
+  captureRetainedNoteSource,
+  retainedNoteSourcesMatch,
+  summarizeRetainedNoteSource,
+} from '@shared/note-reprocessing.utils';
+import {
   buildRawDocumentTitle,
   buildRawTranscriptMarkdown,
 } from './note-document.utils';
-import { NoteHistoryService } from './note-history.service';
+import {
+  type CreateHistoryRecordInput,
+  NoteHistoryService,
+  type ReprocessHistoryContext,
+} from './note-history.service';
 import { getParseQuality } from './pdf-note.utils';
 import {
   buildDocumentRawMarkdown,
@@ -157,6 +170,12 @@ interface StoredNoteJob {
   ownerId: string;
 }
 
+interface CreateJobOptions {
+  history?: CreateHistoryRecordInput;
+  rerunLockKey?: string;
+  sourceChannel?: 'feishu_inbox' | 'manual';
+}
+
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
 const DOUYIN_MEDIA_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
@@ -187,6 +206,7 @@ export class NoteJobsService {
   private readonly logger = new Logger(NoteJobsService.name);
   private readonly jobs = new Map<string, StoredNoteJob>();
   private readonly publishingVisualJobs = new Set<string>();
+  private readonly activeReruns = new Set<string>();
   private readonly whisperModelPath = join(
     process.cwd(),
     'models',
@@ -257,13 +277,16 @@ export class NoteJobsService {
     ownerId: string,
     larkUserId: string,
   ): Promise<NoteJob> {
-    return this.createForOwner(input, ownerId, larkUserId);
+    return this.createForOwner(input, ownerId, larkUserId, {
+      sourceChannel: 'feishu_inbox',
+    });
   }
 
   private async createForOwner(
     input: CreateNoteJobRequest,
     ownerId: string,
     larkUserId: string | null,
+    options: CreateJobOptions = {},
   ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
     const sourceType: NoteSourceType = validatedInput.sourceType;
@@ -285,6 +308,22 @@ export class NoteJobsService {
       sourceType === 'platform'
         ? this.validateCookieBrowser(input.cookieBrowser)
         : undefined;
+    const retainedSource: RetainedNoteSource | null =
+      captureRetainedNoteSource({
+        ...input,
+        cookieBrowser,
+        noteStyle: validatedInput.noteStyle,
+        sourcePlatform,
+        sourceType,
+        visualOptions: validatedInput.visualOptions,
+      });
+    const historyInput: CreateHistoryRecordInput = options.history || {
+      rerunMode: 'initial',
+      sourceAssetGroupId: randomUUID(),
+      sourceChannel: options.sourceChannel || 'manual',
+      sourceSnapshot: retainedSource,
+      versionNumber: 1,
+    };
 
     const now = new Date().toISOString();
     const job: NoteJob = {
@@ -332,7 +371,7 @@ export class NoteJobsService {
               warnings: [],
             },
     };
-    await this.noteHistoryService.create(job, ownerId);
+    await this.noteHistoryService.create(job, ownerId, historyInput);
     await this.frameReviewService.saveJobState(job.id, {
       job,
       options: job.visualOptions,
@@ -346,6 +385,7 @@ export class NoteJobsService {
       sourcePlatform,
       cookieBrowser,
       larkUserId,
+      options.rerunLockKey,
     );
     return job;
   }
@@ -369,6 +409,200 @@ export class NoteJobsService {
     this.logger.warn(`任务 ${id} 因服务重启中断，已标记为失败`);
     await this.noteHistoryService.failInterrupted(id, ownerId, error);
     return this.frameReviewService.getJobSnapshot(id, ownerId);
+  }
+
+  getSourceSnapshot(
+    id: string,
+    ownerId: string,
+  ): Promise<NoteSourceSnapshotResponse> {
+    return this.noteHistoryService.getSourceSnapshot(id, ownerId);
+  }
+
+  confirmDeletedSourceObjects(
+    id: string,
+    ownerId: string,
+    input: ConfirmDeletedSourceObjectsRequest,
+  ): Promise<NoteSourceSnapshotResponse> {
+    if (
+      !Array.isArray(input?.objectIds) ||
+      input.objectIds.length === 0 ||
+      input.objectIds.length > 500 ||
+      input.objectIds.some(
+        (objectId: unknown): boolean =>
+          typeof objectId !== 'string' || !objectId.trim(),
+      )
+    ) {
+      throw new BadRequestException('请选择已经删除的源文件对象');
+    }
+    return this.noteHistoryService.confirmDeletedSourceObjects(
+      id,
+      ownerId,
+      Array.from(new Set(input.objectIds)),
+    );
+  }
+
+  async regenerateRawDocument(
+    id: string,
+    ownerId: string,
+  ): Promise<RegenerateRawDocumentResponse> {
+    const context: ReprocessHistoryContext =
+      await this.noteHistoryService.getReprocessContext(id, ownerId);
+    this.assertHistoryTaskFinished(context);
+    if (!context.rawTranscript?.trim()) {
+      throw new BadRequestException('该记录没有可复用的原文内容');
+    }
+    const sourceUrl: string =
+      context.sourceSnapshot?.sourceType === 'platform'
+        ? context.sourceSnapshot.url
+        : '历史记录中的已存原文';
+    const rawDocumentUrl: string | undefined =
+      await this.createRawTranscriptDocument({
+        duration: '详见历史记录',
+        generatedDate: this.getShanghaiDate(),
+        sourceLabel: context.sourceLabel,
+        sourceUrl,
+        title: `${context.title}（原文重建）`,
+        transcript: context.rawTranscript,
+        uploader: '详见历史记录',
+      });
+    if (!rawDocumentUrl) {
+      throw new Error('重新生成原文文档失败，请稍后重试');
+    }
+    await this.noteHistoryService.updateRawDocumentUrl(id, rawDocumentUrl);
+    return { rawDocumentUrl };
+  }
+
+  async regenerateNote(id: string, ownerId: string): Promise<NoteJob> {
+    const context: ReprocessHistoryContext =
+      await this.noteHistoryService.getReprocessContext(id, ownerId);
+    this.assertHistoryTaskFinished(context);
+    if (!context.rawTranscript?.trim()) {
+      throw new BadRequestException('该记录没有可复用的原文内容');
+    }
+    await this.assertNoProcessingVersion(context, ownerId);
+    const rerunLockKey: string = context.sourceAssetGroupId;
+    this.acquireRerunLock(rerunLockKey);
+    try {
+      const versionNumber: number =
+        await this.noteHistoryService.getNextVersionNumber(
+          context.sourceAssetGroupId,
+          ownerId,
+        );
+      const larkUserId: string | null = await this.getCurrentLarkUserId();
+      const now: string = new Date().toISOString();
+      const job: NoteJob = {
+        createdAt: now,
+        id: randomUUID(),
+        message: '二次总结任务已创建，正在准备…',
+        progress: 8,
+        sourceLabel: context.sourceLabel,
+        sourcePlatform:
+          context.sourceSnapshot?.sourceType === 'platform'
+            ? context.sourceSnapshot.sourcePlatform
+            : undefined,
+        sourceType: context.sourceType,
+        stage: 'queued',
+        updatedAt: now,
+        videoTitle: context.title,
+        visualOptions: { mode: 'disabled' },
+        visualSummary: {
+          analyzedCount: 0,
+          candidateCount: 0,
+          derivativeCount: 0,
+          extractedCount: 0,
+          selectedCount: 0,
+          status: 'disabled',
+          uploadedCount: 0,
+          warnings: [],
+        },
+      };
+      await this.noteHistoryService.create(job, ownerId, {
+        parentJobId: id,
+        rawDocumentUrl: context.rawDocumentUrl || undefined,
+        rawTranscript: context.rawTranscript,
+        rerunMode: 'regenerate_note',
+        sourceAssetGroupId: context.sourceAssetGroupId,
+        sourceChannel: context.sourceChannel,
+        sourceSnapshot: context.sourceSnapshot,
+        title: context.title,
+        versionNumber,
+      });
+      await this.frameReviewService.saveJobState(job.id, {
+        job,
+        options: job.visualOptions,
+        summary: job.visualSummary,
+      });
+      this.jobs.set(job.id, { job, larkUserId, ownerId });
+      void this.runRegenerateNote(
+        job.id,
+        context,
+        ownerId,
+        larkUserId,
+        versionNumber,
+        rerunLockKey,
+      );
+      return job;
+    } catch (error) {
+      this.activeReruns.delete(rerunLockKey);
+      throw error;
+    }
+  }
+
+  async reprocessFromHistory(
+    id: string,
+    ownerId: string,
+    input: CreateNoteJobRequest,
+  ): Promise<NoteJob> {
+    const context: ReprocessHistoryContext =
+      await this.noteHistoryService.getReprocessContext(id, ownerId);
+    this.assertHistoryTaskFinished(context);
+    const sourceSummary = summarizeRetainedNoteSource(
+      context.sourceSnapshot,
+      context.sourceDeletedAt?.toISOString() || null,
+    );
+    if (
+      !context.sourceSnapshot ||
+      (sourceSummary.status !== 'retained' &&
+        sourceSummary.status !== 'remote')
+    ) {
+      throw new BadRequestException(
+        '源文件不可复用，请重新上传后再进行完整处理',
+      );
+    }
+    await this.assertNoProcessingVersion(context, ownerId);
+    const actualSource: RetainedNoteSource | null =
+      captureRetainedNoteSource(input);
+    if (
+      !actualSource ||
+      !retainedNoteSourcesMatch(context.sourceSnapshot, actualSource)
+    ) {
+      throw new BadRequestException('重处理请求与保留的源文件不一致');
+    }
+    const rerunLockKey: string = context.sourceAssetGroupId;
+    this.acquireRerunLock(rerunLockKey);
+    try {
+      const versionNumber: number =
+        await this.noteHistoryService.getNextVersionNumber(
+          context.sourceAssetGroupId,
+          ownerId,
+        );
+      const larkUserId: string | null = await this.getCurrentLarkUserId();
+      return await this.createForOwner(input, ownerId, larkUserId, {
+        history: {
+          parentJobId: id,
+          rerunMode: 'full_reprocess',
+          sourceAssetGroupId: context.sourceAssetGroupId,
+          sourceChannel: context.sourceChannel,
+          sourceSnapshot: context.sourceSnapshot,
+          title: context.title,
+          versionNumber,
+        },
+        rerunLockKey,
+      });
+    } catch (error) {
+      this.activeReruns.delete(rerunLockKey);
+      throw error;
+    }
   }
 
   listFrames(
@@ -520,6 +754,103 @@ export class NoteJobsService {
     }
   }
 
+  private async runRegenerateNote(
+    id: string,
+    context: ReprocessHistoryContext,
+    ownerId: string,
+    larkUserId: string | null,
+    versionNumber: number,
+    rerunLockKey: string,
+  ): Promise<void> {
+    try {
+      const sourceText: string = context.rawTranscript?.trim() || '';
+      if (!sourceText) throw new Error('历史原文为空，无法重新生成笔记');
+      this.update(id, 'summarizing', 20, '正在读取已保存的原文…');
+      const promptSnapshot = await this.noteTemplateService.getActivePrompt(
+        ownerId,
+        context.noteStyle,
+      );
+      await this.noteHistoryService.updatePromptSnapshot(
+        id,
+        context.noteStyle,
+        promptSnapshot.content,
+        promptSnapshot.versionId,
+      );
+      const summaryResult: GenerateHighQualityNoteResult =
+        await this.noteSummaryPipelineService.generate({
+          noteStyle: context.noteStyle,
+          onProgress: (progress: NoteSummaryPipelineProgress): void =>
+            this.updateSummaryPipelineProgress(id, progress),
+          sourceText,
+          sourceTitle: context.title,
+          styleRequirements: promptSnapshot.content,
+        });
+      this.patch(id, {
+        summaryGeneration: {
+          modelName: summaryResult.modelName,
+          provider: summaryResult.provider,
+          qualityScore: summaryResult.quality.score,
+          stage: 'reviewing',
+        },
+      });
+      this.update(
+        id,
+        'summarizing',
+        86,
+        `质量门禁已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
+      );
+      const knowledgeMapUrl: string | undefined =
+        await this.generateKnowledgeMap(summaryResult.markdown);
+      const withKnowledgeMap: string = knowledgeMapUrl
+        ? this.insertKnowledgeMap(summaryResult.markdown, knowledgeMapUrl)
+        : summaryResult.markdown;
+      const finalMarkdown: string = context.rawDocumentUrl
+        ? this.appendRawDocumentReference(
+            withKnowledgeMap,
+            context.rawDocumentUrl,
+          )
+        : withKnowledgeMap;
+      const noteTitle: string =
+        this.extractMarkdownTitle(summaryResult.markdown) || context.title;
+      await this.persistTitle(id, noteTitle);
+      this.update(id, 'publishing', 92, '新版笔记已生成，正在写入飞书文档…');
+      const documentUrl: string = await this.createLarkDocument(
+        `${noteTitle}（V${versionNumber}）`,
+        finalMarkdown,
+      );
+      this.patch(id, {
+        documentUrl,
+        message: `完成！V${versionNumber} 二次总结笔记已创建。`,
+        progress: 100,
+        rawDocumentUrl: context.rawDocumentUrl || undefined,
+        stage: 'completed',
+        summaryGeneration: this.completedSummaryGeneration(id, ownerId),
+      });
+      await this.persistFinish(id, {
+        documentUrl,
+        rawDocumentUrl: context.rawDocumentUrl || undefined,
+        status: 'completed',
+      });
+      await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.error(`二次总结任务 ${id} 失败: ${message}`);
+      this.patch(id, {
+        error: message,
+        message: '二次总结失败',
+        stage: 'failed',
+      });
+      await this.persistFinish(id, {
+        error: message,
+        rawDocumentUrl: context.rawDocumentUrl || undefined,
+        status: 'failed',
+      });
+    } finally {
+      this.activeReruns.delete(rerunLockKey);
+    }
+  }
+
   private async run(
     id: string,
     input: ReturnType<typeof validateNoteJobRequest>,
@@ -527,6 +858,7 @@ export class NoteJobsService {
     sourcePlatform?: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
     larkUserId?: string | null,
+    rerunLockKey?: string,
   ) {
     const workDir = await mkdtemp(join(tmpdir(), 'video-note-'));
     try {
@@ -903,6 +1235,7 @@ export class NoteJobsService {
       await rm(workDir, { recursive: true, force: true }).catch(
         () => undefined,
       );
+      if (rerunLockKey) this.activeReruns.delete(rerunLockKey);
     }
   }
 
@@ -2898,6 +3231,53 @@ export class NoteJobsService {
       '',
     ].join('\n');
     return `${notice}${markdown.trimStart()}`;
+  }
+
+  private acquireRerunLock(rerunLockKey: string): void {
+    if (this.activeReruns.has(rerunLockKey)) {
+      throw new BadRequestException('该记录已有同类型二次处理任务正在运行');
+    }
+    this.activeReruns.add(rerunLockKey);
+  }
+
+  private assertHistoryTaskFinished(context: ReprocessHistoryContext): void {
+    if (context.status === 'processing') {
+      throw new BadRequestException('当前任务仍在处理中，请完成后再二次处理');
+    }
+  }
+
+  private async assertNoProcessingVersion(
+    context: ReprocessHistoryContext,
+    ownerId: string,
+  ): Promise<void> {
+    if (
+      await this.noteHistoryService.hasProcessingVersion(
+        context.sourceAssetGroupId,
+        ownerId,
+      )
+    ) {
+      throw new BadRequestException('该源文件已有二次处理任务正在运行');
+    }
+  }
+
+  private async getCurrentLarkUserId(): Promise<string | null> {
+    try {
+      return await this.authNPaasService.getCurrentUserLarkUserId();
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`无法获取当前用户飞书账号: ${message}`);
+      return null;
+    }
+  }
+
+  private getShanghaiDate(): string {
+    return new Intl.DateTimeFormat('zh-CN', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+    }).format(new Date());
   }
 
   private resolveSourcePlatform(value?: string): SourcePlatform {

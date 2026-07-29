@@ -13,12 +13,15 @@ import {
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Request, Response } from 'express';
 import type {
+  ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
   ConversionStatus,
   MarkNoteProcessedBatchRequest,
   MarkNoteProcessedBatchResponse,
   MarkNoteProcessedResponse,
+  NoteJob,
   NoteProcessingStatus,
+  NoteSourceSnapshotResponse,
   NoteSourceType,
   NoteStyle,
   GenerateFrameDerivativeRequest,
@@ -27,6 +30,7 @@ import type {
   UpdateNoteTemplateConfigRequest,
   UpdateTencentAsrSettingsRequest,
   UpdateExternalModelSettingsRequest,
+  RegenerateRawDocumentResponse,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
@@ -236,6 +240,70 @@ export class NoteJobsController {
       transcript: transcript.rawTranscript,
       uploader: '详见原文档',
     });
+  }
+
+  @NeedLogin()
+  @Get('history/:id/source')
+  sourceSnapshot(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<NoteSourceSnapshotResponse> {
+    return this.noteJobsService.getSourceSnapshot(
+      id,
+      req.userContext.userId,
+    );
+  }
+
+  @NeedLogin()
+  @Post('history/:id/source-assets/deleted')
+  confirmDeletedSourceObjects(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: ConfirmDeletedSourceObjectsRequest,
+  ): Promise<NoteSourceSnapshotResponse> {
+    return this.noteJobsService.confirmDeletedSourceObjects(
+      id,
+      req.userContext.userId,
+      body,
+    );
+  }
+
+  @NeedLogin()
+  @Post('history/:id/regenerate-raw')
+  regenerateRawDocument(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<RegenerateRawDocumentResponse> {
+    return this.noteJobsService.regenerateRawDocument(
+      id,
+      req.userContext.userId,
+    );
+  }
+
+  @NeedLogin()
+  @Post('history/:id/regenerate-note')
+  regenerateNote(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<NoteJob> {
+    return this.noteJobsService.regenerateNote(
+      id,
+      req.userContext.userId,
+    );
+  }
+
+  @NeedLogin()
+  @Post('history/:id/reprocess')
+  reprocess(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: CreateNoteJobRequest,
+  ): Promise<NoteJob> {
+    return this.noteJobsService.reprocessFromHistory(
+      id,
+      req.userContext.userId,
+      body,
+    );
   }
 
   @NeedLogin()

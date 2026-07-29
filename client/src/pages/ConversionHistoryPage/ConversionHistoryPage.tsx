@@ -11,11 +11,14 @@ import {
   FileAudio,
   FileText,
   FileVideo,
+  HardDrive,
   History,
   ListChecks,
   LoaderCircle,
   MoreHorizontal,
+  Repeat2,
   RefreshCw,
+  Trash2,
   TriangleAlert,
   X,
 } from 'lucide-react';
@@ -36,6 +39,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { downloadBlob } from '@/utils/download';
@@ -47,10 +51,16 @@ import type {
   NoteSourceType,
 } from '@shared/api.interface';
 import { HistoryFilterControls } from './HistoryFilterControls';
+import { SourceDeletionDialog } from './SourceDeletionDialog';
 import {
   buildConversionHistorySearchParams,
   type ConversionSourceChannel,
 } from './conversion-history-search-params';
+import {
+  getSourceAssetCapabilities,
+  getSourceAssetCopy,
+} from './conversion-history-source.utils';
+import { useHistoryReprocessing } from './useHistoryReprocessing';
 
 const PAGE_SIZE = 10;
 
@@ -70,6 +80,12 @@ function getStatusCopy(record: NoteConversionRecord): string {
   if (record.status === 'completed') return '已完成';
   if (record.status === 'failed') return '失败';
   return '处理中';
+}
+
+function getRerunModeCopy(record: NoteConversionRecord): string {
+  if (record.rerunMode === 'regenerate_note') return '笔记重生成';
+  if (record.rerunMode === 'full_reprocess') return '完整重跑';
+  return '首次处理';
 }
 
 function ConversionIcon({ sourceType }: { sourceType: NoteSourceType }) {
@@ -362,6 +378,18 @@ export default function ConversionHistoryPage() {
 
   const totalPages: number = pagination?.totalPages || 0;
   const totalItems: number = pagination?.totalItems || 0;
+  const {
+    actionJobId,
+    deleteRetainedSource,
+    deletingSource,
+    fullyReprocess,
+    regenerateRaw,
+    regenerateSummary,
+    setSourceToDelete,
+    sourceToDelete,
+  } = useHistoryReprocessing({
+    onRecordsChanged: () => loadRecords(true),
+  });
 
   return (
     <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
@@ -530,6 +558,24 @@ export default function ConversionHistoryPage() {
               {records.map((record: NoteConversionRecord) => {
                 const sourceStyle = SOURCE_STYLES[record.sourceType];
                 const selectable: boolean = isSelectable(record);
+                const sourceCapabilities = getSourceAssetCapabilities(
+                  record.sourceAssets,
+                );
+                const taskFinished: boolean =
+                  record.status !== 'processing';
+                const canRegenerate: boolean =
+                  taskFinished && record.rawTranscriptAvailable;
+                const canFullReprocess: boolean =
+                  taskFinished && sourceCapabilities.canReprocess;
+                const canDeleteSource: boolean =
+                  taskFinished && sourceCapabilities.canDelete;
+                const hasMoreActions: boolean =
+                  Boolean(record.rawDocumentUrl) ||
+                  record.rawTranscriptAvailable ||
+                  canDeleteSource ||
+                  canFullReprocess;
+                const actionRunning: boolean =
+                  actionJobId === record.jobId;
                 return (
                   <article
                     className="group rounded-3xl border border-black/7 bg-white/92 p-5 shadow-[0_14px_45px_rgba(40,35,29,0.055)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_18px_55px_rgba(40,35,29,0.09)] md:p-6"
@@ -599,6 +645,10 @@ export default function ConversionHistoryPage() {
                                 : ''}
                             </Badge>
                           ) : null}
+                          <Badge variant="outline">
+                            V{record.versionNumber} ·{' '}
+                            {getRerunModeCopy(record)}
+                          </Badge>
                         </div>
                         <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">
                           {record.title}
@@ -615,6 +665,10 @@ export default function ConversionHistoryPage() {
                               <CheckCircle2 className="size-3.5" />
                             )}
                             耗时 {record.durationLabel}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <HardDrive className="size-3.5" />
+                            {getSourceAssetCopy(record.sourceAssets)}
                           </span>
                         </div>
                       </div>
@@ -655,17 +709,21 @@ export default function ConversionHistoryPage() {
                             </a>
                           </Button>
                         ) : null}
-                        {record.rawDocumentUrl ||
-                        record.rawTranscriptAvailable ? (
+                        {hasMoreActions ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 className="rounded-xl border-black/10 bg-white text-black/70 hover:bg-black/5"
+                                disabled={actionRunning}
                                 size="sm"
                                 variant="outline"
                               >
-                                更多
-                                <MoreHorizontal className="size-4" />
+                                {actionRunning ? '处理中' : '更多'}
+                                {actionRunning ? (
+                                  <LoaderCircle className="size-4 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="size-4" />
+                                )}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start">
@@ -690,6 +748,55 @@ export default function ConversionHistoryPage() {
                                   下载原文
                                   <Download className="size-4" />
                                 </DropdownMenuItem>
+                              ) : null}
+                              {(record.rawDocumentUrl ||
+                                record.rawTranscriptAvailable) &&
+                              (canRegenerate ||
+                                canFullReprocess ||
+                                canDeleteSource) ? (
+                                <DropdownMenuSeparator />
+                              ) : null}
+                              {canRegenerate ? (
+                                <DropdownMenuItem
+                                  onClick={() => void regenerateRaw(record)}
+                                >
+                                  重新生成原文
+                                  <FileText className="size-4" />
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canRegenerate ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    void regenerateSummary(record)
+                                  }
+                                >
+                                  仅重新生成笔记
+                                  <Repeat2 className="size-4" />
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canFullReprocess ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    void fullyReprocess(record)
+                                  }
+                                >
+                                  用源文件完整重跑
+                                  <RefreshCw className="size-4" />
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canDeleteSource ? (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={() =>
+                                      setSourceToDelete(record)
+                                    }
+                                  >
+                                    永久删除源文件
+                                    <Trash2 className="size-4" />
+                                  </DropdownMenuItem>
+                                </>
                               ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -766,6 +873,14 @@ export default function ConversionHistoryPage() {
           ) : null}
         </section>
       </div>
+      <SourceDeletionDialog
+        deleting={deletingSource}
+        onConfirm={() => void deleteRetainedSource()}
+        onOpenChange={(open: boolean) => {
+          if (!open && !deletingSource) setSourceToDelete(null);
+        }}
+        record={sourceToDelete}
+      />
     </main>
   );
 }

@@ -1,4 +1,7 @@
-import type { UploadFileData } from '@/components/business-ui/api/files/service';
+import {
+  toStoredSourceObject,
+  type UploadFileData,
+} from '@/components/business-ui/api/files/service';
 import type { UploadedMediaInput } from '@shared/api.interface';
 
 export const MAX_PAIRED_MEDIA_SIZE = 10 * 1024 * 1024 * 1024;
@@ -42,8 +45,11 @@ export function toUploadedMediaInput(
         ? uploads.map((part: UploadFileData) => ({
             downloadUrl: part.url,
             fileSize: part.fileSize,
+            storage: toStoredSourceObject(part),
           }))
         : undefined,
+    storage:
+      uploads.length === 1 ? toStoredSourceObject(uploads[0]) : undefined,
   };
 }
 
