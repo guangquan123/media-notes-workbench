@@ -94,31 +94,9 @@ export default function EntryPage() {
                 className="rounded-full bg-[#111315] text-white hover:bg-[#4d5dff]"
                 size="sm"
               >
-                <Link to="/note-templates">
+                <Link to="/settings">
                   <Settings2 className="size-3.5" />
-                  提示词配置
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/transcription-settings">
-                  <Settings2 className="size-3.5" />
-                  转录引擎
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/model-settings">
-                  <Settings2 className="size-3.5" />
-                  总结模型
+                  参数配置
                 </Link>
               </Button>
               <Button

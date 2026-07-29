@@ -36,6 +36,10 @@ import { orderPromptVersions } from './prompt-version-display.utils';
 const TEMPLATE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
 const MAX_TEMPLATE_LENGTH = 60000;
 
+interface NoteTemplatesPageProps {
+  embedded?: boolean;
+}
+
 interface DiffLine {
   content: string;
   type: 'added' | 'removed' | 'unchanged';
@@ -59,7 +63,9 @@ function buildLineDiff(before: string, after: string): DiffLine[] {
   return lines;
 }
 
-export default function NoteTemplatesPage() {
+export default function NoteTemplatesPage({
+  embedded = false,
+}: NoteTemplatesPageProps) {
   const [templates, setTemplates] = useState<NoteTemplateConfig[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<NoteStyle>('learning');
   const [content, setContent] = useState('');
@@ -198,9 +204,9 @@ export default function NoteTemplatesPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]">
-      <div className="mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 sm:flex-row sm:items-center sm:justify-between">
+    <main className={embedded ? 'text-[#161616]' : 'min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]'}>
+      <div className={embedded ? '' : 'mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10'}>
+        <header className={`flex flex-col gap-4 ${embedded ? 'pb-2' : 'border-b border-black/8 pb-5'} sm:flex-row sm:items-center sm:justify-between`}>
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-2xl bg-[#3370ff] text-white shadow-sm">
               <FilePenLine className="size-5" />
@@ -210,10 +216,10 @@ export default function NoteTemplatesPage() {
               <p className="text-xs text-black/45">保存为草稿，发布后才正式生效</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2"><Button className="rounded-full" onClick={() => setHistoryOpen(true)} variant="outline"><History className="size-4" />历史版本（{selectedTemplate?.history.length || 0}）</Button><Link className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm text-black/62 shadow-sm transition hover:border-black/15 hover:text-black" to="/"><ArrowLeft className="size-4" />返回入口</Link></div>
+          <div className="flex flex-wrap gap-2"><Button className="rounded-full" onClick={() => setHistoryOpen(true)} variant="outline"><History className="size-4" />历史版本（{selectedTemplate?.history.length || 0}）</Button>{!embedded && <Link className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-sm text-black/62 shadow-sm transition hover:border-black/15 hover:text-black" to="/"><ArrowLeft className="size-4" />返回入口</Link>}</div>
         </header>
 
-        <section className="grid gap-7 py-8 lg:grid-cols-[0.28fr_0.72fr]">
+        <section className={`grid gap-7 ${embedded ? 'py-5' : 'py-8'} lg:grid-cols-[0.28fr_0.72fr]`}>
           <aside className="space-y-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3370ff]">Prompt center</p>

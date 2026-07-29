@@ -24,6 +24,10 @@ interface FormState {
   speakerDiarization: boolean;
 }
 
+interface TranscriptionSettingsPageProps {
+  embedded?: boolean;
+}
+
 function toFormState(settings: TencentAsrSettings): FormState {
   return {
     asrRegion: settings.asrRegion,
@@ -37,7 +41,9 @@ function toFormState(settings: TencentAsrSettings): FormState {
   };
 }
 
-export default function TranscriptionSettingsPage() {
+export default function TranscriptionSettingsPage({
+  embedded = false,
+}: TranscriptionSettingsPageProps) {
   const [settings, setSettings] = useState<TencentAsrSettings | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -96,17 +102,17 @@ export default function TranscriptionSettingsPage() {
   };
 
   if (!settings || !form) {
-    return <main className="min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50"><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取转录引擎配置…</main>;
+    return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取转录引擎配置…</main>;
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10">
-      <div className="mx-auto max-w-2xl">
-        <header className="flex items-center justify-between border-b border-black/8 pb-5">
+    <main className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}>
+      <div className={embedded ? '' : 'mx-auto max-w-2xl'}>
+        {!embedded && <header className="flex items-center justify-between border-b border-black/8 pb-5">
           <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#3370ff] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">腾讯云高质量转录</p><p className="text-xs text-black/45">私有 COS + ASR 大模型 2.0</p></div></div>
           <Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button>
-        </header>
-        <section className="mt-8 space-y-6">
+        </header>}
+        <section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}>
           <div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，视频和录音都优先使用腾讯云大模型；关闭后使用本地兜底。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div>
           {settings.configured && !editing && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-semibold">配置已保存并锁定</p><p className="mt-1 text-xs leading-5">SecretId：{settings.secretId}；SecretKey：已保存；地域：{settings.region}；存储桶：{settings.bucket || '未填写'}。</p></div>}
           <div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5">

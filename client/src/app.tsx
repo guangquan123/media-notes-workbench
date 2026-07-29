@@ -17,6 +17,7 @@ import NoteInboxMessagesPage from './pages/NoteInboxMessagesPage/NoteInboxMessag
 import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
 import TranscriptionSettingsPage from './pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import ModelSettingsPage from './pages/ModelSettingsPage/ModelSettingsPage';
+import SettingsPage from './pages/SettingsPage/SettingsPage';
 
 const RoutesComponent = () => {
   return (
@@ -31,6 +32,7 @@ const RoutesComponent = () => {
         <Route path="paired-media-notes" element={<PairedMediaNotesPage />} />
         <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
         <Route path="transcription-settings" element={<TranscriptionSettingsPage />} />
         <Route path="model-settings" element={<ModelSettingsPage />} />
