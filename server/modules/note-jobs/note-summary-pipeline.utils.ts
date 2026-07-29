@@ -93,13 +93,17 @@ function extractHeadings(note: string): string[] {
   return headings;
 }
 
+function hasMarkdownTitle(note: string): boolean {
+  return /^#\s+[^#\s].*$/mu.test(note);
+}
+
 function getMissingSections(note: string, noteStyle: NoteStyle): string[] {
   const headings: string[] = extractHeadings(note);
   const requiredSections =
     noteStyle === 'meeting'
       ? MEETING_REQUIRED_SECTIONS
       : LEARNING_REQUIRED_SECTIONS;
-  return requiredSections
+  const missingSections: string[] = requiredSections
     .filter(
       (section): boolean =>
         !section.aliases.some((alias: string): boolean =>
@@ -109,6 +113,10 @@ function getMissingSections(note: string, noteStyle: NoteStyle): string[] {
         ),
     )
     .map((section): string => section.label);
+  if (noteStyle === 'learning' && !hasMarkdownTitle(note)) {
+    missingSections.unshift('标题');
+  }
+  return missingSections;
 }
 
 function getUnexpectedMeetingSections(note: string): string[] {
@@ -122,8 +130,8 @@ function getUnexpectedMeetingSections(note: string): string[] {
     const rawHeading: string | undefined = match[1];
     if (!rawHeading) continue;
     const normalized: string = normalizeHeading(rawHeading);
-    const expected: boolean = expectedAliases.some(
-      (alias: string): boolean => normalized.includes(alias),
+    const expected: boolean = expectedAliases.some((alias: string): boolean =>
+      normalized.includes(alias),
     );
     if (!expected) sections.push(rawHeading.replace(/[*_`]/gu, '').trim());
   }
@@ -278,7 +286,8 @@ export function buildNoteStructurePrompt(
 “会议内容”按议题组织背景、事实、观点、建议、分歧和会议结论；不得抬高确定性。
 “会后待办”使用表格，至少包含待办事项、负责人、截止时间、输出结果、依赖。未明确的信息写“待确认”。
 正文末尾增加“纪要状态：”，如实统计未形成结论的议题和信息不完整的待办。`
-      : `学习笔记不强制固定十章，但必须包含以下固定核心模块：
+      : `学习笔记不强制固定十章，但必须延续平台已发布的学习/培训笔记结构，不得改用其他笔记类型的结构：
+# 标题
 ## 一、内容概览
 ## 二、核心结论与关键要点
 ## 三、核心知识体系
@@ -319,6 +328,12 @@ export function buildNoteRepairPrompt(input: NoteRepairPromptInput): string {
   const failedChecks: string = input.failedChecks
     .map((check: string, index: number): string => `${index + 1}. ${check}`)
     .join('\n');
+  const structureRepairRules: string =
+    input.noteStyle === 'meeting'
+      ? `3. 严格保持“会议议程、会议内容、会后待办”三个一级内容模块。
+4. 不得加入学习笔记的知识体系、复习或研究问题等结构。`
+      : `3. 保留原学习/培训笔记的“标题＋内容概览＋核心结论或关键要点＋核心知识体系＋一页复习”结构。
+4. 其他模块仅按证据和用户输出规范决定是否保留，不得改用其他笔记类型的结构。`;
   return `你是笔记质量修订员。请修复下列明确问题，并输出修订后的完整 Markdown。
 
 ${PIPELINE_TRUTHFULNESS_RULES}
@@ -332,8 +347,7 @@ ${failedChecks}
 修订规则：
 1. 只使用证据账本，不得为了通过门禁补造数字、引用、案例、负责人或截止时间。
 2. 保留草稿中已正确、有证据的信息；删除重复和无依据内容。
-3. 学习笔记保留四个核心模块，其他模块按证据自适应。
-4. 会议纪要严格保持“会议议程、会议内容、会后待办”三个一级内容模块。
+${structureRepairRules}
 5. 输出修订后的完整 Markdown，不输出评分、修改说明或分析过程。
 
 用户输出偏好：
@@ -380,7 +394,7 @@ export function assessNoteQuality(
   const requiredSectionCount: number =
     input.noteStyle === 'meeting'
       ? MEETING_REQUIRED_SECTIONS.length
-      : LEARNING_REQUIRED_SECTIONS.length;
+      : LEARNING_REQUIRED_SECTIONS.length + 1;
   const structurePoints: number =
     ((requiredSectionCount - missingSections.length) / requiredSectionCount) *
     40;

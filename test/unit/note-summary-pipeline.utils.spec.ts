@@ -63,13 +63,43 @@ describe('note summary pipeline utilities', () => {
       styleRequirements: '表达简洁',
     });
 
-    expect(learningPrompt).toContain('固定核心模块');
+    expect(learningPrompt).toContain('# 标题');
+    expect(learningPrompt).toContain('延续平台已发布的学习/培训笔记结构');
     expect(learningPrompt).toContain('按证据决定是否出现');
     expect(learningPrompt).not.toContain('必须包含全部 10 章');
     expect(meetingPrompt).toContain('只允许三个一级内容模块');
     expect(meetingPrompt).toContain('一、会议议程');
     expect(meetingPrompt).toContain('二、会议内容');
     expect(meetingPrompt).toContain('三、会后待办');
+  });
+
+  it('keeps learning and meeting structure instructions fully isolated', () => {
+    const learningRepairPrompt: string = buildNoteRepairPrompt({
+      draftNote: '# 学习笔记草稿',
+      evidenceLedger: '[S01][事实] 示例事实',
+      failedChecks: ['补充遗漏的信息'],
+      noteStyle: 'learning',
+      sourceTitle: '培训材料',
+      styleRequirements:
+        '保留标题、内容概览、核心结论或关键要点、核心知识体系和一页复习。',
+    });
+    const meetingRepairPrompt: string = buildNoteRepairPrompt({
+      draftNote: '# 会议纪要草稿',
+      evidenceLedger: '[S01][待办] 示例待办',
+      failedChecks: ['补充遗漏的信息'],
+      noteStyle: 'meeting',
+      sourceTitle: '项目周会',
+      styleRequirements: '只输出会议议程、会议内容和会后待办。',
+    });
+
+    expect(learningRepairPrompt).toContain('学习/培训笔记');
+    expect(learningRepairPrompt).not.toContain('会议议程');
+    expect(learningRepairPrompt).not.toContain('会议内容');
+    expect(learningRepairPrompt).not.toContain('会后待办');
+    expect(meetingRepairPrompt).toContain('会议纪要');
+    expect(meetingRepairPrompt).not.toContain('内容概览');
+    expect(meetingRepairPrompt).not.toContain('核心知识体系');
+    expect(meetingRepairPrompt).not.toContain('一页复习');
   });
 
   it('rejects a learning note that drops required modules and source numbers', () => {
@@ -90,6 +120,25 @@ describe('note summary pipeline utilities', () => {
     );
     expect(result.numberCoverage).toBeLessThan(0.7);
     expect(result.failedChecks.join('\n')).toContain('数字');
+  });
+
+  it('requires a learning-note title without applying meeting sections', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'learning',
+      note: `## 内容概览
+内容概览。
+## 核心结论与关键要点
+关键要点。
+## 核心知识体系
+> 转写原话：“示例。”
+## 一页复习
+复习内容。`,
+      sourceText: '示例培训内容。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.missingSections).toContain('标题');
+    expect(result.missingSections).not.toContain('会议议程');
   });
 
   it('does not treat transcript timestamps or URL digits as facts to preserve', () => {

@@ -13,8 +13,12 @@ describe('note template version utilities', () => {
   it('keeps learning modules adaptive instead of forcing ten chapters', () => {
     const content: string = DEFAULT_NOTE_TEMPLATES.learning.content;
 
+    expect(content).toContain('标题与四个核心模块');
     expect(content).toContain('四个核心模块');
     expect(content).toContain('按证据决定是否输出');
+    expect(content).not.toContain('会议议程');
+    expect(content).not.toContain('会议内容');
+    expect(content).not.toContain('会后待办');
     expect(content).not.toContain('必须包含全部 10 章');
   });
 
