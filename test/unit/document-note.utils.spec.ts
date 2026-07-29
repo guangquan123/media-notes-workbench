@@ -1,7 +1,9 @@
 import {
   buildDocumentRawMarkdown,
   getDocumentMimeType,
+  isPlainTextDocumentFile,
   isSupportedDocumentFile,
+  normalizePlainTextDocumentContent,
 } from '../../server/modules/note-jobs/document-note.utils';
 
 describe('document note utilities', () => {
@@ -12,11 +14,33 @@ describe('document note utilities', () => {
     expect(isSupportedDocumentFile('recording.mp3')).toBe(false);
   });
 
+  it.each(['notes.txt', 'outline.md', 'handbook.markdown'])(
+    'recognizes %s as a supported text document',
+    (fileName: string) => {
+      expect(isSupportedDocumentFile(fileName)).toBe(true);
+      expect(isPlainTextDocumentFile(fileName)).toBe(true);
+    },
+  );
+
   it('normalizes supported document mime types from their file names', () => {
     expect(getDocumentMimeType('research.pdf')).toBe('application/pdf');
     expect(getDocumentMimeType('meeting.doc')).toBe('application/msword');
     expect(getDocumentMimeType('training.pptx')).toBe(
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    );
+    expect(getDocumentMimeType('outline.md')).toBe('text/markdown');
+    expect(getDocumentMimeType('notes.txt')).toBe('text/plain');
+  });
+
+  it('keeps Markdown text readable without sending it to a binary parser', () => {
+    expect(
+      normalizePlainTextDocumentContent('\uFEFF# 项目复盘\r\n\r\n- 明确范围\r\n'),
+    ).toBe('# 项目复盘\n\n- 明确范围');
+  });
+
+  it('rejects an empty plain-text document', () => {
+    expect(() => normalizePlainTextDocumentContent(' \n\t ')).toThrow(
+      '文本文档没有可用内容',
     );
   });
 

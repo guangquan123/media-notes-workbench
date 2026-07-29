@@ -302,6 +302,24 @@ describe('note job request validation', () => {
     );
   });
 
+  it.each([
+    ['notes.txt', 'text/plain'],
+    ['outline.md', 'text/markdown'],
+    ['handbook.markdown', 'text/markdown'],
+  ])(
+    'accepts %s as a document upload',
+    (fileName: string, mimeType: string) => {
+      expect(() =>
+        validateDocumentInput({
+          downloadUrl: `https://storage.example.com/uploads/${fileName}`,
+          fileName,
+          fileSize: 1024,
+          mimeType,
+        }),
+      ).not.toThrow();
+    },
+  );
+
   it('rejects unsupported files for a document job', () => {
     expect(() =>
       validateDocumentInput({
@@ -310,7 +328,7 @@ describe('note job request validation', () => {
         fileSize: 8 * 1024 * 1024,
         mimeType: 'audio/mpeg',
       }),
-    ).toThrow('仅支持 PDF、Word 和 PowerPoint 文档');
+    ).toThrow('仅支持 PDF、Word、PowerPoint、TXT 和 Markdown 文档');
   });
 
   it('extracts the Bilibili URL from a share text payload', () => {

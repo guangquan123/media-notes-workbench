@@ -14,10 +14,15 @@ interface DocumentRawArchiveInput {
 const DOCUMENT_MIME_TYPES: Record<string, string> = {
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  markdown: 'text/markdown',
+  md: 'text/markdown',
   pdf: 'application/pdf',
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
 };
+
+const PLAIN_TEXT_DOCUMENT_EXTENSIONS = new Set(['txt', 'md', 'markdown']);
 
 function getDocumentExtension(fileName: string): string {
   return fileName.split('.').pop()?.toLowerCase() || '';
@@ -29,6 +34,21 @@ function isSupportedDocumentFile(fileName: string): boolean {
 
 function getDocumentMimeType(fileName: string): string | undefined {
   return DOCUMENT_MIME_TYPES[getDocumentExtension(fileName)];
+}
+
+function isPlainTextDocumentFile(fileName: string): boolean {
+  return PLAIN_TEXT_DOCUMENT_EXTENSIONS.has(getDocumentExtension(fileName));
+}
+
+function normalizePlainTextDocumentContent(content: string): string {
+  const normalized: string = content
+    .replace(/^\uFEFF/u, '')
+    .replace(/\r\n?/gu, '\n')
+    .trim();
+  if (!normalized) {
+    throw new Error('文本文档没有可用内容');
+  }
+  return normalized;
 }
 
 function getParseQualityLabel(
@@ -72,5 +92,7 @@ function buildDocumentRawMarkdown(input: DocumentRawArchiveInput): string {
 export {
   buildDocumentRawMarkdown,
   getDocumentMimeType,
+  isPlainTextDocumentFile,
   isSupportedDocumentFile,
+  normalizePlainTextDocumentContent,
 };

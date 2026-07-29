@@ -61,7 +61,11 @@ import {
 } from './note-document.utils';
 import { NoteHistoryService } from './note-history.service';
 import { getParseQuality } from './pdf-note.utils';
-import { buildDocumentRawMarkdown } from './document-note.utils';
+import {
+  buildDocumentRawMarkdown,
+  isPlainTextDocumentFile,
+  normalizePlainTextDocumentContent,
+} from './document-note.utils';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { FrameExtractionService, KeyFrame } from './frame-extraction.service';
@@ -906,7 +910,11 @@ export class NoteJobsService {
         28 + Math.round((index / input.mediaItems.length) * 14),
         `正在解析第 ${index + 1}/${input.mediaItems.length} 个文档…`,
       );
-      const content: string = await this.parseDocument(media.downloadUrl);
+      const content: string = await this.parseDocument({
+        downloadUrl: media.downloadUrl,
+        fileName: media.fileName,
+        sourcePath,
+      });
       parsedItems.push({
         content,
         fileHash,
@@ -2036,11 +2044,19 @@ export class NoteJobsService {
     }
   }
 
-  private async parseDocument(downloadUrl: string): Promise<string> {
+  private async parseDocument(input: {
+    downloadUrl: string;
+    fileName: string;
+    sourcePath: string;
+  }): Promise<string> {
+    if (isPlainTextDocumentFile(input.fileName)) {
+      const content: string = await readFile(input.sourcePath, 'utf8');
+      return normalizePlainTextDocumentContent(content);
+    }
     const pluginInstanceId = 'pdf-document-parser';
     const actionKey = 'parseDocToMarkdown';
     const outputMode = 'unary';
-    const pluginInput = { file_url: [downloadUrl] };
+    const pluginInput = { file_url: [input.downloadUrl] };
     try {
       const result = (await this.capabilityService
         .load(pluginInstanceId)

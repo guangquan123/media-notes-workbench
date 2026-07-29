@@ -250,7 +250,9 @@ export function validateDocumentInput(
     throw new BadRequestException('单个文档不能超过 200 MB');
   }
   if (!isSupportedDocumentFile(input.fileName)) {
-    throw new BadRequestException('仅支持 PDF、Word 和 PowerPoint 文档');
+    throw new BadRequestException(
+      '仅支持 PDF、Word、PowerPoint、TXT 和 Markdown 文档',
+    );
   }
   validateMediaDownloadUrl(input.downloadUrl);
   return {

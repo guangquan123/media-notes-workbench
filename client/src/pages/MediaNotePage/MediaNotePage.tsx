@@ -106,11 +106,14 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
         '.pptx',
       ],
+      'text/plain': ['.txt'],
+      'text/markdown': ['.md', '.markdown'],
     },
     description:
       '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的飞书学习笔记。',
     eyebrow: '文档学习工作台',
-    fileHint: '支持 PDF、Word、PowerPoint；最多 10 个，累计不超过 200 MB',
+    fileHint:
+      '支持 PDF、Word、PowerPoint、TXT、Markdown；最多 10 个，累计不超过 200 MB',
     title: '把多份文档，沉淀成一篇可回顾的知识资产。',
   },
 };
