@@ -43,6 +43,7 @@ export interface SourceTextChunk {
 
 export interface NoteQualityAssessment {
   evidenceCoverage: number;
+  evidenceGroundingCoverage: number;
   evidenceItemCoverage: number;
   failedChecks: string[];
   minimumLength: number;
@@ -59,6 +60,7 @@ export interface NoteQualityAssessment {
   sourceAnchorCoverage: number;
   sourceNumberCount: number;
   unexpectedSections: string[];
+  ungroundedEvidenceIds: string[];
   visualCoverage: number;
 }
 
@@ -587,6 +589,128 @@ function getMissingEvidenceIds(note: string, evidenceLedger: string): string[] {
   return [...extractExplicitEvidenceIds(evidenceLedger)].filter(
     (evidenceId: string): boolean => !note.includes(`[${evidenceId}]`),
   );
+}
+
+function getEvidenceCitationContexts(
+  note: string,
+  evidenceId: string,
+): string[] {
+  const lines: string[] = note.split('\n');
+  const marker = `[${evidenceId}]`;
+  const contexts: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].includes(marker)) continue;
+    const sameLine: string = cleanEvidenceContext(lines[index]);
+    if (sameLine) {
+      contexts.push(sameLine);
+      continue;
+    }
+    for (let previous = index - 1; previous >= 0; previous -= 1) {
+      const previousLine: string = cleanEvidenceContext(lines[previous]);
+      if (!previousLine) continue;
+      contexts.push(previousLine);
+      break;
+    }
+  }
+  return contexts;
+}
+
+function cleanEvidenceContext(value: string): string {
+  return value
+    .replace(/\[E-S\d+-\d+\]/gu, ' ')
+    .replace(/\[S\d+\]/gu, ' ')
+    .replace(/https?:\/\/\S+/gu, ' ')
+    .replace(/^[#>|*+\-\d.)\s]+/u, '')
+    .replace(/[|*_`~]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\s“”"'`，。！？；、,:：.!?;（）()[\]{}|*_~#>+-]/gu, '');
+}
+
+function extractGroundingNumbers(value: string): Set<string> {
+  return new Set<string>(
+    [...value.matchAll(/\d+(?:[,.]\d+)*(?:[%％])?/gu)]
+      .map((match: RegExpMatchArray): string => match[0])
+      .map((number: string): string =>
+        number.replace(/,/gu, '').replace(/％/gu, '%'),
+      ),
+  );
+}
+
+function extractGroundingTokens(value: string): Set<string> {
+  const tokens: Set<string> = new Set<string>();
+  for (const match of value
+    .toLowerCase()
+    .matchAll(/[\p{Script=Han}]+|[a-z][a-z0-9_-]+/gu)) {
+    const token: string | undefined = match[0];
+    if (!token) continue;
+    if (/^[a-z]/u.test(token)) {
+      tokens.add(token);
+      continue;
+    }
+    for (let index = 0; index < token.length - 1; index += 1) {
+      tokens.add(token.slice(index, index + 2));
+    }
+  }
+  return tokens;
+}
+
+function contextGroundsEvidence(
+  context: string,
+  record: EvidenceRecord,
+): boolean {
+  const evidenceText: string = `${record.statement} ${record.quote || ''}`;
+  const evidenceNumbers: Set<string> = extractGroundingNumbers(evidenceText);
+  const contextNumbers: Set<string> = extractGroundingNumbers(context);
+  if (
+    evidenceNumbers.size > 0 &&
+    [...evidenceNumbers].some(
+      (value: string): boolean => !contextNumbers.has(value),
+    )
+  ) {
+    return false;
+  }
+
+  const normalizedEvidence: string = normalizeComparableText(evidenceText);
+  const normalizedContext: string = normalizeComparableText(context);
+  if (
+    normalizedContext.length >= 6 &&
+    (normalizedEvidence.includes(normalizedContext) ||
+      normalizedContext.includes(normalizedEvidence))
+  ) {
+    return true;
+  }
+
+  const evidenceTokens: Set<string> = extractGroundingTokens(evidenceText);
+  const contextTokens: Set<string> = extractGroundingTokens(context);
+  const overlap: number = [...evidenceTokens].filter((token: string): boolean =>
+    contextTokens.has(token),
+  ).length;
+  const minimumOverlap: number = evidenceTokens.size <= 3 ? 1 : 2;
+  return overlap >= minimumOverlap;
+}
+
+function getUngroundedEvidenceIds(
+  note: string,
+  evidenceLedger: string,
+): string[] {
+  return parseEvidenceLedger(evidenceLedger)
+    .filter((record: EvidenceRecord): boolean => record.id.startsWith('E-'))
+    .filter((record: EvidenceRecord): boolean =>
+      note.includes(`[${record.id}]`),
+    )
+    .filter((record: EvidenceRecord): boolean => {
+      const contexts: string[] = getEvidenceCitationContexts(note, record.id);
+      return !contexts.some((context: string): boolean =>
+        contextGroundsEvidence(context, record),
+      );
+    })
+    .map((record: EvidenceRecord): string => record.id);
 }
 
 export function assessEvidencePlanCoverage(
@@ -1470,11 +1594,24 @@ export function assessNoteQuality(
     input.note,
     evidenceLedger,
   );
+  const ungroundedEvidenceIds: string[] = getUngroundedEvidenceIds(
+    input.note,
+    evidenceLedger,
+  );
   const evidenceItemCoverage: number =
     expectedEvidenceIds.size === 0
       ? 1
       : (expectedEvidenceIds.size - missingEvidenceIds.length) /
         expectedEvidenceIds.size;
+  const citedEvidenceCount: number =
+    expectedEvidenceIds.size - missingEvidenceIds.length;
+  const evidenceGroundingCoverage: number =
+    citedEvidenceCount === 0
+      ? expectedEvidenceIds.size === 0
+        ? 1
+        : 0
+      : (citedEvidenceCount - ungroundedEvidenceIds.length) /
+        citedEvidenceCount;
   const semanticContradictions: string[] = getSemanticDirectionContradictions(
     input.note,
     evidenceLedger,
@@ -1527,6 +1664,7 @@ export function assessNoteQuality(
     (1 - evidenceCoverage) * 20 +
     (1 - sourceAnchorCoverage) * 10 +
     (1 - evidenceItemCoverage) * 25 +
+    (1 - evidenceGroundingCoverage) * 20 +
     (1 - visualCoverage) * 20 +
     Math.min(30, semanticContradictions.length * 15);
   const score: number = Math.round(
@@ -1568,6 +1706,11 @@ export function assessNoteQuality(
       `缺少结构化证据条目：${missingEvidenceIds.join('、')}；需要在承载其真实内容的句段后就近标注对应证据ID`,
     );
   }
+  if (ungroundedEvidenceIds.length > 0) {
+    failedChecks.push(
+      `证据引用未承载对应事实：${ungroundedEvidenceIds.join('、')}；必须把证据ID放在与其原始陈述语义和数字匹配的句段后，不能集中堆放或挂在无关内容上`,
+    );
+  }
   for (const contradiction of semanticContradictions) {
     failedChecks.push(`数字语义或比较方向错误：${contradiction}`);
   }
@@ -1603,6 +1746,7 @@ export function assessNoteQuality(
     missingEvidenceCoverage.length > 0 ||
     missingSourceIds.length > 0 ||
     missingEvidenceIds.length > 0 ||
+    ungroundedEvidenceIds.length > 0 ||
     semanticContradictions.length > 0 ||
     missingVisualUrls.length > 0 ||
     (sourceNumbers.size >= 3 && numberCoverage < 0.7) ||
@@ -1610,6 +1754,7 @@ export function assessNoteQuality(
     !traceable;
   return {
     evidenceCoverage,
+    evidenceGroundingCoverage,
     evidenceItemCoverage,
     failedChecks,
     minimumLength,
@@ -1626,6 +1771,7 @@ export function assessNoteQuality(
     sourceAnchorCoverage,
     sourceNumberCount: sourceNumbers.size,
     unexpectedSections,
+    ungroundedEvidenceIds,
     visualCoverage,
   };
 }

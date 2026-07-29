@@ -661,6 +661,64 @@ describe('note summary pipeline utilities', () => {
     expect(result.failedChecks.join('\n')).toContain('S03');
   });
 
+  it('rejects evidence IDs that are present without nearby supporting content', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      note: `# 平台培训笔记
+
+## 一、内容概览
+培训介绍知识图谱的模型版本边界。[E-S01-001]
+
+## 二、核心结论与关键要点
+知识图谱在 3.5 以上版本可能无法生成。[E-S01-001]
+
+## 三、核心知识体系
+> 转写原话：“3.5 以上模型版本可能无法生成知识图谱。” [E-S01-001]
+
+## 四、一页复习
+记住知识图谱版本边界。
+
+[E-S02-001]`,
+      sourceText:
+        '知识图谱在 3.5 以上模型版本中可能无法生成。平台已导入 361 名用户，客户总用户约 12000 名。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.ungroundedEvidenceIds).toEqual(['E-S02-001']);
+    expect(result.failedChecks.join('\n')).toContain('引用未承载对应事实');
+  });
+
+  it('accepts evidence IDs placed beside semantically matching paraphrases', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: structuredEvidenceLedger,
+      noteStyle: 'learning',
+      note: `# 平台培训笔记
+
+## 一、内容概览
+培训涉及知识图谱版本限制与用户导入规模。[E-S01-001][E-S02-001]
+
+## 二、核心结论与关键要点
+知识图谱在 3.5 以上版本可能无法生成。[E-S01-001]
+
+## 三、核心知识体系
+> 转写原话：“平台导入 361 名用户，客户约有 12000 名用户。” [E-S02-001]
+
+## 四、关键数据与重要事实
+| 事实 | 含义 |
+|-|-|
+| 3.5 以上 | 知识图谱存在模型版本边界 | [E-S01-001]
+| 361 名、约 12000 名 | 平台已导入用户与客户总用户规模 | [E-S02-001]
+
+## 五、一页复习
+记住知识图谱版本限制与用户规模。`,
+      sourceText:
+        '知识图谱在 3.5 以上模型版本中可能无法生成。平台已导入 361 名用户，客户总用户约 12000 名。',
+    });
+
+    expect(result.ungroundedEvidenceIds).toEqual([]);
+  });
+
   it('accepts a detailed learning note that covers every evidence category', () => {
     const evidenceLedger: string = [
       '[S01][关系] 数据治理、指标平台和智能体之间存在调用链路。',
