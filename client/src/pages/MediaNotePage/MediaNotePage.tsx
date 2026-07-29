@@ -28,6 +28,7 @@ import {
 } from '@/components/business-ui/api/files/service';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { formatFileSize } from '@/utils/file-size';
 import type {
   NoteJob,
@@ -675,6 +676,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       {job.error}
                     </div>
                   )}
+                  {job && <SummaryModelProgress job={job} />}
                   {job?.visualSummary?.warnings.map((warning) => (
                     <div
                       className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"

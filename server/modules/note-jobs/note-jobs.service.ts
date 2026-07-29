@@ -480,6 +480,9 @@ export class NoteJobsService {
         message: '完成！飞书学习笔记已创建。',
         progress: 100,
         stage: 'completed',
+        summaryGeneration: publishingJob.summaryGeneration
+          ? { ...publishingJob.summaryGeneration, stage: 'completed' }
+          : undefined,
         updatedAt: new Date().toISOString(),
         visualSummary: publishingJob.visualSummary
           ? { ...publishingJob.visualSummary, status: 'completed' }
@@ -757,6 +760,7 @@ export class NoteJobsService {
       const styleRequirements: string = promptSnapshot.content;
       this.update(id, 'summarizing', 74, '依据已整理，正在撰写学习笔记…');
       const markdown = await this.summarize({
+        jobId: id,
         transcript,
         editorResearch,
         noteStyle: input.noteStyle,
@@ -772,6 +776,15 @@ export class NoteJobsService {
           month: '2-digit',
           day: '2-digit',
         }).format(new Date()),
+      });
+      this.patch(id, {
+        summaryGeneration: {
+          ...(this.get(id, ownerId).summaryGeneration || {
+            modelName: '妙搭内置 AI',
+            provider: 'builtin',
+          }),
+          stage: 'reviewing',
+        },
       });
       this.update(id, 'summarizing', 80, '初稿已完成，正在校验完整性和真实性…');
       const reviewedMarkdown = await this.reviewNoteQuality({
@@ -844,6 +857,7 @@ export class NoteJobsService {
         message: '完成！飞书学习笔记已创建。',
         rawDocumentUrl,
         documentUrl,
+        summaryGeneration: this.completedSummaryGeneration(id, ownerId),
       });
       await this.persistFinish(id, {
         status: 'completed',
@@ -993,6 +1007,7 @@ export class NoteJobsService {
     );
     const styleRequirements: string = promptSnapshot.content;
     const markdown: string = await this.summarizeDocument({
+      jobId: id,
       content: parsedContent,
       editorResearch,
       fileHash: primaryItem.fileHash,
@@ -1007,6 +1022,15 @@ export class NoteJobsService {
         .map((media: UploadedMediaInput) => media.downloadUrl)
         .join('、'),
       title,
+    });
+    this.patch(id, {
+      summaryGeneration: {
+        ...(this.get(id, ownerId).summaryGeneration || {
+          modelName: '妙搭内置 AI',
+          provider: 'builtin',
+        }),
+        stage: 'reviewing',
+      },
     });
     this.update(id, 'summarizing', 78, '正在核验笔记与文档原文的一致性…');
     const reviewedMarkdown: string = await this.reviewDocumentNote({
@@ -1039,6 +1063,7 @@ export class NoteJobsService {
       message: '完成！文档学习笔记已创建。',
       rawDocumentUrl,
       documentUrl,
+      summaryGeneration: this.completedSummaryGeneration(id, ownerId),
     });
     await this.persistFinish(id, {
       status: 'completed',
@@ -1994,6 +2019,7 @@ export class NoteJobsService {
   }
 
   private async summarize(input: {
+    jobId: string;
     transcript: string;
     editorResearch: string;
     noteStyle: NoteStyle;
@@ -2005,13 +2031,33 @@ export class NoteJobsService {
     sourceLabel: string;
     generatedDate: string;
   }): Promise<string> {
+    const externalConfigured: boolean = Boolean(
+      await this.externalModelSettingsService.getCredentials(),
+    );
+    if (!externalConfigured) {
+      this.patch(input.jobId, {
+        summaryGeneration: {
+          modelName: '妙搭内置 AI',
+          provider: 'builtin',
+          stage: 'generating',
+        },
+      });
+    }
     const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
+      jobId: input.jobId,
       sourceText: input.transcript,
       styleRequirements: input.styleRequirements,
       title: input.title,
       sourceKind: '转录稿',
     });
     if (externalMarkdown) return externalMarkdown;
+    this.patch(input.jobId, {
+      summaryGeneration: {
+        modelName: '妙搭内置 AI',
+        provider: 'builtin',
+        stage: externalConfigured ? 'fallback' : 'generating',
+      },
+    });
     const pluginInstanceId = 'bilibili-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {
@@ -2054,6 +2100,7 @@ export class NoteJobsService {
   }
 
   private async summarizeWithExternalModel(input: {
+    jobId: string;
     sourceText: string;
     sourceKind: string;
     styleRequirements: string;
@@ -2061,6 +2108,13 @@ export class NoteJobsService {
   }): Promise<string | undefined> {
     const credentials = await this.externalModelSettingsService.getCredentials();
     if (!credentials) return undefined;
+    this.patch(input.jobId, {
+      summaryGeneration: {
+        modelName: credentials.model,
+        provider: 'external_model',
+        stage: 'generating',
+      },
+    });
 
     const controller = new AbortController();
     const timeout = setTimeout((): void => controller.abort(), 180_000);
@@ -2151,6 +2205,7 @@ export class NoteJobsService {
   }
 
   private async summarizeDocument(input: {
+    jobId: string;
     content: string;
     editorResearch: string;
     fileHash: string;
@@ -2162,13 +2217,33 @@ export class NoteJobsService {
     sourceUrl: string;
     title: string;
   }): Promise<string> {
+    const externalConfigured: boolean = Boolean(
+      await this.externalModelSettingsService.getCredentials(),
+    );
+    if (!externalConfigured) {
+      this.patch(input.jobId, {
+        summaryGeneration: {
+          modelName: '妙搭内置 AI',
+          provider: 'builtin',
+          stage: 'generating',
+        },
+      });
+    }
     const externalMarkdown: string | undefined = await this.summarizeWithExternalModel({
+      jobId: input.jobId,
       sourceText: input.content,
       styleRequirements: input.styleRequirements,
       title: input.title,
       sourceKind: '文档原文',
     });
     if (externalMarkdown) return externalMarkdown;
+    this.patch(input.jobId, {
+      summaryGeneration: {
+        modelName: '妙搭内置 AI',
+        provider: 'builtin',
+        stage: externalConfigured ? 'fallback' : 'generating',
+      },
+    });
     const pluginInstanceId = 'pdf-note-writer';
     const actionKey = 'textGenerate';
     const pluginInput = {
@@ -2876,6 +2951,14 @@ export class NoteJobsService {
     message: string,
   ) {
     this.patch(id, { stage, progress, message });
+  }
+
+  private completedSummaryGeneration(
+    id: string,
+    ownerId: string,
+  ): NoteJob['summaryGeneration'] {
+    const current = this.get(id, ownerId).summaryGeneration;
+    return current ? { ...current, stage: 'completed' } : undefined;
   }
 
   private patch(id: string, update: Partial<NoteJob>) {

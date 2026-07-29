@@ -267,6 +267,7 @@ export interface NoteJob {
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
   transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+  summaryGeneration?: SummaryGenerationInfo;
   visualOptions?: NoteVisualOptions;
   visualSummary?: VisualPipelineSummary;
   videoTitle?: string;
@@ -275,6 +276,19 @@ export interface NoteJob {
   error?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type SummaryGenerationStage =
+  | 'preparing'
+  | 'generating'
+  | 'reviewing'
+  | 'completed'
+  | 'fallback';
+
+export interface SummaryGenerationInfo {
+  modelName: string;
+  provider: 'external_model' | 'builtin';
+  stage: SummaryGenerationStage;
 }
 
 export interface SystemReadiness {

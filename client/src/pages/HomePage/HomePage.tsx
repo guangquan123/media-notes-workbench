@@ -19,6 +19,7 @@ import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import {
   createNoteJob,
   downloadRawTranscript,
@@ -498,6 +499,7 @@ export default function HomePage() {
                       {job.error}
                     </div>
                   )}
+                  <SummaryModelProgress job={job} />
 
                   {job.stage === 'completed' && (
                     <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
