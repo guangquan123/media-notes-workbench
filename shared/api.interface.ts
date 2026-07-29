@@ -293,6 +293,7 @@ export interface SummaryGenerationInfo {
   modelName: string;
   provider: 'external_model' | 'builtin';
   qualityScore?: number;
+  qualityWarnings?: string[];
   stage: SummaryGenerationStage;
 }
 

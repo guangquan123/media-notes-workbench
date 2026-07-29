@@ -142,8 +142,8 @@ export class NoteSummaryPipelineService {
     }
 
     if (!quality.passed) {
-      throw new Error(
-        `笔记经过 ${MAX_REPAIR_ATTEMPTS} 次质量修订后仍未通过门禁（${quality.score} 分）：${quality.failedChecks.join('；')}`,
+      this.logger.warn(
+        `笔记经过 ${MAX_REPAIR_ATTEMPTS} 次质量修订后仍有质量预警（${quality.score} 分），将保留最佳版本继续发布：${quality.failedChecks.join('；')}`,
       );
     }
     return {

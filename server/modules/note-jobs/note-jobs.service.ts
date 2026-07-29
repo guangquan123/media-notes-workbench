@@ -485,10 +485,15 @@ export class NoteJobsService {
         noteTitle,
         markdownWithFrames,
       );
+      const qualityWarningCount: number =
+        publishingJob.summaryGeneration?.qualityWarnings?.length || 0;
       const completedJob: NoteJob = {
         ...publishingJob,
         documentUrl,
-        message: '完成！飞书学习笔记已创建。',
+        message:
+          qualityWarningCount > 0
+            ? `完成！飞书学习笔记已创建，存在 ${qualityWarningCount} 项质量预警。`
+            : '完成！飞书学习笔记已创建。',
         progress: 100,
         stage: 'completed',
         summaryGeneration: publishingJob.summaryGeneration
@@ -733,14 +738,11 @@ export class NoteJobsService {
         await this.persistRawDocument(id, rawDocumentUrl);
       }
       const transcriptQuality = assessTranscriptQuality(archiveTranscript);
-      if (
-        transcriptionProviders.has('local_whisper') &&
-        transcriptQuality.requiresReview
-      ) {
-        throw new Error(
-          `腾讯云 ASR 不可用后启用了本地转录兜底，但结果未通过质量门禁（${transcriptQuality.warnings.join('；')}）。原文已归档，未生成可能失真的学习笔记。`,
-        );
-      }
+      const sourceQualityWarnings: string[] = transcriptQuality.requiresReview
+        ? transcriptQuality.warnings.map(
+            (warning: string): string => `原文转写：${warning}`,
+          )
+        : [];
       if (transcriptQuality.requiresReview) {
         this.update(
           id,
@@ -776,11 +778,18 @@ export class NoteJobsService {
           sourceTitle: videoTitle,
           styleRequirements,
         });
+      const qualityWarnings: string[] = [
+        ...new Set<string>([
+          ...sourceQualityWarnings,
+          ...summaryResult.quality.failedChecks,
+        ]),
+      ];
       this.patch(id, {
         summaryGeneration: {
           modelName: summaryResult.modelName,
           provider: summaryResult.provider,
           qualityScore: summaryResult.quality.score,
+          qualityWarnings,
           stage: 'reviewing',
         },
       });
@@ -788,9 +797,18 @@ export class NoteJobsService {
         id,
         'summarizing',
         84,
-        `质量门禁已通过（${summaryResult.quality.score} 分），正在整理发布内容…`,
+        qualityWarnings.length > 0
+          ? `质量检查发现 ${qualityWarnings.length} 项预警，已保留最佳版本并继续发布…`
+          : `质量检查已通过（${summaryResult.quality.score} 分），正在整理发布内容…`,
       );
-      const reviewedMarkdown: string = summaryResult.markdown;
+      const reviewedMarkdown: string =
+        qualityWarnings.length > 0
+          ? this.prependQualityWarning(
+              summaryResult.markdown,
+              summaryResult.quality.score,
+              qualityWarnings,
+            )
+          : summaryResult.markdown;
       if (
         input.visualOptions.mode === 'review' &&
         keyFrames.some((frame) => frame.imageKey)
@@ -851,7 +869,10 @@ export class NoteJobsService {
       this.patch(id, {
         stage: 'completed',
         progress: 100,
-        message: '完成！飞书学习笔记已创建。',
+        message:
+          qualityWarnings.length > 0
+            ? `完成！飞书学习笔记已创建，存在 ${qualityWarnings.length} 项质量预警。`
+            : '完成！飞书学习笔记已创建。',
         rawDocumentUrl,
         documentUrl,
         summaryGeneration: this.completedSummaryGeneration(id, ownerId),
@@ -1008,11 +1029,24 @@ export class NoteJobsService {
         sourceTitle: title,
         styleRequirements,
       });
+    const sourceQualityWarnings: string[] =
+      parseQuality === 'needs_ocr'
+        ? ['原文解析：部分内容可能需要 OCR，请结合原文归档人工核对。']
+        : parseQuality === 'needs_review'
+          ? ['原文解析：部分内容质量需要人工核对。']
+          : [];
+    const qualityWarnings: string[] = [
+      ...new Set<string>([
+        ...sourceQualityWarnings,
+        ...summaryResult.quality.failedChecks,
+      ]),
+    ];
     this.patch(id, {
       summaryGeneration: {
         modelName: summaryResult.modelName,
         provider: summaryResult.provider,
         qualityScore: summaryResult.quality.score,
+        qualityWarnings,
         stage: 'reviewing',
       },
     });
@@ -1020,9 +1054,18 @@ export class NoteJobsService {
       id,
       'summarizing',
       84,
-      `质量门禁已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
+      qualityWarnings.length > 0
+        ? `质量检查发现 ${qualityWarnings.length} 项预警，已保留最佳版本并继续发布…`
+        : `质量检查已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
     );
-    const reviewedMarkdown: string = summaryResult.markdown;
+    const reviewedMarkdown: string =
+      qualityWarnings.length > 0
+        ? this.prependQualityWarning(
+            summaryResult.markdown,
+            summaryResult.quality.score,
+            qualityWarnings,
+          )
+        : summaryResult.markdown;
     this.update(id, 'summarizing', 86, '正在生成知识框架图…');
     const knowledgeMapUrl: string | undefined =
       await this.generateKnowledgeMap(reviewedMarkdown);
@@ -1044,7 +1087,10 @@ export class NoteJobsService {
     this.patch(id, {
       stage: 'completed',
       progress: 100,
-      message: '完成！文档学习笔记已创建。',
+      message:
+        qualityWarnings.length > 0
+          ? `完成！文档学习笔记已创建，存在 ${qualityWarnings.length} 项质量预警。`
+          : '完成！文档学习笔记已创建。',
       rawDocumentUrl,
       documentUrl,
       summaryGeneration: this.completedSummaryGeneration(id, ownerId),
@@ -2831,6 +2877,29 @@ export class NoteJobsService {
     return `${markdown.trim()}\n\n${section}`;
   }
 
+  private prependQualityWarning(
+    markdown: string,
+    qualityScore: number,
+    warnings: string[],
+  ): string {
+    const warningSummary: string = warnings
+      .slice(0, 6)
+      .map(
+        (warning: string, index: number): string =>
+          `${index + 1}. ${warning}`,
+      )
+      .join('；');
+    const remainingCount: number = Math.max(0, warnings.length - 6);
+    const remainingCopy: string =
+      remainingCount > 0 ? `；另有 ${remainingCount} 项预警` : '';
+    const notice: string = [
+      `> **质量预警（${qualityScore} 分）**：本笔记已完成生成，但仍有需要人工核对的内容。`,
+      `> ${warningSummary}${remainingCopy}`,
+      '',
+    ].join('\n');
+    return `${notice}${markdown.trimStart()}`;
+  }
+
   private resolveSourcePlatform(value?: string): SourcePlatform {
     if (!value || value === 'bilibili') return 'bilibili';
     if (value === 'douyin') return 'douyin';
@@ -2964,7 +3033,7 @@ export class NoteJobsService {
           : progress.stage === 'reviewing'
             ? '初稿已完成，正在核验真实性与信息覆盖…'
             : progress.stage === 'repairing'
-              ? `质量门禁发现遗漏，正在进行第 ${progress.attempt || 1} 次定向修订…`
+              ? `质量检查发现遗漏，正在进行第 ${progress.attempt || 1} 次定向修订…`
               : '正在执行高质量总结流水线…';
     this.patch(id, {
       message: stageMessage,
