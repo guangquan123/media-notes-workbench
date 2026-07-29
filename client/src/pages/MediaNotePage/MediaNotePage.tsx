@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
+import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
 import type {
   NoteJob,
@@ -420,7 +421,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             responseError.response?.data?.message ||
             (uploadCompleted
               ? '任务创建失败，请稍后重试'
-              : '文件上传失败，请检查网络后重试'),
+              : getUploadFailureMessage(error)),
         );
       }
     } finally {

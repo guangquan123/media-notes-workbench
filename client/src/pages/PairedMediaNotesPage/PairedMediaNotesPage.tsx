@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { formatFileSize } from '@/utils/file-size';
+import { getUploadFailureMessage } from '@/utils/upload-error';
 import type {
   NoteJob,
   NoteStyle,
@@ -204,7 +205,9 @@ export default function PairedMediaNotesPage() {
       toast.error(
         responseError.response?.data?.error?.message ||
           responseError.response?.data?.message ||
-          '任务创建失败，请稍后重试',
+          (uploads.length > 0
+            ? '任务创建失败，请稍后重试'
+            : getUploadFailureMessage(error)),
       );
     } finally {
       setUploading(false);

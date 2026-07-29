@@ -5,6 +5,10 @@ import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 
 import { mapWithConcurrency } from '@shared/async.utils';
 import type { StoredSourceObject } from '@shared/api.interface';
+import {
+  createUploadAbortError,
+  runWithUploadDeadline,
+} from '@/utils/upload-error';
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
@@ -34,12 +38,6 @@ export interface StoredSourceDeletionResult {
 
 interface MediaUploadOptions {
   signal?: AbortSignal;
-}
-
-function createUploadAbortError(): Error {
-  const error = new Error('上传已取消');
-  error.name = 'AbortError';
-  return error;
 }
 
 function throwIfUploadAborted(signal?: AbortSignal): void {
@@ -78,13 +76,16 @@ export async function uploadFile(
   options: MediaUploadOptions = {},
 ): Promise<UploadFileData> {
   throwIfUploadAborted(options.signal);
-  const dataloom = await getDataloom();
+  const dataloom = await runWithUploadDeadline(getDataloom(), options.signal);
   const bucketId: string = getDefaultBucketId();
   const bucket = dataloom.storage.from(bucketId);
   onPartProgress?.(0);
-  const result = await bucket.uploadFile(file, {
-    ...(file.type ? { contentType: file.type } : {}),
-  });
+  const result = await runWithUploadDeadline(
+    bucket.uploadFile(file, {
+      ...(file.type ? { contentType: file.type } : {}),
+    }),
+    options.signal,
+  );
   if (result.error) {
     throw result.error;
   }
@@ -93,9 +94,9 @@ export async function uploadFile(
     throw createUploadAbortError();
   }
   onPartProgress?.(file.size);
-  const signedUrlResult = await bucket.createSignedUrl(
-    result.data.file_path,
-    24 * 60 * 60,
+  const signedUrlResult = await runWithUploadDeadline(
+    bucket.createSignedUrl(result.data.file_path, 24 * 60 * 60),
+    options.signal,
   );
   if (signedUrlResult.error) {
     await bucket.remove([result.data.file_path]);
