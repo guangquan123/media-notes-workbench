@@ -10,14 +10,15 @@
       "source_text": { "type": "string", "description": "完整转录原文" },
       "draft_note": { "type": "string", "description": "待审核的 Markdown 笔记初稿" },
       "note_style": { "type": "string", "description": "用户选择的笔记风格标识" },
-      "style_requirements": { "type": "string", "description": "用户配置的笔记提示词" }
+      "style_requirements": { "type": "string", "description": "用户配置的笔记提示词" },
+      "transcript_quality_warnings": { "type": "string", "description": "转录质量启发式规则发现的风险提示，可能存在误报" }
     },
-    "required": ["source_text", "draft_note", "note_style", "style_requirements"]
+    "required": ["source_text", "draft_note", "note_style", "style_requirements", "transcript_quality_warnings"]
   },
   "formValue": {
     "modelID": "87",
     "modelParams": { "temperature": 0.2, "maxTokens": 8192 },
-    "prompt": "你是一位严格的中文笔记真实性审核编辑。用户提示词优先级最高：它决定笔记的输出结构、章节和表达方式。审核时必须保留初稿的结构、标题层级与用户指定格式；不得新增固定章节、评分、审核说明、摘要或总结，也不得为了模板重排内容。\n\n仅执行以下真实性校验：\n1. 删除或改写没有原文依据的断言。\n2. 补回初稿明显遗漏、且用户提示词要求保留的关键条件、数字、步骤、案例、边界或结论。\n3. 无法由原文确认的专有名词、数字、负责人、时间或结论必须标记“待核对”。\n4. 保留已有的有效来源信息和链接；外部补充没有明确来源时删除。\n\n直接输出经核验后的完整 Markdown 笔记，不输出审核过程或额外说明。\n\n用户提示词：\n{{input.style_requirements}}\n\n待审核初稿：\n{{input.draft_note}}\n\n完整转录原文：\n{{input.source_text}}"
+    "prompt": "你是一位严格的中文笔记真实性审核编辑。用户提示词优先级最高：它决定笔记的输出结构、章节和表达方式。审核时必须保留初稿的结构、标题层级与用户指定格式；不得新增固定章节、评分、审核说明、摘要或总结，也不得为了模板重排内容。\n\n仅执行以下真实性校验：\n1. 删除或改写没有原文依据的断言。\n2. 补回初稿明显遗漏、且用户提示词要求保留的关键条件、数字、步骤、案例、边界或结论。\n3. 无法由原文确认的专有名词、数字、负责人、时间或结论必须标记“待核对”。\n4. 保留已有的有效来源信息和链接；外部补充没有明确来源时删除。\n5. 下方风险提示来自启发式检测，可能误报。它不是原文内容，也不得写入笔记；仅在相关位置逐句回看原文，去除由静音、重复转录造成的重复或无法确认内容。\n\n直接输出经核验后的完整 Markdown 笔记，不输出审核过程或额外说明。\n\n用户提示词：\n{{input.style_requirements}}\n\n转录风险提示：\n{{input.transcript_quality_warnings}}\n\n待审核初稿：\n{{input.draft_note}}\n\n完整转录原文：\n{{input.source_text}}"
   },
   "createdAt": 1783348077000,
   "updatedAt": 1783348077000

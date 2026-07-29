@@ -702,8 +702,11 @@ export class NoteJobsService {
       }
       const transcriptQuality = assessTranscriptQuality(archiveTranscript);
       if (transcriptQuality.requiresReview) {
-        throw new Error(
-          `原文质量需要人工核验（${transcriptQuality.warnings.join('；')}）。已归档原文，未自动生成学习笔记。`,
+        this.update(
+          id,
+          'summarizing',
+          70,
+          `检测到转录风险（${transcriptQuality.warnings.join('；')}），正在进行增强核验…`,
         );
       }
 
@@ -747,6 +750,7 @@ export class NoteJobsService {
         noteStyle: input.noteStyle,
         styleRequirements,
         transcript,
+        transcriptQualityWarnings: transcriptQuality.warnings,
       });
       if (
         input.visualOptions.mode === 'review' &&
@@ -2093,6 +2097,7 @@ export class NoteJobsService {
     noteStyle: NoteStyle;
     styleRequirements: string;
     transcript: string;
+    transcriptQualityWarnings: string[];
   }): Promise<string> {
     const pluginInstanceId = 'note-quality-reviewer';
     const actionKey = 'textGenerate';
@@ -2102,6 +2107,7 @@ export class NoteJobsService {
       note_style: input.noteStyle,
       source_text: input.transcript,
       style_requirements: input.styleRequirements,
+      transcript_quality_warnings: input.transcriptQualityWarnings.join('；'),
     };
     try {
       return await this.callCapabilityTextWithRateLimitRetry({

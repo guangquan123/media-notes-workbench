@@ -22,4 +22,15 @@ describe('transcript quality', () => {
       ),
     ).toEqual({ requiresReview: false, warnings: [] });
   });
+
+  it('reports a possible issue without making the transcript unusable', () => {
+    const result = assessTranscriptQuality(
+      Array.from({ length: 12 }, () => '这个流程需要确认。').join('\n'),
+    );
+
+    expect(result).toMatchObject({ requiresReview: true });
+    expect(result.warnings).toContain(
+      '检测到高频重复短语，可能存在转录重复或幻觉',
+    );
+  });
 });
