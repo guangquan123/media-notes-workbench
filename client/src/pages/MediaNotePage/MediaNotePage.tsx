@@ -184,10 +184,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
-    allowExternalAi: false,
-    density: 'standard',
-    mode: 'automatic',
-    outputMode: 'original',
+    mode: 'disabled',
   });
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
@@ -393,12 +390,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setJob(null);
     setFiles([]);
     setNoteStyle('learning');
-    setVisualOptions({
-      allowExternalAi: false,
-      density: 'standard',
-      mode: 'automatic',
-      outputMode: 'original',
-    });
+    setVisualOptions({ mode: 'disabled' });
     setUploadedBytes(0);
     setUploadPartLabel('');
   };

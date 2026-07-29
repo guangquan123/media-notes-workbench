@@ -47,14 +47,7 @@ export function validateFrameSelectionRequest(
 export function normalizeVisualOptions(
   input: NoteVisualOptions | undefined,
 ): NoteVisualOptions {
-  if (!input) {
-    return {
-      allowExternalAi: false,
-      density: 'standard',
-      mode: 'automatic',
-      outputMode: 'original',
-    };
-  }
+  if (!input) return { mode: 'disabled' };
   if (input.mode === 'disabled') return { mode: 'disabled' };
   return {
     allowExternalAi: input.allowExternalAi === true,

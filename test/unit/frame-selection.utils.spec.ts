@@ -24,13 +24,8 @@ function frame(
 }
 
 describe('frame selection', () => {
-  it('keeps automatic original screenshots but never opts into external AI', () => {
-    expect(normalizeVisualOptions(undefined)).toEqual({
-      allowExternalAi: false,
-      density: 'standard',
-      mode: 'automatic',
-      outputMode: 'original',
-    });
+  it('defaults to skipping image processing until the user explicitly enables it', () => {
+    expect(normalizeVisualOptions(undefined)).toEqual({ mode: 'disabled' });
     expect(
       normalizeVisualOptions({
         allowExternalAi: false,

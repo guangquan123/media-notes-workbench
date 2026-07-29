@@ -70,6 +70,7 @@ import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
 import { buildVisualWarnings, selectKeyFrames } from './frame-selection.utils';
+import { assessTranscriptQuality } from './transcript-quality.utils';
 import {
   buildEnergyEnvelope,
   estimateAudioAlignment,
@@ -105,6 +106,18 @@ interface PreparedPairedMedia {
   sourceUrl: string;
   videoAudioPath: string;
   videoPath: string;
+}
+
+interface PreparedAudioSource {
+  audioPath: string;
+  fileName: string;
+}
+
+interface PreparedMedia {
+  audioSources: PreparedAudioSource[];
+  metadata: VideoMetadata;
+  sourceLabel: string;
+  sourceUrl: string;
 }
 
 interface SourceProfile {
@@ -608,43 +621,59 @@ export class NoteJobsService {
         keyFrames = extractedFrames;
       } else if (preparedMedia) {
         this.update(id, 'transcribing', 44, '音频已就绪，正在转成文字…');
-        let audioParts: string[] = [];
+        const audioPartsBySource: string[][] = await mapWithConcurrency(
+          preparedMedia.audioSources,
+          2,
+          async (source: PreparedAudioSource, index: number): Promise<string[]> =>
+            this.splitAudioIfNeeded(
+              source.audioPath,
+              workDir,
+              `chunk-${String(index).padStart(2, '0')}`,
+            ),
+        );
         if (input.sourceType !== 'audio') {
           const videoPaths = await this.findVideoPaths(workDir);
           if (videoPaths.length > 0) {
-            [audioParts, keyFrames] = await Promise.all([
-              this.splitAudioIfNeeded(preparedMedia.audioPath, workDir),
-              this.extractAndUploadFrames(
-                id,
-                workDir,
-                videoPaths,
-                input.visualOptions,
-                ownerId,
-              ),
-            ]);
-          } else {
-            audioParts = await this.splitAudioIfNeeded(
-              preparedMedia.audioPath,
+            keyFrames = await this.extractAndUploadFrames(
+              id,
               workDir,
+              videoPaths,
+              input.visualOptions,
+              ownerId,
             );
           }
-        } else {
-          audioParts = await this.splitAudioIfNeeded(
-            preparedMedia.audioPath,
-            workDir,
-          );
         }
         const transcripts: string[] = [];
-        for (let index = 0; index < audioParts.length; index += 1) {
-          if (audioParts.length > 1) {
-            this.update(
-              id,
-              'transcribing',
-              44 + Math.round((index / audioParts.length) * 20),
-              `正在转录第 ${index + 1}/${audioParts.length} 段音频…`,
-            );
+        const totalPartCount: number = audioPartsBySource.reduce(
+          (total: number, parts: string[]) => total + parts.length,
+          0,
+        );
+        let completedPartCount = 0;
+        for (
+          let sourceIndex = 0;
+          sourceIndex < audioPartsBySource.length;
+          sourceIndex += 1
+        ) {
+          const sourceParts: string[] = audioPartsBySource[sourceIndex];
+          const sourceTranscripts: string[] = [];
+          for (const audioPart of sourceParts) {
+            completedPartCount += 1;
+            if (totalPartCount > 1) {
+              this.update(
+                id,
+                'transcribing',
+                44 + Math.round((completedPartCount / totalPartCount) * 20),
+                `正在转录第 ${completedPartCount}/${totalPartCount} 段音频…`,
+              );
+            }
+            sourceTranscripts.push(await this.transcribe(id, audioPart));
           }
-          transcripts.push(await this.transcribe(id, audioParts[index]));
+          const sourceTranscript: string = sourceTranscripts.join('\n\n');
+          transcripts.push(
+            preparedMedia.audioSources.length > 1
+              ? `## 原始文件 ${sourceIndex + 1}：${preparedMedia.audioSources[sourceIndex].fileName}\n\n${sourceTranscript}`
+              : sourceTranscript,
+          );
         }
         transcript = transcripts.join('\n\n');
         archiveTranscript = transcript;
@@ -670,6 +699,12 @@ export class NoteJobsService {
       if (rawDocumentUrl) {
         this.patch(id, { rawDocumentUrl });
         await this.persistRawDocument(id, rawDocumentUrl);
+      }
+      const transcriptQuality = assessTranscriptQuality(archiveTranscript);
+      if (transcriptQuality.requiresReview) {
+        throw new Error(
+          `原文质量需要人工核验（${transcriptQuality.warnings.join('；')}）。已归档原文，未自动生成学习笔记。`,
+        );
       }
 
       this.update(id, 'summarizing', 70, '原文已归档，正在检索补充依据…');
@@ -982,12 +1017,7 @@ export class NoteJobsService {
     rawUrl: string,
     sourcePlatform: SourcePlatform,
     cookieBrowser?: CreateNoteJobRequest['cookieBrowser'],
-  ): Promise<{
-    audioPath: string;
-    metadata: VideoMetadata;
-    sourceUrl: string;
-    sourceLabel: string;
-  }> {
+  ): Promise<PreparedMedia> {
     this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
     const url = normalizePlatformSourceUrl(rawUrl, sourcePlatform);
     const sourceArgs: string[] =
@@ -1019,7 +1049,7 @@ export class NoteJobsService {
       await rename(join(workDir, 'source.mp3'), audioPath);
     }
     return {
-      audioPath,
+      audioSources: [{ audioPath, fileName: metadata.title || '平台视频' }],
       metadata,
       sourceUrl: metadata.webpage_url || url,
       sourceLabel: this.getSourceLabel(sourcePlatform),
@@ -1030,70 +1060,72 @@ export class NoteJobsService {
     id: string,
     workDir: string,
     input: { sourceType: 'video' | 'audio'; mediaItems: UploadedMediaInput[] },
-  ): Promise<{
-    audioPath: string;
-    metadata: VideoMetadata;
-    sourceUrl: string;
-    sourceLabel: string;
-  }> {
+  ): Promise<PreparedMedia> {
     const sourceLabel: string =
       input.sourceType === 'video' ? '本地视频' : '录音文件';
-    const audioPaths: string[] = [];
-    for (let index = 0; index < input.mediaItems.length; index += 1) {
-      const media: UploadedMediaInput = input.mediaItems[index];
-      this.update(
-        id,
-        'preparing',
-        14 + Math.round((index / input.mediaItems.length) * 16),
-        `正在读取并提取第 ${index + 1}/${input.mediaItems.length} 个${sourceLabel}…`,
-      );
-      const extension: string =
-        media.fileName
-          .split('.')
-          .pop()
-          ?.replace(/[^a-z0-9]/giu, '') || 'media';
-      const sourcePath: string = join(workDir, `source-${index}.${extension}`);
-      const audioPath: string = join(workDir, `audio-${index}.mp3`);
-      await this.downloadUploadedMedia(id, media, sourcePath);
-      await this.measureStep(
-        id,
-        'extract_audio',
-        { fileName: media.fileName },
-        () =>
-          this.runCommand('ffmpeg', [
-            '-hide_banner',
-            '-loglevel',
-            'error',
-            '-i',
-            sourcePath,
-            '-vn',
-            '-codec:a',
-            'libmp3lame',
-            '-q:a',
-            '5',
-            '-y',
-            audioPath,
-          ]),
-      );
-      audioPaths.push(audioPath);
-    }
-    const audioPath: string = await this.mergeAudioFiles(audioPaths, workDir);
+    this.update(
+      id,
+      'preparing',
+      14,
+      `正在并行读取并提取 ${input.mediaItems.length} 个${sourceLabel}…`,
+    );
+    const audioSources: PreparedAudioSource[] = await mapWithConcurrency(
+      input.mediaItems,
+      2,
+      async (
+        media: UploadedMediaInput,
+        index: number,
+      ): Promise<PreparedAudioSource> => {
+        const extension: string =
+          media.fileName
+            .split('.')
+            .pop()
+            ?.replace(/[^a-z0-9]/giu, '') || 'media';
+        const sourcePath: string = join(
+          workDir,
+          `source-${index}.${extension}`,
+        );
+        const audioPath: string = join(workDir, `audio-${index}.mp3`);
+        await this.downloadUploadedMedia(id, media, sourcePath);
+        await this.measureStep(
+          id,
+          'extract_audio',
+          { fileName: media.fileName },
+          () =>
+            this.runCommand('ffmpeg', [
+              '-hide_banner',
+              '-loglevel',
+              'error',
+              '-i',
+              sourcePath,
+              '-vn',
+              '-codec:a',
+              'libmp3lame',
+              '-q:a',
+              '5',
+              '-y',
+              audioPath,
+            ]),
+        );
+        return { audioPath, fileName: media.fileName };
+      },
+    );
     const fileNames: string = input.mediaItems
       .map((media: UploadedMediaInput) => media.fileName)
       .join('、');
     return {
-      audioPath,
+      audioSources,
       metadata: {
         title:
           input.mediaItems.length > 1
-            ? `多视频合并：${input.mediaItems.length} 个视频`
+            ? `多视频：${input.mediaItems.length} 个视频`
             : input.mediaItems[0].fileName.replace(/[.][^.]+$/u, ''),
         uploader: '本地文件',
       },
       sourceUrl: `用户上传的本地文件：${fileNames}`,
       sourceLabel:
         input.mediaItems.length > 1
-          ? `本地视频（${input.mediaItems.length} 个合并）`
+          ? `本地视频（${input.mediaItems.length} 个文件）`
           : sourceLabel,
     };
   }

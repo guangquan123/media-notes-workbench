@@ -51,10 +51,7 @@ export default function PairedMediaNotesPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('meeting');
   const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
-    allowExternalAi: false,
-    density: 'standard',
-    mode: 'review',
-    outputMode: 'original',
+    mode: 'disabled',
   });
   const [alignmentMode, setAlignmentMode] =
     useState<PairedMediaAlignmentMode>('auto');
@@ -232,12 +229,7 @@ export default function PairedMediaNotesPage() {
     setNoteStyle('meeting');
     setAlignmentMode('auto');
     setManualOffsetSeconds('0');
-    setVisualOptions({
-      allowExternalAi: false,
-      density: 'standard',
-      mode: 'review',
-      outputMode: 'original',
-    });
+    setVisualOptions({ mode: 'disabled' });
     setUploadedBytes(0);
     setUploadLabel('');
   };

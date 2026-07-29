@@ -102,6 +102,7 @@ describe('note job request validation', () => {
       'lesson.mp4',
     );
     expect(result.noteStyle).toBe('learning');
+    expect(result.visualOptions).toEqual({ mode: 'disabled' });
   });
 
   it.each(['learning', 'meeting'] as const)(
