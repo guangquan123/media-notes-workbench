@@ -60,6 +60,9 @@ describe('NoteSummaryPipelineService', () => {
         if (instruction.includes('高精度内容提取员')) {
           return createTextStream(structuredLedger);
         }
+        if (instruction.includes('证据缺口审计员')) {
+          return createTextStream('NO_MISSING_EVIDENCE');
+        }
         if (instruction.includes('证据覆盖规划员')) {
           return createTextStream(
             '## 三、核心知识体系\n- [E-S01-001] 完整事实依据不能丢失',
@@ -95,7 +98,7 @@ describe('NoteSummaryPipelineService', () => {
     expect(result.markdown).toContain('[S01]');
     expect(result.markdown).not.toContain('E-S01-001');
     expect(result.quality.passed).toBe(true);
-    expect(callStream).toHaveBeenCalledTimes(4);
+    expect(callStream).toHaveBeenCalledTimes(5);
     const instructions: string[] = callStream.mock.calls.map(
       (call: unknown[]): string =>
         String((call[1] as Record<string, unknown>).task_instruction || ''),
@@ -110,6 +113,93 @@ describe('NoteSummaryPipelineService', () => {
         instruction.includes('独立事实审校员'),
       ),
     ).toBe(true);
+  });
+
+  it('adds facts found by the source-to-ledger gap audit before planning', async () => {
+    const firstEvidence: string = JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-001',
+      sourceId: 'S01',
+      statement: '平台提供提示词生成器。',
+      type: '事实',
+    });
+    const missingEvidence: string = JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-900',
+      quote: '节点定位时右侧变化，但中间画布没有同步跳转。',
+      sourceId: 'S01',
+      statement: '节点定位时右侧变化，但中间画布没有同步跳转。',
+      type: '风险',
+    });
+    const completeNote: string = `# 智能体培训笔记
+
+## 一、内容概览
+培训介绍提示词工具与画布问题。[E-S01-001][E-S01-002]
+
+## 二、核心结论与关键要点
+平台提供提示词生成器；节点定位存在画布不同步问题。[E-S01-001][E-S01-002]
+
+## 三、核心知识体系
+提示词生成器可辅助生成初稿。[E-S01-001]
+
+## 四、风险、误区与注意事项
+节点定位时右侧变化，但中间画布没有同步跳转。[E-S01-002]
+
+## 五、一页复习
+记住提示词生成器和画布定位问题。`;
+    const callStream = jest.fn(
+      async (
+        _actionKey: string,
+        input: Record<string, unknown>,
+      ): Promise<AsyncIterable<Record<string, unknown>>> => {
+        const instruction: string = String(input.task_instruction || '');
+        if (instruction.includes('高精度内容提取员')) {
+          return createTextStream(firstEvidence);
+        }
+        if (instruction.includes('证据缺口审计员')) {
+          expect(instruction).toContain('中间画布没有同步跳转');
+          return createTextStream(missingEvidence);
+        }
+        if (instruction.includes('证据覆盖规划员')) {
+          expect(instruction).toContain('E-S01-002');
+          expect(instruction).toContain('画布没有同步跳转');
+          return createTextStream(
+            '- [E-S01-001] 提示词生成器\n- [E-S01-002] 画布定位问题',
+          );
+        }
+        if (instruction.includes('独立事实审校员')) {
+          return createTextStream(
+            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
+          );
+        }
+        return createTextStream(completeNote);
+      },
+    );
+    const capabilityService = {
+      load: (): { callStream: typeof callStream } => ({ callStream }),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async (): Promise<undefined> => undefined,
+    } as unknown as ExternalModelSettingsService;
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+    );
+
+    const result = await service.generate({
+      noteStyle: 'learning',
+      onProgress: (): void => undefined,
+      sourceText:
+        '平台提供提示词生成器。节点定位时右侧变化，但中间画布没有同步跳转。',
+      sourceTitle: '智能体培训',
+      styleRequirements: '输出详细笔记。',
+    });
+
+    expect(result.evidenceLedger).toContain('E-S01-002');
+    expect(result.markdown).toContain('画布没有同步跳转');
+    expect(result.quality.passed).toBe(true);
   });
 
   it('repairs a contradiction reported by the independent fact audit', async () => {
@@ -159,6 +249,9 @@ describe('NoteSummaryPipelineService', () => {
         const instruction: string = String(input.task_instruction || '');
         if (instruction.includes('高精度内容提取员')) {
           return createTextStream(numericLedger);
+        }
+        if (instruction.includes('证据缺口审计员')) {
+          return createTextStream('NO_MISSING_EVIDENCE');
         }
         if (instruction.includes('证据覆盖规划员')) {
           return createTextStream('- [E-S01-001] 保留 3.5 以上边界');
@@ -238,6 +331,9 @@ ${detailedBody}
             `[${sourceId}][事实] ${'完整证据内容。'.repeat(1_800)}`,
           );
         }
+        if (instruction.includes('证据缺口审计员')) {
+          return createTextStream('NO_MISSING_EVIDENCE');
+        }
         if (instruction.includes('证据账本合并员')) {
           return createTextStream('[S01][事实] 压缩后只剩第一块。');
         }
@@ -287,6 +383,9 @@ ${detailedBody}
         if (instruction.includes('高精度内容提取员')) {
           return createTextStream('[S01][事实] 示例培训材料。');
         }
+        if (instruction.includes('证据缺口审计员')) {
+          return createTextStream('NO_MISSING_EVIDENCE');
+        }
         if (instruction.includes('证据覆盖规划员')) {
           return createTextStream('- 保留示例培训材料');
         }
@@ -320,6 +419,6 @@ ${detailedBody}
     expect(result.markdown).toBe(incompleteNote);
     expect(result.quality.passed).toBe(false);
     expect(result.quality.failedChecks.length).toBeGreaterThan(0);
-    expect(callStream).toHaveBeenCalledTimes(8);
+    expect(callStream).toHaveBeenCalledTimes(9);
   });
 });

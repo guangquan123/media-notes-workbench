@@ -1,6 +1,9 @@
-import type { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
+import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
+import { NestFactory } from '@nestjs/core';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { AppModule } from '../server/app.module';
+import type { ExternalModelCredentials } from '../server/modules/note-jobs/external-model-settings.service';
 import { ExternalModelSettingsService } from '../server/modules/note-jobs/external-model-settings.service';
 import { NoteSummaryPipelineService } from '../server/modules/note-jobs/note-summary-pipeline.service';
 
@@ -12,6 +15,14 @@ interface FidelityExpectation {
 interface FidelityExpectations {
   forbidden: FidelityExpectation[];
   required: FidelityExpectation[];
+}
+
+class DisabledExternalModelSettingsService extends ExternalModelSettingsService {
+  override async getCredentials(): Promise<
+    ExternalModelCredentials | undefined
+  > {
+    return undefined;
+  }
 }
 
 function countMatches(text: string, pattern: RegExp): number {
@@ -26,12 +37,18 @@ function getEffectiveLength(markdown: string): number {
 }
 
 async function main(): Promise<void> {
+  const useBuiltinModel: boolean = process.argv.includes('--builtin');
   const [sourceArg, referenceArg, expectationsArg, outputArg, candidateArg] =
-    process.argv.slice(2);
+    process.argv
+      .slice(2)
+      .filter((argument: string) => argument !== '--builtin');
   if (!sourceArg || !referenceArg || !expectationsArg || !outputArg) {
     throw new Error(
-      'Usage: ts-node scripts/run-note-fidelity-regression.ts <source.md> <reference.md> <expectations.json> <output.md> [existing-candidate.md]',
+      'Usage: ts-node scripts/run-note-fidelity-regression.ts <source.md> <reference.md> <expectations.json> <output.md> [existing-candidate.md] [--builtin]',
     );
+  }
+  if (candidateArg && useBuiltinModel) {
+    throw new Error('--builtin 不能与 existing-candidate.md 同时使用');
   }
   const sourceDocument: string = await readFile(resolve(sourceArg), 'utf8');
   const sourceMarker = '### 解析原文';
@@ -50,34 +67,47 @@ async function main(): Promise<void> {
   if (candidateArg) {
     markdown = await readFile(resolve(candidateArg), 'utf8');
   } else {
-    const unavailableCapabilityService = {
-      load: (): never => {
-        throw new Error('内置模型在本地保真回归中不可用');
-      },
-    } as unknown as CapabilityService;
-    const pipeline = new NoteSummaryPipelineService(
-      unavailableCapabilityService,
-      new ExternalModelSettingsService(),
-    );
-    const result = await pipeline.generate({
-      noteStyle: 'learning',
-      onProgress: (progress): void => {
-        process.stderr.write(
-          `[${progress.stage}] ${progress.modelName}${
-            progress.qualityScore === undefined
-              ? ''
-              : ` quality=${progress.qualityScore}`
-          }\n`,
-        );
-      },
-      sourceText,
-      sourceTitle: '智能体平台功能培训与项目实施要点',
-      styleRequirements:
-        '输出详细、可长期复用的学习笔记。事实以原始转写为准；详细主笔记必须先于一页复习，保留所有案例、数字、操作细节、产品边界、小Bug和不确定性。',
-    });
-    markdown = result.markdown;
-    quality = result.quality;
-    await writeFile(resolve(outputArg), markdown, 'utf8');
+    const application = useBuiltinModel
+      ? await NestFactory.createApplicationContext(AppModule, {
+          logger: ['error', 'warn'],
+        })
+      : undefined;
+    try {
+      const capabilityService: CapabilityService = application
+        ? application.get(CapabilityService)
+        : ({
+            load: (): never => {
+              throw new Error('内置模型在本地保真回归中不可用');
+            },
+          } as unknown as CapabilityService);
+      const pipeline = new NoteSummaryPipelineService(
+        capabilityService,
+        useBuiltinModel
+          ? new DisabledExternalModelSettingsService()
+          : new ExternalModelSettingsService(),
+      );
+      const result = await pipeline.generate({
+        noteStyle: 'learning',
+        onProgress: (progress): void => {
+          process.stderr.write(
+            `[${progress.stage}] ${progress.modelName}${
+              progress.qualityScore === undefined
+                ? ''
+                : ` quality=${progress.qualityScore}`
+            }\n`,
+          );
+        },
+        sourceText,
+        sourceTitle: '智能体平台功能培训与项目实施要点',
+        styleRequirements:
+          '输出详细、可长期复用的学习笔记。事实以原始转写为准；详细主笔记必须先于一页复习，保留所有案例、数字、操作细节、产品边界、小Bug和不确定性。',
+      });
+      markdown = result.markdown;
+      quality = result.quality;
+      await writeFile(resolve(outputArg), markdown, 'utf8');
+    } finally {
+      await application?.close().catch(() => undefined);
+    }
   }
 
   const requiredResults = expectations.required.map(
@@ -114,6 +144,11 @@ async function main(): Promise<void> {
       tables: countMatches(markdown, /^\|.*\|$/gmu),
     },
     output: resolve(candidateArg || outputArg),
+    provider: candidateArg
+      ? 'existing_candidate'
+      : useBuiltinModel
+        ? 'builtin'
+        : 'external_with_builtin_fallback',
     quality,
     requiredResults,
   };

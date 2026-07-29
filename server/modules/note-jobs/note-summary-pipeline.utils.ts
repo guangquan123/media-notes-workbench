@@ -272,6 +272,7 @@ const NUMERIC_OPERATORS: ReadonlySet<string> = new Set<string>([
   'decrease',
   'range',
 ]);
+const NO_MISSING_EVIDENCE_MARKER = 'NO_MISSING_EVIDENCE';
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -440,6 +441,9 @@ export function parseEvidenceLedger(evidenceLedger: string): EvidenceRecord[] {
 export function normalizeStructuredEvidenceLedger(
   evidenceLedger: string,
 ): string {
+  if (/^(?:\[S\d+\])+\[[^\]]+\]\s*.+$/mu.test(evidenceLedger)) {
+    return evidenceLedger;
+  }
   const candidateLines: string[] = evidenceLedger
     .split('\n')
     .map((line: string): string => line.trim())
@@ -473,6 +477,31 @@ export function normalizeStructuredEvidenceLedger(
       });
     })
     .join('\n');
+}
+
+export function mergeEvidenceGapAudit(
+  evidenceLedger: string,
+  auditResult: string,
+  sourceText: string,
+): string {
+  if (auditResult.trim() === NO_MISSING_EVIDENCE_MARKER) {
+    return evidenceLedger;
+  }
+  const supplementalRecords: EvidenceRecord[] =
+    parseEvidenceLedger(auditResult);
+  if (supplementalRecords.length === 0) {
+    throw new Error('证据缺口审计结果不可解析');
+  }
+  const invalidGrounding: EvidenceRecord | undefined = supplementalRecords.find(
+    (record: EvidenceRecord): boolean =>
+      !record.quote || !sourceText.includes(record.quote),
+  );
+  if (invalidGrounding) {
+    throw new Error(`证据缺口审计条目 ${invalidGrounding.id} 缺少有效原文引用`);
+  }
+  return normalizeStructuredEvidenceLedger(
+    `${evidenceLedger.trim()}\n${auditResult.trim()}`,
+  );
 }
 
 function extractExplicitEvidenceIds(evidenceLedger: string): Set<string> {
@@ -946,6 +975,36 @@ ${PIPELINE_TRUTHFULNESS_RULES}
 ---BEGIN SOURCE---
 ${chunk.content}
 ---END SOURCE---`;
+}
+
+export function buildEvidenceGapAuditPrompt(
+  chunk: SourceTextChunk,
+  evidenceLedger: string,
+): string {
+  const sourceId: string = `S${String(chunk.index).padStart(2, '0')}`;
+  return `你是独立证据缺口审计员。请逐句比较原文分块和现有证据账本，只找出账本真正遗漏的信息，不要重写已有证据。
+
+${PIPELINE_TRUTHFULNESS_RULES}
+
+审计规则：
+1. 检查每个独有事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧和待研究问题是否已经进入账本。
+2. 特别检查小功能、操作细节、产品边界、Bug、数字主体、单位、以上/以下、增加/减少、模糊表达和说话人不确定性。
+3. 只输出真正遗漏的证据，不得重复、改写或扩展账本已有内容，不得补充原文外信息。
+4. 有遗漏时输出严格 JSON Lines，每行一个对象；字段与提取阶段一致。id 使用 E-${sourceId}-900 起的临时编号，sourceId 固定为 ${sourceId}。系统会在合并后重新编号。
+5. 数字证据必须包含 numericClaims，保留 subject、value、unit、operator、relatedValue 和 qualifier 中原文能够确认的字段。
+6. 每条遗漏证据都必须填写 quote，逐字复制能够支持该条 statement 的最短原文片段；系统会验证 quote 确实存在于当前原文分块。不得把概括改写放入 quote。
+7. 不确定内容使用 certainty=uncertain；疑似转写错误设置 asrRisk=high 并在 statement 中标记【待人工确认】。
+8. 确认没有任何遗漏时，只输出 ${NO_MISSING_EVIDENCE_MARKER}，不得输出解释、代码围栏或其他文字。
+
+原文分块 [${sourceId}]：
+---BEGIN SOURCE CHUNK---
+${chunk.content}
+---END SOURCE CHUNK---
+
+现有证据账本：
+---BEGIN CURRENT EVIDENCE LEDGER---
+${evidenceLedger}
+---END CURRENT EVIDENCE LEDGER---`;
 }
 
 export function buildEvidenceMergePrompt(evidenceLedger: string): string {

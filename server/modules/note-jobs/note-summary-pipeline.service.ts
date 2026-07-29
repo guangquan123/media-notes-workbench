@@ -12,12 +12,14 @@ import {
   assessNoteQuality,
   buildEvidenceCoveragePlanPrompt,
   buildEvidenceExtractionPrompt,
+  buildEvidenceGapAuditPrompt,
   buildEvidenceMergePrompt,
   buildNoteFactAuditPrompt,
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
   completeEvidenceCoveragePlan,
   formatFactAuditFailures,
+  mergeEvidenceGapAudit,
   normalizeEvidenceCitationsForPublication,
   normalizeStructuredEvidenceLedger,
   parseNoteFactAudit,
@@ -75,7 +77,7 @@ export interface GenerateHighQualityNoteResult {
   quality: NoteQualityAssessment;
 }
 
-const PIPELINE_ENGINE_VERSION = 'note-summary-v3-fidelity-20260729';
+const PIPELINE_ENGINE_VERSION = 'note-summary-v3-source-audit-20260729';
 const EVIDENCE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const EVIDENCE_CACHE_LIMIT = 20;
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -300,17 +302,32 @@ export class NoteSummaryPipelineService {
       chunks,
       2,
       async (chunk: SourceTextChunk): Promise<string> => {
-        const result: PipelineModelResult = await this.generateModelText(
-          buildEvidenceExtractionPrompt(chunk, chunks.length),
-          8_000,
+        const extractionResult: PipelineModelResult =
+          await this.generateModelText(
+            buildEvidenceExtractionPrompt(chunk, chunks.length),
+            8_000,
+          );
+        input.onProgress({
+          attempt: chunk.index,
+          modelName: extractionResult.modelName,
+          provider: extractionResult.provider,
+          stage: 'extracting',
+        });
+        const auditResult: PipelineModelResult = await this.generateModelText(
+          buildEvidenceGapAuditPrompt(chunk, extractionResult.text),
+          6_000,
         );
         input.onProgress({
           attempt: chunk.index,
-          modelName: result.modelName,
-          provider: result.provider,
+          modelName: auditResult.modelName,
+          provider: auditResult.provider,
           stage: 'extracting',
         });
-        return result.text;
+        return mergeEvidenceGapAudit(
+          extractionResult.text,
+          auditResult.text,
+          chunk.content,
+        );
       },
     );
     const evidenceLedger: string = await this.compactEvidenceLedger(

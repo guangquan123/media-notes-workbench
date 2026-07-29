@@ -3,6 +3,7 @@ import {
   assessNoteQuality,
   buildEvidenceExtractionPrompt,
   buildEvidenceCoveragePlanPrompt,
+  buildEvidenceGapAuditPrompt,
   buildEvidenceMergePrompt,
   buildNoteFactAuditPrompt,
   buildNoteRepairPrompt,
@@ -12,6 +13,7 @@ import {
   completeEvidenceCoveragePlan,
   normalizeEvidenceCitationsForPublication,
   normalizeStructuredEvidenceLedger,
+  mergeEvidenceGapAudit,
   parseEvidenceLedger,
   parseNoteFactAudit,
   preserveSourceMarkdownImages,
@@ -279,6 +281,81 @@ describe('note summary pipeline utilities', () => {
     expect(prompt).toContain('转写原话');
     expect(prompt).toContain('[S01]');
     expect(prompt).toContain('不得补充');
+  });
+
+  it('builds a source-to-ledger audit prompt that looks only for omissions', () => {
+    const [chunk] = splitSourceText(
+      '[82:02] 平台导入 361 人，客户总用户约 12000 人，活跃 102 人。',
+      200,
+    );
+    const prompt: string = buildEvidenceGapAuditPrompt(
+      chunk,
+      structuredEvidenceLedger,
+    );
+
+    expect(prompt).toContain('证据缺口审计员');
+    expect(prompt).toContain('原文分块');
+    expect(prompt).toContain('现有证据账本');
+    expect(prompt).toContain('只输出真正遗漏');
+    expect(prompt).toContain('NO_MISSING_EVIDENCE');
+  });
+
+  it('merges missing evidence and deterministically repairs duplicate IDs', () => {
+    const supplement: string = JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-001',
+      quote: '节点定位时右侧变化，但中间画布没有同步跳转。',
+      sourceId: 'S01',
+      statement: '节点定位时右侧变化，但中间画布没有同步跳转。',
+      type: '风险',
+    });
+
+    const merged = parseEvidenceLedger(
+      mergeEvidenceGapAudit(
+        structuredEvidenceLedger,
+        supplement,
+        '节点定位时右侧变化，但中间画布没有同步跳转。',
+      ),
+    );
+
+    expect(merged).toHaveLength(3);
+    expect(merged.map((record) => record.id)).toEqual([
+      'E-S01-001',
+      'E-S02-001',
+      'E-S01-002',
+    ]);
+    expect(merged[2].statement).toContain('画布');
+  });
+
+  it('keeps the original ledger when the gap audit reports no omission', () => {
+    expect(
+      mergeEvidenceGapAudit(
+        structuredEvidenceLedger,
+        'NO_MISSING_EVIDENCE',
+        '原文内容',
+      ),
+    ).toBe(structuredEvidenceLedger);
+  });
+
+  it('rejects gap-audit evidence without an exact source quote', () => {
+    const fabricatedSupplement: string = JSON.stringify({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-900',
+      quote: '原文中不存在的逐字引用',
+      sourceId: 'S01',
+      statement: '系统支持不存在的功能。',
+      type: '事实',
+    });
+
+    expect(() =>
+      mergeEvidenceGapAudit(
+        structuredEvidenceLedger,
+        fabricatedSupplement,
+        '这里只提到了提示词生成器。',
+      ),
+    ).toThrow('缺少有效原文引用');
   });
 
   it('builds a lossless evidence merge prompt for long ledgers', () => {
