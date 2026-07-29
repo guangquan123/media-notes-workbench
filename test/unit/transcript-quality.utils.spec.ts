@@ -1,4 +1,7 @@
-import { assessTranscriptQuality } from '../../server/modules/note-jobs/transcript-quality.utils';
+import {
+  assessTranscriptQuality,
+  formatTranscriptQualityWarnings,
+} from '../../server/modules/note-jobs/transcript-quality.utils';
 
 describe('transcript quality', () => {
   it('requires review when the transcript contains a long filler-only run', () => {
@@ -31,6 +34,32 @@ describe('transcript quality', () => {
     expect(result).toMatchObject({ requiresReview: true });
     expect(result.warnings).toContain(
       '检测到高频重复短语，可能存在转录重复或幻觉',
+    );
+  });
+
+  it.each([
+    ['录音', '本次录音讨论了项目范围、成本和后续行动。'],
+    ['视频', '本节视频讲解了数据治理项目的验收标准。'],
+    ['视频和录音混合', '混合素材已经完成对齐，并保留了双方的原始表达。'],
+  ])(
+    'passes a non-empty no-risk warning to the reviewer for %s',
+    (_sourceType: string, transcript: string) => {
+      const result = assessTranscriptQuality(transcript);
+
+      expect(formatTranscriptQualityWarnings(result.warnings)).toBe(
+        '未检测到转录质量风险。',
+      );
+    },
+  );
+
+  it('preserves detected warnings for the reviewer', () => {
+    expect(
+      formatTranscriptQualityWarnings([
+        '检测到高频重复短语，可能存在转录重复或幻觉',
+        '检测到连续语气词，可能存在静音或识别异常',
+      ]),
+    ).toBe(
+      '检测到高频重复短语，可能存在转录重复或幻觉；检测到连续语气词，可能存在静音或识别异常',
     );
   });
 });

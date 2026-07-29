@@ -6,6 +6,7 @@ export interface TranscriptQualityResult {
 const FILLER_RUN_PATTERN = /(?:[嗯呃啊哦唔诶]+[\s,，。！？、]*){8,}/gu;
 const PHRASE_LENGTH = 4;
 const REPETITION_THRESHOLD = 10;
+const NO_TRANSCRIPT_QUALITY_WARNINGS = '未检测到转录质量风险。';
 
 export function assessTranscriptQuality(
   transcript: string,
@@ -19,6 +20,12 @@ export function assessTranscriptQuality(
     warnings.push('检测到高频重复短语，可能存在转录重复或幻觉');
   }
   return { requiresReview: warnings.length > 0, warnings };
+}
+
+export function formatTranscriptQualityWarnings(warnings: string[]): string {
+  return warnings.length > 0
+    ? warnings.join('；')
+    : NO_TRANSCRIPT_QUALITY_WARNINGS;
 }
 
 function hasExcessivelyRepeatedPhrase(text: string): boolean {

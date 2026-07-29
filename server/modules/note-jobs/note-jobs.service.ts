@@ -70,7 +70,10 @@ import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
 import { buildVisualWarnings, selectKeyFrames } from './frame-selection.utils';
-import { assessTranscriptQuality } from './transcript-quality.utils';
+import {
+  assessTranscriptQuality,
+  formatTranscriptQualityWarnings,
+} from './transcript-quality.utils';
 import {
   buildEnergyEnvelope,
   estimateAudioAlignment,
@@ -2184,7 +2187,9 @@ export class NoteJobsService {
       note_style: input.noteStyle,
       source_text: input.transcript,
       style_requirements: input.styleRequirements,
-      transcript_quality_warnings: input.transcriptQualityWarnings.join('；'),
+      transcript_quality_warnings: formatTranscriptQualityWarnings(
+        input.transcriptQualityWarnings,
+      ),
     };
     try {
       return await this.callCapabilityTextWithRateLimitRetry({
