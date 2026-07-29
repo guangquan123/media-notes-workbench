@@ -162,6 +162,110 @@ describe('note summary pipeline utilities', () => {
     expect(result.numberCoverage).toBe(1);
   });
 
+  it('does not treat source and speaker identifiers as important numbers', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'learning',
+      note: `# 示例
+
+## 内容概览
+内容概览。
+## 核心结论与关键要点
+关键要点。
+## 核心知识体系
+> 转写原话：“示例。”
+## 一页复习
+复习内容。`,
+      sourceText:
+        '[来源 1：培训.txt]\n[00:03] 发言人1：示例。\n[00:06] 发言人2：补充示例。',
+    });
+
+    expect(result.sourceNumberCount).toBe(0);
+    expect(result.numberCoverage).toBe(1);
+  });
+
+  it('uses explicit numeric evidence instead of every source digit', () => {
+    const result = assessNoteQuality({
+      evidenceLedger: [
+        '[S01][事实] 平台有 4 种模板。',
+        '[S01][数字] 项目包含 12 个数据库。',
+        '[S01][数字] 改造投入 3 名工程人员。',
+      ].join('\n'),
+      noteStyle: 'learning',
+      note: `# 项目培训笔记
+
+## 内容概览
+本次培训说明项目的数据库改造背景。
+
+## 核心结论与关键要点
+项目包含 12 个数据库，改造投入 3 名工程人员。
+
+## 核心知识体系
+> 转写原话：“数据库改造需要评估工程投入。”
+
+## 一页复习
+必须记住 12 个数据库和 3 名工程人员两个关键规模信息。`,
+      sourceText: '平台有 4 种模板，项目包含 12 个数据库，改造投入 3 名工程人员。',
+    });
+
+    expect(result.sourceNumberCount).toBe(2);
+    expect(result.numberCoverage).toBe(1);
+  });
+
+  it('treats number coverage as a repair signal instead of a hard failure', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'learning',
+      note: `# 数据培训笔记
+
+## 内容概览
+本次培训说明数据平台的建设背景、范围与使用方式，并整理后续复习所需的核心知识。
+
+## 核心结论与关键要点
+平台当前包含 1 个核心实例。其余规模数字需要结合原始材料继续核对，不应脱离上下文机械罗列。
+
+## 核心知识体系
+> 转写原话：“平台建设需要同时考虑使用规模、实施投入和长期维护。”
+
+核心知识包括实例规划、数据范围、实施成本与维护边界。数字只有在能解释业务含义时才应进入正文，不能为了通过规则而堆砌。
+
+## 一页复习
+必须理解：总结应保留真正影响判断的数字，同时维持信息上下文和可追溯性。`,
+      sourceText:
+        '平台有 1 个实例、12 个数据库、30 个接口和 60 个功能，需要结合上下文评估。',
+    });
+
+    expect(result.numberCoverage).toBe(0.25);
+    expect(result.failedChecks.join('\n')).toContain('数字覆盖率');
+    expect(result.score).toBeGreaterThanOrEqual(80);
+    expect(result.passed).toBe(true);
+  });
+
+  it('does not mistake a readable markdown list for one long paragraph', () => {
+    const longList: string = Array.from(
+      { length: 20 },
+      (_: unknown, index: number): string =>
+        `- 要点 ${index + 1}：${'说明'.repeat(20)}`,
+    ).join('\n');
+    const result = assessNoteQuality({
+      noteStyle: 'learning',
+      note: `# 列表培训笔记
+
+## 内容概览
+本次培训使用列表整理要点。
+
+## 核心结论与关键要点
+${longList}
+
+## 核心知识体系
+> 转写原话：“列表用于拆分不同观点。”
+
+## 一页复习
+按条目复习。`,
+      sourceText: '列表用于拆分不同观点。',
+    });
+
+    expect(result.failedChecks.join('\n')).not.toContain('600 字');
+  });
+
   it('accepts a dense learning note with adaptive modules and number coverage', () => {
     const sourceText: string =
       '客户只有 1 个实例，需要承载 12 个产品库，许可证约 30 万，改造用了 3 个工程月。改造后版本无法升级。';

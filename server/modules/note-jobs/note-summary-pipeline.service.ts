@@ -98,6 +98,7 @@ export class NoteSummaryPipelineService {
 
     let markdown: string = structureResult.text;
     let quality: NoteQualityAssessment = assessNoteQuality({
+      evidenceLedger,
       note: markdown,
       noteStyle: input.noteStyle,
       sourceText: input.sourceText,
@@ -132,6 +133,7 @@ export class NoteSummaryPipelineService {
       markdown = repairResult.text;
       finalModel = repairResult;
       quality = assessNoteQuality({
+        evidenceLedger,
         note: markdown,
         noteStyle: input.noteStyle,
         sourceText: input.sourceText,

@@ -13,6 +13,7 @@ interface NoteRepairPromptInput extends NoteStructurePromptInput {
 }
 
 interface NoteQualityInput {
+  evidenceLedger?: string;
   note: string;
   noteStyle: NoteStyle;
   sourceText: string;
@@ -141,6 +142,8 @@ function getUnexpectedMeetingSections(note: string): string[] {
 function extractSignificantNumbers(text: string): Set<string> {
   const values: Set<string> = new Set<string>();
   const contentWithoutLocations: string = text
+    .replace(/^\[来源\s+\d+[^\]]*\]\s*$/gmu, ' ')
+    .replace(/发言人\d+(?=\s*[:：])/gu, '发言人')
     .replace(/\[?\d{1,2}:\d{2}(?::\d{2})?\]?/gu, ' ')
     .replace(/https?:\/\/\S+/gu, ' ');
   const matches: IterableIterator<RegExpMatchArray> =
@@ -152,6 +155,17 @@ function extractSignificantNumbers(text: string): Set<string> {
     values.add(normalized);
   }
   return values;
+}
+
+function extractEvidenceLedgerNumbers(evidenceLedger: string): Set<string> {
+  const numericEvidence: string = evidenceLedger
+    .split('\n')
+    .filter((line: string): boolean => /\]\[数字\]/u.test(line))
+    .map((line: string): string =>
+      line.replace(/^(?:\[S\d+\])+\[数字\]\s*/u, ''),
+    )
+    .join('\n');
+  return extractSignificantNumbers(numericEvidence);
 }
 
 function calculateNumberCoverage(
@@ -185,12 +199,46 @@ function hasTraceabilitySignal(note: string, noteStyle: NoteStyle): boolean {
 }
 
 function hasOverlongParagraph(note: string): boolean {
-  return note
-    .split(/\n\s*\n/gu)
-    .some(
-      (paragraph: string): boolean =>
-        !paragraph.trimStart().startsWith('|') && paragraph.trim().length > 600,
-    );
+  let proseParagraph = '';
+  const flushProseParagraph = (): boolean => {
+    const overlong: boolean = proseParagraph.trim().length > 600;
+    proseParagraph = '';
+    return overlong;
+  };
+  let insideCodeFence = false;
+
+  for (const line of note.split('\n')) {
+    const trimmed: string = line.trim();
+    if (trimmed.startsWith('```')) {
+      if (flushProseParagraph()) return true;
+      insideCodeFence = !insideCodeFence;
+      continue;
+    }
+    if (insideCodeFence) continue;
+
+    const isStructuralLine: boolean =
+      !trimmed ||
+      /^#{1,6}\s/u.test(trimmed) ||
+      /^>\s?/u.test(trimmed) ||
+      /^\|/u.test(trimmed) ||
+      /^(?:[-+*]|\d+[.)])\s+/u.test(trimmed);
+    if (isStructuralLine) {
+      if (flushProseParagraph()) return true;
+      const listItemContent: string = trimmed.replace(
+        /^(?:[-+*]|\d+[.)])\s+/u,
+        '',
+      );
+      if (listItemContent !== trimmed && listItemContent.length > 600) {
+        return true;
+      }
+      continue;
+    }
+
+    proseParagraph = proseParagraph
+      ? `${proseParagraph}\n${trimmed}`
+      : trimmed;
+  }
+  return flushProseParagraph();
 }
 
 export function splitSourceText(
@@ -377,9 +425,9 @@ export function assessNoteQuality(
     input.noteStyle === 'meeting'
       ? getUnexpectedMeetingSections(input.note)
       : [];
-  const sourceNumbers: Set<string> = extractSignificantNumbers(
-    input.sourceText,
-  );
+  const sourceNumbers: Set<string> = input.evidenceLedger
+    ? extractEvidenceLedgerNumbers(input.evidenceLedger)
+    : extractSignificantNumbers(input.sourceText);
   const numberCoverage: number = calculateNumberCoverage(
     sourceNumbers,
     input.note,
@@ -444,7 +492,6 @@ export function assessNoteQuality(
   const hasHardFailure: boolean =
     missingSections.length > 0 ||
     unexpectedSections.length > 0 ||
-    (sourceNumbers.size >= 3 && numberCoverage < 0.7) ||
     !traceable;
   return {
     failedChecks,
