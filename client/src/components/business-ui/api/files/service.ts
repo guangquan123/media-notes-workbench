@@ -32,6 +32,35 @@ export interface StoredSourceDeletionResult {
   failures: Array<{ message: string; objectId: string }>;
 }
 
+interface MediaUploadOptions {
+  signal?: AbortSignal;
+}
+
+function createUploadAbortError(): Error {
+  const error = new Error('上传已取消');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfUploadAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw createUploadAbortError();
+}
+
+function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    throwIfUploadAborted(signal);
+    const handleAbort = (): void => {
+      window.clearTimeout(timer);
+      reject(createUploadAbortError());
+    };
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort);
+      resolve();
+    }, delayMs);
+    signal?.addEventListener('abort', handleAbort, { once: true });
+  });
+}
+
 export function toStoredSourceObject(
   file: UploadFileData,
 ): StoredSourceObject {
@@ -46,7 +75,9 @@ export function toStoredSourceObject(
 export async function uploadFile(
   file: File,
   onPartProgress?: (uploadedBytes: number) => void,
+  options: MediaUploadOptions = {},
 ): Promise<UploadFileData> {
+  throwIfUploadAborted(options.signal);
   const dataloom = await getDataloom();
   const bucketId: string = getDefaultBucketId();
   const bucket = dataloom.storage.from(bucketId);
@@ -57,6 +88,10 @@ export async function uploadFile(
   if (result.error) {
     throw result.error;
   }
+  if (options.signal?.aborted) {
+    await bucket.remove([result.data.file_path]).catch(() => undefined);
+    throw createUploadAbortError();
+  }
   onPartProgress?.(file.size);
   const signedUrlResult = await bucket.createSignedUrl(
     result.data.file_path,
@@ -65,6 +100,10 @@ export async function uploadFile(
   if (signedUrlResult.error) {
     await bucket.remove([result.data.file_path]);
     throw signedUrlResult.error;
+  }
+  if (options.signal?.aborted) {
+    await bucket.remove([result.data.file_path]).catch(() => undefined);
+    throw createUploadAbortError();
   }
 
   return {
@@ -79,7 +118,9 @@ export async function uploadFile(
 export async function uploadMediaFile(
   file: File,
   onProgress?: (progress: MediaUploadProgress) => void,
+  options: MediaUploadOptions = {},
 ): Promise<UploadFileData[]> {
+  throwIfUploadAborted(options.signal);
   const startedAt: number = performance.now();
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
     const upload: UploadFileData = await uploadMediaPart(
@@ -91,6 +132,7 @@ export async function uploadMediaFile(
           totalBytes: file.size,
           uploadedBytes,
         }),
+      options,
     );
     const uploads: UploadFileData[] = [upload];
     logMediaUploadMetric(file, startedAt, uploads.length);
@@ -143,10 +185,12 @@ export async function uploadMediaFile(
               ),
             });
           },
+          options,
         );
         completedUploads.push(upload);
         return upload;
       },
+      { signal: options.signal },
     );
     logMediaUploadMetric(file, startedAt, uploads.length);
     return uploads;
@@ -178,15 +222,19 @@ function logMediaUploadMetric(
 async function uploadMediaPart(
   file: File,
   onPartProgress?: (uploadedBytes: number) => void,
+  options: MediaUploadOptions = {},
 ): Promise<UploadFileData> {
   for (let attempt = 1; attempt <= MEDIA_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
-      return await uploadFile(file, onPartProgress);
+      throwIfUploadAborted(options.signal);
+      return await uploadFile(file, onPartProgress, options);
     } catch (error) {
+      if (options.signal?.aborted) throw createUploadAbortError();
       if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) throw error;
-      await new Promise<void>((resolve: () => void) => {
-        window.setTimeout(resolve, attempt * MEDIA_UPLOAD_RETRY_DELAY_MS);
-      });
+      await waitForUploadRetry(
+        attempt * MEDIA_UPLOAD_RETRY_DELAY_MS,
+        options.signal,
+      );
     }
   }
   throw new Error('文件上传重试次数已用尽');

@@ -125,6 +125,12 @@ export class NoteJobsController {
   }
 
   @NeedLogin()
+  @Post(':id/cancel')
+  cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.noteJobsService.cancel(id, req.userContext.userId);
+  }
+
+  @NeedLogin()
   @Get('history')
   history(
     @Req() req: AuthenticatedRequest,

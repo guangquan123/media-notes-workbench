@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -7,6 +7,7 @@ import {
   FileText,
   FileVideo,
   LoaderCircle,
+  Square,
   Sparkles,
   UploadCloud,
   WandSparkles,
@@ -16,7 +17,7 @@ import { useDropzone } from 'react-dropzone';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { createNoteJob, getNoteJob, getReadiness } from '@/api';
+import { cancelNoteJob, createNoteJob, getNoteJob, getReadiness } from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
 import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
@@ -28,6 +29,16 @@ import {
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { formatFileSize } from '@/utils/file-size';
@@ -170,6 +181,12 @@ function getMediaMimeType(
   return mimeTypes[extension] || `${sourceType}/unknown`;
 }
 
+function isCancelledRequest(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted) return true;
+  if (!(error instanceof Error)) return false;
+  return error.name === 'AbortError' || error.name === 'CanceledError';
+}
+
 export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const copy: PageCopy = PAGE_COPY[sourceType];
   const sourceLabel: string =
@@ -197,9 +214,14 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
   const [uploadPartLabel, setUploadPartLabel] = useState('');
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const running: boolean = Boolean(
     job &&
-      !['completed', 'failed', 'awaiting-frame-review'].includes(job.stage),
+      !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
+        job.stage,
+      ),
   );
   const selectedFileSize: number = files.reduce(
     (total: number, item: File) => total + item.size,
@@ -271,6 +293,13 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     };
   }, []);
 
+  useEffect(
+    () => () => {
+      uploadAbortRef.current?.abort();
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!job || !running) return;
     let cancelled = false;
@@ -306,6 +335,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     setUploading(true);
     setUploadedBytes(0);
     setUploadPartLabel('正在连接存储服务…');
+    const uploadController = new AbortController();
+    uploadAbortRef.current = uploadController;
     let uploaded: UploadFileData[] = [];
     let uploadCompleted = false;
     try {
@@ -316,18 +347,24 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         const currentUpload: UploadFileData[] = await uploadMediaFile(
           currentFile,
           (progress: MediaUploadProgress) => {
+            if (uploadController.signal.aborted) return;
             setUploadedBytes(completedBytes + progress.uploadedBytes);
             setUploadPartLabel(
               `正在上传第 ${index + 1}/${files.length} 个文件 · 第 ${progress.currentPart}/${progress.totalParts} 个分片`,
             );
           },
+          { signal: uploadController.signal },
         );
+        if (uploadController.signal.aborted) {
+          const error = new Error('上传已取消');
+          error.name = 'AbortError';
+          throw error;
+        }
         uploadedItems.push(currentUpload);
         uploaded.push(...currentUpload);
         completedBytes += currentFile.size;
         setUploadedBytes(completedBytes);
       }
-      setUploading(false);
       uploadCompleted = true;
       const mediaItems = files.map((currentFile: File, index: number) => {
         const itemUploads: UploadFileData[] = uploadedItems[index];
@@ -357,6 +394,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         visualOptions:
           sourceType === 'video' ? visualOptions : { mode: 'disabled' },
       });
+      if (uploadController.signal.aborted) {
+        await cancelNoteJob(created.id).catch(() => undefined);
+        const error = new Error('任务已取消');
+        error.name = 'AbortError';
+        throw error;
+      }
       setJob(created);
     } catch (error: unknown) {
       if (uploaded.length > 0) {
@@ -366,25 +409,67 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
           toast.warning('上传文件清理失败，可稍后在应用文件中删除');
         }
       }
-      const responseError = error as {
-        response?: {
-          data?: { error?: { message?: string }; message?: string };
+      if (!isCancelledRequest(error, uploadController.signal)) {
+        const responseError = error as {
+          response?: {
+            data?: { error?: { message?: string }; message?: string };
+          };
         };
+        toast.error(
+          responseError.response?.data?.error?.message ||
+            responseError.response?.data?.message ||
+            (uploadCompleted
+              ? '任务创建失败，请稍后重试'
+              : '文件上传失败，请检查网络后重试'),
+        );
+      }
+    } finally {
+      if (uploadAbortRef.current === uploadController) {
+        uploadAbortRef.current = null;
+        setUploading(false);
+        setSubmitting(false);
+      }
+    }
+  };
+
+  const stopProcessing = async (): Promise<void> => {
+    setCancelling(true);
+    try {
+      if (uploading) {
+        uploadAbortRef.current?.abort();
+        uploadAbortRef.current = null;
+        setUploading(false);
+        setSubmitting(false);
+        setUploadedBytes(0);
+        setUploadPartLabel('');
+        toast.success('已停止上传，可以重新处理或更换文件');
+        return;
+      }
+      if (job && running) {
+        await cancelNoteJob(job.id);
+        setJob(null);
+        setUploadedBytes(0);
+        setUploadPartLabel('');
+        toast.success('任务已停止，可以重新处理或返回入口');
+      }
+    } catch (error: unknown) {
+      const responseError = error as {
+        response?: { data?: { error?: { message?: string }; message?: string } };
       };
       toast.error(
         responseError.response?.data?.error?.message ||
           responseError.response?.data?.message ||
-          (uploadCompleted
-            ? '任务创建失败，请稍后重试'
-            : '文件上传失败，请检查网络后重试'),
+          '停止任务失败，请稍后重试',
       );
     } finally {
-      setUploading(false);
-      setSubmitting(false);
+      setCancelling(false);
+      setCancelDialogOpen(false);
     }
   };
 
   const reset = () => {
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
     setJob(null);
     setFiles([]);
     setNoteStyle('learning');
@@ -625,6 +710,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       <p className="text-lg font-semibold tracking-tight">
                         {job?.stage === 'completed'
                           ? '笔记已经准备好'
+                          : job?.stage === 'cancelled'
+                            ? '处理已停止'
                           : `正在处理${sourceLabel}`}
                       </p>
                       <p
@@ -668,6 +755,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   {job?.stage === 'failed' && (
                     <div className="mt-7 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
                       {job.error}
+                    </div>
+                  )}
+                  {job?.stage === 'cancelled' && (
+                    <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                      任务已手动停止，源文件和已生成的内容不会被继续处理。
                     </div>
                   )}
                   {job && <SummaryModelProgress job={job} />}
@@ -729,7 +821,23 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       <ArrowUpRight className="ml-2 size-4" />
                     </Button>
                   )}
-                  {job && ['completed', 'failed'].includes(job.stage) && (
+                  {(uploading || running) && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                      disabled={cancelling}
+                      onClick={() => setCancelDialogOpen(true)}
+                      variant="outline"
+                    >
+                      {cancelling ? (
+                        <LoaderCircle className="mr-2 size-4 animate-spin" />
+                      ) : (
+                        <Square className="mr-2 size-4 fill-current" />
+                      )}
+                      {cancelling ? '正在停止' : '停止处理'}
+                    </Button>
+                  )}
+                  {job &&
+                    ['completed', 'cancelled', 'failed'].includes(job.stage) && (
                     <Button
                       className="h-11 w-full rounded-xl"
                       onClick={reset}
@@ -751,6 +859,32 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
           <span>异步处理 · 实时进度 · 临时文件自动清理</span>
         </footer>
       </div>
+      <AlertDialog onOpenChange={setCancelDialogOpen} open={cancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>停止当前处理？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {uploading
+                ? '上传会立即停止排队后续分片，已完成的临时分片会自动清理。随后可以重新选择文件或返回入口。'
+                : '系统会停止推进当前任务并保留取消记录。已经提交给外部服务的单次操作可能无法撤回。'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>继续处理</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={cancelling}
+              onClick={(event) => {
+                event.preventDefault();
+                void stopProcessing();
+              }}
+            >
+              {cancelling && <LoaderCircle className="size-4 animate-spin" />}
+              确认停止
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

@@ -55,6 +55,7 @@ export type JobStage =
   | 'summarizing'
   | 'publishing'
   | 'completed'
+  | 'cancelled'
   | 'failed';
 
 export interface UploadedMediaInput {

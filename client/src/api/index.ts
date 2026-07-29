@@ -165,6 +165,15 @@ export async function createNoteJob(
   }
 }
 
+export async function cancelNoteJob(id: string): Promise<NoteJob> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/${id}/cancel`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getNoteInboxStatus(): Promise<NoteInboxStatus> {
   const response = await axiosForBackend({
     url: '/api/note-inbox',

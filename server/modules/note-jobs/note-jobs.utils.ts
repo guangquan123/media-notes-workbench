@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type {
   CreateNoteJobRequest,
   JobStage,
+  NoteJob,
   NoteStyle,
   NoteSourceType,
   NoteVisualOptions,
@@ -38,7 +39,23 @@ export function getMediaDownloadConcurrency(partCount: number): number {
 }
 
 export function isInterruptedProcessingStage(stage: JobStage): boolean {
-  return !['completed', 'failed', 'awaiting-frame-review'].includes(stage);
+  return !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
+    stage,
+  );
+}
+
+export function buildCancelledNoteJob(
+  job: NoteJob,
+  updatedAt: string = new Date().toISOString(),
+): NoteJob {
+  if (['completed', 'cancelled', 'failed'].includes(job.stage)) return job;
+  return {
+    ...job,
+    error: '用户手动取消',
+    message: '任务已手动停止',
+    stage: 'cancelled',
+    updatedAt,
+  };
 }
 
 interface PlatformJobInput {

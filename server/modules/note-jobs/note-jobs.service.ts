@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { AuthNPaasService } from '@lark-apaas/nestjs-authnpaas';
-import { spawn } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import {
+  spawn,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
   access,
@@ -51,6 +55,7 @@ import {
   getDouyinAudioFallbackArgs,
   getMediaDownloadConcurrency,
   isAudioRematrixError,
+  buildCancelledNoteJob,
   isDouyinTransientMediaError,
   isInterruptedProcessingStage,
   MAX_MEDIA_SIZE_BYTES,
@@ -207,6 +212,12 @@ export class NoteJobsService {
   private readonly jobs = new Map<string, StoredNoteJob>();
   private readonly publishingVisualJobs = new Set<string>();
   private readonly activeReruns = new Set<string>();
+  private readonly activeCommands = new Map<
+    string,
+    Set<ChildProcessWithoutNullStreams>
+  >();
+  private readonly cancelledJobs = new Set<string>();
+  private readonly jobContext = new AsyncLocalStorage<string>();
   private readonly whisperModelPath = join(
     process.cwd(),
     'models',
@@ -378,14 +389,16 @@ export class NoteJobsService {
       summary: job.visualSummary,
     });
     this.jobs.set(job.id, { job, larkUserId, ownerId });
-    void this.run(
-      job.id,
-      validatedInput,
-      ownerId,
-      sourcePlatform,
-      cookieBrowser,
-      larkUserId,
-      options.rerunLockKey,
+    void this.jobContext.run(job.id, () =>
+      this.run(
+        job.id,
+        validatedInput,
+        ownerId,
+        sourcePlatform,
+        cookieBrowser,
+        larkUserId,
+        options.rerunLockKey,
+      ),
     );
     return job;
   }
@@ -396,6 +409,23 @@ export class NoteJobsService {
       throw new NotFoundException('任务不存在或服务已重启');
     }
     return stored.job;
+  }
+
+  async cancel(id: string, ownerId: string): Promise<NoteJob> {
+    const current: NoteJob = this.get(id, ownerId);
+    const cancelled: NoteJob = buildCancelledNoteJob(current);
+    if (cancelled === current) return current;
+
+    this.cancelledJobs.add(id);
+    this.stopActiveCommands(id);
+    this.writeJob(id, cancelled);
+    await this.persistFinish(id, {
+      error: cancelled.error,
+      rawDocumentUrl: cancelled.rawDocumentUrl,
+      status: 'failed',
+    });
+    this.logger.log(`任务 ${id} 已由用户手动取消`);
+    return cancelled;
   }
 
   async getAvailable(id: string, ownerId: string): Promise<NoteJob> {
@@ -533,13 +563,15 @@ export class NoteJobsService {
         summary: job.visualSummary,
       });
       this.jobs.set(job.id, { job, larkUserId, ownerId });
-      void this.runRegenerateNote(
-        job.id,
-        context,
-        ownerId,
-        larkUserId,
-        versionNumber,
-        rerunLockKey,
+      void this.jobContext.run(job.id, () =>
+        this.runRegenerateNote(
+          job.id,
+          context,
+          ownerId,
+          larkUserId,
+          versionNumber,
+          rerunLockKey,
+        ),
       );
       return job;
     } catch (error) {
@@ -833,6 +865,10 @@ export class NoteJobsService {
       });
       await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
     } catch (error) {
+      if (this.cancelledJobs.has(id)) {
+        this.logger.log(`二次总结任务 ${id} 已停止，忽略后续处理结果`);
+        return;
+      }
       const message: string =
         error instanceof Error ? error.message : '未知错误';
       this.logger.error(`二次总结任务 ${id} 失败: ${message}`);
@@ -1216,6 +1252,10 @@ export class NoteJobsService {
       });
       await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
     } catch (error) {
+      if (this.cancelledJobs.has(id)) {
+        this.logger.log(`任务 ${id} 已停止，忽略后续处理结果`);
+        return;
+      }
       const rawMessage = error instanceof Error ? error.message : '未知错误';
       const message = sourcePlatform
         ? this.friendlyDownloadError(rawMessage, sourcePlatform, cookieBrowser)
@@ -3438,23 +3478,34 @@ export class NoteJobsService {
   }
 
   private patch(id: string, update: Partial<NoteJob>) {
+    if (this.cancelledJobs.has(id)) {
+      const error = new Error('任务已取消');
+      error.name = 'AbortError';
+      throw error;
+    }
+    const current = this.jobs.get(id);
+    if (!current) return;
+    this.writeJob(id, {
+      ...current.job,
+      ...update,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private writeJob(id: string, job: NoteJob): void {
     const current = this.jobs.get(id);
     if (!current) return;
     const next: StoredNoteJob = {
       ownerId: current.ownerId,
       larkUserId: current.larkUserId,
-      job: {
-        ...current.job,
-        ...update,
-        updatedAt: new Date().toISOString(),
-      },
+      job,
     };
     this.jobs.set(id, next);
     void this.frameReviewService
       .saveJobState(id, {
         job: next.job,
-        options: update.visualOptions,
-        summary: update.visualSummary,
+        options: job.visualOptions,
+        summary: job.visualSummary,
       })
       .catch((error: unknown) => {
         this.logger.warn(`持久化任务阶段失败: ${String(error)}`);
@@ -3591,24 +3642,56 @@ export class NoteJobsService {
     stdin?: string,
   ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
+      const jobId: string | undefined = this.jobContext.getStore();
+      if (jobId && this.cancelledJobs.has(jobId)) {
+        const error = new Error('任务已取消');
+        error.name = 'AbortError';
+        reject(error);
+        return;
+      }
       const child = spawn(command, args, {
         cwd: process.cwd(),
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+      if (jobId) {
+        const commands = this.activeCommands.get(jobId) || new Set();
+        commands.add(child);
+        this.activeCommands.set(jobId, commands);
+      }
+      const releaseChild = (): void => {
+        if (!jobId) return;
+        const commands = this.activeCommands.get(jobId);
+        commands?.delete(child);
+        if (commands?.size === 0) this.activeCommands.delete(jobId);
+      };
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
       child.stderr.on('data', (chunk) => (stderr += chunk.toString()));
-      child.on('error', reject);
+      child.on('error', (error) => {
+        releaseChild();
+        reject(error);
+      });
       child.on('close', (code) => {
+        releaseChild();
         if (code === 0) resolve({ stdout, stderr });
-        else
+        else if (jobId && this.cancelledJobs.has(jobId)) {
+          const error = new Error('任务已取消');
+          error.name = 'AbortError';
+          reject(error);
+        } else
           reject(new Error(this.commandError(command, stderr, stdout, code)));
       });
       if (stdin) child.stdin.end(stdin);
       else child.stdin.end();
     });
+  }
+
+  private stopActiveCommands(jobId: string): void {
+    const commands = this.activeCommands.get(jobId);
+    if (!commands) return;
+    for (const child of commands) child.kill('SIGTERM');
   }
 
   private commandError(

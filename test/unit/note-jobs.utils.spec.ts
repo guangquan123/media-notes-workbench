@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import {
+  buildCancelledNoteJob,
   validateMediaDownloadUrl,
   validateMediaInput,
   validateNoteJobRequest,
@@ -365,6 +366,39 @@ describe('note job request validation', () => {
       ),
     ).toBe(true);
     expect(isDouyinTransientMediaError('HTTP 403 Forbidden')).toBe(false);
+  });
+});
+
+describe('note job cancellation', () => {
+  const processingJob = {
+    id: 'job-1',
+    stage: 'transcribing' as const,
+    progress: 44,
+    message: '正在转录',
+    sourceType: 'video' as const,
+    sourceLabel: '本地视频',
+    createdAt: '2026-07-29T10:00:00.000Z',
+    updatedAt: '2026-07-29T10:01:00.000Z',
+  };
+
+  it('moves a running task into an explicit cancelled terminal state', () => {
+    expect(
+      buildCancelledNoteJob(processingJob, '2026-07-29T10:02:00.000Z'),
+    ).toEqual({
+      ...processingJob,
+      stage: 'cancelled',
+      message: '任务已手动停止',
+      error: '用户手动取消',
+      updatedAt: '2026-07-29T10:02:00.000Z',
+    });
+  });
+
+  it('leaves an already finished task unchanged', () => {
+    const completedJob = { ...processingJob, stage: 'completed' as const };
+
+    expect(
+      buildCancelledNoteJob(completedJob, '2026-07-29T10:02:00.000Z'),
+    ).toBe(completedJob);
   });
 });
 
