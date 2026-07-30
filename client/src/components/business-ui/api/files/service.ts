@@ -7,11 +7,13 @@ import { mapWithConcurrency } from '@shared/async.utils';
 import type { StoredSourceObject } from '@shared/api.interface';
 import {
   createUploadAbortError,
+  createMediaUploadPartError,
+  MEDIA_UPLOAD_PART_TIMEOUT_MS,
   runWithUploadDeadline,
 } from '@/utils/upload-error';
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
-const MEDIA_UPLOAD_PART_SIZE = 128 * 1024 * 1024;
+const MEDIA_UPLOAD_PART_SIZE = 32 * 1024 * 1024;
 const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
 const MEDIA_UPLOAD_CONCURRENCY = 2;
@@ -38,6 +40,12 @@ export interface StoredSourceDeletionResult {
 
 interface MediaUploadOptions {
   signal?: AbortSignal;
+}
+
+interface MediaUploadPartContext {
+  fileName: string;
+  partNumber: number;
+  totalParts: number;
 }
 
 function throwIfUploadAborted(signal?: AbortSignal): void {
@@ -85,6 +93,7 @@ export async function uploadFile(
       ...(file.type ? { contentType: file.type } : {}),
     }),
     options.signal,
+    MEDIA_UPLOAD_PART_TIMEOUT_MS,
   );
   if (result.error) {
     throw result.error;
@@ -134,6 +143,7 @@ export async function uploadMediaFile(
           uploadedBytes,
         }),
       options,
+      { fileName: file.name, partNumber: 1, totalParts: 1 },
     );
     const uploads: UploadFileData[] = [upload];
     logMediaUploadMetric(file, startedAt, uploads.length);
@@ -187,6 +197,7 @@ export async function uploadMediaFile(
             });
           },
           options,
+          { fileName: file.name, partNumber: index, totalParts },
         );
         completedUploads.push(upload);
         return upload;
@@ -222,8 +233,9 @@ function logMediaUploadMetric(
 
 async function uploadMediaPart(
   file: File,
-  onPartProgress?: (uploadedBytes: number) => void,
-  options: MediaUploadOptions = {},
+  onPartProgress: ((uploadedBytes: number) => void) | undefined,
+  options: MediaUploadOptions,
+  context: MediaUploadPartContext,
 ): Promise<UploadFileData> {
   for (let attempt = 1; attempt <= MEDIA_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -231,7 +243,12 @@ async function uploadMediaPart(
       return await uploadFile(file, onPartProgress, options);
     } catch (error) {
       if (options.signal?.aborted) throw createUploadAbortError();
-      if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) throw error;
+      if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) {
+        throw createMediaUploadPartError(error, {
+          ...context,
+          attemptCount: attempt,
+        });
+      }
       await waitForUploadRetry(
         attempt * MEDIA_UPLOAD_RETRY_DELAY_MS,
         options.signal,
