@@ -59,7 +59,14 @@ export class FrameInsertionService {
       const sectionFrames = framesBySectionIdx[sectionIdx];
       if (!sectionFrames?.length) continue;
 
-      const section = sections[sectionIdx];
+      const section: MarkdownSection | undefined =
+        sections[sectionIdx] || sections[0];
+      if (!section) {
+        this.logger.warn(
+          `关键帧章节索引无效，跳过 ${sectionFrames.length} 张截图`,
+        );
+        continue;
+      }
       const insertLine = section.contentStartLine;
 
       // 生成截图 Markdown 块
@@ -122,8 +129,17 @@ export class FrameInsertionService {
     }
 
     // 按章节数量均分时间轴
-    const estimatedDuration =
-      totalDurationSec ?? (frames[frames.length - 1]?.timestamp ?? 600) * 1.2;
+    const lastFrameTimestamp: number = frames.reduce(
+      (maximum: number, frame: KeyFrame): number =>
+        Math.max(maximum, this.getFrameTimestamp(frame)),
+      0,
+    );
+    const requestedDuration: number =
+      totalDurationSec ?? lastFrameTimestamp * 1.2;
+    const estimatedDuration: number =
+      Number.isFinite(requestedDuration) && requestedDuration > 0
+        ? requestedDuration
+        : Math.max(1, lastFrameTimestamp * 1.2);
     const sectionDuration = estimatedDuration / sections.length;
 
     for (const frame of frames) {
@@ -131,19 +147,24 @@ export class FrameInsertionService {
         frame,
         sections,
       );
+      const calculatedSectionIdx: number = Math.floor(
+        this.getFrameTimestamp(frame) / sectionDuration,
+      );
       const sectionIdx: number =
         semanticSectionIdx ??
-        Math.min(
-          Math.floor(
-            (frame.globalTimestamp ?? frame.timestamp) / sectionDuration,
-          ),
-          sections.length - 1,
-        );
+        (Number.isInteger(calculatedSectionIdx) && calculatedSectionIdx >= 0
+          ? Math.min(calculatedSectionIdx, sections.length - 1)
+          : 0);
       if (!result[sectionIdx]) result[sectionIdx] = [];
       result[sectionIdx].push(frame);
     }
 
     return result;
+  }
+
+  private getFrameTimestamp(frame: KeyFrame): number {
+    const timestamp: number = frame.globalTimestamp ?? frame.timestamp;
+    return Number.isFinite(timestamp) && timestamp >= 0 ? timestamp : 0;
   }
 
   private findSemanticSection(

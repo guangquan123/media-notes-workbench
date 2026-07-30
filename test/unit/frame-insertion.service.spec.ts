@@ -122,4 +122,24 @@ describe('FrameInsertionService', () => {
     );
     expect(result).toContain('原始截图保留在上方');
   });
+
+  it('should keep inserting frames when a timestamp is not finite', () => {
+    const markdown = `# 笔记标题\n\n## 1. 第一章\n第一章内容\n\n## 2. 第二章\n第二章内容`;
+    const frames: KeyFrame[] = [
+      {
+        timestamp: Number.NaN,
+        globalTimestamp: Number.NaN,
+        filePath: '/tmp/invalid-timestamp.jpg',
+        id: 'invalid-timestamp',
+        sourceFileName: 'video.mp4',
+        sourceIndex: 0,
+        type: 'scene',
+        imageKey: 'img_invalid_timestamp',
+      },
+    ];
+
+    const result = service.insertFramesIntoMarkdown(markdown, frames);
+
+    expect(result).toContain('img_invalid_timestamp');
+  });
 });
