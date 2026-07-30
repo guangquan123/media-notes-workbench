@@ -88,6 +88,51 @@ describe('note summary pipeline utilities', () => {
     expect(normalized[1].statement).toBe('第二条不同事实。');
   });
 
+  it('compacts default metadata and duplicate quote text without losing semantics', () => {
+    const statement = '知识图谱在 3.5 以上模型版本中可能无法生成。';
+    const normalized = normalizeStructuredEvidenceLedger(
+      JSON.stringify({
+        asrRisk: 'low',
+        certainty: 'direct',
+        id: 'E-S01-700',
+        numericClaims: [
+          {
+            operator: 'gte',
+            subject: statement,
+            value: '3.5',
+          },
+        ],
+        quote: statement,
+        sourceId: 'S01',
+        speaker: '发言人1',
+        statement,
+        timestamp: '99:07',
+        type: '数字',
+      }),
+    );
+    const record = parseEvidenceLedger(normalized)[0];
+
+    expect(normalized).not.toContain('"asrRisk":"low"');
+    expect(normalized).not.toContain('"certainty":"direct"');
+    expect(normalized).not.toContain('"quote"');
+    expect(normalized).not.toContain('"speaker"');
+    expect(normalized).not.toContain('"subject"');
+    expect(normalized).not.toContain('"timestamp"');
+    expect(record).toMatchObject({
+      asrRisk: 'low',
+      certainty: 'direct',
+      id: 'E-S01-001',
+      statement,
+    });
+    expect(record.numericClaims).toEqual([
+      expect.objectContaining({
+        operator: 'gte',
+        subject: statement,
+        value: '3.5',
+      }),
+    ]);
+  });
+
   it('requires a coverage plan to map every structured evidence item', () => {
     const result = assessEvidencePlanCoverage(
       '## 核心知识体系\n- [E-S01-001] 说明知识图谱版本边界',
@@ -150,6 +195,33 @@ describe('note summary pipeline utilities', () => {
     expect(result.passed).toBe(false);
     expect(result.semanticContradictions.join('\n')).toContain('3.5');
     expect(result.failedChecks.join('\n')).toContain('方向');
+  });
+
+  it('checks numeric direction in compact source-tagged evidence', () => {
+    const result = assessNoteQuality({
+      evidenceLedger:
+        '[S01][数字] 知识图谱在 3.5 以上模型版本中可能无法生成。',
+      noteStyle: 'learning',
+      note: `# 智能体培训
+
+## 一、内容概览
+说明知识图谱版本边界。[S01]
+
+## 二、核心结论与关键要点
+知识图谱在 3.5 以下模型版本中可能无法生成。[S01]
+
+## 三、核心知识体系
+> 转写原话：“知识图谱存在版本边界。” [S01]
+
+## 四、关键数据与重要事实
+版本边界为 3.5 以下。[S01]
+
+## 五、一页复习
+复习知识图谱版本边界。`,
+      sourceText: '知识图谱在 3.5 以上模型版本中可能无法生成。',
+    });
+
+    expect(result.semanticContradictions.join('\n')).toContain('3.5');
   });
 
   it('rejects notes that cite a source chunk but omit a structured evidence item', () => {
@@ -338,7 +410,7 @@ describe('note summary pipeline utilities', () => {
     ).toBe(structuredEvidenceLedger);
   });
 
-  it('rejects gap-audit evidence without an exact source quote', () => {
+  it('ignores gap-audit evidence without an exact source quote', () => {
     const fabricatedSupplement: string = JSON.stringify({
       asrRisk: 'low',
       certainty: 'direct',
@@ -349,13 +421,48 @@ describe('note summary pipeline utilities', () => {
       type: '事实',
     });
 
-    expect(() =>
+    expect(
       mergeEvidenceGapAudit(
         structuredEvidenceLedger,
         fabricatedSupplement,
         '这里只提到了提示词生成器。',
       ),
-    ).toThrow('缺少有效原文引用');
+    ).toBe(structuredEvidenceLedger);
+  });
+
+  it('keeps valid gap-audit evidence when another item is ungrounded', () => {
+    const validQuote: string = '提示词生成器可以帮助生成提示词。';
+    const supplement: string = [
+      JSON.stringify({
+        asrRisk: 'low',
+        certainty: 'direct',
+        id: 'E-S01-900',
+        quote: validQuote,
+        sourceId: 'S01',
+        statement: validQuote,
+        type: '事实',
+      }),
+      JSON.stringify({
+        asrRisk: 'low',
+        certainty: 'direct',
+        id: 'E-S01-901',
+        quote: '原文中不存在的逐字引用',
+        sourceId: 'S01',
+        statement: '系统支持不存在的功能。',
+        type: '事实',
+      }),
+    ].join('\n');
+
+    const merged = parseEvidenceLedger(
+      mergeEvidenceGapAudit(
+        structuredEvidenceLedger,
+        supplement,
+        validQuote,
+      ),
+    );
+
+    expect(merged).toHaveLength(3);
+    expect(merged[2].statement).toBe(validQuote);
   });
 
   it('builds a lossless evidence merge prompt for long ledgers', () => {

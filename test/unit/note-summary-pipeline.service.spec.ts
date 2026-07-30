@@ -28,16 +28,7 @@ function createTextStream(
 }
 
 describe('NoteSummaryPipelineService', () => {
-  const structuredLedger: string = JSON.stringify({
-    asrRisk: 'low',
-    certainty: 'direct',
-    id: 'E-S01-001',
-    sourceId: 'S01',
-    statement: '完整事实依据不能丢失。',
-    type: '事实',
-  });
-
-  it('plans and audits every structured evidence item before publication', async () => {
+  it('writes every structured evidence item in one pass when quality passes', async () => {
     const completeNote: string = `# 完整培训笔记
 
 ## 一、内容概览
@@ -49,36 +40,30 @@ describe('NoteSummaryPipelineService', () => {
 ## 三、核心知识体系
 > 转写原话：“完整事实依据不能丢失。” [E-S01-001]
 
-## 四、一页复习
+完整事实依据需要在内容概览、核心结论和详细正文中保持一致，并在对应句段后标注来源，避免后续复习时无法回到原始依据。对于同一事实，可以调整组织方式，但不能删除原句表达中的限制条件，也不能把尚未确认的信息改写为确定结论。[E-S01-001]
+
+## 四、风险、误区与注意事项
+完整事实依据不能丢失，否则结论不可追溯。[E-S01-001]
+
+## 五、一页复习
 必须记住完整性优先。`;
     const callStream = jest.fn(
       async (
         _actionKey: string,
         input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
-        const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          return createTextStream(structuredLedger);
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          return createTextStream('NO_MISSING_EVIDENCE');
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          return createTextStream(
-            '## 三、核心知识体系\n- [E-S01-001] 完整事实依据不能丢失',
-          );
-        }
-        if (instruction.includes('独立事实审校员')) {
-          return createTextStream(
-            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
-          );
-        }
+        expect(String(input.task_instruction || '')).toContain(
+          '高级中文知识管理编辑',
+        );
         return createTextStream(completeNote);
       },
     );
-    const capabilityService = {
-      load: (): { callStream: typeof callStream } => ({ callStream }),
-    } as unknown as CapabilityService;
+    const load = jest.fn(
+      (_instanceId: string): { callStream: typeof callStream } => ({
+        callStream,
+      }),
+    );
+    const capabilityService = { load } as unknown as CapabilityService;
     const externalModelSettingsService = {
       getCredentials: async (): Promise<undefined> => undefined,
     } as unknown as ExternalModelSettingsService;
@@ -98,41 +83,103 @@ describe('NoteSummaryPipelineService', () => {
     expect(result.markdown).toContain('[S01]');
     expect(result.markdown).not.toContain('E-S01-001');
     expect(result.quality.passed).toBe(true);
-    expect(callStream).toHaveBeenCalledTimes(5);
-    const instructions: string[] = callStream.mock.calls.map(
-      (call: unknown[]): string =>
-        String((call[1] as Record<string, unknown>).task_instruction || ''),
-    );
+    expect(callStream).toHaveBeenCalledTimes(1);
     expect(
-      instructions.some((instruction: string): boolean =>
-        instruction.includes('证据覆盖规划员'),
-      ),
-    ).toBe(true);
-    expect(
-      instructions.some((instruction: string): boolean =>
-        instruction.includes('独立事实审校员'),
-      ),
-    ).toBe(true);
+      load.mock.calls.map((call: string[]): string => call[0] || ''),
+    ).toEqual(['note-summary-pipeline-writer']);
   });
 
-  it('adds facts found by the source-to-ledger gap audit before planning', async () => {
-    const firstEvidence: string = JSON.stringify({
-      asrRisk: 'low',
-      certainty: 'direct',
-      id: 'E-S01-001',
-      sourceId: 'S01',
-      statement: '平台提供提示词生成器。',
-      type: '事实',
+  it('retries a transient builtin-model timeout and completes the pipeline', async () => {
+    jest.useFakeTimers();
+    const completeNote: string = `# 完整培训笔记
+
+## 一、内容概览
+完整事实依据不能丢失。[E-S01-001]
+
+## 二、核心结论与关键要点
+完整事实依据不能丢失。[E-S01-001]
+
+## 三、核心知识体系
+> 转写原话：“完整事实依据不能丢失。” [E-S01-001]
+
+完整事实依据需要在内容概览、核心结论和详细正文中保持一致，并在对应句段后标注来源，避免后续复习时无法回到原始依据。对于同一事实，可以调整组织方式，但不能删除原句表达中的限制条件，也不能把尚未确认的信息改写为确定结论。[E-S01-001]
+
+## 四、风险、误区与注意事项
+完整事实依据不能丢失，否则结论不可追溯。[E-S01-001]
+
+## 五、一页复习
+完整事实依据不能丢失。`;
+    let writerAttempts: number = 0;
+    const callStream = jest.fn(
+      async (
+        _actionKey: string,
+        input: Record<string, unknown>,
+      ): Promise<AsyncIterable<Record<string, unknown>>> => {
+        const instruction: string = String(input.task_instruction || '');
+        if (instruction.includes('高级中文知识管理编辑')) {
+          writerAttempts += 1;
+          if (writerAttempts === 1) throw new Error('llm rpc timeout');
+        }
+        return createTextStream(completeNote);
+      },
+    );
+    const capabilityService = {
+      load: (): { callStream: typeof callStream } => ({ callStream }),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async (): Promise<undefined> => undefined,
+    } as unknown as ExternalModelSettingsService;
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+    );
+
+    try {
+      const resultPromise = service.generate({
+        noteStyle: 'learning',
+        onProgress: (): void => undefined,
+        sourceText: '完整事实依据不能丢失。',
+        sourceTitle: '完整培训',
+        styleRequirements: '输出详细笔记。',
+      });
+      await jest.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(result.quality.passed).toBe(true);
+      expect(writerAttempts).toBe(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not retry a non-transient builtin-model failure', async () => {
+    const callStream = jest.fn(async (): Promise<never> => {
+      throw new Error('input schema invalid');
     });
-    const missingEvidence: string = JSON.stringify({
-      asrRisk: 'low',
-      certainty: 'direct',
-      id: 'E-S01-900',
-      quote: '节点定位时右侧变化，但中间画布没有同步跳转。',
-      sourceId: 'S01',
-      statement: '节点定位时右侧变化，但中间画布没有同步跳转。',
-      type: '风险',
-    });
+    const capabilityService = {
+      load: (): { callStream: typeof callStream } => ({ callStream }),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async (): Promise<undefined> => undefined,
+    } as unknown as ExternalModelSettingsService;
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+    );
+
+    await expect(
+      service.generate({
+        noteStyle: 'learning',
+        onProgress: (): void => undefined,
+        sourceText: '完整事实依据不能丢失。',
+        sourceTitle: '完整培训',
+        styleRequirements: '输出详细笔记。',
+      }),
+    ).rejects.toThrow('input schema invalid');
+    expect(callStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds deterministic source facts omitted by model extraction', async () => {
     const completeNote: string = `# 智能体培训笔记
 
 ## 一、内容概览
@@ -144,10 +191,15 @@ describe('NoteSummaryPipelineService', () => {
 ## 三、核心知识体系
 提示词生成器可辅助生成初稿。[E-S01-001]
 
-## 四、风险、误区与注意事项
+平台提供提示词生成器，使用时先生成可编辑的提示词初稿，再结合当前任务补充条件并人工校准。节点定位功能会带动右侧区域变化，但中间画布没有同步跳转，因此定位后仍需要回到画布核对目标节点。[E-S01-001][E-S01-002]
+
+## 四、方法、流程与复用清单
+不会写提示词时，打开提示词生成器形成初稿，再人工校准后引用。[E-S01-001]
+
+## 五、风险、误区与注意事项
 节点定位时右侧变化，但中间画布没有同步跳转。[E-S01-002]
 
-## 五、一页复习
+## 六、一页复习
 记住提示词生成器和画布定位问题。`;
     const callStream = jest.fn(
       async (
@@ -155,25 +207,7 @@ describe('NoteSummaryPipelineService', () => {
         input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
         const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          return createTextStream(firstEvidence);
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          expect(instruction).toContain('中间画布没有同步跳转');
-          return createTextStream(missingEvidence);
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          expect(instruction).toContain('E-S01-002');
-          expect(instruction).toContain('画布没有同步跳转');
-          return createTextStream(
-            '- [E-S01-001] 提示词生成器\n- [E-S01-002] 画布定位问题',
-          );
-        }
-        if (instruction.includes('独立事实审校员')) {
-          return createTextStream(
-            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
-          );
-        }
+        expect(instruction).toContain('中间画布没有同步跳转');
         return createTextStream(completeNote);
       },
     );
@@ -197,20 +231,12 @@ describe('NoteSummaryPipelineService', () => {
       styleRequirements: '输出详细笔记。',
     });
 
-    expect(result.evidenceLedger).toContain('E-S01-002');
+    expect(result.evidenceLedger).toContain('[S01][风险]');
     expect(result.markdown).toContain('画布没有同步跳转');
     expect(result.quality.passed).toBe(true);
   });
 
-  it('adds deterministic source anchors when both model extraction passes omit a fact', async () => {
-    const firstEvidence: string = JSON.stringify({
-      asrRisk: 'low',
-      certainty: 'direct',
-      id: 'E-S01-001',
-      sourceId: 'S01',
-      statement: '平台提供提示词生成器。',
-      type: '事实',
-    });
+  it('adds deterministic source anchors when model extraction omits a fact', async () => {
     const completeNote: string = `# 智能体培训笔记
 
 ## 一、内容概览
@@ -222,10 +248,13 @@ describe('NoteSummaryPipelineService', () => {
 ## 三、核心知识体系
 提示词生成器可辅助生成初稿。[E-S01-001]
 
-## 四、风险、误区与注意事项
+## 四、方法、流程与复用清单
+使用提示词生成器形成初稿后再校准。[E-S01-001]
+
+## 五、风险、误区与注意事项
 模型版本在 3.5 以上时，知识图谱可能搞不出来。[E-S01-002]
 
-## 五、一页复习
+## 六、一页复习
 记住提示词生成器和知识图谱版本边界。`;
     const callStream = jest.fn(
       async (
@@ -233,24 +262,7 @@ describe('NoteSummaryPipelineService', () => {
         input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
         const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          return createTextStream(firstEvidence);
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          return createTextStream('NO_MISSING_EVIDENCE');
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          expect(instruction).toContain('E-S01-002');
-          expect(instruction).toContain('3.5 以上');
-          return createTextStream(
-            '- [E-S01-001] 提示词生成器\n- [E-S01-002] 知识图谱版本边界',
-          );
-        }
-        if (instruction.includes('独立事实审校员')) {
-          return createTextStream(
-            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
-          );
-        }
+        expect(instruction).toContain('3.5 以上');
         return createTextStream(completeNote);
       },
     );
@@ -278,7 +290,7 @@ describe('NoteSummaryPipelineService', () => {
     expect(result.quality.missingEvidenceIds).toEqual([]);
   });
 
-  it('repairs a contradiction reported by the independent fact audit', async () => {
+  it('repairs a numeric-direction contradiction found by local checks', async () => {
     const wrongNote: string = `# 完整培训笔记
 
 ## 一、内容概览
@@ -299,49 +311,18 @@ describe('NoteSummaryPipelineService', () => {
         `## 四、关键数据与重要事实
 知识图谱的模型版本边界是 3.5 以上；该限定词和比较方向必须与证据保持一致。[E-S01-001]
 
+原文明确表达的是“3.5 以上版本可能无法生成”，整理时必须同时保留数值、比较方向和“可能”这一不确定性限定。任何将“以上”替换为“以下”的写法都会改变事实含义，复核时应把三项信息作为一个整体检查。[E-S01-001]
+
 ## 五、一页复习`,
       );
-    const numericLedger: string = JSON.stringify({
-      asrRisk: 'low',
-      certainty: 'direct',
-      id: 'E-S01-001',
-      numericClaims: [
-        {
-          operator: 'gte',
-          subject: '知识图谱模型版本',
-          value: '3.5',
-        },
-      ],
-      sourceId: 'S01',
-      statement: '知识图谱在 3.5 以上版本可能无法生成。',
-      type: '数字',
-    });
-    let auditCount = 0;
     const callStream = jest.fn(
       async (
         _actionKey: string,
         input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
         const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          return createTextStream(numericLedger);
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          return createTextStream('NO_MISSING_EVIDENCE');
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          return createTextStream('- [E-S01-001] 保留 3.5 以上边界');
-        }
-        if (instruction.includes('独立事实审校员')) {
-          auditCount += 1;
-          return createTextStream(
-            auditCount === 1
-              ? '{"passed":false,"missingEvidenceIds":[],"contradictions":[{"evidenceId":"E-S01-001","message":"把3.5以上写成3.5以下"}],"unsupportedClaims":[],"ambiguityIssues":[]}'
-              : '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
-          );
-        }
         if (instruction.includes('笔记质量修订员')) {
-          expect(instruction).toContain('3.5以上写成3.5以下');
+          expect(instruction).toContain('比较方向与证据相反');
           return createTextStream(repairedNote);
         }
         return createTextStream(wrongNote);
@@ -369,11 +350,15 @@ describe('NoteSummaryPipelineService', () => {
     expect(result.markdown).toContain('3.5 以上版本');
     expect(result.markdown).not.toContain('3.5 以下版本');
     expect(result.quality.passed).toBe(true);
-    expect(auditCount).toBe(2);
+    expect(callStream).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps the original long ledger when model compaction loses evidence', async () => {
-    const sourceText: string = '原文'.repeat(24_000);
+  it('keeps every deterministic anchor in a long ledger without model compaction', async () => {
+    const sourceText: string = Array.from(
+      { length: 800 },
+      (_: unknown, index: number): string =>
+        `步骤 ${index + 1}：点击配置节点 ${index + 1}，${'保留完整上下文。'.repeat(8)}`,
+    ).join('\n');
     const detailedBody: string = Array.from(
       { length: 240 },
       (_: unknown, index: number): string =>
@@ -393,34 +378,11 @@ ${detailedBody}
 
 ## 四、一页复习
 必须记住信息保真优先。`;
-    let extractionIndex = 0;
     const callStream = jest.fn(
       async (
         _actionKey: string,
-        input: Record<string, unknown>,
+        _input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
-        const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          extractionIndex += 1;
-          const sourceId: string = `S${String(extractionIndex).padStart(2, '0')}`;
-          return createTextStream(
-            `[${sourceId}][事实] ${'完整证据内容。'.repeat(1_800)}`,
-          );
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          return createTextStream('NO_MISSING_EVIDENCE');
-        }
-        if (instruction.includes('证据账本合并员')) {
-          return createTextStream('[S01][事实] 压缩后只剩第一块。');
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          return createTextStream('## 核心知识体系\n- 保留完整上下文');
-        }
-        if (instruction.includes('独立事实审校员')) {
-          return createTextStream(
-            '{"passed":true,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":[],"ambiguityIssues":[]}',
-          );
-        }
         return createTextStream(completeNote);
       },
     );
@@ -443,9 +405,10 @@ ${detailedBody}
       styleRequirements: '输出详细笔记。',
     });
 
-    expect(result.evidenceLedger.length).toBeGreaterThan(45_000);
-    expect(result.evidenceLedger).toContain('[S04][事实]');
-    expect(result.markdown).toBe(completeNote);
+    expect(result.evidenceLedger.split('\n')).toHaveLength(800);
+    expect(result.evidenceLedger).toContain('[S04][数字]');
+    expect(result.markdown).toContain(completeNote);
+    expect(result.markdown).toContain('原文高价值细节补全');
   });
 
   it('returns the best repaired note with warnings when quality remains low', async () => {
@@ -453,23 +416,8 @@ ${detailedBody}
     const callStream = jest.fn(
       async (
         _actionKey: string,
-        input: Record<string, unknown>,
+        _input: Record<string, unknown>,
       ): Promise<AsyncIterable<Record<string, unknown>>> => {
-        const instruction: string = String(input.task_instruction || '');
-        if (instruction.includes('高精度内容提取员')) {
-          return createTextStream('[S01][事实] 示例培训材料。');
-        }
-        if (instruction.includes('证据缺口审计员')) {
-          return createTextStream('NO_MISSING_EVIDENCE');
-        }
-        if (instruction.includes('证据覆盖规划员')) {
-          return createTextStream('- 保留示例培训材料');
-        }
-        if (instruction.includes('独立事实审校员')) {
-          return createTextStream(
-            '{"passed":false,"missingEvidenceIds":[],"contradictions":[],"unsupportedClaims":["结构不完整"],"ambiguityIssues":[]}',
-          );
-        }
         return createTextStream(incompleteNote);
       },
     );
@@ -495,6 +443,6 @@ ${detailedBody}
     expect(result.markdown).toBe(incompleteNote);
     expect(result.quality.passed).toBe(false);
     expect(result.quality.failedChecks.length).toBeGreaterThan(0);
-    expect(callStream).toHaveBeenCalledTimes(9);
+    expect(callStream).toHaveBeenCalledTimes(3);
   });
 });

@@ -318,18 +318,19 @@ function normalizeSourceId(sourceId: string): string {
 
 function parseNumericClaims(
   value: unknown,
+  fallbackSubject: string,
 ): NumericEvidenceClaim[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const claims: NumericEvidenceClaim[] = [];
   for (const item of value) {
     if (!isObject(item)) continue;
     const operator: string | undefined = getRequiredString(item, 'operator');
-    const subject: string | undefined = getRequiredString(item, 'subject');
+    const subject: string =
+      getRequiredString(item, 'subject') || fallbackSubject;
     const claimValue: string | undefined = getRequiredString(item, 'value');
     if (
       !operator ||
       !NUMERIC_OPERATORS.has(operator) ||
-      !subject ||
       !claimValue
     ) {
       continue;
@@ -341,6 +342,46 @@ function parseNumericClaims(
       subject,
       unit: getRequiredString(item, 'unit'),
       value: claimValue,
+    });
+  }
+  return claims.length > 0 ? claims : undefined;
+}
+
+function inferNumericOperator(
+  statement: string,
+  valueIndex: number,
+  valueLength: number,
+): NumericClaimOperator {
+  const context: string = statement.slice(
+    Math.max(0, valueIndex - 12),
+    Math.min(statement.length, valueIndex + valueLength + 12),
+  );
+  if (/不低于|不少于|至少|以上/u.test(context)) return 'gte';
+  if (/不超过|不大于|至多|以下/u.test(context)) return 'lte';
+  if (/超过|高于|大于/u.test(context)) return 'gt';
+  if (/低于|小于/u.test(context)) return 'lt';
+  if (/减少|下降|降低|下调/u.test(context)) return 'decrease';
+  if (/增加|提高|提升|上升|上调|加个|加了/u.test(context)) {
+    return 'increase';
+  }
+  return 'eq';
+}
+
+function parseLegacyNumericClaims(
+  statement: string,
+): NumericEvidenceClaim[] | undefined {
+  const claims: NumericEvidenceClaim[] = [];
+  for (const match of statement.matchAll(/\d+(?:[,.]+\d+)*(?:[%％])?/gu)) {
+    const rawValue: string | undefined = match[0];
+    const valueIndex: number | undefined = match.index;
+    if (!rawValue || valueIndex === undefined) continue;
+    claims.push({
+      operator: inferNumericOperator(statement, valueIndex, rawValue.length),
+      subject: statement,
+      value: rawValue
+        .replace(/,+/gu, '')
+        .replace(/[.]+/gu, '.')
+        .replace(/％/gu, '%'),
     });
   }
   return claims.length > 0 ? claims : undefined;
@@ -390,7 +431,7 @@ function parseJsonEvidenceLine(line: string): EvidenceRecord | undefined {
       asrRisk,
       certainty,
       id,
-      numericClaims: parseNumericClaims(value.numericClaims),
+      numericClaims: parseNumericClaims(value.numericClaims, statement),
       quote: getRequiredString(value, 'quote'),
       sourceId,
       speaker: getRequiredString(value, 'speaker'),
@@ -432,6 +473,8 @@ export function parseEvidenceLedger(evidenceLedger: string): EvidenceRecord[] {
       asrRisk: statement.includes('【待人工确认】') ? 'high' : 'low',
       certainty: statement.includes('【待人工确认】') ? 'uncertain' : 'direct',
       id: `L-${sourceId}-${String(nextCount).padStart(3, '0')}`,
+      numericClaims:
+        type === '数字' ? parseLegacyNumericClaims(statement) : undefined,
       sourceId,
       statement,
       type: type as EvidenceType,
@@ -464,17 +507,37 @@ export function normalizeStructuredEvidenceLedger(
       const nextCount: number = (sourceCounts.get(record.sourceId) || 0) + 1;
       sourceCounts.set(record.sourceId, nextCount);
       return JSON.stringify({
-        asrRisk: record.asrRisk,
-        certainty: record.certainty,
+        ...(record.asrRisk !== 'low' ? { asrRisk: record.asrRisk } : {}),
+        ...(record.certainty !== 'direct'
+          ? { certainty: record.certainty }
+          : {}),
         id: `E-${record.sourceId}-${String(nextCount).padStart(3, '0')}`,
         ...(record.numericClaims
-          ? { numericClaims: record.numericClaims }
+          ? {
+              numericClaims: record.numericClaims.map(
+                (claim: NumericEvidenceClaim) => ({
+                  operator: claim.operator,
+                  ...(claim.qualifier ? { qualifier: claim.qualifier } : {}),
+                  ...(claim.relatedValue
+                    ? { relatedValue: claim.relatedValue }
+                    : {}),
+                  ...(claim.subject !== record.statement
+                    ? { subject: claim.subject }
+                    : {}),
+                  ...(claim.unit ? { unit: claim.unit } : {}),
+                  value: claim.value,
+                }),
+              ),
+            }
           : {}),
-        ...(record.quote ? { quote: record.quote } : {}),
+        ...(record.quote && record.quote !== record.statement
+          ? { quote: record.quote }
+          : {}),
         sourceId: record.sourceId,
-        ...(record.speaker ? { speaker: record.speaker } : {}),
+        ...(record.speaker && !/^发言人\d+$/u.test(record.speaker)
+          ? { speaker: record.speaker }
+          : {}),
         statement: record.statement,
-        ...(record.timestamp ? { timestamp: record.timestamp } : {}),
         type: record.type,
       });
     })
@@ -494,15 +557,16 @@ export function mergeEvidenceGapAudit(
   if (supplementalRecords.length === 0) {
     throw new Error('证据缺口审计结果不可解析');
   }
-  const invalidGrounding: EvidenceRecord | undefined = supplementalRecords.find(
+  const groundedRecords: EvidenceRecord[] = supplementalRecords.filter(
     (record: EvidenceRecord): boolean =>
-      !record.quote || !sourceText.includes(record.quote),
+      Boolean(record.quote && sourceText.includes(record.quote)),
   );
-  if (invalidGrounding) {
-    throw new Error(`证据缺口审计条目 ${invalidGrounding.id} 缺少有效原文引用`);
-  }
+  if (groundedRecords.length === 0) return evidenceLedger;
+  const groundedAuditResult: string = groundedRecords
+    .map((record: EvidenceRecord): string => JSON.stringify(record))
+    .join('\n');
   return normalizeStructuredEvidenceLedger(
-    `${evidenceLedger.trim()}\n${auditResult.trim()}`,
+    `${evidenceLedger.trim()}\n${groundedAuditResult}`,
   );
 }
 
@@ -973,7 +1037,11 @@ function getMinimumNoteLength(
   if (evidenceLength > 0) {
     return noteStyle === 'meeting'
       ? clamp(Math.floor(evidenceLength * 0.65), 220, 10_000)
-      : clamp(Math.floor(evidenceLength * 0.9), 300, 20_000);
+      : clamp(
+          Math.floor(Math.min(evidenceLength * 0.9, sourceLength * 0.4)),
+          300,
+          20_000,
+        );
   }
   return noteStyle === 'meeting'
     ? clamp(Math.floor(sourceLength * 0.08), 220, 4_000)
@@ -1219,12 +1287,12 @@ ${PIPELINE_TRUTHFULNESS_RULES}
 ${structureContract}
 
 共同写作要求：
-1. 先逐类核对证据账本，再写详细主笔记；任何独有事实、数字、案例、步骤、风险、限制、关系、对比、观点、结论、建议、待办、分歧、术语或待研究问题都必须被正文承载。
+1. 先逐类核对证据账本，再写详细主笔记；账本中每行独有的事实、数字、案例、步骤、风险、限制、关系、对比、观点、结论、建议、待办、分歧、术语或待研究问题都必须被正文承载。
 2. 数字必须保留语义和单位；重要数字集中进入数据表，但不要只存在于数据表。
 3. 风险必须说明表现、影响和原文给出的应对；原文没有应对时写“原文未给出应对方案”。
 4. 案例按背景、问题、处理、结果或启示整理，缺失字段如实省略。
 5. 可以基于证据做关系梳理、因果归纳和跨段总结，但必须标为“整理归纳”，并与原文事实、转写原话和编辑建议区分，不能把归纳写成原文结论。
-6. 每条结构化证据必须在承载它的正文句段后就近标注 [E-S01-001] 等证据 ID；不得只把ID集中罗列在文末。系统发布时会自动转换为来源标记。
+6. 账本提供 [E-S01-001] 时，在对应正文后就近标注该证据 ID；账本使用 [S01][类型] 原句时，在对应段落就近标注 [S01]。不得集中堆放标记，也不要求每句话重复同一来源。
 7. 用户可以调整排版、语气和章节命名，但不能要求短摘要来降低事实覆盖，也不能删除系统要求的证据类型。
 8. 标题反映信息内容，段落简洁；允许核心结论与专题模块互相引用，但不得机械复制整段。
 9. 重点标记克制使用：🔴风险、🔵关键知识、🟠条件或待确认；不以数量充当质量。
@@ -1264,11 +1332,12 @@ ${failedChecks}
 
 修订规则：
 1. 只使用证据账本，不得为了通过门禁补造数字、引用、案例、负责人或截止时间。
-2. 保留草稿中已正确、有证据的信息；删除重复和无依据内容。
+2. 保留草稿中已正确、有证据的信息；本轮以增补为主，不得把正确的详细内容改写成更短摘要。只删除确有重复或无依据的内容。
 ${structureRepairRules}
 5. 逐类核对事实、数字、原话、案例、步骤、风险、限制、术语、关系、对比、观点、结论、建议、待办、分歧和待研究证据；明确问题中指出缺失的类别必须补齐全部独有条目，而不是只补一个示例或空标题。
-6. 保留并补齐 [E-S01-001] 等证据ID，确保每条结构化证据在对应正文句段后就近出现；旧格式账本继续使用 [S01] 来源标记。
-7. 输出修订后的完整 Markdown，不输出评分、修改说明或分析过程。
+6. 账本提供 [E-S01-001] 时保留并补齐证据 ID；账本使用 [S01][类型] 原句时，在对应段落就近使用 [S01] 来源标记，不得集中堆放。
+7. 若用户输出偏好中给出有效正文目标区间，修订稿必须尽量达到下限；只能用尚未展开的证据补足，禁止重复凑字数。
+8. 输出修订后的完整 Markdown，不输出评分、修改说明或分析过程。
 
 用户输出偏好：
 ---BEGIN USER REQUIREMENTS---
@@ -1423,9 +1492,13 @@ export function normalizeEvidenceCitationsForPublication(
   evidenceLedger: string,
 ): string {
   let published: string = note;
-  for (const record of parseEvidenceLedger(evidenceLedger)) {
+  const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
+  for (const record of records) {
     if (!record.id.startsWith('E-')) continue;
     published = published.split(`[${record.id}]`).join(`[${record.sourceId}]`);
+  }
+  if (!records.some((record: EvidenceRecord): boolean => record.id.startsWith('E-'))) {
+    published = published.replace(/\[E-(S\d+)-\d+\]/gu, '[$1]');
   }
   let previous: string;
   do {

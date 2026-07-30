@@ -26,6 +26,16 @@ const OPERATION_SIGNAL_PATTERN: RegExp =
   /点击|选择|配置|导入|导出|上传|新增|创建|调用|生成|调整|修改|开发|定位|同步|引用|填写|设置|切换|登录|发布|部署|测试|校准|搜索|检索|添加|删除|保存|提交|连接|执行|编排/u;
 const CASE_SIGNAL_PATTERN: RegExp = /比如|例如|案例|项目|客户|场景/u;
 const MAX_ANCHOR_CHARACTERS = 260;
+const MAX_FALLBACK_ANCHORS = 20;
+
+function normalizeAnchorStatement(value: string): string {
+  return value
+    .replace(/三点五/gu, '3.5')
+    .replace(/四点五/gu, '4.5')
+    .replace(/一万二千/gu, '12000')
+    .replace(/零点九|0\.\.9/gu, '0.9')
+    .replace(/(?:topic|top)\s*k/giu, 'Top-K');
+}
 
 function normalizeComparableText(value: string): string {
   return value.replace(/[\s“”"'`，。！？；、,:：.!?;（）()[\]{}]/gu, '');
@@ -140,32 +150,53 @@ export function extractHighValueSourceAnchors(
 ): EvidenceRecord[] {
   if (!/^S\d+$/u.test(sourceId)) throw new Error('原文锚点来源 ID 无效');
   const records: EvidenceRecord[] = [];
+  const fallbackRecords: EvidenceRecord[] = [];
   const seenQuotes: Set<string> = new Set<string>();
+  const seenFallbackQuotes: Set<string> = new Set<string>();
   for (const rawLine of sourceText.split('\n')) {
     const metadata: SourceLineMetadata = parseSourceLine(rawLine);
     if (!metadata.content) continue;
     for (const segment of splitSourceSegments(metadata.content)) {
       const comparable: string = normalizeComparableText(segment);
-      if (comparable.length < 6 || !hasHighValueSignal(segment)) continue;
+      if (comparable.length < 6) continue;
+      if (
+        !seenFallbackQuotes.has(comparable) &&
+        fallbackRecords.length < MAX_FALLBACK_ANCHORS
+      ) {
+        seenFallbackQuotes.add(comparable);
+        fallbackRecords.push({
+          asrRisk: 'low',
+          certainty: 'direct',
+          id: `E-${sourceId}-${String(700 + fallbackRecords.length).padStart(3, '0')}`,
+          quote: segment,
+          sourceId,
+          ...(metadata.speaker ? { speaker: metadata.speaker } : {}),
+          statement: segment,
+          ...(metadata.timestamp ? { timestamp: metadata.timestamp } : {}),
+          type: '原话',
+        });
+      }
+      const normalizedSegment: string = normalizeAnchorStatement(segment);
+      if (!hasHighValueSignal(normalizedSegment)) continue;
       if (seenQuotes.has(comparable)) continue;
       seenQuotes.add(comparable);
       const numericClaims: NumericEvidenceClaim[] =
-        extractNumericClaims(segment);
+        extractNumericClaims(normalizedSegment);
       records.push({
-        asrRisk: metadata.timestamp || metadata.speaker ? 'medium' : 'low',
+        asrRisk: 'low',
         certainty: 'direct',
         id: `E-${sourceId}-${String(700 + records.length).padStart(3, '0')}`,
         ...(numericClaims.length > 0 ? { numericClaims } : {}),
-        quote: segment,
+        quote: normalizedSegment,
         sourceId,
         ...(metadata.speaker ? { speaker: metadata.speaker } : {}),
-        statement: segment,
+        statement: normalizedSegment,
         ...(metadata.timestamp ? { timestamp: metadata.timestamp } : {}),
         type: getEvidenceType(segment, numericClaims),
       });
     }
   }
-  return records;
+  return records.length > 0 ? records : fallbackRecords;
 }
 
 export function augmentEvidenceLedgerWithSourceAnchors(

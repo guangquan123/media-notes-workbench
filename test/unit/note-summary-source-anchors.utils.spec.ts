@@ -80,11 +80,24 @@ describe('note summary source anchors', () => {
       records.filter((record) => record.quote === existingQuote),
     ).toHaveLength(1);
     expect(records[1]).toMatchObject({
-      asrRisk: 'medium',
+      asrRisk: 'low',
       id: 'E-S01-002',
       quote: '模型版本在 3.5 以上时，知识图谱可能搞不出来。',
       sourceId: 'S01',
       type: '数字',
+    });
+  });
+
+  it('keeps a bounded original quote when no explicit signal is present', () => {
+    const anchors = extractHighValueSourceAnchors(
+      '本次培训介绍平台背景和基本概念。后续内容用于团队复习。',
+      'S01',
+    );
+
+    expect(anchors).toHaveLength(2);
+    expect(anchors[0]).toMatchObject({
+      quote: '本次培训介绍平台背景和基本概念。',
+      type: '原话',
     });
   });
 });

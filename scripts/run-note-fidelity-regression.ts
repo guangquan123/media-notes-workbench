@@ -1,8 +1,11 @@
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
-import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { AppModule } from '../server/app.module';
+import {
+  createReadOnlyCapabilityRuntime,
+  type ReadOnlyCapabilityRuntime,
+} from '../server/common/utils/read-only-capability-runtime';
 import type { ExternalModelCredentials } from '../server/modules/note-jobs/external-model-settings.service';
 import { ExternalModelSettingsService } from '../server/modules/note-jobs/external-model-settings.service';
 import { NoteSummaryPipelineService } from '../server/modules/note-jobs/note-summary-pipeline.service';
@@ -56,6 +59,9 @@ async function main(): Promise<void> {
   if (candidateArg && useBuiltinModel) {
     throw new Error('--builtin 不能与 existing-candidate.md 同时使用');
   }
+  if (useBuiltinModel) {
+    Logger.overrideLogger(['error', 'warn']);
+  }
   const sourceDocument: string = await readFile(resolve(sourceArg), 'utf8');
   const sourceMarker = '### 解析原文';
   const markerIndex: number = sourceDocument.indexOf(sourceMarker);
@@ -91,14 +97,14 @@ async function main(): Promise<void> {
   if (candidateArg) {
     markdown = await readFile(resolve(candidateArg), 'utf8');
   } else {
-    const application = useBuiltinModel
-      ? await NestFactory.createApplicationContext(AppModule, {
-          logger: ['error', 'warn'],
-        })
+    const runtime: ReadOnlyCapabilityRuntime | undefined = useBuiltinModel
+      ? await createReadOnlyCapabilityRuntime(
+          resolve(process.cwd(), 'server/capabilities'),
+        )
       : undefined;
     try {
-      const capabilityService: CapabilityService = application
-        ? application.get(CapabilityService)
+      const capabilityService: CapabilityService = runtime
+        ? runtime.capabilityService
         : ({
             load: (): never => {
               throw new Error('内置模型在本地保真回归中不可用');
@@ -130,7 +136,7 @@ async function main(): Promise<void> {
       quality = result.quality;
       await writeFile(resolve(outputArg), markdown, 'utf8');
     } finally {
-      await application?.close().catch(() => undefined);
+      await runtime?.close().catch(() => undefined);
     }
   }
 
