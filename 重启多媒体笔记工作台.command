@@ -3,26 +3,31 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PID_FILE="pids/dev-local.pid"
+APP_URL="http://localhost:8081/app/app_179bn4jet6k/"
+HEALTH_URL="http://127.0.0.1:8081/app/app_179bn4jet6k/"
+AGENT_LABEL="com.media-notes-workbench.dev"
+USER_ID="$(id -u)"
 
 echo "正在重启 多媒体笔记工作台…"
-npm run stop
 
-if [[ -f "$PID_FILE" ]]; then
-  for attempt in {1..15}; do
-    RUNNING_PID="$(<"$PID_FILE")"
-    if [[ "$RUNNING_PID" != <-> ]] || ! kill -0 "$RUNNING_PID" 2>/dev/null; then
-      rm -f "$PID_FILE"
-      break
-    fi
-    sleep 1
-  done
+if ! launchctl print "gui/$USER_ID/$AGENT_LABEL" >/dev/null 2>&1; then
+  echo "后台服务尚未启动，改为启动新服务…"
+  exec "$(dirname "$0")/启动多媒体笔记工作台.command"
 fi
 
-if [[ -f "$PID_FILE" ]]; then
-  echo "旧服务仍在退出中，暂不启动新服务。请几秒后再次运行本重启器。"
-  exit 1
-fi
+launchctl kickstart -k "gui/$USER_ID/$AGENT_LABEL"
 
-echo "旧服务已停止，正在启动新服务…"
-exec "$(dirname "$0")/启动多媒体笔记工作台.command"
+# 启动检测独立运行；服务就绪后自动打开首页。
+nohup env APP_URL="$APP_URL" HEALTH_URL="$HEALTH_URL" \
+  /bin/zsh -c '
+    for attempt in {1..180}; do
+      if curl --silent --fail --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
+        open "$APP_URL"
+        exit 0
+      fi
+      sleep 1
+    done
+    exit 1
+  ' </dev/null >/dev/null 2>&1 &
+
+echo "已在后台重启。服务就绪后会自动打开首页。"
