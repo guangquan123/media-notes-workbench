@@ -24,8 +24,10 @@ echo "正在后台启动 多媒体笔记工作台…"
 echo "启动日志：$LOG_FILE"
 echo "服务就绪后会自动打开：$APP_URL"
 
-# launchd 使服务独立于启动终端，并在意外退出后自动重新拉起。
-sed "s|__PROJECT_DIR__|$PWD|g" "$AGENT_TEMPLATE" >"$AGENT_PLIST"
+# launchd 需要显式 PATH，才能读取 Homebrew 和 npm 全局安装的依赖。
+sed -e "s|__PROJECT_DIR__|$PWD|g" \
+  -e "s|__USER_HOME__|$HOME|g" \
+  "$AGENT_TEMPLATE" >"$AGENT_PLIST"
 launchctl bootstrap "gui/$USER_ID" "$AGENT_PLIST"
 
 # 该检查与服务进程分离，关闭启动终端也不会阻止首页自动打开。

@@ -19,7 +19,7 @@ if [[ ! -f "$PID_FILE" ]]; then
 fi
 
 for attempt in {1..15}; do
-  RUNNING_PID="$(<"$PID_FILE")"
+  RUNNING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
   if [[ "$RUNNING_PID" != <-> ]] || ! kill -0 "$RUNNING_PID" 2>/dev/null; then
     rm -f "$PID_FILE"
     echo "工作台已停止。"
