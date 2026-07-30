@@ -58,6 +58,10 @@ interface ConversionRecordRow {
   sourceType: string;
   sourceLabel: string;
   status: string;
+  currentStage: string | null;
+  progress: number | null;
+  statusMessage: string | null;
+  error: string | null;
   durationMs: number | null;
   startedAt: Date;
   completedAt: Date | null;
@@ -324,6 +328,10 @@ export class NoteHistoryService {
         sourceType: noteConversionRecords.sourceType,
         sourceLabel: noteConversionRecords.sourceLabel,
         status: noteConversionRecords.status,
+        currentStage: noteConversionRecords.currentStage,
+        progress: noteConversionRecords.progress,
+        statusMessage: noteConversionRecords.statusMessage,
+        error: noteConversionRecords.error,
         durationMs: noteConversionRecords.durationMs,
         startedAt: noteConversionRecords.startedAt,
         completedAt: noteConversionRecords.completedAt,
@@ -363,6 +371,10 @@ export class NoteHistoryService {
           sourceType: this.toSourceType(row.sourceType),
           sourceLabel: row.sourceLabel,
           status: this.toStatus(row.status),
+          currentStage: this.toJobStage(row.currentStage),
+          progress: row.progress ?? undefined,
+          statusMessage: row.statusMessage,
+          error: row.error,
           durationMs: row.durationMs,
           durationLabel: formatDuration(row.durationMs),
           startedAt: row.startedAt.toISOString(),
@@ -691,6 +703,31 @@ export class NoteHistoryService {
   private toStatus(value: string): ConversionStatus {
     if (value === 'completed' || value === 'failed') return value;
     return 'processing';
+  }
+
+  private toJobStage(value: string | null): NoteConversionRecord['currentStage'] {
+    const stages = [
+      'queued',
+      'uploading',
+      'checking',
+      'preparing',
+      'parsing',
+      'downloading',
+      'aligning',
+      'transcribing',
+      'extracting-frames',
+      'uploading-frames',
+      'analyzing-frames',
+      'awaiting-frame-review',
+      'summarizing',
+      'publishing',
+      'completed',
+      'cancelled',
+      'failed',
+    ] as const;
+    return stages.includes(value as (typeof stages)[number])
+      ? (value as NoteConversionRecord['currentStage'])
+      : undefined;
   }
 
   private toNoteStyle(value: string | null): NoteStyle | null {

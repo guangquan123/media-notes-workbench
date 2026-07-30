@@ -36,6 +36,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,27 @@ import { getVisualOptionsCopy } from './conversion-history-visual.utils';
 import { useHistoryReprocessing } from './useHistoryReprocessing';
 
 const PAGE_SIZE = 10;
+
+const STAGE_LABELS: Record<string, string> = {
+  aligning: '对齐音视频',
+  'analyzing-frames': '识别关键画面',
+  'awaiting-frame-review': '等待确认关键画面',
+  checking: '检查运行环境',
+  downloading: '下载媒体',
+  'extracting-frames': '提取关键画面',
+  parsing: '解析文件',
+  preparing: '准备媒体',
+  publishing: '写入飞书文档',
+  queued: '排队等待处理',
+  summarizing: '生成学习笔记',
+  transcribing: '语音转文字',
+  uploading: '上传媒体',
+  'uploading-frames': '上传关键画面',
+};
+
+function getStageLabel(stage?: string): string {
+  return (stage && STAGE_LABELS[stage]) || '处理中';
+}
 
 const SOURCE_STYLES: Record<
   NoteSourceType,
@@ -244,6 +266,53 @@ export default function ConversionHistoryPage() {
     dateTo,
     page,
     processingStatus,
+    sourceType,
+    status,
+  ]);
+
+  const hasProcessingRecords: boolean = records.some(
+    (record: NoteConversionRecord): boolean => record.status === 'processing',
+  );
+
+  useEffect(() => {
+    if (!hasProcessingRecords) return undefined;
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      try {
+        const response = await getNoteConversionHistory({
+          dateFrom,
+          dateTo,
+          keyword: appliedKeyword || undefined,
+          jobId,
+          sourceChannel,
+          page,
+          pageSize: PAGE_SIZE,
+          processingStatus,
+          sourceType,
+          status,
+        });
+        if (!cancelled) {
+          setRecords(response.items);
+          setPagination(response.pagination);
+        }
+      } catch {
+        // Keep the current progress visible through a transient poll failure.
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 2200);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    appliedKeyword,
+    dateFrom,
+    dateTo,
+    hasProcessingRecords,
+    jobId,
+    page,
+    processingStatus,
+    sourceChannel,
     sourceType,
     status,
   ]);
@@ -699,6 +768,27 @@ export default function ConversionHistoryPage() {
                         <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">
                           {record.title}
                         </h2>
+                        {record.status === 'processing' ? (
+                          <div className="mt-4 max-w-2xl rounded-xl bg-[#f5f7fb] px-3 py-2.5">
+                            <div className="flex items-center justify-between gap-3 text-xs text-black/55">
+                              <span className="font-medium text-[#3370ff]">
+                                {getStageLabel(record.currentStage)}
+                              </span>
+                              <span>{Math.round(record.progress ?? 0)}%</span>
+                            </div>
+                            <Progress
+                              className="mt-2 h-1.5"
+                              value={record.progress ?? 0}
+                            />
+                            <p className="mt-2 truncate text-xs text-black/48">
+                              {record.statusMessage || '任务正在后台处理…'}
+                            </p>
+                          </div>
+                        ) : record.status === 'failed' && record.error ? (
+                          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+                            {record.error}
+                          </p>
+                        ) : null}
                         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-black/42">
                           <span className="inline-flex items-center gap-1.5">
                             <Clock3 className="size-3.5" />

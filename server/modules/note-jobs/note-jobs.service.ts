@@ -117,6 +117,8 @@ import {
 
 type CommandResult = { stdout: string; stderr: string };
 
+const UPLOAD_FETCH_RETRY_DELAYS_MS: readonly number[] = [500, 1500];
+
 interface CapabilityTextRetryInput {
   readonly pluginInstanceId: string;
   readonly actionKey: string;
@@ -2095,6 +2097,38 @@ export class NoteJobsService {
     destination: string,
     flags: 'a' | 'wx',
   ): Promise<void> {
+    for (
+      let attempt = 0;
+      attempt <= UPLOAD_FETCH_RETRY_DELAYS_MS.length;
+      attempt += 1
+    ) {
+      try {
+        await this.downloadUploadedMediaPartOnce(media, destination, flags);
+        return;
+      } catch (error) {
+        const message: string =
+          error instanceof Error ? error.message : '未知网络错误';
+        const retryDelay: number | undefined =
+          UPLOAD_FETCH_RETRY_DELAYS_MS[attempt];
+        if (!retryDelay || !this.isTransientUploadFetchError(error)) {
+          throw new Error(`读取上传文件失败：${message}`);
+        }
+        await rm(destination, { force: true });
+        this.logger.warn(
+          `上传文件读取失败，第 ${attempt + 1}/${
+            UPLOAD_FETCH_RETRY_DELAYS_MS.length + 1
+          } 次后重试：${message}`,
+        );
+        await this.delay(retryDelay);
+      }
+    }
+  }
+
+  private async downloadUploadedMediaPartOnce(
+    media: UploadedMediaPart,
+    destination: string,
+    flags: 'a' | 'wx',
+  ): Promise<void> {
     let currentUrl: URL = validateMediaDownloadUrl(media.downloadUrl);
     let response: Response | undefined;
     for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
@@ -2136,6 +2170,14 @@ export class NoteJobsService {
       Readable.fromWeb(response.body),
       sizeLimiter,
       createWriteStream(destination, { flags }),
+    );
+  }
+
+  private isTransientUploadFetchError(error: unknown): boolean {
+    const message: string =
+      error instanceof Error ? error.message : String(error);
+    return /fetch failed|network|econnreset|etimedout|eai_again|socket/iu.test(
+      message,
     );
   }
 

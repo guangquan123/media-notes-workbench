@@ -453,6 +453,10 @@ export interface NoteConversionRecord {
   sourceType: NoteSourceType;
   sourceLabel: string;
   status: ConversionStatus;
+  currentStage?: JobStage;
+  progress?: number;
+  statusMessage?: string;
+  error?: string | null;
   durationMs: number | null;
   durationLabel: string;
   startedAt: string;
