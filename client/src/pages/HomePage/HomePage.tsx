@@ -28,6 +28,7 @@ import {
   getReadiness,
 } from '@/api';
 import { downloadBlob } from '@/utils/download';
+import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
 import type {
   NoteJob,
   NoteStyle,
@@ -37,7 +38,7 @@ import type {
 } from '@shared/api.interface';
 import { buildPlatformNoteJobRequest } from './home-page.utils';
 
-const stageLabels = [
+const STAGE_LABELS = [
   ['downloading', '拉取视频', Headphones],
   ['extracting-frames', '处理画面', FileVideo],
   ['transcribing', '语音转文字', FileText],
@@ -336,9 +337,25 @@ export default function HomePage() {
             </p>
 
             <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {stageLabels.map(([stage, label, Icon], index) => {
+              {(shouldShowVisualProcessingStage(
+                job?.sourceType || 'platform',
+                job?.visualOptions || visualOptions,
+              )
+                ? STAGE_LABELS
+                : STAGE_LABELS.filter(
+                    ([stage]) => stage !== 'extracting-frames',
+                  )
+              ).map(([stage, label, Icon], index) => {
                 const currentStage = getLogicalStage(job?.stage);
-                const stageIndex = stageLabels.findIndex(
+                const visibleStages = shouldShowVisualProcessingStage(
+                  job?.sourceType || 'platform',
+                  job?.visualOptions || visualOptions,
+                )
+                  ? STAGE_LABELS
+                  : STAGE_LABELS.filter(
+                      ([item]) => item !== 'extracting-frames',
+                    );
+                const stageIndex = visibleStages.findIndex(
                   ([item]) => item === currentStage,
                 );
                 const done =

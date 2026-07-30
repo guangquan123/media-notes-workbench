@@ -29,6 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { formatFileSize } from '@/utils/file-size';
 import { getUploadFailureMessage } from '@/utils/upload-error';
+import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
 import type {
   NoteJob,
   NoteStyle,
@@ -230,7 +231,15 @@ export default function PairedMediaNotesPage() {
   const logicalStage: string | undefined = uploading
     ? 'uploading'
     : getPairedLogicalStage(job?.stage);
-  const currentStageIndex: number = PAIRED_PROCESS_STAGES.findIndex(
+  const processStages = PAIRED_PROCESS_STAGES.filter(
+    ([stage]) =>
+      stage !== 'extracting-frames' ||
+      shouldShowVisualProcessingStage(
+        'paired',
+        job?.visualOptions || visualOptions,
+      ),
+  );
+  const visibleStageIndex: number = processStages.findIndex(
     (stage: readonly [string, string]): boolean => stage[0] === logicalStage,
   );
   const displayProgress: number = uploading
@@ -274,17 +283,17 @@ export default function PairedMediaNotesPage() {
               数字、术语或结论不一致时会保留两种说法，交给你确认。
             </p>
             <div className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-              {PAIRED_PROCESS_STAGES.map(
+              {processStages.map(
                 (stage: readonly [string, string], index: number) => (
                   <div
                     className={`rounded-xl border bg-white px-3 py-3 text-center text-xs ${
-                      currentStageIndex === index
+                      visibleStageIndex === index
                         ? 'border-[#4d5dff] text-[#3848d7]'
                         : 'border-black/7 text-black/45'
                     }`}
                     key={stage[0]}
                   >
-                    {job?.stage === 'completed' || index < currentStageIndex ? (
+                    {job?.stage === 'completed' || index < visibleStageIndex ? (
                       <Check className="mx-auto mb-1 size-4 text-emerald-600" />
                     ) : (
                       <span className="mb-1 block font-semibold">

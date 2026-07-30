@@ -43,6 +43,7 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
+import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
 import type {
   NoteJob,
   NoteStyle,
@@ -202,8 +203,6 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       : sourceType === 'audio'
         ? FileAudio
         : FileText;
-  const processStages =
-    sourceType === 'document' ? PDF_PROCESS_STAGES : MEDIA_PROCESS_STAGES;
   const [files, setFiles] = useState<File[]>([]);
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
   const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
@@ -218,6 +217,16 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
+  const showVisualStage = shouldShowVisualProcessingStage(
+    sourceType,
+    job?.visualOptions || visualOptions,
+  );
+  const processStages =
+    sourceType === 'document'
+      ? PDF_PROCESS_STAGES
+      : MEDIA_PROCESS_STAGES.filter(
+          ([stage]) => stage !== 'extracting-frames' || showVisualStage,
+        );
   const running: boolean = Boolean(
     job &&
       !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
