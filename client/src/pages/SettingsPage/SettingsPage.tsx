@@ -1,11 +1,12 @@
 import {
+  ArrowLeft,
   BotMessageSquare,
   FilePenLine,
   Settings2,
   Speech,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import ModelSettingsPage from '@/pages/ModelSettingsPage/ModelSettingsPage';
@@ -80,9 +81,22 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
-              <p className="text-xs leading-5 text-black/45 sm:max-w-xs sm:text-right">
-                密钥只会以脱敏状态显示，保存后不会回传到页面或写入日志。
-              </p>
+              <div className="flex flex-col items-start gap-3 sm:items-end">
+                <p className="text-xs leading-5 text-black/45 sm:max-w-xs sm:text-right">
+                  密钥只会以脱敏状态显示，保存后不会回传到页面或写入日志。
+                </p>
+                <Button
+                  asChild
+                  className="rounded-full bg-white/85 text-black/65 hover:bg-white hover:text-black"
+                  size="sm"
+                  variant="outline"
+                >
+                  <Link to="/">
+                    <ArrowLeft className="size-3.5" />
+                    返回入口
+                  </Link>
+                </Button>
+              </div>
             </div>
           </header>
 
