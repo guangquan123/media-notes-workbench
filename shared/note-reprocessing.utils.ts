@@ -201,6 +201,17 @@ export function retainedNoteSourcesMatch(
   return JSON.stringify(expected) === JSON.stringify(actual);
 }
 
+export function retainedNoteSourceContentMatches(
+  expected: RetainedNoteSource,
+  actual: RetainedNoteSource,
+): boolean {
+  return (
+    expected.sourceType === actual.sourceType &&
+    JSON.stringify({ ...expected, visualOptions: { mode: 'disabled' } }) ===
+      JSON.stringify({ ...actual, visualOptions: { mode: 'disabled' } })
+  );
+}
+
 function copyStoredObject(
   source: StoredSourceObject,
   fileSize: number,

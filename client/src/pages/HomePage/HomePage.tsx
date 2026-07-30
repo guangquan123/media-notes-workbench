@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
+import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -30,9 +31,11 @@ import { downloadBlob } from '@/utils/download';
 import type {
   NoteJob,
   NoteStyle,
+  NoteVisualOptions,
   SourcePlatform,
   SystemReadiness,
 } from '@shared/api.interface';
+import { buildPlatformNoteJobRequest } from './home-page.utils';
 
 const stageLabels = [
   ['downloading', '拉取视频', Headphones],
@@ -94,6 +97,9 @@ export default function HomePage() {
   const [sourcePlatform, setSourcePlatform] =
     useState<SourcePlatform>('bilibili');
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('learning');
+  const [visualOptions, setVisualOptions] = useState<NoteVisualOptions>({
+    mode: 'disabled',
+  });
   const [cookieBrowser, setCookieBrowser] = useState<
     '' | 'chrome' | 'safari' | 'edge' | 'firefox'
   >('');
@@ -196,12 +202,15 @@ export default function HomePage() {
     }
     setSubmitting(true);
     try {
-      const created = await createNoteJob({
-        url: normalizePlatformInput(url, sourcePlatform),
-        sourcePlatform,
-        noteStyle,
-        cookieBrowser: cookieBrowser || undefined,
-      });
+      const created = await createNoteJob(
+        buildPlatformNoteJobRequest({
+          cookieBrowser: cookieBrowser || undefined,
+          noteStyle,
+          sourcePlatform,
+          url: normalizePlatformInput(url, sourcePlatform),
+          visualOptions,
+        }),
+      );
       setJob(created);
     } catch (error: unknown) {
       const responseError = error as {
@@ -229,6 +238,7 @@ export default function HomePage() {
     setUrl('');
     setSourcePlatform('bilibili');
     setNoteStyle('learning');
+    setVisualOptions({ mode: 'disabled' });
   }
 
   async function downloadCurrentRawTranscript() {
@@ -443,6 +453,12 @@ export default function HomePage() {
                     disabled={submitting}
                     onChange={setNoteStyle}
                     value={noteStyle}
+                  />
+
+                  <VisualOptionsPanel
+                    disabled={submitting}
+                    onChange={setVisualOptions}
+                    value={visualOptions}
                   />
 
                   <Button

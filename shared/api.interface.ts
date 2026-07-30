@@ -472,6 +472,7 @@ export interface NoteConversionRecord {
   parentJobId: string | null;
   rerunMode: NoteRerunMode;
   sourceAssets: NoteSourceAssetSummary;
+  visualOptions?: NoteVisualOptions;
   versionNumber: number;
 }
 

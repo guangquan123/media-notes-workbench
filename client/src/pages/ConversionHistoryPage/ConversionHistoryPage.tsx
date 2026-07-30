@@ -13,6 +13,7 @@ import {
   FileVideo,
   HardDrive,
   History,
+  ImageIcon,
   ListChecks,
   LoaderCircle,
   MoreHorizontal,
@@ -36,6 +37,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -49,7 +58,9 @@ import type {
   NoteConversionRecord,
   NoteProcessingStatus,
   NoteSourceType,
+  NoteVisualOptions,
 } from '@shared/api.interface';
+import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
 import { HistoryFilterControls } from './HistoryFilterControls';
 import { SourceDeletionDialog } from './SourceDeletionDialog';
 import {
@@ -60,6 +71,7 @@ import {
   getSourceAssetCapabilities,
   getSourceAssetCopy,
 } from './conversion-history-source.utils';
+import { getVisualOptionsCopy } from './conversion-history-visual.utils';
 import { useHistoryReprocessing } from './useHistoryReprocessing';
 
 const PAGE_SIZE = 10;
@@ -182,6 +194,10 @@ export default function ConversionHistoryPage() {
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [markingJobId, setMarkingJobId] = useState<string | null>(null);
   const [batchProcessing, setBatchProcessing] = useState(false);
+  const [imageReprocessRecord, setImageReprocessRecord] =
+    useState<NoteConversionRecord | null>(null);
+  const [imageReprocessOptions, setImageReprocessOptions] =
+    useState<NoteVisualOptions>({ mode: 'disabled' });
 
   const loadRecords = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -376,6 +392,19 @@ export default function ConversionHistoryPage() {
     setSelectedJobIds([]);
   };
 
+  const openImageReprocess = (record: NoteConversionRecord) => {
+    setImageReprocessRecord(record);
+    setImageReprocessOptions(record.visualOptions || { mode: 'disabled' });
+  };
+
+  const submitImageReprocess = async () => {
+    if (!imageReprocessRecord || imageReprocessOptions.mode === 'disabled') {
+      return;
+    }
+    await reprocessImages(imageReprocessRecord, imageReprocessOptions);
+    setImageReprocessRecord(null);
+  };
+
   const totalPages: number = pagination?.totalPages || 0;
   const totalItems: number = pagination?.totalItems || 0;
   const {
@@ -383,6 +412,7 @@ export default function ConversionHistoryPage() {
     deleteRetainedSource,
     deletingSource,
     fullyReprocess,
+    reprocessImages,
     regenerateRaw,
     regenerateSummary,
     setSourceToDelete,
@@ -567,6 +597,11 @@ export default function ConversionHistoryPage() {
                   taskFinished && record.rawTranscriptAvailable;
                 const canFullReprocess: boolean =
                   taskFinished && sourceCapabilities.canReprocess;
+                const visualOptionsCopy = getVisualOptionsCopy(
+                  record.visualOptions,
+                );
+                const canReprocessImages: boolean =
+                  canFullReprocess && visualOptionsCopy.enabled;
                 const canDeleteSource: boolean =
                   taskFinished && sourceCapabilities.canDelete;
                 const hasMoreActions: boolean =
@@ -649,6 +684,17 @@ export default function ConversionHistoryPage() {
                             V{record.versionNumber} ·{' '}
                             {getRerunModeCopy(record)}
                           </Badge>
+                          <Badge
+                            className={
+                              visualOptionsCopy.enabled
+                                ? 'border-transparent bg-violet-50 text-violet-700'
+                                : 'border-transparent bg-black/5 text-black/48'
+                            }
+                            variant="outline"
+                          >
+                            <ImageIcon className="mr-1 size-3" />
+                            {visualOptionsCopy.title}
+                          </Badge>
                         </div>
                         <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">
                           {record.title}
@@ -669,6 +715,10 @@ export default function ConversionHistoryPage() {
                           <span className="inline-flex items-center gap-1.5">
                             <HardDrive className="size-3.5" />
                             {getSourceAssetCopy(record.sourceAssets)}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <ImageIcon className="size-3.5" />
+                            {visualOptionsCopy.detail}
                           </span>
                         </div>
                       </div>
@@ -774,6 +824,14 @@ export default function ConversionHistoryPage() {
                                   <Repeat2 className="size-4" />
                                 </DropdownMenuItem>
                               ) : null}
+                              {canReprocessImages ? (
+                                <DropdownMenuItem
+                                  onClick={() => openImageReprocess(record)}
+                                >
+                                  重新处理图片
+                                  <ImageIcon className="size-4" />
+                                </DropdownMenuItem>
+                              ) : null}
                               {canFullReprocess ? (
                                 <DropdownMenuItem
                                   onClick={() =>
@@ -873,14 +931,47 @@ export default function ConversionHistoryPage() {
           ) : null}
         </section>
       </div>
-      <SourceDeletionDialog
+        <SourceDeletionDialog
         deleting={deletingSource}
         onConfirm={() => void deleteRetainedSource()}
         onOpenChange={(open: boolean) => {
           if (!open && !deletingSource) setSourceToDelete(null);
         }}
         record={sourceToDelete}
-      />
+        />
+        <Dialog
+          onOpenChange={(open) => {
+            if (!open) setImageReprocessRecord(null);
+          }}
+          open={imageReprocessRecord !== null}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>重新处理图片</DialogTitle>
+              <DialogDescription>
+                将创建新的转化版本，原笔记和原始图片保持不变。
+              </DialogDescription>
+            </DialogHeader>
+            <VisualOptionsPanel
+              disabled={actionJobId === imageReprocessRecord?.jobId}
+              onChange={setImageReprocessOptions}
+              value={imageReprocessOptions}
+            />
+            <DialogFooter>
+              <Button
+                disabled={
+                  imageReprocessOptions.mode === 'disabled' ||
+                  actionJobId === imageReprocessRecord?.jobId
+                }
+                onClick={() => void submitImageReprocess()}
+              >
+                {actionJobId === imageReprocessRecord?.jobId
+                  ? '正在创建任务'
+                  : '创建图片重处理版本'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </main>
   );
 }

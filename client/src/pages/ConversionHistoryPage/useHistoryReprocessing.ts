@@ -12,7 +12,7 @@ import {
   createSignedUrlsForStoredSourceObjects,
   deleteStoredSourceObjects,
 } from '@/components/business-ui/api/files/service';
-import type { NoteConversionRecord } from '@shared/api.interface';
+import type { NoteConversionRecord, NoteVisualOptions } from '@shared/api.interface';
 import {
   listRetainedSourceObjects,
   materializeRetainedNoteSource,
@@ -56,7 +56,10 @@ export function useHistoryReprocessing({
     }
   };
 
-  const fullyReprocess = async (record: NoteConversionRecord) => {
+  const reprocessWithRetainedSource = async (
+    record: NoteConversionRecord,
+    successMessage: string,
+  ) => {
     setActionJobId(record.jobId);
     try {
       const snapshot = await getNoteSourceSnapshot(record.jobId);
@@ -72,9 +75,43 @@ export function useHistoryReprocessing({
       );
       await reprocessNote(record.jobId, input);
       await onRecordsChanged();
-      toast.success('已创建完整重跑版本，正在后台处理');
+      toast.success(successMessage);
     } catch {
       toast.error('完整重新处理失败，请检查源文件后重试');
+    } finally {
+      setActionJobId(null);
+    }
+  };
+
+  const fullyReprocess = async (record: NoteConversionRecord) =>
+    reprocessWithRetainedSource(record, '已创建完整重跑版本，正在后台处理');
+
+  const reprocessImages = async (
+    record: NoteConversionRecord,
+    visualOptions: NoteVisualOptions,
+  ) => {
+    const originalSnapshot = await getNoteSourceSnapshot(record.jobId);
+    if (!originalSnapshot.source) {
+      toast.error('源文件已不可用，请重新上传后再处理图片');
+      return;
+    }
+    const objects = listRetainedSourceObjects(originalSnapshot.source);
+    const signedUrls =
+      objects.length > 0
+        ? await createSignedUrlsForStoredSourceObjects(objects)
+        : {};
+    const input = materializeRetainedNoteSource(
+      originalSnapshot.source,
+      signedUrls,
+    );
+    input.visualOptions = visualOptions;
+    setActionJobId(record.jobId);
+    try {
+      await reprocessNote(record.jobId, input);
+      await onRecordsChanged();
+      toast.success('已创建图片重处理版本，正在重新抽帧和识别');
+    } catch {
+      toast.error('图片重新处理失败，请检查源文件后重试');
     } finally {
       setActionJobId(null);
     }
@@ -122,6 +159,7 @@ export function useHistoryReprocessing({
     deleteRetainedSource,
     deletingSource,
     fullyReprocess,
+    reprocessImages,
     regenerateRaw,
     regenerateSummary,
     setSourceToDelete,

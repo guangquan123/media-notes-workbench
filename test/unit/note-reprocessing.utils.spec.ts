@@ -9,6 +9,7 @@ import {
   materializeRetainedNoteSource,
   parseRetainedNoteSource,
   removeRetainedSourceObjects,
+  retainedNoteSourceContentMatches,
   retainedNoteSourcesMatch,
   summarizeRetainedNoteSource,
 } from '../../shared/note-reprocessing.utils';
@@ -227,5 +228,27 @@ describe('note reprocessing source lifecycle', () => {
 
     expect(retainedNoteSourcesMatch(expected, tampered)).toBe(false);
     expect(retainedNoteSourcesMatch(expected, expected)).toBe(true);
+  });
+
+  it('allows a reprocess to change only image processing options', () => {
+    const original: RetainedNoteSource = {
+      noteStyle: 'learning',
+      sourcePlatform: 'bilibili',
+      sourceType: 'platform',
+      url: 'https://www.bilibili.com/video/BV1example',
+      visualOptions: { mode: 'disabled' },
+    };
+    const changedVisualOptions: RetainedNoteSource = {
+      ...original,
+      visualOptions: {
+        allowExternalAi: true,
+        density: 'standard',
+        mode: 'automatic',
+        outputMode: 'original_with_ai_notes',
+      },
+    };
+
+    expect(retainedNoteSourcesMatch(original, changedVisualOptions)).toBe(false);
+    expect(retainedNoteSourceContentMatches(original, changedVisualOptions)).toBe(true);
   });
 });

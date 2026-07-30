@@ -385,6 +385,7 @@ export class NoteHistoryService {
             source,
             row.sourceDeletedAt?.toISOString() || null,
           ),
+          visualOptions: source?.visualOptions,
           versionNumber: row.versionNumber,
         };
       },

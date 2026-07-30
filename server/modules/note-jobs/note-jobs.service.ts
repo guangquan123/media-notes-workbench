@@ -66,7 +66,7 @@ import {
 import { mapWithConcurrency } from '@shared/async.utils';
 import {
   captureRetainedNoteSource,
-  retainedNoteSourcesMatch,
+  retainedNoteSourceContentMatches,
   summarizeRetainedNoteSource,
 } from '@shared/note-reprocessing.utils';
 import {
@@ -606,7 +606,7 @@ export class NoteJobsService {
       captureRetainedNoteSource(input);
     if (
       !actualSource ||
-      !retainedNoteSourcesMatch(context.sourceSnapshot, actualSource)
+      !retainedNoteSourceContentMatches(context.sourceSnapshot, actualSource)
     ) {
       throw new BadRequestException('重处理请求与保留的源文件不一致');
     }
@@ -625,7 +625,7 @@ export class NoteJobsService {
           rerunMode: 'full_reprocess',
           sourceAssetGroupId: context.sourceAssetGroupId,
           sourceChannel: context.sourceChannel,
-          sourceSnapshot: context.sourceSnapshot,
+          sourceSnapshot: actualSource,
           title: context.title,
           versionNumber,
         },
