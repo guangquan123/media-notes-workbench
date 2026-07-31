@@ -201,7 +201,7 @@
     "dev:client:stable": "VITE_STABLE_MODE=true NODE_ENV=development vite --config vite.config.ts",
     "dev:local": "node ./scripts/dev-local.js",
     "dev:server": "SERVER_HOST=127.0.0.1 NODE_ENV=development nest start --watch",
-    "dev:server:stable": "SERVER_HOST=127.0.0.1 NODE_ENV=development nest start",
+    "dev:server:stable": "npm run build:server && SERVER_HOST=127.0.0.1 NODE_ENV=development nest start",
     "eslint": "eslint . --quiet",
     "format": "prettier --write \"{server,client,test}/**/*.{js,ts,tsx,json,md}\"",
     "gen:db-schema": "npx -y @lark-apaas/db-schema-sync@latest --output server/database/schema.ts --export-custom-types",
