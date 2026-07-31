@@ -1,7 +1,9 @@
 import {
   buildVisualWarnings,
+  detectPresentationMode,
   normalizeVisualOptions,
   scoreFrame,
+  selectFramesForContent,
   selectKeyFrames,
   validateFrameSelectionRequest,
 } from '../../server/modules/note-jobs/frame-selection.utils';
@@ -73,16 +75,76 @@ describe('frame selection', () => {
     ).toBe(true);
   });
 
+  it('keeps every unique slide in timeline order when presentation mode is detected', () => {
+    const frames = Array.from({ length: 30 }, (_, index) =>
+      frame(String(index), index * 30, {
+        analysis: {
+          chartDesc: '',
+          hasChart: false,
+          hasText: true,
+          isPresentationSlide: true,
+          score: 4,
+          summary: `课件第 ${index + 1} 页`,
+          text: `第 ${index + 1} 页完整内容`,
+        },
+        visualInformationScore: 0.8,
+      }),
+    );
+
+    const result = selectFramesForContent(
+      frames,
+      'standard',
+      30 * 30,
+      '离散制造业供应链培训',
+    );
+
+    expect(result.presentationMode).toBe(true);
+    expect(result.frames).toHaveLength(30);
+    expect(result.frames.map((item) => item.timestamp)).toEqual(
+      frames.map((item) => item.timestamp),
+    );
+  });
+
+  it('recognizes slide-based training from analyzed frames without relying on a title', () => {
+    const frames = Array.from({ length: 5 }, (_, index) =>
+      frame(String(index), index * 30, {
+        analysis: {
+          chartDesc: '',
+          hasChart: false,
+          hasText: true,
+          isPresentationSlide: index < 4,
+          score: 4,
+          summary: '课程页面',
+          text: '课程内容',
+        },
+      }),
+    );
+
+    expect(detectPresentationMode(frames, '业务知识分享')).toBe(true);
+  });
+
   it('reports partial visual failures instead of silently swallowing them', () => {
     expect(
       buildVisualWarnings({
         analyzed: 1,
+        derivativeCount: 1,
         extracted: 8,
         requestedAi: true,
         selected: 4,
         uploaded: 3,
       }).map((warning) => warning.code),
     ).toEqual(['FRAME_UPLOAD_PARTIAL', 'FRAME_AI_PARTIAL']);
+    expect(
+      buildVisualWarnings({
+        analyzed: 4,
+        derivativeCount: 1,
+        extracted: 4,
+        requestedAi: true,
+        requestedDerivative: true,
+        selected: 4,
+        uploaded: 4,
+      }).map((warning) => warning.code),
+    ).toContain('FRAME_DERIVATIVE_PARTIAL');
   });
 
   it('rejects malformed, oversized and invalid frame selections', () => {
@@ -100,14 +162,14 @@ describe('frame selection', () => {
         selectedFrameIds: [],
       }),
     ).toThrow('关键帧选择参数不完整');
-    const ids = Array.from({ length: 101 }, (_, index) => `frame-${index}`);
+    const ids = Array.from({ length: 1_001 }, (_, index) => `frame-${index}`);
     expect(() =>
       validateFrameSelectionRequest({
         orderedFrameIds: ids,
         revision: 0,
         selectedFrameIds: ids,
       }),
-    ).toThrow('单次最多选择 100 张关键帧');
+    ).toThrow('单次最多选择 1000 张关键帧');
     expect(() =>
       validateFrameSelectionRequest({
         orderedFrameIds: [''],

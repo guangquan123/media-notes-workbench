@@ -10,10 +10,7 @@ import {
   type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import {
-  noteConversionRecords,
-  noteJobFrames,
-} from '@server/database/schema';
+import { noteConversionRecords, noteJobFrames } from '@server/database/schema';
 import type {
   JobStage,
   NoteJob,
@@ -53,7 +50,9 @@ export class FrameReviewService {
         await transaction
           .insert(noteJobFrames)
           .values({
-            analysisJson: frame.analysis ? JSON.stringify(frame.analysis) : null,
+            analysisJson: frame.analysis
+              ? JSON.stringify(frame.analysis)
+              : null,
             derivativeAssetRef: frame.derivativeUrl || null,
             derivativeStatus: frame.derivativeUrl
               ? 'completed'
@@ -156,14 +155,11 @@ export class FrameReviewService {
       .select()
       .from(noteJobFrames)
       .where(
-        and(
-          eq(noteJobFrames.jobId, jobId),
-          eq(noteJobFrames.ownerId, ownerId),
-        ),
+        and(eq(noteJobFrames.jobId, jobId), eq(noteJobFrames.ownerId, ownerId)),
       )
       .orderBy(asc(noteJobFrames.globalTimestampMs), asc(noteJobFrames.id));
     const safePage = Math.max(1, page);
-    const safePageSize = Math.max(1, Math.min(100, pageSize));
+    const safePageSize = Math.max(1, Math.min(1_000, pageSize));
     const offset = (safePage - 1) * safePageSize;
     return {
       items: rows
@@ -271,7 +267,10 @@ export class FrameReviewService {
           eq(noteJobFrames.selectionStatus, 'selected'),
         ),
       )
-      .orderBy(asc(noteJobFrames.displayOrder), asc(noteJobFrames.globalTimestampMs));
+      .orderBy(
+        asc(noteJobFrames.displayOrder),
+        asc(noteJobFrames.globalTimestampMs),
+      );
     return rows.map((row) => ({
       analysis: parseJson(row.analysisJson),
       derivativeUrl: row.derivativeAssetRef || undefined,
@@ -282,7 +281,9 @@ export class FrameReviewService {
       perceptualHash: row.perceptualHash || undefined,
       previewDataUrl:
         parseAssetRef(row.originalAssetRef).previewDataUrl || undefined,
-      selectionScore: Number(parseJson<Record<string, number>>(row.scoresJson)?.selection || 0),
+      selectionScore: Number(
+        parseJson<Record<string, number>>(row.scoresJson)?.selection || 0,
+      ),
       sourceFileName: row.sourceFileName,
       sourceIndex: row.sourceIndex,
       timestamp: row.timestampMs / 1_000,
@@ -299,10 +300,9 @@ export class FrameReviewService {
       currentStage: row.currentStage,
       draftMarkdown: row.draftMarkdown,
       frameSelectionRevision: row.frameSelectionRevision,
-      visualOptions:
-        parseJson<NoteVisualOptions>(row.visualOptionsJson) || {
-          mode: 'disabled',
-        },
+      visualOptions: parseJson<NoteVisualOptions>(row.visualOptionsJson) || {
+        mode: 'disabled',
+      },
     };
   }
 
@@ -345,7 +345,8 @@ export class FrameReviewService {
       documentUrl: row.documentUrl || undefined,
       error: row.error || undefined,
       id: jobId,
-      message: row.statusMessage || (stage === 'completed' ? '已完成' : '处理中'),
+      message:
+        row.statusMessage || (stage === 'completed' ? '已完成' : '处理中'),
       progress: row.progress ?? (stage === 'completed' ? 100 : 0),
       rawDocumentUrl: row.rawDocumentUrl || undefined,
       sourceLabel: row.sourceLabel,

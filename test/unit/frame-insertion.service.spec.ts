@@ -8,23 +8,24 @@ describe('FrameInsertionService', () => {
     service = new FrameInsertionService();
   });
 
-  it('should skip insertion if no frames have imageKey', () => {
+  it('rejects frames without a local or cached media source', () => {
     const markdown = '# 笔记标题\n\n## 1. 导言\n这是正文内容。';
     const frames: KeyFrame[] = [
       {
         timestamp: 10,
-        filePath: '/tmp/f1.jpg',
+        filePath: '',
         id: '1',
         sourceFileName: 'video.mp4',
         sourceIndex: 0,
         type: 'scene',
       },
     ];
-    const result = service.insertFramesIntoMarkdown(markdown, frames);
-    expect(result).toBe(markdown);
+    expect(() => service.insertFramesIntoMarkdown(markdown, frames)).toThrow(
+      '缺少本地媒体',
+    );
   });
 
-  it('should insert frames into markdown sections with AI annotation', () => {
+  it('builds native media assets instead of protected image URLs', () => {
     const markdown = `# 深度学习入门笔记\n\n## 1. 神经网络基础\n介绍了输入层和隐藏层。\n\n## 2. 核心算法\n介绍了反向传播与梯度下降。`;
     const frames: KeyFrame[] = [
       {
@@ -46,14 +47,25 @@ describe('FrameInsertionService', () => {
       },
     ];
 
-    const result = service.insertFramesIntoMarkdown(markdown, frames, 120);
+    const result = service.buildDocumentDraft(markdown, frames, {
+      presentationMode: false,
+      totalDurationSec: 120,
+    });
 
-    expect(result).toContain(
-      '![视频原始截图 00:15](https://open.feishu.cn/open-apis/im/v1/images/img_test_123)',
+    expect(result.markdown).not.toContain(
+      'https://open.feishu.cn/open-apis/im/v1/images/',
     );
-    expect(result).toContain(
+    expect(result.markdown).toContain('图 1：视频原始截图（00:15）');
+    expect(result.markdown).toContain(
       '🤖 **AI 识别**：**文字内容**：PPT: 神经网络架构图',
     );
+    expect(result.media).toEqual([
+      expect.objectContaining({
+        anchor: '图 1：视频原始截图（00:15）',
+        caption: '视频原始截图 00:15',
+        source: { kind: 'file', path: '/tmp/f1.jpg' },
+      }),
+    ]);
   });
 
   it('places an analyzed frame beside the semantically matching section', () => {
@@ -85,7 +97,7 @@ describe('FrameInsertionService', () => {
     ];
 
     const result = service.insertFramesIntoMarkdown(markdown, frames, 120);
-    const imageIndex: number = result.indexOf('img_users');
+    const imageIndex: number = result.indexOf('视频原始截图（00:05）');
 
     expect(imageIndex).toBeGreaterThan(result.indexOf('## 二、平台用户管理'));
     expect(imageIndex).toBeLessThan(result.indexOf('介绍用户导入'));
@@ -114,13 +126,80 @@ describe('FrameInsertionService', () => {
       },
     ];
 
-    const result = service.insertFramesIntoMarkdown(markdown, frames, 60);
+    const result = service.buildDocumentDraft(markdown, frames, {
+      presentationMode: false,
+      totalDurationSec: 60,
+    });
 
-    expect(result).toContain('img_orig_456');
-    expect(result).toContain(
-      '![AI 派生信息图 00:45](https://cdn.example.com/infographic.png)',
+    expect(result.markdown).not.toContain('img_orig_456');
+    expect(result.markdown).not.toContain(
+      'https://cdn.example.com/infographic.png',
     );
-    expect(result).toContain('原始截图保留在上方');
+    expect(result.markdown).toContain('原始截图保留在上方');
+    expect(result.media).toHaveLength(2);
+    expect(result.media[1]).toEqual(
+      expect.objectContaining({
+        source: {
+          kind: 'remote-url',
+          url: 'https://cdn.example.com/infographic.png',
+        },
+      }),
+    );
+  });
+
+  it('records every presentation page in order with complete OCR text', () => {
+    const fullText = `第 7 页\n${'供应链流程与数据口径。'.repeat(30)}`;
+    const frames: KeyFrame[] = [
+      {
+        analysis: {
+          chartDesc: '',
+          hasChart: false,
+          hasText: true,
+          isPresentationSlide: true,
+          score: 5,
+          summary: '供应链流程',
+          text: fullText,
+        },
+        filePath: '/tmp/slide-7.png',
+        id: 'slide-7',
+        imageKey: 'img_slide_7',
+        sourceFileName: 'training.mp4',
+        sourceIndex: 0,
+        timestamp: 70,
+        type: 'scene',
+      },
+      {
+        analysis: {
+          chartDesc: '数据驾驶舱页面',
+          hasChart: true,
+          hasText: true,
+          isPresentationSlide: true,
+          score: 5,
+          summary: '数据驾驶舱',
+          text: '第 8 页',
+        },
+        filePath: '/tmp/slide-8.png',
+        id: 'slide-8',
+        imageKey: 'img_slide_8',
+        sourceFileName: 'training.mp4',
+        sourceIndex: 0,
+        timestamp: 80,
+        type: 'scene',
+      },
+    ];
+
+    const result = service.buildDocumentDraft('# 培训笔记', frames, {
+      presentationMode: true,
+    });
+
+    expect(result.markdown).toContain('## 培训课件逐页记录');
+    expect(result.markdown).toContain('### 第 1 页（01:10）');
+    expect(result.markdown).toContain('### 第 2 页（01:20）');
+    expect(result.markdown).toContain(fullText.replace(/\n/g, ' '));
+    expect(result.media.map((asset) => asset.source)).toEqual([
+      { kind: 'file', path: '/tmp/slide-7.png' },
+      { kind: 'file', path: '/tmp/slide-8.png' },
+    ]);
   });
 
   it('should keep inserting frames when a timestamp is not finite', () => {
@@ -140,6 +219,6 @@ describe('FrameInsertionService', () => {
 
     const result = service.insertFramesIntoMarkdown(markdown, frames);
 
-    expect(result).toContain('img_invalid_timestamp');
+    expect(result).toContain('视频原始截图（00:00）');
   });
 });

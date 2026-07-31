@@ -22,18 +22,22 @@ export class FrameAiEnhanceService {
       this.logger.log('用户未允许外部 AI，跳过截图 AI 识别');
       return frames;
     }
-    const uploadedFrames = frames.filter((f) => f.imageKey);
-    if (uploadedFrames.length === 0) {
-      this.logger.warn('没有成功上传的帧，跳过 AI 增强');
+    const analyzableFrames = frames.filter((frame: KeyFrame): boolean =>
+      Boolean(frame.previewDataUrl || frame.imageKey),
+    );
+    if (analyzableFrames.length === 0) {
+      this.logger.warn('没有可读取的帧，跳过 AI 增强');
       return frames;
     }
 
-    this.logger.log(`开始 AI 识别 ${uploadedFrames.length} 张截图`);
+    this.logger.log(`开始 AI 识别 ${analyzableFrames.length} 张截图`);
 
     const CONCURRENCY = 2;
     const result: KeyFrame[] = [...frames];
     const uploadedIndices = frames
-      .map((f, i) => (f.imageKey ? i : -1))
+      .map((frame: KeyFrame, index: number) =>
+        frame.previewDataUrl || frame.imageKey ? index : -1,
+      )
       .filter((i) => i >= 0);
 
     for (let batch = 0; batch < uploadedIndices.length; batch += CONCURRENCY) {
@@ -43,7 +47,7 @@ export class FrameAiEnhanceService {
           const frame = frames[frameIdx];
           try {
             // Step 1: AI 识别图片内容
-            const analysis = await this.analyzeFrame(frame);
+            const analysis = frame.analysis || (await this.analyzeFrame(frame));
             result[frameIdx] = { ...frame, analysis };
 
             this.logger.log(
@@ -56,17 +60,26 @@ export class FrameAiEnhanceService {
               this.shouldGenerateInfoGraphic(analysis)
             ) {
               try {
-                const derivativeUrl = await this.generateDerivative(frame, analysis);
+                const derivativeUrl = await this.generateDerivative(
+                  frame,
+                  analysis,
+                );
                 if (derivativeUrl) {
                   result[frameIdx].derivativeUrl = derivativeUrl;
-                  this.logger.log(`帧 ${frameIdx + 1} 信息图生成成功: ${derivativeUrl}`);
+                  this.logger.log(
+                    `帧 ${frameIdx + 1} 信息图生成成功: ${derivativeUrl}`,
+                  );
                 }
               } catch (err) {
-                this.logger.warn(`帧 ${frameIdx + 1} 信息图生成失败，使用原图: ${String(err)}`);
+                this.logger.warn(
+                  `帧 ${frameIdx + 1} 信息图生成失败，使用原图: ${String(err)}`,
+                );
               }
             }
           } catch (err) {
-            this.logger.warn(`帧 ${frameIdx + 1} AI 识别失败，跳过: ${String(err)}`);
+            this.logger.warn(
+              `帧 ${frameIdx + 1} AI 识别失败，跳过: ${String(err)}`,
+            );
           }
         }),
       );
@@ -84,6 +97,7 @@ export class FrameAiEnhanceService {
       text: '',
       hasChart: false,
       chartDesc: '',
+      isPresentationSlide: false,
       summary: '',
       score: 2,
     };
@@ -101,24 +115,47 @@ export class FrameAiEnhanceService {
 
       // 收集流式返回的文本
       let rawContent = '';
-      if (streamResult && typeof streamResult === 'object' && Symbol.asyncIterator in Object(streamResult)) {
-        for await (const chunk of streamResult as AsyncIterable<Record<string, unknown>>) {
+      if (
+        streamResult &&
+        typeof streamResult === 'object' &&
+        Symbol.asyncIterator in Object(streamResult)
+      ) {
+        for await (const chunk of streamResult as AsyncIterable<
+          Record<string, unknown>
+        >) {
           const delta =
-            typeof chunk.content === 'string' ? chunk.content :
-            typeof chunk.response === 'string' ? chunk.response : '';
+            typeof chunk.content === 'string'
+              ? chunk.content
+              : typeof chunk.response === 'string'
+                ? chunk.response
+                : '';
           if (delta) {
-            rawContent = delta.startsWith(rawContent) ? delta : rawContent + delta;
+            rawContent = delta.startsWith(rawContent)
+              ? delta
+              : rawContent + delta;
           }
         }
-      } else if (streamResult && typeof (streamResult as unknown as Record<string, unknown>).output !== 'undefined') {
-        const output = (streamResult as unknown as Record<string, unknown>).output;
+      } else if (
+        streamResult &&
+        typeof (streamResult as unknown as Record<string, unknown>).output !==
+          'undefined'
+      ) {
+        const output = (streamResult as unknown as Record<string, unknown>)
+          .output;
         if (output && Symbol.asyncIterator in Object(output)) {
-          for await (const chunk of output as AsyncIterable<Record<string, unknown>>) {
+          for await (const chunk of output as AsyncIterable<
+            Record<string, unknown>
+          >) {
             const delta =
-              typeof chunk.content === 'string' ? chunk.content :
-              typeof chunk.response === 'string' ? chunk.response : '';
+              typeof chunk.content === 'string'
+                ? chunk.content
+                : typeof chunk.response === 'string'
+                  ? chunk.response
+                  : '';
             if (delta) {
-              rawContent = delta.startsWith(rawContent) ? delta : rawContent + delta;
+              rawContent = delta.startsWith(rawContent)
+                ? delta
+                : rawContent + delta;
             }
           }
         }
@@ -135,8 +172,16 @@ export class FrameAiEnhanceService {
           text: parsed.text ?? '',
           hasChart: Boolean(parsed.hasChart),
           chartDesc: parsed.chartDesc ?? '',
+          isPresentationSlide: parsed.isPresentationSlide === true,
+          slideTitle:
+            typeof parsed.slideTitle === 'string'
+              ? parsed.slideTitle.slice(0, 120)
+              : undefined,
           summary: parsed.summary ?? rawContent.slice(0, 50),
-          score: typeof parsed.score === 'number' ? Math.min(5, Math.max(1, parsed.score)) : 2,
+          score:
+            typeof parsed.score === 'number'
+              ? Math.min(5, Math.max(1, parsed.score))
+              : 2,
         };
       }
 

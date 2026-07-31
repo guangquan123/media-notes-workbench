@@ -9,10 +9,7 @@ import {
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { AuthNPaasService } from '@lark-apaas/nestjs-authnpaas';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  spawn,
-  type ChildProcessWithoutNullStreams,
-} from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
   access,
@@ -92,7 +89,23 @@ import { FrameUploadService } from './frame-upload.service';
 import { FrameAiEnhanceService } from './frame-ai-enhance.service';
 import { FrameInsertionService } from './frame-insertion.service';
 import { FrameReviewService } from './frame-review.service';
-import { buildVisualWarnings, selectKeyFrames } from './frame-selection.utils';
+import {
+  buildVisualWarnings,
+  detectPresentationMode,
+  sampleFramesEvenly,
+  selectFramesForContent,
+  selectPresentationFrames,
+} from './frame-selection.utils';
+import {
+  assertDocumentImageAcceptance,
+  assertMediaInsertSucceeded,
+  buildDocumentFetchCommand,
+  buildDocumentMediaInsertCommand,
+  type DocumentDraft,
+  type DocumentMediaAsset,
+  parseCreatedLarkDocument,
+} from './document-media.utils';
+import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import {
   assessTranscriptQuality,
   formatTranscriptQualityWarnings,
@@ -191,6 +204,7 @@ const ALIGNMENT_SAMPLE_RATE = 4_000;
 const ALIGNMENT_BUCKET_MS = 1_000;
 const ALIGNMENT_MAX_OFFSET_MS = 30 * 60 * 1_000;
 const TIMESTAMPED_AUDIO_CHUNK_MS = 20 * 60 * 1_000;
+const MAX_DOCUMENT_IMAGE_BYTES = 20 * 1024 * 1024;
 
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
@@ -340,15 +354,16 @@ export class NoteJobsService implements OnModuleInit {
       sourceType === 'platform'
         ? this.validateCookieBrowser(input.cookieBrowser)
         : undefined;
-    const retainedSource: RetainedNoteSource | null =
-      captureRetainedNoteSource({
+    const retainedSource: RetainedNoteSource | null = captureRetainedNoteSource(
+      {
         ...input,
         cookieBrowser,
         noteStyle: validatedInput.noteStyle,
         sourcePlatform,
         sourceType,
         visualOptions: validatedInput.visualOptions,
-      });
+      },
+    );
     const historyInput: CreateHistoryRecordInput = options.history || {
       rerunMode: 'initial',
       sourceAssetGroupId: randomUUID(),
@@ -615,8 +630,7 @@ export class NoteJobsService implements OnModuleInit {
     );
     if (
       !context.sourceSnapshot ||
-      (sourceSummary.status !== 'retained' &&
-        sourceSummary.status !== 'remote')
+      (sourceSummary.status !== 'retained' && sourceSummary.status !== 'remote')
     ) {
       throw new BadRequestException(
         '源文件不可复用，请重新上传后再进行完整处理',
@@ -749,11 +763,13 @@ export class NoteJobsService implements OnModuleInit {
         id,
         ownerId,
       );
-      const markdownWithFrames =
-        this.frameInsertionService.insertFramesIntoMarkdown(
-          state.draftMarkdown,
-          frames,
-        );
+      const frameDraft = this.frameInsertionService.buildDocumentDraft(
+        state.draftMarkdown,
+        frames,
+        {
+          presentationMode: snapshot.visualSummary?.presentationMode === true,
+        },
+      );
       const noteTitle =
         this.extractMarkdownTitle(state.draftMarkdown) ||
         snapshot.videoTitle ||
@@ -770,7 +786,8 @@ export class NoteJobsService implements OnModuleInit {
       await this.frameReviewService.saveJobState(id, { job: publishingJob });
       const documentUrl = await this.createLarkDocument(
         noteTitle,
-        markdownWithFrames,
+        frameDraft.markdown,
+        frameDraft.media,
       );
       const qualityWarningCount: number =
         publishingJob.summaryGeneration?.qualityWarnings?.length || 0;
@@ -788,7 +805,14 @@ export class NoteJobsService implements OnModuleInit {
           : undefined,
         updatedAt: new Date().toISOString(),
         visualSummary: publishingJob.visualSummary
-          ? { ...publishingJob.visualSummary, status: 'completed' }
+          ? {
+              ...publishingJob.visualSummary,
+              publishedCount: frameDraft.media.length,
+              status:
+                publishingJob.visualSummary.status === 'partial'
+                  ? 'partial'
+                  : 'completed',
+            }
           : undefined,
       };
       if (stored?.ownerId === ownerId) stored.job = completedJob;
@@ -850,19 +874,28 @@ export class NoteJobsService implements OnModuleInit {
         id,
         'summarizing',
         86,
-        `质量门禁已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
+        `质量门禁已通过（${summaryResult.quality.score} 分），正在整理发布内容…`,
       );
-      const knowledgeMapUrl: string | undefined =
-        await this.generateKnowledgeMap(summaryResult.markdown);
-      const withKnowledgeMap: string = knowledgeMapUrl
-        ? this.insertKnowledgeMap(summaryResult.markdown, knowledgeMapUrl)
-        : summaryResult.markdown;
+      let documentDraft: DocumentDraft = {
+        markdown: summaryResult.markdown,
+        media: [],
+      };
+      if (supportsVisualProcessing(context.sourceType)) {
+        const knowledgeMapUrl: string | undefined =
+          await this.generateKnowledgeMap(summaryResult.markdown);
+        if (knowledgeMapUrl) {
+          documentDraft = this.insertKnowledgeMap(
+            documentDraft,
+            knowledgeMapUrl,
+          );
+        }
+      }
       const finalMarkdown: string = context.rawDocumentUrl
         ? this.appendRawDocumentReference(
-            withKnowledgeMap,
+            documentDraft.markdown,
             context.rawDocumentUrl,
           )
-        : withKnowledgeMap;
+        : documentDraft.markdown;
       const noteTitle: string =
         this.extractMarkdownTitle(summaryResult.markdown) || context.title;
       await this.persistTitle(id, noteTitle);
@@ -870,6 +903,7 @@ export class NoteJobsService implements OnModuleInit {
       const documentUrl: string = await this.createLarkDocument(
         `${noteTitle}（V${versionNumber}）`,
         finalMarkdown,
+        documentDraft.media,
       );
       this.patch(id, {
         documentUrl,
@@ -878,6 +912,16 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         stage: 'completed',
         summaryGeneration: this.completedSummaryGeneration(id, ownerId),
+        visualSummary: this.get(id, ownerId).visualSummary
+          ? {
+              ...this.get(id, ownerId).visualSummary!,
+              publishedCount: documentDraft.media.length,
+              status:
+                this.get(id, ownerId).visualSummary?.status === 'partial'
+                  ? 'partial'
+                  : 'completed',
+            }
+          : undefined,
       });
       await this.persistFinish(id, {
         documentUrl,
@@ -994,6 +1038,7 @@ export class NoteJobsService implements OnModuleInit {
           preparedPairedMedia.videoPath,
           input.visualOptions,
           ownerId,
+          videoTitle,
         );
         const transcriptionPromise: Promise<{
           auxiliary: BestTranscriptResult;
@@ -1080,6 +1125,7 @@ export class NoteJobsService implements OnModuleInit {
               videoPaths,
               input.visualOptions,
               ownerId,
+              videoTitle,
             );
           }
         }
@@ -1230,22 +1276,36 @@ export class NoteJobsService implements OnModuleInit {
         });
         return;
       }
-      this.update(id, 'summarizing', 86, '质量校验完成，正在生成知识框架图…');
-      const markdownWithFrames =
+      this.update(id, 'summarizing', 86, '质量校验完成，正在整理发布内容…');
+      let documentDraft: DocumentDraft =
         keyFrames.length > 0
-          ? this.frameInsertionService.insertFramesIntoMarkdown(
+          ? this.frameInsertionService.buildDocumentDraft(
               reviewedMarkdown,
               keyFrames,
+              {
+                presentationMode:
+                  this.get(id, ownerId).visualSummary?.presentationMode ===
+                  true,
+              },
             )
-          : reviewedMarkdown;
-      const knowledgeMapUrl =
-        await this.generateKnowledgeMap(markdownWithFrames);
-      const summaryMarkdown = knowledgeMapUrl
-        ? this.insertKnowledgeMap(markdownWithFrames, knowledgeMapUrl)
-        : markdownWithFrames;
+          : { markdown: reviewedMarkdown, media: [] };
+      if (supportsVisualProcessing(input.sourceType)) {
+        const knowledgeMapUrl = await this.generateKnowledgeMap(
+          documentDraft.markdown,
+        );
+        if (knowledgeMapUrl) {
+          documentDraft = this.insertKnowledgeMap(
+            documentDraft,
+            knowledgeMapUrl,
+          );
+        }
+      }
       const finalMarkdown = rawDocumentUrl
-        ? this.appendRawDocumentReference(summaryMarkdown, rawDocumentUrl)
-        : summaryMarkdown;
+        ? this.appendRawDocumentReference(
+            documentDraft.markdown,
+            rawDocumentUrl,
+          )
+        : documentDraft.markdown;
       const noteTitle =
         this.extractMarkdownTitle(reviewedMarkdown) || videoTitle;
       await this.persistTitle(id, noteTitle);
@@ -1254,6 +1314,7 @@ export class NoteJobsService implements OnModuleInit {
       const documentUrl = await this.createLarkDocument(
         noteTitle,
         finalMarkdown,
+        documentDraft.media,
       );
       this.patch(id, {
         stage: 'completed',
@@ -1450,7 +1511,7 @@ export class NoteJobsService implements OnModuleInit {
       84,
       qualityWarnings.length > 0
         ? `质量检查发现 ${qualityWarnings.length} 项预警，已保留最佳版本并继续发布…`
-        : `质量检查已通过（${summaryResult.quality.score} 分），正在生成知识框架图…`,
+        : `质量检查已通过（${summaryResult.quality.score} 分），正在整理发布内容…`,
     );
     const reviewedMarkdown: string =
       qualityWarnings.length > 0
@@ -1460,15 +1521,9 @@ export class NoteJobsService implements OnModuleInit {
             qualityWarnings,
           )
         : summaryResult.markdown;
-    this.update(id, 'summarizing', 86, '正在生成知识框架图…');
-    const knowledgeMapUrl: string | undefined =
-      await this.generateKnowledgeMap(reviewedMarkdown);
-    const withKnowledgeMap: string = knowledgeMapUrl
-      ? this.insertKnowledgeMap(reviewedMarkdown, knowledgeMapUrl)
-      : reviewedMarkdown;
     const finalMarkdown: string = rawDocumentUrl
-      ? this.appendRawDocumentReference(withKnowledgeMap, rawDocumentUrl)
-      : withKnowledgeMap;
+      ? this.appendRawDocumentReference(reviewedMarkdown, rawDocumentUrl)
+      : reviewedMarkdown;
     const noteTitle: string =
       this.extractMarkdownTitle(reviewedMarkdown) || title;
     await this.persistTitle(id, noteTitle);
@@ -3049,18 +3104,35 @@ export class NoteJobsService implements OnModuleInit {
     }
   }
 
-  private insertKnowledgeMap(markdown: string, imageUrl: string): string {
+  private insertKnowledgeMap(
+    draft: DocumentDraft,
+    imageUrl: string,
+  ): DocumentDraft {
+    const anchor = '知识框架图（原生图片）';
     const section = [
       '## 知识框架图',
       '',
-      `![知识框架图](${imageUrl})`,
+      `**${anchor}**`,
       '',
       '> AI 生成的认知地图用于辅助理解，具体知识以正文为准。',
       '',
     ].join('\n');
-    const nextSection = markdown.search(/^## 2[.、]\s*/mu);
-    if (nextSection < 0) return `${markdown.trim()}\n\n${section}`;
-    return `${markdown.slice(0, nextSection)}${section}${markdown.slice(nextSection)}`;
+    const nextSection = draft.markdown.search(/^## 2[.、]\s*/mu);
+    const markdown =
+      nextSection < 0
+        ? `${draft.markdown.trim()}\n\n${section}`
+        : `${draft.markdown.slice(0, nextSection)}${section}${draft.markdown.slice(nextSection)}`;
+    return {
+      markdown,
+      media: [
+        ...draft.media,
+        {
+          anchor,
+          caption: '学习笔记知识框架图',
+          source: { kind: 'remote-url', url: imageUrl },
+        },
+      ],
+    };
   }
 
   private extractMarkdownTitle(markdown: string): string | undefined {
@@ -3071,6 +3143,7 @@ export class NoteJobsService implements OnModuleInit {
   private async createLarkDocument(
     title: string,
     markdown: string,
+    media: readonly DocumentMediaAsset[] = [],
   ): Promise<string> {
     const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
@@ -3090,17 +3163,170 @@ export class NoteJobsService implements OnModuleInit {
       ],
       markdown,
     );
-    const parsed = JSON.parse(result.stdout) as {
-      ok?: boolean;
-      data?: { document?: { url?: string } };
-      error?: { message?: string; hint?: string };
-    };
-    if (!parsed.ok || !parsed.data?.document?.url) {
+    const created = parseCreatedLarkDocument(result.stdout);
+    if (media.length === 0) return created.url;
+
+    const mediaWorkDir = await mkdtemp(join(tmpdir(), 'lark-doc-media-'));
+    try {
+      for (let index = 0; index < media.length; index += 1) {
+        const asset = media[index];
+        const filePath = await this.materializeDocumentMedia(
+          asset,
+          mediaWorkDir,
+          index,
+        );
+        const insertResult = await this.runCommand(
+          'lark-cli',
+          buildDocumentMediaInsertCommand({
+            anchor: asset.anchor,
+            caption: asset.caption,
+            documentId: created.documentId,
+            fileName: basename(filePath),
+          }),
+          undefined,
+          dirname(filePath),
+        );
+        assertMediaInsertSucceeded(insertResult.stdout);
+      }
+      const fetchResult = await this.runCommand(
+        'lark-cli',
+        buildDocumentFetchCommand(created.documentId),
+      );
+      const publishedCount = assertDocumentImageAcceptance(
+        fetchResult.stdout,
+        media.length,
+      );
+      this.logger.log(
+        `飞书文档图片块验收通过: ${publishedCount}/${media.length}`,
+      );
+    } catch (error) {
       throw new Error(
-        parsed.error?.hint || parsed.error?.message || '飞书文档创建失败',
+        `飞书文档图片发布失败（文档已创建但未标记完成）：${
+          error instanceof Error ? error.message : '未知错误'
+        }`,
+      );
+    } finally {
+      await rm(mediaWorkDir, { force: true, recursive: true });
+    }
+    return created.url;
+  }
+
+  private async materializeDocumentMedia(
+    asset: DocumentMediaAsset,
+    workDir: string,
+    index: number,
+  ): Promise<string> {
+    if (asset.source.kind === 'file') {
+      await access(asset.source.path);
+      return asset.source.path;
+    }
+    if (asset.source.kind === 'data-url') {
+      return this.writeDataUrlImage(asset.source.value, workDir, index);
+    }
+    return this.downloadDocumentImage(asset.source.url, workDir, index);
+  }
+
+  private async writeDataUrlImage(
+    dataUrl: string,
+    workDir: string,
+    index: number,
+  ): Promise<string> {
+    const match =
+      /^data:(image\/(?:png|jpeg|gif|webp));base64,([a-z0-9+/=\s]+)$/iu.exec(
+        dataUrl,
+      );
+    if (!match) throw new Error('截图缓存格式无效');
+    const buffer = Buffer.from(match[2].replace(/\s/gu, ''), 'base64');
+    if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_IMAGE_BYTES) {
+      throw new Error('截图缓存为空或超过 20 MB');
+    }
+    const extension = this.getImageExtension(match[1]);
+    const filePath = join(
+      workDir,
+      `media-${String(index + 1).padStart(4, '0')}.${extension}`,
+    );
+    await writeFile(filePath, buffer, { flag: 'wx' });
+    return this.normalizeDocumentImage(filePath, match[1], workDir, index);
+  }
+
+  private async downloadDocumentImage(
+    rawUrl: string,
+    workDir: string,
+    index: number,
+  ): Promise<string> {
+    let currentUrl = validateMediaDownloadUrl(rawUrl);
+    let response: Response | undefined;
+    for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
+      response = await fetch(currentUrl, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (response.status < 300 || response.status >= 400) break;
+      const location = response.headers.get('location');
+      if (!location || redirectCount === 5) {
+        throw new Error('图片下载重定向地址无效');
+      }
+      currentUrl = validateMediaDownloadUrl(
+        new URL(location, currentUrl).toString(),
       );
     }
-    return parsed.data.document.url;
+    if (!response?.ok) {
+      throw new Error(`图片下载失败（HTTP ${response?.status || 0}）`);
+    }
+    const contentType = response.headers
+      .get('content-type')
+      ?.split(';')[0]
+      .trim()
+      .toLowerCase();
+    if (!contentType?.startsWith('image/')) {
+      throw new Error('图片地址返回的不是图片内容');
+    }
+    const declaredSize = Number(response.headers.get('content-length') || 0);
+    if (declaredSize > MAX_DOCUMENT_IMAGE_BYTES) {
+      throw new Error('图片超过 20 MB');
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_IMAGE_BYTES) {
+      throw new Error('图片为空或超过 20 MB');
+    }
+    const extension = this.getImageExtension(contentType);
+    const filePath = join(
+      workDir,
+      `media-${String(index + 1).padStart(4, '0')}.${extension}`,
+    );
+    await writeFile(filePath, buffer, { flag: 'wx' });
+    return this.normalizeDocumentImage(filePath, contentType, workDir, index);
+  }
+
+  private async normalizeDocumentImage(
+    filePath: string,
+    contentType: string,
+    workDir: string,
+    index: number,
+  ): Promise<string> {
+    if (contentType !== 'image/webp') return filePath;
+    const pngPath = join(
+      workDir,
+      `media-${String(index + 1).padStart(4, '0')}.png`,
+    );
+    await this.runCommand('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      filePath,
+      '-y',
+      pngPath,
+    ]);
+    return pngPath;
+  }
+
+  private getImageExtension(contentType: string): string {
+    if (contentType === 'image/png') return 'png';
+    if (contentType === 'image/jpeg') return 'jpg';
+    if (contentType === 'image/gif') return 'gif';
+    if (contentType === 'image/webp') return 'webp';
+    throw new Error(`不支持的图片格式：${contentType}`);
   }
 
   private async extractAndUploadFrames(
@@ -3109,13 +3335,18 @@ export class NoteJobsService implements OnModuleInit {
     videoInput: string | string[],
     visualOptions: NoteVisualOptions,
     ownerId: string,
+    sourceTitle: string,
   ): Promise<KeyFrame[]> {
     if (visualOptions.mode === 'disabled') return [];
     try {
       this.update(id, 'extracting-frames', 38, '正在提取视频关键画面…');
       const videoPaths = Array.isArray(videoInput) ? videoInput : [videoInput];
       let offsetSec = 0;
-      const rawFrames: KeyFrame[] = [];
+      let rawFrames: KeyFrame[] = [];
+      const videoDurations: number[] = [];
+      const initialExtractionProfile = detectPresentationMode([], sourceTitle)
+        ? 'presentation'
+        : 'standard';
       for (let index = 0; index < videoPaths.length; index += 1) {
         const videoPath = videoPaths[index];
         const [frames, duration] = await Promise.all([
@@ -3124,24 +3355,86 @@ export class NoteJobsService implements OnModuleInit {
             workDir,
             index,
             offsetSec,
+            initialExtractionProfile,
           ),
           this.frameExtractionService.getVideoDuration(videoPath),
         ]);
         rawFrames.push(...frames);
+        videoDurations.push(duration);
         offsetSec += duration;
       }
-      const selectedFrames = selectKeyFrames(
-        rawFrames,
+      let framesForSelection: KeyFrame[] = rawFrames;
+      if (
+        visualOptions.allowExternalAi &&
+        !detectPresentationMode(rawFrames, sourceTitle)
+      ) {
+        this.update(
+          id,
+          'analyzing-frames',
+          40,
+          '正在识别内容形态，判断是否为培训课件…',
+        );
+        const probeFrames = sampleFramesEvenly(rawFrames);
+        const uploadedProbeFrames =
+          await this.frameUploadService.uploadFrames(probeFrames);
+        const analyzedProbeFrames =
+          await this.frameAiEnhanceService.enhanceFrames(uploadedProbeFrames, {
+            allowExternalAi: true,
+            generateDerivatives: false,
+          });
+        const probeById = new Map<string, KeyFrame>(
+          analyzedProbeFrames.map((frame: KeyFrame) => [frame.id, frame]),
+        );
+        framesForSelection = rawFrames.map(
+          (frame: KeyFrame): KeyFrame => probeById.get(frame.id) || frame,
+        );
+      }
+      let selection = selectFramesForContent(
+        framesForSelection,
         visualOptions.density,
         offsetSec || rawFrames.at(-1)?.globalTimestamp || 1,
+        sourceTitle,
       );
+      if (
+        selection.presentationMode &&
+        initialExtractionProfile !== 'presentation'
+      ) {
+        this.update(
+          id,
+          'extracting-frames',
+          40,
+          '已识别培训课件，正在进行高密度逐页扫描…',
+        );
+        let presentationOffsetSec = 0;
+        const presentationFrames: KeyFrame[] = [];
+        for (let index = 0; index < videoPaths.length; index += 1) {
+          presentationFrames.push(
+            ...(await this.frameExtractionService.extractKeyFrames(
+              videoPaths[index],
+              workDir,
+              index,
+              presentationOffsetSec,
+              'presentation',
+            )),
+          );
+          presentationOffsetSec += videoDurations[index] || 0;
+        }
+        rawFrames = presentationFrames;
+        selection = {
+          frames: selectPresentationFrames(presentationFrames),
+          presentationMode: true,
+        };
+      }
+      const selectedFrames = selection.frames;
       if (selectedFrames.length === 0) {
         const summary: VisualPipelineSummary = {
           analyzedCount: 0,
           candidateCount: rawFrames.length,
           derivativeCount: 0,
           extractedCount: rawFrames.length,
+          presentationMode: selection.presentationMode,
           selectedCount: 0,
+          slideCount: 0,
           status: 'partial',
           uploadedCount: 0,
           warnings: buildVisualWarnings({
@@ -3154,14 +3447,16 @@ export class NoteJobsService implements OnModuleInit {
         };
         this.patch(id, { visualSummary: summary });
         await this.frameReviewService.saveJobState(id, { summary });
-        return [];
+        throw new Error('未找到可发布的关键画面');
       }
 
       this.update(
         id,
         'uploading-frames',
         41,
-        `已筛选 ${selectedFrames.length}/${rawFrames.length} 张关键画面，正在上传…`,
+        selection.presentationMode
+          ? `已识别培训课件，共 ${selectedFrames.length} 个唯一页面，正在逐页准备…`
+          : `已筛选 ${selectedFrames.length}/${rawFrames.length} 张关键画面，正在上传…`,
       );
       const uploadedFrames =
         await this.frameUploadService.uploadFrames(selectedFrames);
@@ -3184,8 +3479,12 @@ export class NoteJobsService implements OnModuleInit {
       ).length;
       const warnings = buildVisualWarnings({
         analyzed: analyzedCount,
+        derivativeCount: enhancedFrames.filter((frame) => frame.derivativeUrl)
+          .length,
         extracted: rawFrames.length,
         requestedAi: visualOptions.allowExternalAi,
+        requestedDerivative:
+          visualOptions.outputMode === 'original_with_ai_derivative',
         selected: selectedFrames.length,
         uploaded: uploadedCount,
       });
@@ -3195,7 +3494,9 @@ export class NoteJobsService implements OnModuleInit {
         derivativeCount: enhancedFrames.filter((frame) => frame.derivativeUrl)
           .length,
         extractedCount: rawFrames.length,
+        presentationMode: selection.presentationMode,
         selectedCount: selectedFrames.length,
+        slideCount: selection.presentationMode ? selectedFrames.length : 0,
         status: warnings.length === 0 ? 'completed' : 'partial',
         uploadedCount,
         warnings,
@@ -3204,7 +3505,7 @@ export class NoteJobsService implements OnModuleInit {
       await this.frameReviewService.saveJobState(id, { summary });
       return enhancedFrames;
     } catch (err) {
-      this.logger.warn(`帧提取流程失败，继续不含截图: ${String(err)}`);
+      this.logger.warn(`帧提取流程失败: ${String(err)}`);
       const summary: VisualPipelineSummary = {
         analyzedCount: 0,
         candidateCount: 0,
@@ -3222,7 +3523,7 @@ export class NoteJobsService implements OnModuleInit {
       };
       this.patch(id, { visualSummary: summary });
       await this.frameReviewService.saveJobState(id, { summary });
-      return [];
+      throw err instanceof Error ? err : new Error('关键帧处理失败');
     }
   }
 
@@ -3319,8 +3620,7 @@ export class NoteJobsService implements OnModuleInit {
     const warningSummary: string = warnings
       .slice(0, 6)
       .map(
-        (warning: string, index: number): string =>
-          `${index + 1}. ${warning}`,
+        (warning: string, index: number): string => `${index + 1}. ${warning}`,
       )
       .join('；');
     const remainingCount: number = Math.max(0, warnings.length - 6);
@@ -3701,6 +4001,7 @@ export class NoteJobsService implements OnModuleInit {
     command: string,
     args: string[],
     stdin?: string,
+    cwd = process.cwd(),
   ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const jobId: string | undefined = this.jobContext.getStore();
@@ -3711,7 +4012,7 @@ export class NoteJobsService implements OnModuleInit {
         return;
       }
       const child = spawn(command, args, {
-        cwd: process.cwd(),
+        cwd,
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
       });

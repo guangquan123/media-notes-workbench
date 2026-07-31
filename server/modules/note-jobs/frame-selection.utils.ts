@@ -5,14 +5,25 @@ import type {
   VisualPipelineWarning,
 } from '@shared/api.interface';
 import { BadRequestException } from '@nestjs/common';
-import type { KeyFrame } from './frame-extraction.service';
+import { hammingDistance, type KeyFrame } from './frame-extraction.service';
 import type { TranscriptSegment } from './paired-media.utils';
 
-const DENSITY_LIMITS: Record<FrameDensity, { max: number; spacingSec: number }> = {
+const DENSITY_LIMITS: Record<
+  FrameDensity,
+  { max: number; spacingSec: number }
+> = {
   compact: { max: 6, spacingSec: 20 * 60 },
   standard: { max: 12, spacingSec: 10 * 60 },
   detailed: { max: 24, spacingSec: 5 * 60 },
 };
+
+const PRESENTATION_TITLE_PATTERN =
+  /(?:pptx?|presentation|slides?|webinar|培训|课程|课件|讲义|授课|教学)/iu;
+
+export interface FrameContentSelection {
+  frames: KeyFrame[];
+  presentationMode: boolean;
+}
 
 export function validateFrameSelectionRequest(
   input: UpdateFrameSelectionRequest,
@@ -27,10 +38,10 @@ export function validateFrameSelectionRequest(
     throw new BadRequestException('关键帧选择参数不完整');
   }
   if (
-    input.selectedFrameIds.length > 100 ||
-    input.orderedFrameIds.length > 100
+    input.selectedFrameIds.length > 1_000 ||
+    input.orderedFrameIds.length > 1_000
   ) {
-    throw new BadRequestException('单次最多选择 100 张关键帧');
+    throw new BadRequestException('单次最多选择 1000 张关键帧');
   }
   if (
     input.selectedFrameIds.some(
@@ -77,7 +88,10 @@ export function transcriptRelevanceScore(
       segment.endMs >= (frameTimestampSec - 20) * 1_000,
   );
   if (nearby.length === 0) return 0.25;
-  const textLength = nearby.reduce((sum, segment) => sum + segment.text.length, 0);
+  const textLength = nearby.reduce(
+    (sum, segment) => sum + segment.text.length,
+    0,
+  );
   return Math.min(1, 0.35 + textLength / 180);
 }
 
@@ -85,12 +99,18 @@ export function scoreFrame(
   frame: KeyFrame,
   segments: readonly TranscriptSegment[] = [],
 ): number {
-  const scene = frame.type === 'scene' ? Math.max(0.55, frame.sceneScore ?? 0) : 0.35;
+  const scene =
+    frame.type === 'scene' ? Math.max(0.55, frame.sceneScore ?? 0) : 0.35;
   const uniqueness = Math.max(0, Math.min(1, frame.uniquenessScore ?? 0.5));
   const visual = Math.max(0, Math.min(1, frame.visualInformationScore ?? 0.5));
   const transcript = transcriptRelevanceScore(frame.timestamp, segments);
   return Number(
-    (scene * 0.25 + uniqueness * 0.2 + visual * 0.3 + transcript * 0.25).toFixed(4),
+    (
+      scene * 0.25 +
+      uniqueness * 0.2 +
+      visual * 0.3 +
+      transcript * 0.25
+    ).toFixed(4),
   );
 }
 
@@ -115,10 +135,17 @@ export function selectKeyFrames(
         a.timestamp - b.timestamp,
     );
 
-  const minGap = Math.max(12, Math.min(config.spacingSec / 2, totalDurationSec / limit / 2));
+  const minGap = Math.max(
+    12,
+    Math.min(config.spacingSec / 2, totalDurationSec / limit / 2),
+  );
   const selected: KeyFrame[] = [];
   for (const frame of scored) {
-    if (selected.every((item) => Math.abs(item.timestamp - frame.timestamp) >= minGap)) {
+    if (
+      selected.every(
+        (item) => Math.abs(item.timestamp - frame.timestamp) >= minGap,
+      )
+    ) {
       selected.push(frame);
       if (selected.length >= limit) break;
     }
@@ -132,10 +159,77 @@ export function selectKeyFrames(
   return selected.sort((a, b) => a.timestamp - b.timestamp);
 }
 
+export function detectPresentationMode(
+  frames: readonly KeyFrame[],
+  sourceTitle = '',
+): boolean {
+  if (PRESENTATION_TITLE_PATTERN.test(sourceTitle)) return true;
+  const analyzedFrames = frames.filter(
+    (frame: KeyFrame): boolean => frame.analysis !== undefined,
+  );
+  if (analyzedFrames.length < 3) return false;
+  const slideCount = analyzedFrames.filter(
+    (frame: KeyFrame): boolean => frame.analysis?.isPresentationSlide === true,
+  ).length;
+  return slideCount >= 3 && slideCount / analyzedFrames.length >= 0.6;
+}
+
+export function sampleFramesEvenly(
+  frames: readonly KeyFrame[],
+  maximum = 6,
+): KeyFrame[] {
+  if (frames.length <= maximum) return [...frames];
+  const indexes = new Set<number>();
+  for (let index = 0; index < maximum; index += 1) {
+    indexes.add(Math.round((index * (frames.length - 1)) / (maximum - 1)));
+  }
+  return [...indexes].map((index: number): KeyFrame => frames[index]);
+}
+
+export function selectPresentationFrames(
+  frames: readonly KeyFrame[],
+): KeyFrame[] {
+  const selected: KeyFrame[] = [];
+  const ordered = [...frames].sort(
+    (left: KeyFrame, right: KeyFrame): number =>
+      (left.globalTimestamp ?? left.timestamp) -
+        (right.globalTimestamp ?? right.timestamp) ||
+      left.sourceIndex - right.sourceIndex,
+  );
+  for (const frame of ordered) {
+    if ((frame.visualInformationScore ?? 1) < 0.12) continue;
+    const isDuplicate = selected.some((candidate: KeyFrame): boolean => {
+      if (!candidate.perceptualHash || !frame.perceptualHash) return false;
+      return (
+        hammingDistance(candidate.perceptualHash, frame.perceptualHash) <= 2
+      );
+    });
+    if (!isDuplicate) selected.push(frame);
+  }
+  return selected;
+}
+
+export function selectFramesForContent(
+  frames: readonly KeyFrame[],
+  density: FrameDensity,
+  totalDurationSec: number,
+  sourceTitle = '',
+): FrameContentSelection {
+  const presentationMode = detectPresentationMode(frames, sourceTitle);
+  return {
+    frames: presentationMode
+      ? selectPresentationFrames(frames)
+      : selectKeyFrames(frames, density, totalDurationSec),
+    presentationMode,
+  };
+}
+
 export function buildVisualWarnings(input: {
   analyzed: number;
+  derivativeCount?: number;
   extracted: number;
   requestedAi: boolean;
+  requestedDerivative?: boolean;
   selected: number;
   uploaded: number;
 }): VisualPipelineWarning[] {
@@ -155,6 +249,17 @@ export function buildVisualWarnings(input: {
     warnings.push({
       code: 'FRAME_AI_PARTIAL',
       message: `有 ${input.uploaded - input.analyzed} 张画面未完成 AI 识别。`,
+    });
+  }
+  if (
+    input.requestedDerivative &&
+    (input.derivativeCount || 0) < input.uploaded
+  ) {
+    warnings.push({
+      code: 'FRAME_DERIVATIVE_PARTIAL',
+      message: `有 ${
+        input.uploaded - (input.derivativeCount || 0)
+      } 张画面未生成 AI 派生图，已保留原图。`,
     });
   }
   return warnings;

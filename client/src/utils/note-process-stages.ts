@@ -1,10 +1,5 @@
 import type { NoteSourceType, NoteVisualOptions } from '@shared/api.interface';
-
-const VISUAL_SOURCE_TYPES: readonly NoteSourceType[] = [
-  'platform',
-  'video',
-  'paired',
-];
+import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 
 export function shouldShowVisualProcessingStage(
   sourceType: NoteSourceType | undefined,
@@ -12,7 +7,7 @@ export function shouldShowVisualProcessingStage(
 ): boolean {
   return (
     sourceType !== undefined &&
-    VISUAL_SOURCE_TYPES.includes(sourceType) &&
+    supportsVisualProcessing(sourceType) &&
     visualOptions?.mode !== 'disabled'
   );
 }

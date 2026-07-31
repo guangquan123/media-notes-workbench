@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -12,11 +12,18 @@ import {
   createSignedUrlsForStoredSourceObjects,
   deleteStoredSourceObjects,
 } from '@/components/business-ui/api/files/service';
-import type { NoteConversionRecord, NoteVisualOptions } from '@shared/api.interface';
+import type {
+  NoteConversionRecord,
+  NoteVisualOptions,
+} from '@shared/api.interface';
 import {
   listRetainedSourceObjects,
   materializeRetainedNoteSource,
 } from '@shared/note-reprocessing.utils';
+import {
+  getRequestErrorMessage,
+  SingleFlightGuard,
+} from './history-reprocessing.utils';
 
 interface UseHistoryReprocessingInput {
   onRecordsChanged: () => Promise<void>;
@@ -29,6 +36,7 @@ export function useHistoryReprocessing({
   const [sourceToDelete, setSourceToDelete] =
     useState<NoteConversionRecord | null>(null);
   const [deletingSource, setDeletingSource] = useState(false);
+  const imageReprocessGuard = useRef(new SingleFlightGuard());
 
   const regenerateRaw = async (record: NoteConversionRecord) => {
     setActionJobId(record.jobId);
@@ -69,10 +77,7 @@ export function useHistoryReprocessing({
         objects.length > 0
           ? await createSignedUrlsForStoredSourceObjects(objects)
           : {};
-      const input = materializeRetainedNoteSource(
-        snapshot.source,
-        signedUrls,
-      );
+      const input = materializeRetainedNoteSource(snapshot.source, signedUrls);
       await reprocessNote(record.jobId, input);
       await onRecordsChanged();
       toast.success(successMessage);
@@ -90,29 +95,35 @@ export function useHistoryReprocessing({
     record: NoteConversionRecord,
     visualOptions: NoteVisualOptions,
   ) => {
-    const originalSnapshot = await getNoteSourceSnapshot(record.jobId);
-    if (!originalSnapshot.source) {
-      toast.error('源文件已不可用，请重新上传后再处理图片');
+    if (!imageReprocessGuard.current.tryAcquire(record.jobId)) {
+      toast.message('图片重处理任务正在创建，请勿重复提交');
       return;
     }
-    const objects = listRetainedSourceObjects(originalSnapshot.source);
-    const signedUrls =
-      objects.length > 0
-        ? await createSignedUrlsForStoredSourceObjects(objects)
-        : {};
-    const input = materializeRetainedNoteSource(
-      originalSnapshot.source,
-      signedUrls,
-    );
-    input.visualOptions = visualOptions;
     setActionJobId(record.jobId);
     try {
+      const originalSnapshot = await getNoteSourceSnapshot(record.jobId);
+      if (!originalSnapshot.source) {
+        throw new Error('源文件已不可用，请重新上传后再处理图片');
+      }
+      const objects = listRetainedSourceObjects(originalSnapshot.source);
+      const signedUrls =
+        objects.length > 0
+          ? await createSignedUrlsForStoredSourceObjects(objects)
+          : {};
+      const input = materializeRetainedNoteSource(
+        originalSnapshot.source,
+        signedUrls,
+      );
+      input.visualOptions = visualOptions;
       await reprocessNote(record.jobId, input);
       await onRecordsChanged();
       toast.success('已创建图片重处理版本，正在重新抽帧和识别');
-    } catch {
-      toast.error('图片重新处理失败，请检查源文件后重试');
+    } catch (error: unknown) {
+      toast.error(
+        getRequestErrorMessage(error, '图片重新处理失败，请检查源文件后重试'),
+      );
     } finally {
+      imageReprocessGuard.current.release(record.jobId);
       setActionJobId(null);
     }
   };

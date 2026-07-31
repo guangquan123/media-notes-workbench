@@ -140,7 +140,10 @@ export interface VisualPipelineSummary {
   candidateCount: number;
   derivativeCount: number;
   extractedCount: number;
+  presentationMode?: boolean;
+  publishedCount?: number;
   selectedCount: number;
+  slideCount?: number;
   status: VisualPipelineStatus;
   uploadedCount: number;
   warnings: VisualPipelineWarning[];
@@ -158,7 +161,9 @@ export interface NoteJobFrame {
     chartDesc: string;
     hasChart: boolean;
     hasText: boolean;
+    isPresentationSlide?: boolean;
     score: number;
+    slideTitle?: string;
     summary: string;
     text: string;
   };
@@ -378,10 +383,7 @@ export interface ExternalModelConnectionStatus {
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
 export type NoteProcessingStatus = 'pending' | 'processed';
 export type TaskSyncStatus = 'not_created' | 'created' | 'failed';
-export type NoteRerunMode =
-  | 'initial'
-  | 'regenerate_note'
-  | 'full_reprocess';
+export type NoteRerunMode = 'initial' | 'regenerate_note' | 'full_reprocess';
 export type SourceAssetStatus =
   | 'retained'
   | 'partial'

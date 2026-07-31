@@ -127,7 +127,9 @@ export async function testTencentAsrConnection(): Promise<TencentAsrConnectionSt
 
 export async function getExternalModelSettings(): Promise<ExternalModelSettings> {
   const response = await axiosForBackend({
-    url: '/api/note-jobs/model-settings', method: 'GET', timeout: JOB_READ_TIMEOUT_MS,
+    url: '/api/note-jobs/model-settings',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
 }
@@ -136,14 +138,19 @@ export async function updateExternalModelSettings(
   input: UpdateExternalModelSettingsRequest,
 ): Promise<ExternalModelSettings> {
   const response = await axiosForBackend({
-    url: '/api/note-jobs/model-settings', method: 'PUT', data: input, timeout: JOB_WRITE_TIMEOUT_MS,
+    url: '/api/note-jobs/model-settings',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }
 
 export async function testExternalModelConnection(): Promise<ExternalModelConnectionStatus> {
   const response = await axiosForBackend({
-    url: '/api/note-jobs/model-settings/test-connection', method: 'POST', timeout: 30_000,
+    url: '/api/note-jobs/model-settings/test-connection',
+    method: 'POST',
+    timeout: 30_000,
   });
   return response.data;
 }
@@ -205,7 +212,11 @@ export async function syncNoteInbox(): Promise<NoteInboxStatus> {
 }
 
 export async function getNoteInboxMessages(): Promise<NoteInboxMessageListResponse> {
-  const response = await axiosForBackend({ url: '/api/note-inbox/messages', method: 'GET', timeout: JOB_READ_TIMEOUT_MS });
+  const response = await axiosForBackend({
+    url: '/api/note-inbox/messages',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
   return response.data;
 }
 
@@ -221,7 +232,7 @@ export async function getNoteJob(id: string): Promise<NoteJob> {
 export async function getNoteJobFrames(
   id: string,
   page = 1,
-  pageSize = 100,
+  pageSize = 1_000,
 ): Promise<NoteJobFrameListResponse> {
   const response = await axiosForBackend({
     url: `/api/note-jobs/${id}/frames`,

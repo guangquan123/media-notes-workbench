@@ -2,6 +2,7 @@ import {
   FrameExtractionService,
   calculateVisualInformationScore,
   computePerceptualHash,
+  getFrameExtractionConfig,
   hammingDistance,
   parseShowInfo,
 } from '../../server/modules/note-jobs/frame-extraction.service';
@@ -31,17 +32,27 @@ describe('frame extraction helpers', () => {
     const reversed = Uint8Array.from(gradient).reverse();
     const left = computePerceptualHash(gradient);
     expect(hammingDistance(left, left)).toBe(0);
-    expect(hammingDistance(left, computePerceptualHash(reversed))).toBeGreaterThan(5);
+    expect(
+      hammingDistance(left, computePerceptualHash(reversed)),
+    ).toBeGreaterThan(5);
   });
 
   it('rejects blank frames through a low visual information score', () => {
     const blank = new Uint8Array(72).fill(255);
-    const detailed = Uint8Array.from(
-      { length: 72 },
-      (_, index) => (index % 2 === 0 ? 0 : 255),
+    const detailed = Uint8Array.from({ length: 72 }, (_, index) =>
+      index % 2 === 0 ? 0 : 255,
     );
     expect(calculateVisualInformationScore(blank)).toBeLessThan(0.12);
     expect(calculateVisualInformationScore(detailed)).toBeGreaterThan(0.7);
+  });
+
+  it('uses a denser, less aggressive profile for presentation pages', () => {
+    expect(getFrameExtractionConfig('presentation')).toEqual({
+      duplicateDistance: 2,
+      intervalSec: 15,
+      sceneThreshold: 0.12,
+    });
+    expect(getFrameExtractionConfig('standard').intervalSec).toBe(60);
   });
 
   it('extracts real-timestamp PNG frames from a synthetic changing video', async () => {
@@ -70,8 +81,12 @@ describe('frame extraction helpers', () => {
         directory,
       );
       expect(frames.length).toBeGreaterThan(0);
-      expect(frames.every((frame) => frame.filePath.endsWith('.png'))).toBe(true);
-      expect(frames.every((frame) => Number.isFinite(frame.timestamp))).toBe(true);
+      expect(frames.every((frame) => frame.filePath.endsWith('.png'))).toBe(
+        true,
+      );
+      expect(frames.every((frame) => Number.isFinite(frame.timestamp))).toBe(
+        true,
+      );
       expect(frames.some((frame) => frame.timestamp >= 1.5)).toBe(true);
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -81,7 +96,9 @@ describe('frame extraction helpers', () => {
 
 function command(executable: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const process = spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const process = spawn(executable, args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
     const errors: Buffer[] = [];
     process.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
     process.on('close', (code) => {

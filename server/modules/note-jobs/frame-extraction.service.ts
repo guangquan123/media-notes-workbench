@@ -8,7 +8,9 @@ export interface FrameAnalysis {
   chartDesc: string;
   hasChart: boolean;
   hasText: boolean;
+  isPresentationSlide?: boolean;
   score: number;
+  slideTitle?: string;
   summary: string;
   text: string;
 }
@@ -37,6 +39,18 @@ type CommandResult = { stderr: string; stdout: string };
 interface ParsedShowInfo {
   sceneScore: number;
   timestamp: number;
+}
+
+export type FrameExtractionProfile = 'presentation' | 'standard';
+
+export function getFrameExtractionConfig(profile: FrameExtractionProfile): {
+  duplicateDistance: number;
+  intervalSec: number;
+  sceneThreshold: number;
+} {
+  return profile === 'presentation'
+    ? { duplicateDistance: 2, intervalSec: 15, sceneThreshold: 0.12 }
+    : { duplicateDistance: 5, intervalSec: 60, sceneThreshold: 0.28 };
 }
 
 export function parseShowInfo(stderr: string): ParsedShowInfo[] {
@@ -102,12 +116,14 @@ export class FrameExtractionService {
     workDir: string,
     sourceIndex = 0,
     globalOffsetSec = 0,
+    profile: FrameExtractionProfile = 'standard',
   ): Promise<KeyFrame[]> {
-    const framesDir = join(workDir, `frames-${sourceIndex}`);
+    const config = getFrameExtractionConfig(profile);
+    const framesDir = join(workDir, `frames-${profile}-${sourceIndex}`);
     await mkdir(framesDir, { recursive: true });
     const outputPattern = join(framesDir, 'candidate_%06d.png');
     const filter = [
-      "select='isnan(prev_selected_t)+gt(scene,0.28)+gte(t-prev_selected_t,60)'",
+      `select='isnan(prev_selected_t)+gt(scene,${config.sceneThreshold})+gte(t-prev_selected_t,${config.intervalSec})'`,
       'metadata=print',
       'scale=1280:-2',
       'showinfo',
@@ -127,6 +143,7 @@ export class FrameExtractionService {
         'vfr',
         '-compression_level',
         '4',
+        '-y',
         outputPattern,
       ]);
     } catch (error) {
@@ -153,29 +170,32 @@ export class FrameExtractionService {
                 hammingDistance(candidate.perceptualHash!, perceptualHash),
               ),
             );
-      if (nearestDistance <= 5) continue;
+      if (nearestDistance <= config.duplicateDistance) continue;
       const info = timestamps[index] ?? {
         sceneScore: 0,
-        timestamp: index * 60,
+        timestamp: index * config.intervalSec,
       };
       candidates.push({
         filePath,
         globalTimestamp: info.timestamp + globalOffsetSec,
-        id: createHash('sha256')
-          .update(`${sourceIndex}:${info.timestamp}:${perceptualHash}`)
-          .digest('hex')
-          .slice(0, 32) || randomUUID(),
+        id:
+          createHash('sha256')
+            .update(`${sourceIndex}:${info.timestamp}:${perceptualHash}`)
+            .digest('hex')
+            .slice(0, 32) || randomUUID(),
         perceptualHash,
         sceneScore: info.sceneScore,
         sourceFileName: basename(videoPath),
         sourceIndex,
         timestamp: info.timestamp,
-        type: info.sceneScore >= 0.28 ? 'scene' : 'interval',
+        type: info.sceneScore >= config.sceneThreshold ? 'scene' : 'interval',
         uniquenessScore: Number((nearestDistance / 64).toFixed(4)),
         visualInformationScore,
       });
     }
-    this.logger.log(`本地质量过滤后保留 ${candidates.length}/${files.length} 帧`);
+    this.logger.log(
+      `本地质量过滤后保留 ${candidates.length}/${files.length} 帧`,
+    );
     return candidates;
   }
 

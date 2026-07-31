@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { KeyFrame } from './frame-extraction.service';
+import type { DocumentDraft, DocumentMediaAsset } from './document-media.utils';
 
 export interface TranscriptSegment {
   start: number; // 秒
@@ -26,19 +27,44 @@ export class FrameInsertionService {
     frames: KeyFrame[],
     totalDurationSec?: number,
   ): string {
-    // 只处理有 image_key 的帧
-    const validFrames = frames.filter((f) => f.imageKey);
+    return this.buildDocumentDraft(markdown, frames, {
+      presentationMode: false,
+      totalDurationSec,
+    }).markdown;
+  }
+
+  buildDocumentDraft(
+    markdown: string,
+    frames: KeyFrame[],
+    options: {
+      presentationMode: boolean;
+      totalDurationSec?: number;
+    },
+  ): DocumentDraft {
+    const invalidFrames = frames.filter(
+      (frame: KeyFrame): boolean => !frame.filePath && !frame.previewDataUrl,
+    );
+    if (invalidFrames.length > 0) {
+      throw new Error(
+        `有 ${invalidFrames.length} 张关键画面缺少本地媒体，无法发布`,
+      );
+    }
+    const validFrames = frames.filter((frame: KeyFrame): boolean =>
+      Boolean(frame.filePath || frame.previewDataUrl),
+    );
     if (validFrames.length === 0) {
-      this.logger.log('没有可插入的截图（无有效 image_key），跳过');
-      return markdown;
+      this.logger.log('没有可插入的截图（无有效本地媒体），跳过');
+      return { markdown, media: [] };
     }
 
     this.logger.log(`开始将 ${validFrames.length} 张截图插入笔记`);
+    if (options.presentationMode) {
+      return this.buildPresentationDraft(markdown, validFrames);
+    }
 
     // 解析 Markdown 章节结构
     const sections = this.parseSections(markdown);
     if (sections.length === 0) {
-      // 无章节结构：直接在头部插入所有截图
       return this.insertAtTop(markdown, validFrames);
     }
 
@@ -46,7 +72,13 @@ export class FrameInsertionService {
     const framesBySectionIdx = this.assignFramesToSections(
       validFrames,
       sections,
-      totalDurationSec,
+      options.totalDurationSec,
+    );
+    const blocksById = new Map<string, DocumentDraft>(
+      validFrames.map((frame: KeyFrame, index: number) => [
+        frame.id,
+        this.buildImageBlock(frame, index, false),
+      ]),
     );
 
     // 按章节从后往前插入（从后往前避免行号偏移问题）
@@ -70,8 +102,8 @@ export class FrameInsertionService {
       const insertLine = section.contentStartLine;
 
       // 生成截图 Markdown 块
-      const imageBlocks = sectionFrames.map((frame) =>
-        this.buildImageBlock(frame),
+      const imageBlocks = sectionFrames.map(
+        (frame: KeyFrame): string => blocksById.get(frame.id)?.markdown || '',
       );
 
       // 在章节标题后插入截图块
@@ -80,7 +112,13 @@ export class FrameInsertionService {
 
     const result = lines.join('\n');
     this.logger.log('截图插入完成');
-    return result;
+    return {
+      markdown: result,
+      media: validFrames.flatMap(
+        (frame: KeyFrame): DocumentMediaAsset[] =>
+          blocksById.get(frame.id)?.media || [],
+      ),
+    };
   }
 
   /**
@@ -220,43 +258,76 @@ export class FrameInsertionService {
   /**
    * 没有章节结构时，在笔记头部插入截图
    */
-  private insertAtTop(markdown: string, frames: KeyFrame[]): string {
-    const imageBlocks = frames.map((f) => this.buildImageBlock(f)).join('\n\n');
-    // 找到第一个非标题行
-    const firstH1End = markdown.indexOf('\n');
-    if (firstH1End < 0) return markdown + '\n\n' + imageBlocks;
-    return (
-      markdown.slice(0, firstH1End + 1) +
-      '\n' +
-      imageBlocks +
-      '\n\n' +
-      markdown.slice(firstH1End + 1)
+  private insertAtTop(markdown: string, frames: KeyFrame[]): DocumentDraft {
+    const blocks = frames.map((frame: KeyFrame, index: number) =>
+      this.buildImageBlock(frame, index, false),
     );
+    const imageBlocks = blocks
+      .map((block: DocumentDraft): string => block.markdown)
+      .join('\n\n');
+    const media = blocks.flatMap(
+      (block: DocumentDraft): DocumentMediaAsset[] => block.media,
+    );
+    const firstH1End = markdown.indexOf('\n');
+    if (firstH1End < 0) {
+      return { markdown: markdown + '\n\n' + imageBlocks, media };
+    }
+    return {
+      markdown:
+        markdown.slice(0, firstH1End + 1) +
+        '\n' +
+        imageBlocks +
+        '\n\n' +
+        markdown.slice(firstH1End + 1),
+      media,
+    };
   }
 
   /**
    * 构建单帧的 Markdown 图片块（含 AI 描述）
    */
-  private buildImageBlock(frame: KeyFrame): string {
+  private buildImageBlock(
+    frame: KeyFrame,
+    index: number,
+    presentationMode: boolean,
+  ): DocumentDraft {
     const timeStr = this.formatTimestamp(
       frame.globalTimestamp ?? frame.timestamp,
     );
     const analysis = frame.analysis;
-
-    const originalUrl = /^https?:\/\//u.test(frame.imageKey!)
-      ? frame.imageKey!
-      : `https://open.feishu.cn/open-apis/im/v1/images/${frame.imageKey}`;
-
-    let block = `![视频原始截图 ${timeStr}](${originalUrl})`;
+    const displayIndex = index + 1;
+    const originalAnchor = presentationMode
+      ? `第 ${displayIndex} 页原始画面（${timeStr}）`
+      : `图 ${displayIndex}：视频原始截图（${timeStr}）`;
+    let block = presentationMode
+      ? `### 第 ${displayIndex} 页（${timeStr}）\n\n**${originalAnchor}**`
+      : `**${originalAnchor}**`;
+    const media: DocumentMediaAsset[] = [
+      {
+        anchor: originalAnchor,
+        caption: presentationMode
+          ? `培训课件第 ${displayIndex} 页 ${timeStr}`
+          : `视频原始截图 ${timeStr}`,
+        source: frame.filePath
+          ? { kind: 'file', path: frame.filePath }
+          : { kind: 'data-url', value: frame.previewDataUrl! },
+      },
+    ];
 
     // 添加 AI 描述
     if (analysis) {
       if (analysis.summary || analysis.text || analysis.hasChart) {
         const desc =
           analysis.hasText && analysis.text
-            ? `**文字内容**：${analysis.text.slice(0, 150)}`
+            ? `**文字内容**：${
+                presentationMode ? analysis.text : analysis.text.slice(0, 150)
+              }`
             : analysis.hasChart
-              ? `**图表内容**：${analysis.chartDesc.slice(0, 150)}`
+              ? `**图表内容**：${
+                  presentationMode
+                    ? analysis.chartDesc
+                    : analysis.chartDesc.slice(0, 150)
+                }`
               : analysis.summary;
         if (desc) {
           block += `\n\n> 🤖 **AI 识别**：${desc.replace(/\n/g, ' ')}`;
@@ -264,21 +335,52 @@ export class FrameInsertionService {
       }
     }
     if (frame.derivativeUrl) {
-      block += `\n\n![AI 派生信息图 ${timeStr}](${frame.derivativeUrl})`;
+      const derivativeAnchor = `图 ${displayIndex}-AI：派生信息图（${timeStr}）`;
+      block += `\n\n**${derivativeAnchor}**`;
       block +=
         '\n\n> 🎨 **AI 派生版本**：用于提升可读性；原始截图保留在上方，内容以原图和文字稿为准。';
+      media.push({
+        anchor: derivativeAnchor,
+        caption: `AI 派生信息图 ${timeStr}`,
+        source: { kind: 'remote-url', url: frame.derivativeUrl },
+      });
     }
 
-    return block;
+    return { markdown: block, media };
+  }
+
+  private buildPresentationDraft(
+    markdown: string,
+    frames: KeyFrame[],
+  ): DocumentDraft {
+    const blocks = frames.map((frame: KeyFrame, index: number) =>
+      this.buildImageBlock(frame, index, true),
+    );
+    return {
+      markdown: [
+        markdown.trim(),
+        '',
+        '## 培训课件逐页记录',
+        '',
+        ...blocks.flatMap((block: DocumentDraft): string[] => [
+          block.markdown,
+          '',
+        ]),
+      ].join('\n'),
+      media: blocks.flatMap(
+        (block: DocumentDraft): DocumentMediaAsset[] => block.media,
+      ),
+    };
   }
 
   /**
    * 将秒数格式化为 HH:MM:SS
    */
   private formatTimestamp(seconds: number): string {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
+    const h = Math.floor(safeSeconds / 3600);
+    const m = Math.floor((safeSeconds % 3600) / 60);
+    const s = Math.floor(safeSeconds % 60);
     if (h > 0) {
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }

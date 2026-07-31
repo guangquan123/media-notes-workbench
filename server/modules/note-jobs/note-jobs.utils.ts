@@ -16,6 +16,7 @@ import {
   getDocumentMimeType,
   isSupportedDocumentFile,
 } from './document-note.utils';
+import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 const MAX_MEDIA_DOWNLOAD_CONCURRENCY = 4;
@@ -41,9 +42,12 @@ export function getMediaDownloadConcurrency(partCount: number): number {
 }
 
 export function isInterruptedProcessingStage(stage: JobStage): boolean {
-  return !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
-    stage,
-  );
+  return ![
+    'completed',
+    'cancelled',
+    'failed',
+    'awaiting-frame-review',
+  ].includes(stage);
 }
 
 export function buildCancelledNoteJob(
@@ -286,12 +290,9 @@ export function validateNoteJobRequest(
 ): ValidatedNoteJobInput {
   const sourceType: NoteSourceType = input.sourceType || 'platform';
   const noteStyle: NoteStyle = validateNoteStyle(input.noteStyle);
-  const visualOptions: NoteVisualOptions =
-    sourceType === 'video' ||
-    sourceType === 'paired' ||
-    sourceType === 'platform'
-      ? normalizeVisualOptions(input.visualOptions)
-      : { mode: 'disabled' };
+  const visualOptions: NoteVisualOptions = supportsVisualProcessing(sourceType)
+    ? normalizeVisualOptions(input.visualOptions)
+    : { mode: 'disabled' };
   if (sourceType === 'platform') {
     if (!input.url?.trim()) {
       throw new BadRequestException('请粘贴需要处理的视频地址');
