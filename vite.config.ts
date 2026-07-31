@@ -14,6 +14,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'client/src'),
     },
   },
+  define: {
+    'process.env.CLIENT_BASE_PATH': JSON.stringify(clientBasePath),
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        'process.env.CLIENT_BASE_PATH': JSON.stringify(clientBasePath),
+      },
+    },
+  },
   server: {
     host: process.env.CLIENT_DEV_HOST || '127.0.0.1',
     hmr: stableMode ? false : undefined,
