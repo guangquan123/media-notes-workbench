@@ -1,7 +1,7 @@
 @import '@lark-apaas/client-toolkit/lib/index.css';
-@import "tw-animate-css";
-@import "./tailwind-theme.css";
-@import "./typography.css";
+@import 'tw-animate-css';
+@import './tailwind-theme.css';
+@import './typography.css';
 
 @source "../../node_modules/streamdown/dist/*.js";
 @config "../../tailwind.config.ts";
@@ -15,8 +15,13 @@ body,
 body {
   margin: 0;
   font-family:
-    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
 }
 
 .status-pill {
@@ -96,6 +101,44 @@ body {
   font-size: 0.76rem;
   font-weight: 600;
   color: rgb(0 0 0 / 64%);
+}
+
+.entry-card {
+  animation: entry-card-reveal 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.entry-card:nth-child(2) {
+  animation-delay: 55ms;
+}
+
+.entry-card:nth-child(3) {
+  animation-delay: 110ms;
+}
+
+.entry-card:nth-child(4) {
+  animation-delay: 165ms;
+}
+
+.entry-card:nth-child(5) {
+  animation-delay: 220ms;
+}
+
+@keyframes entry-card-reveal {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-card {
+    animation: none;
+  }
 }
 
 @media (min-width: 768px) {

@@ -8,7 +8,7 @@ import {
   MessageSquareText,
   ScanSearch,
   Settings2,
-  Waypoints,
+  type LucideIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -20,8 +20,25 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Image } from '@/components/ui/image';
 
-const FEATURE_CARDS = [
+interface FeatureCard {
+  badge: string;
+  bullets: readonly string[];
+  cta: string;
+  description: string;
+  gridClassName: string;
+  href: string;
+  icon: LucideIcon;
+  title: string;
+}
+
+const ENTRY_LOGO_URL: string = new URL(
+  'icons/zhiji-logo.svg?v=3',
+  document.baseURI,
+).toString();
+
+const FEATURE_CARDS: readonly FeatureCard[] = [
   {
     href: '/paired-media-notes',
     icon: ScanSearch,
@@ -30,6 +47,7 @@ const FEATURE_CARDS = [
     badge: '视频 + 录音',
     bullets: ['时间对齐', '关键画面', '冲突标记'],
     cta: '上传双文件',
+    gridClassName: '',
   },
   {
     href: '/video-notes',
@@ -39,6 +57,7 @@ const FEATURE_CARDS = [
     badge: '平台视频',
     bullets: ['视频地址', '自动转录', '飞书笔记'],
     cta: '开始处理',
+    gridClassName: '',
   },
   {
     href: '/local-video-notes',
@@ -48,6 +67,7 @@ const FEATURE_CARDS = [
     badge: '视频文件',
     bullets: ['文件上传', '音轨提取', '处理进度'],
     cta: '上传视频',
+    gridClassName: '',
   },
   {
     href: '/audio-notes',
@@ -57,6 +77,7 @@ const FEATURE_CARDS = [
     badge: '录音文件',
     bullets: ['多种格式', '自动切片', '学习笔记'],
     cta: '上传录音',
+    gridClassName: 'lg:col-start-2',
   },
   {
     href: '/document-notes',
@@ -66,135 +87,144 @@ const FEATURE_CARDS = [
     badge: '文档文件',
     bullets: ['多文件融合', '原文解析', '飞书归档'],
     cta: '上传文档',
+    gridClassName: 'lg:col-start-4',
   },
-] as const;
+];
 
 export default function EntryPage() {
   return (
-    <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#111315]">
-      <div className="min-h-screen bg-[radial-gradient(circle_at_82%_2%,rgba(77,93,255,0.09),transparent_24%),linear-gradient(135deg,rgba(17,19,21,0.025)_1px,transparent_1px)] bg-[size:auto,32px_32px]">
-        <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 md:px-10 md:py-8">
-          <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
-                <Waypoints className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide">
-                  多媒体笔记工作台
-                </p>
-                <p className="text-xs text-black/42">
-                  让每份资料都留下可追溯的知识轨迹
-                </p>
-              </div>
+    <main className="min-h-screen overflow-auto bg-[#f4f6f8] text-[#111315]">
+      <div className="mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+        <header className="flex flex-col gap-4 border-b border-black/8 pb-4 md:flex-row md:items-center md:justify-between md:gap-6">
+          <div className="flex items-center gap-3">
+            <Image
+              alt="多媒体笔记工作台"
+              className="size-11 shrink-0 rounded-xl shadow-[0_6px_18px_rgba(26,139,210,0.15)]"
+              decoding="sync"
+              height={44}
+              loading="eager"
+              src={ENTRY_LOGO_URL}
+              width={44}
+            />
+            <div>
+              <p className="text-sm font-semibold">多媒体笔记工作台</p>
+              <p className="mt-0.5 text-xs text-black/42">
+                让每份资料都留下可追溯的知识轨迹
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                asChild
-                className="rounded-full bg-[#111315] text-white hover:bg-[#4d5dff]"
-                size="sm"
-              >
-                <Link to="/settings">
-                  <Settings2 className="size-3.5" />
-                  参数配置
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/note-inbox">
-                  <MessageSquareText className="size-3.5" />
-                  飞书收集箱
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/note-inbox/messages">
-                  <MessageSquareText className="size-3.5" />
-                  收集消息
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/conversion-history">
-                  <History className="size-3.5" />
-                  转化记录
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white/90 text-black/65 hover:bg-white"
-                size="sm"
-                variant="outline"
-              >
-                <Link to="/operation-manual">
-                  <BookOpenText className="size-3.5" />
-                  操作手册
-                </Link>
-              </Button>
-            </div>
-          </header>
+          </div>
+          <nav
+            aria-label="工作台辅助导航"
+            className="flex flex-wrap gap-2 md:justify-end"
+          >
+            <Button
+              asChild
+              className="rounded-full bg-[#111315] text-white transition-colors hover:bg-[#178fd2]"
+              size="sm"
+            >
+              <Link to="/settings">
+                <Settings2 className="size-3.5" />
+                参数配置
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              size="sm"
+              variant="outline"
+            >
+              <Link to="/note-inbox">
+                <MessageSquareText className="size-3.5" />
+                飞书收集箱
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              size="sm"
+              variant="outline"
+            >
+              <Link to="/note-inbox/messages">
+                <MessageSquareText className="size-3.5" />
+                收集消息
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              size="sm"
+              variant="outline"
+            >
+              <Link to="/conversion-history">
+                <History className="size-3.5" />
+                转化记录
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              size="sm"
+              variant="outline"
+            >
+              <Link to="/operation-manual">
+                <BookOpenText className="size-3.5" />
+                操作手册
+              </Link>
+            </Button>
+          </nav>
+        </header>
 
-          <section className="flex flex-1 items-center py-10 lg:py-14">
-            <div className="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {FEATURE_CARDS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card
-                    className="group relative flex min-h-[360px] flex-col overflow-hidden border-black/8 bg-white/88 shadow-[0_20px_60px_rgba(18,24,40,0.06)] backdrop-blur-xl transition duration-300 motion-reduce:transition-none hover:-translate-y-2 hover:scale-[1.015] hover:border-[#4d5dff]/45 hover:shadow-[0_30px_80px_rgba(44,59,150,0.16)] focus-within:-translate-y-2 focus-within:scale-[1.015] focus-within:border-[#4d5dff]/45 focus-within:shadow-[0_30px_80px_rgba(44,59,150,0.16)]"
-                    key={item.href}
-                  >
-                    <div className="pointer-events-none absolute -right-16 -top-16 size-40 rounded-full bg-[#4d5dff]/8 blur-3xl transition duration-500 motion-reduce:transition-none group-hover:scale-150 group-hover:bg-[#4d5dff]/25 group-focus-within:scale-150 group-focus-within:bg-[#4d5dff]/25" />
-                    <CardHeader className="relative space-y-4 p-6 pb-3">
-                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/8 bg-[#f3f4ff] px-3 py-1 text-xs font-semibold text-black/58 transition duration-300 motion-reduce:transition-none group-hover:-translate-y-0.5 group-hover:border-[#4d5dff]/35 group-hover:bg-[#eaecff] group-hover:text-[#3848d7] group-focus-within:-translate-y-0.5 group-focus-within:border-[#4d5dff]/35 group-focus-within:bg-[#eaecff] group-focus-within:text-[#3848d7]">
-                        <Icon className="size-3.5 transition duration-300 motion-reduce:transition-none group-hover:scale-110 group-focus-within:scale-110" />
-                        {item.badge}
-                      </div>
-                      <CardTitle className="text-2xl tracking-[-0.04em] text-[#111315]">
-                        {item.title}
-                      </CardTitle>
-                      <CardDescription className="min-h-12 text-sm leading-6 text-black/48">
-                        {item.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="relative flex flex-1 flex-col space-y-5 p-6 pt-4">
-                      <div className="grid grid-cols-3 gap-2">
-                        {item.bullets.map((bullet: string) => (
-                          <div
-                            className="rounded-xl border border-black/7 bg-[#f7f7f5] px-2 py-3 text-center text-xs leading-5 text-black/52 transition duration-300 motion-reduce:transition-none group-hover:border-[#4d5dff]/20 group-hover:bg-white group-hover:text-black/65 group-focus-within:border-[#4d5dff]/20 group-focus-within:bg-white group-focus-within:text-black/65"
-                            key={bullet}
-                          >
-                            {bullet}
-                          </div>
-                        ))}
-                      </div>
-                      <Button
-                        asChild
-                        className="mt-auto h-11 w-full rounded-xl bg-[#111315] text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#4d5dff] group-hover:shadow-[0_12px_28px_rgba(77,93,255,0.28)] group-focus-within:bg-[#4d5dff] group-focus-within:shadow-[0_12px_28px_rgba(77,93,255,0.28)] hover:bg-[#4d5dff]"
-                      >
-                        <Link to={item.href}>
-                          {item.cta}
-                          <ArrowRight className="size-4" />
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-        </div>
+        <section className="flex flex-1 items-center py-4 lg:py-3">
+          <div
+            className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-6"
+            data-ai-section-type="card-menu"
+          >
+            {FEATURE_CARDS.map((item) => {
+              const Icon: LucideIcon = item.icon;
+              return (
+                <Card
+                  className={`entry-card group relative flex min-h-[264px] flex-col overflow-hidden rounded-lg border-black/8 bg-white shadow-[0_12px_36px_rgba(18,24,40,0.055)] transition duration-300 motion-reduce:transition-none hover:-translate-y-1 hover:border-[#1b9dde]/40 hover:shadow-[0_20px_48px_rgba(28,106,151,0.14)] focus-within:-translate-y-1 focus-within:border-[#1b9dde]/40 focus-within:shadow-[0_20px_48px_rgba(28,106,151,0.14)] lg:col-span-2 lg:min-h-[250px] xl:min-h-[264px] ${item.gridClassName}`}
+                  key={item.href}
+                >
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-[#1b9dde] transition-transform duration-300 motion-reduce:transition-none group-hover:scale-x-100 group-focus-within:scale-x-100" />
+                  <CardHeader className="relative space-y-3 p-5 pb-2">
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#1b9dde]/16 bg-[#edf8fd] px-3 py-1 text-xs font-semibold text-[#356274] transition duration-300 motion-reduce:transition-none group-hover:border-[#1b9dde]/30 group-hover:bg-[#e4f5fc] group-hover:text-[#087fbe] group-focus-within:border-[#1b9dde]/30 group-focus-within:bg-[#e4f5fc] group-focus-within:text-[#087fbe]">
+                      <Icon className="size-3.5 transition-transform duration-300 motion-reduce:transition-none group-hover:scale-110 group-focus-within:scale-110" />
+                      {item.badge}
+                    </div>
+                    <CardTitle className="text-xl tracking-normal text-[#111315]">
+                      {item.title}
+                    </CardTitle>
+                    <CardDescription className="min-h-10 text-sm leading-5 text-black/48">
+                      {item.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative flex flex-1 flex-col gap-4 p-5 pt-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {item.bullets.map((bullet: string) => (
+                        <div
+                          className="rounded-lg border border-black/7 bg-[#f7f8f8] px-2 py-2 text-center text-xs leading-5 text-black/52 transition-colors duration-300 group-hover:border-[#1b9dde]/18 group-hover:bg-[#f3fafc] group-hover:text-black/65 group-focus-within:border-[#1b9dde]/18 group-focus-within:bg-[#f3fafc] group-focus-within:text-black/65"
+                          key={bullet}
+                        >
+                          {bullet}
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      asChild
+                      className="mt-auto w-full rounded-lg bg-[#111315] text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#178fd2] group-hover:shadow-[0_10px_24px_rgba(23,143,210,0.22)] group-focus-within:bg-[#178fd2] group-focus-within:shadow-[0_10px_24px_rgba(23,143,210,0.22)] hover:bg-[#178fd2]"
+                    >
+                      <Link to={item.href}>
+                        {item.cta}
+                        <ArrowRight className="size-4 transition-transform duration-300 motion-reduce:transition-none group-hover:translate-x-1 group-focus-within:translate-x-1" />
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </main>
   );
