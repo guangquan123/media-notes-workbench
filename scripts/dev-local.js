@@ -118,9 +118,9 @@ if (process.env.SUDA_WEBUSER) {
   }
 }
 
-// 5. 并发起稳定后端与前端 dev server,整体 tee 到 logs/dev.std.log
+// 5. 并发起稳定后端与冻结前端，整体 tee 到 logs/dev.std.log
 const devLogPath = path.join(LOG_DIR, 'dev.std.log');
-console.log('[dev-local] (5/5) 并发起稳定后端 + dev:client');
+console.log('[dev-local] (5/5) 并发起稳定后端 + dev:client:stable');
 console.log(`[dev-local] 日志: ${devLogPath}`);
 
 const logFd = fs.openSync(devLogPath, 'a');
@@ -135,7 +135,7 @@ const child = spawn(
     'blue,green',
     '--kill-others-on-fail',
     'npm run dev:server:stable',
-    'npm run dev:client',
+    'npm run dev:client:stable',
   ],
   { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
 );
