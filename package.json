@@ -178,7 +178,12 @@
     "testMatch": [
       "<rootDir>/server/**/*.spec.ts",
       "<rootDir>/test/unit/**/*.spec.ts"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@client/(.*)$": "<rootDir>/client/$1",
+      "^@server/(.*)$": "<rootDir>/server/$1",
+      "^@shared/(.*)$": "<rootDir>/shared/$1"
+    }
   },
   "name": "media-notes-workbench",
   "overrides": {
@@ -194,6 +199,7 @@
     "dev:client": "NODE_ENV=development vite --config vite.config.ts",
     "dev:local": "node ./scripts/dev-local.js",
     "dev:server": "SERVER_HOST=127.0.0.1 NODE_ENV=development nest start --watch",
+    "dev:server:stable": "SERVER_HOST=127.0.0.1 NODE_ENV=development nest start",
     "eslint": "eslint . --quiet",
     "format": "prettier --write \"{server,client,test}/**/*.{js,ts,tsx,json,md}\"",
     "gen:db-schema": "npx -y @lark-apaas/db-schema-sync@latest --output server/database/schema.ts --export-custom-types",

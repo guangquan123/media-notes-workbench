@@ -10,8 +10,12 @@ import {
   eq,
   gte,
   ilike,
+  isNull,
   lt,
   max,
+  ne,
+  or,
+  sql,
   type SQL,
 } from 'drizzle-orm';
 
@@ -141,6 +145,9 @@ interface HistoryListInput {
   status?: ConversionStatus;
 }
 
+const INTERRUPTED_JOB_STATUS_MESSAGE =
+  '服务重启导致处理任务中断，请重新提交';
+
 @Injectable()
 export class NoteHistoryService {
   constructor(
@@ -262,7 +269,7 @@ export class NoteHistoryService {
         durationMs: calculateDurationMs(row.startedAt, completedAt),
         error: error.slice(0, 4000),
         status: 'failed',
-        statusMessage: '服务重启导致处理任务中断，请重新提交',
+        statusMessage: INTERRUPTED_JOB_STATUS_MESSAGE,
       })
       .where(
         and(
@@ -271,6 +278,42 @@ export class NoteHistoryService {
           eq(noteConversionRecords.status, 'processing'),
         ),
       );
+  }
+
+  async failAllInterrupted(error: string): Promise<number> {
+    const completedAt = new Date();
+    const completedAtIso = completedAt.toISOString();
+    const rows = await this.db
+      .update(noteConversionRecords)
+      .set({
+        completedAt,
+        currentStage: 'failed',
+        durationMs: sql<number>`least(
+          2147483647,
+          greatest(
+            0,
+            floor(
+              extract(
+                epoch from ${completedAtIso}::timestamptz - ${noteConversionRecords.startedAt}
+              ) * 1000
+            )
+          )
+        )::integer`,
+        error: error.slice(0, 4000),
+        status: 'failed',
+        statusMessage: INTERRUPTED_JOB_STATUS_MESSAGE,
+      })
+      .where(
+        and(
+          eq(noteConversionRecords.status, 'processing'),
+          or(
+            isNull(noteConversionRecords.currentStage),
+            ne(noteConversionRecords.currentStage, 'awaiting-frame-review'),
+          ),
+        ),
+      )
+      .returning({ jobId: noteConversionRecords.jobId });
+    return rows.length;
   }
 
   async list(

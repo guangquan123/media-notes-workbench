@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   Inject,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
 import { AuthNPaasService } from '@lark-apaas/nestjs-authnpaas';
@@ -209,7 +210,7 @@ const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
 };
 
 @Injectable()
-export class NoteJobsService {
+export class NoteJobsService implements OnModuleInit {
   private readonly logger = new Logger(NoteJobsService.name);
   private readonly jobs = new Map<string, StoredNoteJob>();
   private readonly publishingVisualJobs = new Set<string>();
@@ -241,6 +242,24 @@ export class NoteJobsService {
     private readonly externalModelSettingsService: ExternalModelSettingsService,
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      const count = await this.noteHistoryService.failAllInterrupted(
+        '服务重启后任务执行上下文已丢失，请重新提交。',
+      );
+      if (count > 0) {
+        this.logger.warn(
+          `服务启动时已结束 ${count} 个因上次重启中断的转换任务`,
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '未知的历史任务清理错误';
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`历史中断任务清理失败：${message}`, stack);
+    }
+  }
 
   async getReadiness(): Promise<SystemReadiness> {
     const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli, tencentAsr] =

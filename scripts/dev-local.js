@@ -8,7 +8,7 @@
 //   2. action-plugin init —— 装 user app 在 package.json.actionPlugins 里声明的插件
 //   3. skills sync —— 同步当前 stack 的 agent skills
 //   4. dotenv 加载 .env / .env.local 到 process.env（含 SUDA_WEBUSER 适配）
-//   5. concurrently 并发起 dev:server + dev:client,整体 stdout/stderr tee 到
+//   5. concurrently 并发起稳定后端 + dev:client,整体 stdout/stderr tee 到
 //      logs/dev.std.log;server / client 输出靠 concurrently 自带 [server]/[client]
 //      前缀区分,`grep '\[server\]' logs/dev.std.log` 拿单边日志
 //
@@ -118,9 +118,9 @@ if (process.env.SUDA_WEBUSER) {
   }
 }
 
-// 5. 并发起前后端 dev server,整体 tee 到 logs/dev.std.log
+// 5. 并发起稳定后端与前端 dev server,整体 tee 到 logs/dev.std.log
 const devLogPath = path.join(LOG_DIR, 'dev.std.log');
-console.log('[dev-local] (5/5) 并发起 dev:server + dev:client');
+console.log('[dev-local] (5/5) 并发起稳定后端 + dev:client');
 console.log(`[dev-local] 日志: ${devLogPath}`);
 
 const logFd = fs.openSync(devLogPath, 'a');
@@ -134,7 +134,7 @@ const child = spawn(
     '--prefix-colors',
     'blue,green',
     '--kill-others-on-fail',
-    'npm run dev:server',
+    'npm run dev:server:stable',
     'npm run dev:client',
   ],
   { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
