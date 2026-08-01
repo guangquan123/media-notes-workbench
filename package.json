@@ -198,6 +198,7 @@
     "build:server": "NODE_ENV=production nest build",
     "dev": "./scripts/dev.sh",
     "dev:client": "NODE_ENV=development vite --config vite.config.ts",
+    "dev:client:local": "MIAODA_LOCAL_DEV=1 NODE_ENV=development vite --config vite.config.ts",
     "dev:client:after-server": "until nc -z 127.0.0.1 \"${SERVER_PORT:-3000}\"; do sleep 1; done; npm run dev:client:stable",
     "dev:client:stable": "VITE_STABLE_MODE=true NODE_ENV=development vite --config vite.config.ts",
     "dev:local": "node ./scripts/dev-local.js",
