@@ -9,6 +9,7 @@ import {
   ScanSearch,
   Settings2,
   type LucideIcon,
+  Waypoints,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -20,7 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Image } from '@/components/ui/image';
 
 interface FeatureCard {
   badge: string;
@@ -32,11 +32,6 @@ interface FeatureCard {
   icon: LucideIcon;
   title: string;
 }
-
-const ENTRY_LOGO_URL: string = new URL(
-  'icons/zhiji-logo.svg?v=3',
-  document.baseURI,
-).toString();
 
 const FEATURE_CARDS: readonly FeatureCard[] = [
   {
@@ -97,15 +92,9 @@ export default function EntryPage() {
       <div className="mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
         <header className="flex flex-col gap-4 border-b border-black/8 pb-4 md:flex-row md:items-center md:justify-between md:gap-6">
           <div className="flex items-center gap-3">
-            <Image
-              alt="多媒体笔记工作台"
-              className="size-11 shrink-0 rounded-xl shadow-[0_6px_18px_rgba(26,139,210,0.15)]"
-              decoding="sync"
-              height={44}
-              loading="eager"
-              src={ENTRY_LOGO_URL}
-              width={44}
-            />
+            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
+              <Waypoints aria-hidden="true" className="size-5" />
+            </div>
             <div>
               <p className="text-sm font-semibold">多媒体笔记工作台</p>
               <p className="mt-0.5 text-xs text-black/42">
@@ -119,7 +108,7 @@ export default function EntryPage() {
           >
             <Button
               asChild
-              className="rounded-full bg-[#111315] text-white transition-colors hover:bg-[#178fd2]"
+              className="rounded-full bg-[#111315] text-white transition-colors hover:bg-[#2563eb]"
               size="sm"
             >
               <Link to="/settings">
@@ -129,7 +118,7 @@ export default function EntryPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
               size="sm"
               variant="outline"
             >
@@ -140,7 +129,7 @@ export default function EntryPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
               size="sm"
               variant="outline"
             >
@@ -151,7 +140,7 @@ export default function EntryPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
               size="sm"
               variant="outline"
             >
@@ -162,7 +151,7 @@ export default function EntryPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#087fbe]"
+              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
               size="sm"
               variant="outline"
             >
@@ -183,12 +172,12 @@ export default function EntryPage() {
               const Icon: LucideIcon = item.icon;
               return (
                 <Card
-                  className={`entry-card group relative flex min-h-[264px] flex-col overflow-hidden rounded-lg border-black/8 bg-white shadow-[0_12px_36px_rgba(18,24,40,0.055)] transition duration-300 motion-reduce:transition-none hover:-translate-y-1 hover:border-[#1b9dde]/40 hover:shadow-[0_20px_48px_rgba(28,106,151,0.14)] focus-within:-translate-y-1 focus-within:border-[#1b9dde]/40 focus-within:shadow-[0_20px_48px_rgba(28,106,151,0.14)] lg:col-span-2 lg:min-h-[250px] xl:min-h-[264px] ${item.gridClassName}`}
+                  className={`entry-card group relative flex min-h-[264px] flex-col overflow-hidden rounded-lg border-black/8 bg-white shadow-[0_12px_36px_rgba(18,24,40,0.055)] transition duration-300 motion-reduce:transition-none hover:-translate-y-1 hover:border-[#2563eb]/40 hover:shadow-[0_20px_48px_rgba(37,99,235,0.14)] focus-within:-translate-y-1 focus-within:border-[#2563eb]/40 focus-within:shadow-[0_20px_48px_rgba(37,99,235,0.14)] lg:col-span-2 lg:min-h-[250px] xl:min-h-[264px] ${item.gridClassName}`}
                   key={item.href}
                 >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-[#1b9dde] transition-transform duration-300 motion-reduce:transition-none group-hover:scale-x-100 group-focus-within:scale-x-100" />
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-[#2563eb] transition-transform duration-300 motion-reduce:transition-none group-hover:scale-x-100 group-focus-within:scale-x-100" />
                   <CardHeader className="relative space-y-3 p-5 pb-2">
-                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#1b9dde]/16 bg-[#edf8fd] px-3 py-1 text-xs font-semibold text-[#356274] transition duration-300 motion-reduce:transition-none group-hover:border-[#1b9dde]/30 group-hover:bg-[#e4f5fc] group-hover:text-[#087fbe] group-focus-within:border-[#1b9dde]/30 group-focus-within:bg-[#e4f5fc] group-focus-within:text-[#087fbe]">
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#2563eb]/20 bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#1e40af] transition duration-300 motion-reduce:transition-none group-hover:border-[#2563eb]/40 group-hover:bg-[#dbeafe] group-hover:text-[#1d4ed8] group-focus-within:border-[#2563eb]/40 group-focus-within:bg-[#dbeafe] group-focus-within:text-[#1d4ed8]">
                       <Icon className="size-3.5 transition-transform duration-300 motion-reduce:transition-none group-hover:scale-110 group-focus-within:scale-110" />
                       {item.badge}
                     </div>
@@ -203,7 +192,7 @@ export default function EntryPage() {
                     <div className="grid grid-cols-3 gap-2">
                       {item.bullets.map((bullet: string) => (
                         <div
-                          className="rounded-lg border border-black/7 bg-[#f7f8f8] px-2 py-2 text-center text-xs leading-5 text-black/52 transition-colors duration-300 group-hover:border-[#1b9dde]/18 group-hover:bg-[#f3fafc] group-hover:text-black/65 group-focus-within:border-[#1b9dde]/18 group-focus-within:bg-[#f3fafc] group-focus-within:text-black/65"
+                          className="rounded-lg border border-black/7 bg-[#f7f8f8] px-2 py-2 text-center text-xs leading-5 text-black/52 transition-colors duration-300 group-hover:border-[#2563eb]/20 group-hover:bg-[#f5f8ff] group-hover:text-black/65 group-focus-within:border-[#2563eb]/20 group-focus-within:bg-[#f5f8ff] group-focus-within:text-black/65"
                           key={bullet}
                         >
                           {bullet}
@@ -212,7 +201,7 @@ export default function EntryPage() {
                     </div>
                     <Button
                       asChild
-                      className="mt-auto w-full rounded-lg bg-[#111315] text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#178fd2] group-hover:shadow-[0_10px_24px_rgba(23,143,210,0.22)] group-focus-within:bg-[#178fd2] group-focus-within:shadow-[0_10px_24px_rgba(23,143,210,0.22)] hover:bg-[#178fd2]"
+                      className="mt-auto w-full rounded-lg bg-[#111315] text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#2563eb] group-hover:shadow-[0_10px_24px_rgba(37,99,235,0.24)] group-focus-within:bg-[#2563eb] group-focus-within:shadow-[0_10px_24px_rgba(37,99,235,0.24)] hover:bg-[#2563eb]"
                     >
                       <Link to={item.href}>
                         {item.cta}
