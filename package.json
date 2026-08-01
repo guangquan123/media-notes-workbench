@@ -7,6 +7,7 @@
     "@official-plugins/ai-text-to-image": "1.0.19"
   },
   "dependencies": {
+    "@lark-apaas/file-service": "^0.1.2",
     "@lark-apaas/fullstack-nestjs-core": "^1.1.54",
     "@lark-apaas/nestjs-authnpaas": "^1.0.4",
     "@nestjs/axios": "^4.0.1",

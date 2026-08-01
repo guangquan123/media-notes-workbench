@@ -342,6 +342,7 @@ export class FrameInsertionService {
       media.push({
         anchor: derivativeAnchor,
         caption: `AI 派生信息图 ${timeStr}`,
+        optional: true,
         source: { kind: 'remote-url', url: frame.derivativeUrl },
       });
     }

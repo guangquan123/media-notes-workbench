@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { FileService as PlatformStorageClient } from '@lark-apaas/file-service';
+import { PlatformHttpClientService } from '@lark-apaas/fullstack-nestjs-core';
 import { NoteJobsController } from './note-jobs.controller';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
@@ -13,6 +15,10 @@ import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
 import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
+import {
+  DOCUMENT_STORAGE_CLIENT,
+  DocumentImageDownloadService,
+} from './document-image-download.service';
 
 @Module({
   controllers: [NoteJobsController],
@@ -30,6 +36,15 @@ import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
     TencentAsrTranscriptionService,
     ExternalModelSettingsService,
     NoteSummaryPipelineService,
+    {
+      provide: DOCUMENT_STORAGE_CLIENT,
+      inject: [PlatformHttpClientService],
+      useFactory: (
+        httpClientService: PlatformHttpClientService,
+      ): PlatformStorageClient =>
+        new PlatformStorageClient(httpClientService.instance),
+    },
+    DocumentImageDownloadService,
   ],
   exports: [NoteJobsService],
 })

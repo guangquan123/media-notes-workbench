@@ -101,10 +101,15 @@ import {
   assertMediaInsertSucceeded,
   buildDocumentFetchCommand,
   buildDocumentMediaInsertCommand,
+  detectDocumentImageType,
+  MAX_DOCUMENT_IMAGE_BYTES,
+  publishDocumentMediaAssets,
   type DocumentDraft,
   type DocumentMediaAsset,
+  type DocumentMediaPublishResult,
   parseCreatedLarkDocument,
 } from './document-media.utils';
+import { DocumentImageDownloadService } from './document-image-download.service';
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import {
   assessTranscriptQuality,
@@ -197,6 +202,10 @@ interface CreateJobOptions {
   sourceChannel?: 'feishu_inbox' | 'manual';
 }
 
+interface LarkDocumentPublishResult extends DocumentMediaPublishResult {
+  url: string;
+}
+
 const WHISPER_THREAD_COUNT = Math.min(8, availableParallelism());
 const CAPABILITY_RATE_LIMIT_RETRY_DELAYS_MS = [15_000, 45_000, 90_000];
 const DOUYIN_MEDIA_RETRY_DELAYS_MS = [1_000, 3_000, 8_000];
@@ -204,8 +213,6 @@ const ALIGNMENT_SAMPLE_RATE = 4_000;
 const ALIGNMENT_BUCKET_MS = 1_000;
 const ALIGNMENT_MAX_OFFSET_MS = 30 * 60 * 1_000;
 const TIMESTAMPED_AUDIO_CHUNK_MS = 20 * 60 * 1_000;
-const MAX_DOCUMENT_IMAGE_BYTES = 20 * 1024 * 1024;
-
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
     label: 'B站',
@@ -255,6 +262,7 @@ export class NoteJobsService implements OnModuleInit {
     private readonly tencentAsrTranscriptionService: TencentAsrTranscriptionService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
+    private readonly documentImageDownloadService: DocumentImageDownloadService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -784,11 +792,12 @@ export class NoteJobsService implements OnModuleInit {
       const stored = this.jobs.get(id);
       if (stored?.ownerId === ownerId) stored.job = publishingJob;
       await this.frameReviewService.saveJobState(id, { job: publishingJob });
-      const documentUrl = await this.createLarkDocument(
+      const publishResult = await this.createLarkDocument(
         noteTitle,
         frameDraft.markdown,
         frameDraft.media,
       );
+      const documentUrl = publishResult.url;
       const qualityWarningCount: number =
         publishingJob.summaryGeneration?.qualityWarnings?.length || 0;
       const completedJob: NoteJob = {
@@ -804,16 +813,10 @@ export class NoteJobsService implements OnModuleInit {
           ? { ...publishingJob.summaryGeneration, stage: 'completed' }
           : undefined,
         updatedAt: new Date().toISOString(),
-        visualSummary: publishingJob.visualSummary
-          ? {
-              ...publishingJob.visualSummary,
-              publishedCount: frameDraft.media.length,
-              status:
-                publishingJob.visualSummary.status === 'partial'
-                  ? 'partial'
-                  : 'completed',
-            }
-          : undefined,
+        visualSummary: this.applyDocumentPublishToVisualSummary(
+          publishingJob.visualSummary,
+          publishResult,
+        ),
       };
       if (stored?.ownerId === ownerId) stored.job = completedJob;
       await this.noteHistoryService.finishExisting(id, ownerId, {
@@ -900,11 +903,12 @@ export class NoteJobsService implements OnModuleInit {
         this.extractMarkdownTitle(summaryResult.markdown) || context.title;
       await this.persistTitle(id, noteTitle);
       this.update(id, 'publishing', 92, '新版笔记已生成，正在写入飞书文档…');
-      const documentUrl: string = await this.createLarkDocument(
+      const publishResult = await this.createLarkDocument(
         `${noteTitle}（V${versionNumber}）`,
         finalMarkdown,
         documentDraft.media,
       );
+      const documentUrl: string = publishResult.url;
       this.patch(id, {
         documentUrl,
         message: `完成！V${versionNumber} 二次总结笔记已创建。`,
@@ -912,16 +916,10 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         stage: 'completed',
         summaryGeneration: this.completedSummaryGeneration(id, ownerId),
-        visualSummary: this.get(id, ownerId).visualSummary
-          ? {
-              ...this.get(id, ownerId).visualSummary!,
-              publishedCount: documentDraft.media.length,
-              status:
-                this.get(id, ownerId).visualSummary?.status === 'partial'
-                  ? 'partial'
-                  : 'completed',
-            }
-          : undefined,
+        visualSummary: this.applyDocumentPublishToVisualSummary(
+          this.get(id, ownerId).visualSummary,
+          publishResult,
+        ),
       });
       await this.persistFinish(id, {
         documentUrl,
@@ -1311,11 +1309,12 @@ export class NoteJobsService implements OnModuleInit {
       await this.persistTitle(id, noteTitle);
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
-      const documentUrl = await this.createLarkDocument(
+      const publishResult = await this.createLarkDocument(
         noteTitle,
         finalMarkdown,
         documentDraft.media,
       );
+      const documentUrl = publishResult.url;
       this.patch(id, {
         stage: 'completed',
         progress: 100,
@@ -1326,6 +1325,10 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl,
         documentUrl,
         summaryGeneration: this.completedSummaryGeneration(id, ownerId),
+        visualSummary: this.applyDocumentPublishToVisualSummary(
+          this.get(id, ownerId).visualSummary,
+          publishResult,
+        ),
       });
       await this.persistFinish(id, {
         status: 'completed',
@@ -1529,10 +1532,9 @@ export class NoteJobsService implements OnModuleInit {
     await this.persistTitle(id, noteTitle);
 
     this.update(id, 'publishing', 92, '学习笔记已完成，正在写入飞书文档…');
-    const documentUrl: string = await this.createLarkDocument(
-      noteTitle,
-      finalMarkdown,
-    );
+    const documentUrl: string = (
+      await this.createLarkDocument(noteTitle, finalMarkdown)
+    ).url;
     this.patch(id, {
       stage: 'completed',
       progress: 100,
@@ -3129,6 +3131,7 @@ export class NoteJobsService implements OnModuleInit {
         {
           anchor,
           caption: '学习笔记知识框架图',
+          optional: true,
           source: { kind: 'remote-url', url: imageUrl },
         },
       ],
@@ -3140,11 +3143,41 @@ export class NoteJobsService implements OnModuleInit {
     return title || undefined;
   }
 
+  private applyDocumentPublishToVisualSummary(
+    summary: VisualPipelineSummary | undefined,
+    result: DocumentMediaPublishResult,
+  ): VisualPipelineSummary | undefined {
+    if (!summary) return undefined;
+    const skippedCount = result.skippedOptional.length;
+    const publishWarning =
+      skippedCount > 0
+        ? {
+            code: 'FRAME_DERIVATIVE_PARTIAL' as const,
+            message: `${skippedCount} 张 AI 图片发布失败，已保留原始截图并继续发布。`,
+          }
+        : undefined;
+    return {
+      ...summary,
+      publishedCount: result.publishedCount,
+      status:
+        summary.status === 'partial' || skippedCount > 0
+          ? 'partial'
+          : 'completed',
+      warnings:
+        publishWarning &&
+        !summary.warnings.some(
+          (warning) => warning.message === publishWarning.message,
+        )
+          ? [...summary.warnings, publishWarning]
+          : summary.warnings,
+    };
+  }
+
   private async createLarkDocument(
     title: string,
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
-  ): Promise<string> {
+  ): Promise<LarkDocumentPublishResult> {
     const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
       'lark-cli',
@@ -3164,41 +3197,54 @@ export class NoteJobsService implements OnModuleInit {
       markdown,
     );
     const created = parseCreatedLarkDocument(result.stdout);
-    if (media.length === 0) return created.url;
+    if (media.length === 0) {
+      return { publishedCount: 0, skippedOptional: [], url: created.url };
+    }
 
     const mediaWorkDir = await mkdtemp(join(tmpdir(), 'lark-doc-media-'));
     try {
-      for (let index = 0; index < media.length; index += 1) {
-        const asset = media[index];
-        const filePath = await this.materializeDocumentMedia(
-          asset,
-          mediaWorkDir,
-          index,
+      const publishResult = await publishDocumentMediaAssets(
+        media,
+        async (asset: DocumentMediaAsset, index: number): Promise<void> => {
+          const filePath = await this.materializeDocumentMedia(
+            asset,
+            mediaWorkDir,
+            index,
+          );
+          const insertResult = await this.runCommand(
+            'lark-cli',
+            buildDocumentMediaInsertCommand({
+              anchor: asset.anchor,
+              caption: asset.caption,
+              documentId: created.documentId,
+              fileName: basename(filePath),
+            }),
+            undefined,
+            dirname(filePath),
+          );
+          assertMediaInsertSucceeded(insertResult.stdout);
+        },
+      );
+      for (const skipped of publishResult.skippedOptional) {
+        this.logger.warn(
+          `可选图片发布已降级，保留原始截图: ${skipped.anchor}: ${skipped.message}`,
         );
-        const insertResult = await this.runCommand(
-          'lark-cli',
-          buildDocumentMediaInsertCommand({
-            anchor: asset.anchor,
-            caption: asset.caption,
-            documentId: created.documentId,
-            fileName: basename(filePath),
-          }),
-          undefined,
-          dirname(filePath),
-        );
-        assertMediaInsertSucceeded(insertResult.stdout);
       }
-      const fetchResult = await this.runCommand(
-        'lark-cli',
-        buildDocumentFetchCommand(created.documentId),
-      );
-      const publishedCount = assertDocumentImageAcceptance(
-        fetchResult.stdout,
-        media.length,
-      );
+      let acceptedCount = 0;
+      if (publishResult.publishedCount > 0) {
+        const fetchResult = await this.runCommand(
+          'lark-cli',
+          buildDocumentFetchCommand(created.documentId),
+        );
+        acceptedCount = assertDocumentImageAcceptance(
+          fetchResult.stdout,
+          publishResult.publishedCount,
+        );
+      }
       this.logger.log(
-        `飞书文档图片块验收通过: ${publishedCount}/${media.length}`,
+        `飞书文档图片块验收通过: ${acceptedCount}/${publishResult.publishedCount}，可选图片跳过 ${publishResult.skippedOptional.length} 张`,
       );
+      return { ...publishResult, url: created.url };
     } catch (error) {
       throw new Error(
         `飞书文档图片发布失败（文档已创建但未标记完成）：${
@@ -3208,7 +3254,6 @@ export class NoteJobsService implements OnModuleInit {
     } finally {
       await rm(mediaWorkDir, { force: true, recursive: true });
     }
-    return created.url;
   }
 
   private async materializeDocumentMedia(
@@ -3240,13 +3285,20 @@ export class NoteJobsService implements OnModuleInit {
     if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_IMAGE_BYTES) {
       throw new Error('截图缓存为空或超过 20 MB');
     }
-    const extension = this.getImageExtension(match[1]);
+    const imageType = detectDocumentImageType(buffer);
+    if (!imageType) throw new Error('截图缓存不是受支持的图片');
+    const extension = imageType.extension;
     const filePath = join(
       workDir,
       `media-${String(index + 1).padStart(4, '0')}.${extension}`,
     );
     await writeFile(filePath, buffer, { flag: 'wx' });
-    return this.normalizeDocumentImage(filePath, match[1], workDir, index);
+    return this.normalizeDocumentImage(
+      filePath,
+      imageType.contentType,
+      workDir,
+      index,
+    );
   }
 
   private async downloadDocumentImage(
@@ -3254,41 +3306,8 @@ export class NoteJobsService implements OnModuleInit {
     workDir: string,
     index: number,
   ): Promise<string> {
-    let currentUrl = validateMediaDownloadUrl(rawUrl);
-    let response: Response | undefined;
-    for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
-      response = await fetch(currentUrl, {
-        redirect: 'manual',
-        signal: AbortSignal.timeout(60_000),
-      });
-      if (response.status < 300 || response.status >= 400) break;
-      const location = response.headers.get('location');
-      if (!location || redirectCount === 5) {
-        throw new Error('图片下载重定向地址无效');
-      }
-      currentUrl = validateMediaDownloadUrl(
-        new URL(location, currentUrl).toString(),
-      );
-    }
-    if (!response?.ok) {
-      throw new Error(`图片下载失败（HTTP ${response?.status || 0}）`);
-    }
-    const contentType = response.headers
-      .get('content-type')
-      ?.split(';')[0]
-      .trim()
-      .toLowerCase();
-    if (!contentType?.startsWith('image/')) {
-      throw new Error('图片地址返回的不是图片内容');
-    }
-    const declaredSize = Number(response.headers.get('content-length') || 0);
-    if (declaredSize > MAX_DOCUMENT_IMAGE_BYTES) {
-      throw new Error('图片超过 20 MB');
-    }
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_IMAGE_BYTES) {
-      throw new Error('图片为空或超过 20 MB');
-    }
+    const { buffer, contentType } =
+      await this.documentImageDownloadService.download(rawUrl);
     const extension = this.getImageExtension(contentType);
     const filePath = join(
       workDir,
@@ -3557,7 +3576,7 @@ export class NoteJobsService implements OnModuleInit {
     const rawTitle = buildRawDocumentTitle(input.title);
     const rawMarkdown = buildRawTranscriptMarkdown(input);
     try {
-      return await this.createLarkDocument(rawTitle, rawMarkdown);
+      return (await this.createLarkDocument(rawTitle, rawMarkdown)).url;
     } catch (error) {
       this.logger.warn(
         `创建任务原文档案失败: ${
@@ -3583,10 +3602,12 @@ export class NoteJobsService implements OnModuleInit {
         ? `多文档原文（${input.items.length} 个文件）`
         : input.items[0].fileName.replace(/[.][^.]+$/u, '') || '文档原文';
     try {
-      return await this.createLarkDocument(
-        buildRawDocumentTitle(title),
-        buildDocumentRawMarkdown(input),
-      );
+      return (
+        await this.createLarkDocument(
+          buildRawDocumentTitle(title),
+          buildDocumentRawMarkdown(input),
+        )
+      ).url;
     } catch (error) {
       this.logger.warn(
         `创建文档原文档案失败: ${

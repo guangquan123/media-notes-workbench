@@ -6,6 +6,7 @@ export type DocumentMediaSource =
 export interface DocumentMediaAsset {
   anchor: string;
   caption: string;
+  optional?: boolean;
   source: DocumentMediaSource;
 }
 
@@ -17,6 +18,129 @@ export interface DocumentDraft {
 export interface CreatedLarkDocument {
   documentId: string;
   url: string;
+}
+
+export interface DocumentImageType {
+  contentType: 'image/gif' | 'image/jpeg' | 'image/png' | 'image/webp';
+  extension: 'gif' | 'jpg' | 'png' | 'webp';
+}
+
+export interface PlatformStorageObject {
+  appId: string;
+  bucketId: string;
+  filePath: string;
+}
+
+export interface DocumentMediaPublishResult {
+  publishedCount: number;
+  skippedOptional: Array<{
+    anchor: string;
+    message: string;
+  }>;
+}
+
+export const MAX_DOCUMENT_IMAGE_BYTES = 20 * 1024 * 1024;
+
+export function parsePlatformStorageUrl(
+  rawUrl: string,
+): PlatformStorageObject | undefined {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return undefined;
+  }
+  if (
+    url.protocol !== 'https:' ||
+    !url.hostname.toLowerCase().endsWith('.aiforce.run')
+  ) {
+    return undefined;
+  }
+  const match =
+    /^\/(?:spark\/app|app)\/([^/]+)\/runtime\/api\/v1\/storage\/object\/([^/]+)\/(.+)$/u.exec(
+      url.pathname,
+    );
+  if (!match) return undefined;
+  try {
+    const filePath = decodeURIComponent(match[3]);
+    if (
+      !/^[a-z0-9_-]+$/iu.test(match[1]) ||
+      !/^[a-z0-9_-]+$/iu.test(match[2]) ||
+      !filePath ||
+      filePath.startsWith('/') ||
+      filePath.includes('\0') ||
+      filePath.split('/').includes('..')
+    ) {
+      return undefined;
+    }
+    return {
+      appId: match[1],
+      bucketId: decodeURIComponent(match[2]),
+      filePath,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export function detectDocumentImageType(
+  buffer: Uint8Array,
+): DocumentImageType | undefined {
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return { contentType: 'image/png', extension: 'png' };
+  }
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return { contentType: 'image/jpeg', extension: 'jpg' };
+  }
+  const prefix = Buffer.from(buffer.subarray(0, 6)).toString('ascii');
+  if (prefix === 'GIF87a' || prefix === 'GIF89a') {
+    return { contentType: 'image/gif', extension: 'gif' };
+  }
+  if (
+    buffer.length >= 12 &&
+    Buffer.from(buffer.subarray(0, 4)).toString('ascii') === 'RIFF' &&
+    Buffer.from(buffer.subarray(8, 12)).toString('ascii') === 'WEBP'
+  ) {
+    return { contentType: 'image/webp', extension: 'webp' };
+  }
+  return undefined;
+}
+
+export async function publishDocumentMediaAssets(
+  assets: readonly DocumentMediaAsset[],
+  publishAsset: (asset: DocumentMediaAsset, index: number) => Promise<void>,
+): Promise<DocumentMediaPublishResult> {
+  const skippedOptional: DocumentMediaPublishResult['skippedOptional'] = [];
+  let publishedCount = 0;
+  for (let index = 0; index < assets.length; index += 1) {
+    const asset = assets[index];
+    try {
+      await publishAsset(asset, index);
+      publishedCount += 1;
+    } catch (error) {
+      if (!asset.optional) throw error;
+      skippedOptional.push({
+        anchor: asset.anchor,
+        message: error instanceof Error ? error.message : '未知错误',
+      });
+    }
+  }
+  return { publishedCount, skippedOptional };
 }
 
 export function buildDocumentMediaInsertCommand(input: {

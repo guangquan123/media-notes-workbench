@@ -139,6 +139,7 @@ describe('FrameInsertionService', () => {
     expect(result.media).toHaveLength(2);
     expect(result.media[1]).toEqual(
       expect.objectContaining({
+        optional: true,
         source: {
           kind: 'remote-url',
           url: 'https://cdn.example.com/infographic.png',
@@ -200,6 +201,7 @@ describe('FrameInsertionService', () => {
       { kind: 'file', path: '/tmp/slide-7.png' },
       { kind: 'file', path: '/tmp/slide-8.png' },
     ]);
+    expect(result.media.every((asset) => asset.optional !== true)).toBe(true);
   });
 
   it('should keep inserting frames when a timestamp is not finite', () => {
