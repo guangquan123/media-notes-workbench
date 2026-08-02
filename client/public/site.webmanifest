@@ -1,13 +1,13 @@
 {
-  "name": "Media Notes Workbench",
-  "short_name": "多媒体笔记",
+  "name": "多媒体笔记工作台",
+  "short_name": "多媒体笔记工作台",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f6f7f5",
   "theme_color": "#111315",
   "icons": [
     {
-      "src": "favicon.svg?v=4",
+      "src": "favicon.svg?v=5",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

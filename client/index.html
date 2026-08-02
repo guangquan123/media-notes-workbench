@@ -3,11 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="apple-touch-icon" href="favicon.svg?v=4" />
-    <link rel="manifest" href="site.webmanifest?v=4" />
+    <link rel="icon" href="%BASE_URL%favicon.svg?v=5" type="image/svg+xml" />
+    <link
+      rel="shortcut icon"
+      href="%BASE_URL%favicon.svg?v=5"
+      type="image/svg+xml"
+    />
+    <link rel="apple-touch-icon" href="%BASE_URL%favicon.svg?v=5" />
+    <link rel="manifest" href="%BASE_URL%site.webmanifest?v=5" />
     <meta name="application-name" content="多媒体笔记工作台" />
     <meta name="apple-mobile-web-app-title" content="多媒体笔记工作台" />
-    <title>Media Notes Workbench</title>
+    <title>多媒体笔记工作台</title>
     <script>
       try {
         window.__platform__ = JSON.parse('{{{__platform__}}}');
@@ -21,16 +27,49 @@
     <div id="root"></div>
     <script>
       (() => {
+        const applicationTitle = '多媒体笔记工作台';
+        const configuredBasePath =
+          typeof window.__BASENAME__ === 'string'
+            ? window.__BASENAME__.replace(/\/+$/, '')
+            : '';
+        const applicationBasePath =
+          window.location.pathname.match(/^\/app\/app_[^/]+/)?.[0] ||
+          configuredBasePath;
         const faviconUrl = new URL(
-          'favicon.svg?v=4',
-          document.baseURI,
+          `${applicationBasePath}/favicon.svg?v=5`,
+          window.location.origin,
         ).toString();
-        const faviconLinks = document.querySelectorAll(
-          'link[rel="icon"], link[rel="shortcut icon"]',
-        );
-        faviconLinks.forEach((faviconLink) => {
-          faviconLink.href = faviconUrl;
-          faviconLink.type = 'image/svg+xml';
+
+        const syncApplicationBrand = () => {
+          if (document.title !== applicationTitle) {
+            document.title = applicationTitle;
+          }
+
+          const faviconLinks = document.querySelectorAll(
+            'link[rel="icon"], link[rel="shortcut icon"]',
+          );
+          faviconLinks.forEach((faviconLink) => {
+            if (faviconLink.href !== faviconUrl) {
+              faviconLink.href = faviconUrl;
+            }
+            if (faviconLink.type !== 'image/svg+xml') {
+              faviconLink.type = 'image/svg+xml';
+            }
+          });
+        };
+
+        const scheduleBrandSync = () => {
+          queueMicrotask(syncApplicationBrand);
+        };
+
+        syncApplicationBrand();
+        window.addEventListener('MiaoDaMetaInfoChanged', scheduleBrandSync);
+        new MutationObserver(scheduleBrandSync).observe(document.head, {
+          attributeFilter: ['href', 'type'],
+          attributes: true,
+          childList: true,
+          characterData: true,
+          subtree: true,
         });
       })();
     </script>
