@@ -110,6 +110,10 @@ import {
   parseCreatedLarkDocument,
 } from './document-media.utils';
 import { DocumentImageDownloadService } from './document-image-download.service';
+import {
+  TaskNotificationService,
+  type TaskNotificationInput,
+} from '../task-notifications/task-notification.service';
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import {
   assessTranscriptQuality,
@@ -263,17 +267,27 @@ export class NoteJobsService implements OnModuleInit {
     private readonly externalModelSettingsService: ExternalModelSettingsService,
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
     private readonly documentImageDownloadService: DocumentImageDownloadService,
+    private readonly taskNotificationService: TaskNotificationService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     try {
-      const count = await this.noteHistoryService.failAllInterrupted(
+      const interruptedJobIds: string[] =
+        await this.noteHistoryService.failAllInterrupted(
         '服务重启后任务执行上下文已丢失，请重新提交。',
       );
-      if (count > 0) {
+      if (interruptedJobIds.length > 0) {
         this.logger.warn(
-          `服务启动时已结束 ${count} 个因上次重启中断的转换任务`,
+          `服务启动时已结束 ${interruptedJobIds.length} 个因上次重启中断的转换任务`,
         );
+        interruptedJobIds.forEach((jobId: string): void => {
+          this.notifyResult({
+            event: 'failed',
+            id: jobId,
+            message: '服务重启后任务执行上下文已丢失，请重新提交。',
+            type: 'note',
+          });
+        });
       }
     } catch (error) {
       const message =
@@ -468,6 +482,15 @@ export class NoteJobsService implements OnModuleInit {
       rawDocumentUrl: cancelled.rawDocumentUrl,
       status: 'failed',
     });
+    this.notifyResult({
+      error: cancelled.error,
+      event: 'cancelled',
+      id,
+      message: cancelled.message,
+      sourceType: cancelled.sourceType,
+      title: cancelled.videoTitle || cancelled.mediaFileName,
+      type: 'note',
+    });
     this.logger.log(`任务 ${id} 已由用户手动取消`);
     return cancelled;
   }
@@ -482,6 +505,14 @@ export class NoteJobsService implements OnModuleInit {
       '服务重启后任务执行上下文已丢失。为避免任务一直显示处理中，系统已结束该任务；请重新提交，新的任务会使用加速后的分片下载。';
     this.logger.warn(`任务 ${id} 因服务重启中断，已标记为失败`);
     await this.noteHistoryService.failInterrupted(id, ownerId, error);
+    this.notifyResult({
+      event: 'failed',
+      id,
+      message: error,
+      sourceType: snapshot.sourceType,
+      title: snapshot.videoTitle,
+      type: 'note',
+    });
     return this.frameReviewService.getJobSnapshot(id, ownerId);
   }
 
@@ -828,6 +859,15 @@ export class NoteJobsService implements OnModuleInit {
         job: completedJob,
         summary: completedJob.visualSummary,
       });
+      this.notifyResult({
+        event: 'completed',
+        id,
+        message: completedJob.message,
+        resultUrl: documentUrl,
+        sourceType: completedJob.sourceType,
+        title: noteTitle,
+        type: 'note',
+      });
       return completedJob;
     } finally {
       this.publishingVisualJobs.delete(id);
@@ -927,6 +967,15 @@ export class NoteJobsService implements OnModuleInit {
         status: 'completed',
       });
       await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+      this.notifyResult({
+        event: 'completed',
+        id,
+        message: this.get(id, ownerId).message,
+        resultUrl: documentUrl,
+        sourceType: this.get(id, ownerId).sourceType,
+        title: noteTitle,
+        type: 'note',
+      });
     } catch (error) {
       if (this.cancelledJobs.has(id)) {
         this.logger.log(`二次总结任务 ${id} 已停止，忽略后续处理结果`);
@@ -944,6 +993,15 @@ export class NoteJobsService implements OnModuleInit {
         error: message,
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         status: 'failed',
+      });
+      this.notifyResult({
+        error: message,
+        event: 'failed',
+        id,
+        message: '二次总结失败',
+        sourceType: this.get(id, ownerId).sourceType,
+        title: this.get(id, ownerId).videoTitle,
+        type: 'note',
       });
     } finally {
       this.activeReruns.delete(rerunLockKey);
@@ -1336,6 +1394,15 @@ export class NoteJobsService implements OnModuleInit {
         documentUrl,
       });
       await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+      this.notifyResult({
+        event: 'completed',
+        id,
+        message: this.get(id, ownerId).message,
+        resultUrl: documentUrl,
+        sourceType: this.get(id, ownerId).sourceType,
+        title: noteTitle,
+        type: 'note',
+      });
     } catch (error) {
       if (this.cancelledJobs.has(id)) {
         this.logger.log(`任务 ${id} 已停止，忽略后续处理结果`);
@@ -1355,6 +1422,15 @@ export class NoteJobsService implements OnModuleInit {
         status: 'failed',
         rawDocumentUrl: this.jobs.get(id)?.job.rawDocumentUrl,
         error: message,
+      });
+      this.notifyResult({
+        error: message,
+        event: 'failed',
+        id,
+        message: '处理失败',
+        sourceType: input.sourceType,
+        title: this.jobs.get(id)?.job.videoTitle,
+        type: 'note',
       });
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(
@@ -1552,6 +1628,15 @@ export class NoteJobsService implements OnModuleInit {
       documentUrl,
     });
     await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+    this.notifyResult({
+      event: 'completed',
+      id,
+      message: this.get(id, ownerId).message,
+      resultUrl: documentUrl,
+      sourceType: this.get(id, ownerId).sourceType,
+      title: noteTitle,
+      type: 'note',
+    });
   }
 
   private async preparePlatformMedia(
@@ -3974,6 +4059,15 @@ export class NoteJobsService implements OnModuleInit {
         }`,
       );
     }
+  }
+
+  private notifyResult(input: TaskNotificationInput): void {
+    void this.taskNotificationService.notifyTaskResult(input).catch(
+      (error: unknown): void => {
+        const message: string = error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(`任务 ${input.id} 的通知处理失败：${message}`);
+      },
+    );
   }
 
   private async persistFinish(

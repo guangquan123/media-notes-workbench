@@ -7,6 +7,7 @@ import { ArticleExportModule } from './modules/article-export/article-export.mod
 import { ViewModule } from './modules/view/view.module';
 import { NoteJobsModule } from './modules/note-jobs/note-jobs.module';
 import { NoteInboxModule } from './modules/note-inbox/note-inbox.module';
+import { TaskNotificationModule } from './modules/task-notifications/task-notification.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NoteInboxModule } from './modules/note-inbox/note-inbox.module';
     ArticleExportModule,
     NoteJobsModule,
     NoteInboxModule,
+    TaskNotificationModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

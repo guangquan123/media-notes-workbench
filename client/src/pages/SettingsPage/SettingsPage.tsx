@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   BotMessageSquare,
+  Bell,
   FilePenLine,
   Settings2,
   Speech,
@@ -12,8 +13,9 @@ import { Button } from '@/components/ui/button';
 import ModelSettingsPage from '@/pages/ModelSettingsPage/ModelSettingsPage';
 import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
+import TaskNotificationSettingsPage from '@/pages/TaskNotificationSettingsPage/TaskNotificationSettingsPage';
 
-type SettingsSection = 'model' | 'prompts' | 'transcription';
+type SettingsSection = 'model' | 'notifications' | 'prompts' | 'transcription';
 
 interface SettingsSectionOption {
   description: string;
@@ -41,11 +43,18 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
     description: '设置外部大模型的连接与启用状态。',
     icon: BotMessageSquare,
   },
+  {
+    value: 'notifications',
+    label: '任务通知',
+    description: '配置飞书机器人接收任务最终结果。',
+    icon: Bell,
+  },
 ];
 
 function getSelectedSection(section: string | null): SettingsSection {
   if (
     section === 'model' ||
+    section === 'notifications' ||
     section === 'prompts' ||
     section === 'transcription'
   ) {
@@ -144,6 +153,9 @@ export default function SettingsPage() {
                 <TranscriptionSettingsPage embedded />
               )}
               {selectedSection === 'model' && <ModelSettingsPage embedded />}
+              {selectedSection === 'notifications' && (
+                <TaskNotificationSettingsPage embedded />
+              )}
             </section>
           </div>
         </div>

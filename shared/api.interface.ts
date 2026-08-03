@@ -380,6 +380,45 @@ export interface ExternalModelConnectionStatus {
   message: string;
 }
 
+export type TaskNotificationEvent = 'completed' | 'failed' | 'cancelled';
+export type TaskNotificationTestStatus = 'success' | 'failed';
+
+export interface TaskNotificationWebhook {
+  enabled: boolean;
+  id: string;
+  lastTestAt?: string;
+  lastTestMessage?: string;
+  lastTestStatus?: TaskNotificationTestStatus;
+  name: string;
+  secretConfigured: boolean;
+  url: string;
+}
+
+export interface TaskNotificationSettings {
+  configured: boolean;
+  items: TaskNotificationWebhook[];
+}
+
+export interface CreateTaskNotificationWebhookRequest {
+  enabled: boolean;
+  name: string;
+  secret?: string;
+  url: string;
+}
+
+export interface UpdateTaskNotificationWebhookRequest {
+  enabled: boolean;
+  name: string;
+  /** 留空表示保留已保存的签名密钥。 */
+  secret?: string;
+  url: string;
+}
+
+export interface TaskNotificationConnectionStatus {
+  checkedAt: string;
+  message: string;
+}
+
 export type ConversionStatus = 'processing' | 'completed' | 'failed';
 export type NoteProcessingStatus = 'pending' | 'processed';
 export type TaskSyncStatus = 'not_created' | 'created' | 'failed';

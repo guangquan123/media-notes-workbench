@@ -15,6 +15,7 @@ import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
 import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
+import { TaskNotificationModule } from '../task-notifications/task-notification.module';
 import {
   DOCUMENT_STORAGE_CLIENT,
   DocumentImageDownloadService,
@@ -22,6 +23,7 @@ import {
 
 @Module({
   controllers: [NoteJobsController],
+  imports: [TaskNotificationModule],
   providers: [
     NoteHistoryService,
     NoteJobsService,

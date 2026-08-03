@@ -15,11 +15,11 @@ describe('NoteHistoryService', () => {
 
     Reflect.set(service, 'db', { update });
 
-    const count: number = await service.failAllInterrupted(
+    const jobIds: string[] = await service.failAllInterrupted(
       '服务重启后任务执行上下文已丢失，请重新提交。',
     );
 
-    expect(count).toBe(2);
+    expect(jobIds).toEqual(['first-job', 'second-job']);
     expect(update).toHaveBeenCalledTimes(1);
     expect(set).toHaveBeenCalledWith(
       expect.objectContaining({

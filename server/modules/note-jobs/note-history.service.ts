@@ -280,7 +280,7 @@ export class NoteHistoryService {
       );
   }
 
-  async failAllInterrupted(error: string): Promise<number> {
+  async failAllInterrupted(error: string): Promise<string[]> {
     const completedAt = new Date();
     const completedAtIso = completedAt.toISOString();
     const rows = await this.db
@@ -313,7 +313,7 @@ export class NoteHistoryService {
         ),
       )
       .returning({ jobId: noteConversionRecords.jobId });
-    return rows.length;
+    return rows.map((row: { jobId: string }): string => row.jobId);
   }
 
   async list(

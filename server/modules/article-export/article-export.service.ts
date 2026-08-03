@@ -28,6 +28,7 @@ import {
   renderBlocksToHtml,
   renderBlocksToMarkdown,
 } from './article-export.utils';
+import { TaskNotificationService } from '../task-notifications/task-notification.service';
 
 type CommandResult = {
   stdout: string;
@@ -57,6 +58,10 @@ interface ParsedAuthStatus {
 export class ArticleExportService {
   private readonly logger = new Logger(ArticleExportService.name);
   private readonly jobs = new Map<string, ArticleExportJob>();
+
+  constructor(
+    private readonly taskNotificationService: TaskNotificationService,
+  ) {}
 
   async getReadiness(): Promise<ArticleExportReadiness> {
     const larkCli = await this.commandExists('lark-cli');
@@ -166,6 +171,14 @@ export class ArticleExportService {
         sourceDocUrl,
         artifacts,
       });
+      this.notifyResult({
+        event: 'completed',
+        id,
+        message: '完成！多平台稿件已经生成。',
+        sourceType: targetPlatforms.join('、'),
+        title,
+        type: 'article-export',
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : '未知错误';
@@ -174,6 +187,13 @@ export class ArticleExportService {
         stage: 'failed',
         message: '处理失败',
         error: message,
+      });
+      this.notifyResult({
+        error: message,
+        event: 'failed',
+        id,
+        message: '文章导出处理失败',
+        type: 'article-export',
       });
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
@@ -410,6 +430,15 @@ export class ArticleExportService {
       ...update,
       updatedAt: new Date().toISOString(),
     });
+  }
+
+  private notifyResult(input: Parameters<TaskNotificationService['notifyTaskResult']>[0]): void {
+    void this.taskNotificationService.notifyTaskResult(input).catch(
+      (error: unknown): void => {
+        const message: string = error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(`文章导出任务 ${input.id} 的通知处理失败：${message}`);
+      },
+    );
   }
 
   private commandExists(command: string): Promise<boolean> {

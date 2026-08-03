@@ -25,6 +25,10 @@ import type {
   TencentAsrConnectionStatus,
   ExternalModelConnectionStatus,
   ExternalModelSettings,
+  CreateTaskNotificationWebhookRequest,
+  TaskNotificationConnectionStatus,
+  TaskNotificationSettings,
+  UpdateTaskNotificationWebhookRequest,
   UpdateTencentAsrSettingsRequest,
   UpdateNoteTemplateConfigRequest,
   UpdateExternalModelSettingsRequest,
@@ -151,6 +155,74 @@ export async function testExternalModelConnection(): Promise<ExternalModelConnec
     url: '/api/note-jobs/model-settings/test-connection',
     method: 'POST',
     timeout: 30_000,
+  });
+  return response.data;
+}
+
+export async function getTaskNotificationSettings(): Promise<TaskNotificationSettings> {
+  const response = await axiosForBackend({
+    url: '/api/task-notifications',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function createTaskNotificationWebhook(
+  input: CreateTaskNotificationWebhookRequest,
+): Promise<TaskNotificationSettings> {
+  const response = await axiosForBackend({
+    url: '/api/task-notifications/webhooks',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateTaskNotificationWebhook(
+  id: string,
+  input: UpdateTaskNotificationWebhookRequest,
+): Promise<TaskNotificationSettings> {
+  const response = await axiosForBackend({
+    url: `/api/task-notifications/webhooks/${id}`,
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function deleteTaskNotificationWebhook(
+  id: string,
+): Promise<TaskNotificationSettings> {
+  const response = await axiosForBackend({
+    url: `/api/task-notifications/webhooks/${id}`,
+    method: 'DELETE',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testTaskNotificationWebhook(
+  input: CreateTaskNotificationWebhookRequest,
+): Promise<TaskNotificationConnectionStatus> {
+  const response = await axiosForBackend({
+    url: '/api/task-notifications/webhooks/test',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testSavedTaskNotificationWebhook(
+  id: string,
+): Promise<TaskNotificationConnectionStatus> {
+  const response = await axiosForBackend({
+    url: `/api/task-notifications/webhooks/${id}/test`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }
