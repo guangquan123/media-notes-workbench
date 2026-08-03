@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto';
 import {
   AxiosHeaders,
   type AxiosResponse,
@@ -17,9 +16,7 @@ describe('task notification helpers', () => {
   it('builds the Feishu signature from timestamp and secret', () => {
     const timestamp: string = '1700000000';
     const secret: string = 'notification-secret';
-    const expected: string = createHmac('sha256', secret)
-      .update(`${timestamp}\n${secret}`)
-      .digest('base64');
+    const expected: string = 'lNusHzXQ9tsu8QByULVKsXR7CJ2yQGitnd4DfVypDdk=';
 
     expect(buildFeishuSign(timestamp, secret)).toBe(expected);
   });
@@ -119,7 +116,7 @@ describe('task notification helpers', () => {
     expect(body.msg_type).toBe('text');
     expect(body.content.text).toContain('连通性测试成功');
     expect(body.timestamp).toEqual(expect.any(String));
-    expect(body.sign).toEqual(expect.any(String));
+    expect(body.sign).toBe(buildFeishuSign(body.timestamp ?? '', 'test-secret'));
   });
 
 });

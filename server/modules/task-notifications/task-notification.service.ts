@@ -373,9 +373,8 @@ function maskWebhookUrl(url: string): string {
 }
 
 export function buildFeishuSign(timestamp: string, secret: string): string {
-  return createHmac('sha256', secret)
-    .update(`${timestamp}\n${secret}`)
-    .digest('base64');
+  const stringToSign: string = `${timestamp}\n${secret}`;
+  return createHmac('sha256', stringToSign).digest('base64');
 }
 
 export function buildTaskText(input: TaskNotificationInput): string {
