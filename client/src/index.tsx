@@ -17,6 +17,17 @@ const configuredBasePath = process.env.CLIENT_BASE_PATH
 const localAppBasePath = window.location.pathname.match(/^\/app\/app_[^/]+/)?.[0];
 const CLIENT_BASE_PATH = localAppBasePath || configuredBasePath || '/';
 
+function configureLocalDevelopmentCsrf(): void {
+  if (process.env.NODE_ENV !== 'development') return;
+  if (!['127.0.0.1', 'localhost'].includes(window.location.hostname)) return;
+
+  const csrfToken = 'local-dev-csrf';
+  document.cookie = `suda-csrf-token=${csrfToken}; Path=${CLIENT_BASE_PATH}; SameSite=Lax`;
+  window.csrfToken = csrfToken;
+}
+
+configureLocalDevelopmentCsrf();
+
 const MainApp = () => {
   return (
     <BrowserRouter basename={CLIENT_BASE_PATH}>
