@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <marker id="flowArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#1B2A4A" />
+    </marker>
+  </defs>
+
+
+  <rect width="1280" height="720" fill="#F5F0E8" />
+
+
+  <text x="640" y="75" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="48" font-weight="900" fill="#1B2A4A">PPT 生成 Skill: 五条主流路线</text>
+
+
+  <line x1="180" y1="105" x2="1100" y2="105" stroke="#1B2A4A" stroke-width="3" />
+  <line x1="180" y1="105" x2="240" y2="105" stroke="#E8734A" stroke-width="5" />
+  <line x1="1040" y1="105" x2="1100" y2="105" stroke="#2A9D8F" stroke-width="5" />
+
+
+
+
+  <g id="card1" transform="translate(40,130)">
+    <path fill="#FFFFFF" stroke="#E0DCD4" stroke-width="1.5" d="M6,0 H374 A6,6 0 0 1 380,6 V74 A6,6 0 0 1 374,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#1B2A4A" d="M18,12 H62 A6,6 0 0 1 68,18 V62 A6,6 0 0 1 62,68 H18 A6,6 0 0 1 12,62 V18 A6,6 0 0 1 18,12 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M24,18 H44 A2,2 0 0 1 46,20 V46 A2,2 0 0 1 44,48 H24 A2,2 0 0 1 22,46 V20 A2,2 0 0 1 24,18 Z" />
+    <polygon points="46,18 46,30 34,18" fill="#FFFFFF" opacity="0.6" />
+    <text x="34" y="40" font-family="Arial,sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle">PPTX</text>
+    <text x="84" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="700" fill="#1B2A4A">Anthropic pptx</text>
+    <text x="84" y="62" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="16" font-weight="500" fill="#E8734A">原生可编辑 PPTX</text>
+  </g>
+
+
+  <g id="card2" transform="translate(40,220)">
+    <path fill="#FFFFFF" stroke="#E0DCD4" stroke-width="1.5" d="M6,0 H374 A6,6 0 0 1 380,6 V74 A6,6 0 0 1 374,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#2A9D8F" d="M18,12 H62 A6,6 0 0 1 68,18 V62 A6,6 0 0 1 62,68 H18 A6,6 0 0 1 12,62 V18 A6,6 0 0 1 18,12 Z" />
+
+    <text x="40" y="48" font-family="monospace" font-size="28" font-weight="bold" fill="#FFFFFF" text-anchor="middle">&lt;/&gt;</text>
+    <text x="84" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="700" fill="#1B2A4A">Slidev</text>
+    <text x="84" y="62" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="16" font-weight="500" fill="#2A9D8F">开发者演示</text>
+  </g>
+
+
+  <g id="card3" transform="translate(40,310)">
+    <path fill="#FFFFFF" stroke="#E0DCD4" stroke-width="1.5" d="M6,0 H374 A6,6 0 0 1 380,6 V74 A6,6 0 0 1 374,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#E8734A" d="M18,12 H62 A6,6 0 0 1 68,18 V62 A6,6 0 0 1 62,68 H18 A6,6 0 0 1 12,62 V18 A6,6 0 0 1 18,12 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M25,22 H55 A3,3 0 0 1 58,25 V47 A3,3 0 0 1 55,50 H25 A3,3 0 0 1 22,47 V25 A3,3 0 0 1 25,22 Z" />
+    <circle cx="32" cy="32" r="4" fill="#FFFFFF" />
+    <polyline points="22,46 34,36 42,42 58,28" fill="none" stroke="#FFFFFF" stroke-width="2" />
+    <text x="84" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="700" fill="#1B2A4A">frontend-slides</text>
+    <text x="84" y="62" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="16" font-weight="500" fill="#E8734A">高视觉 HTML</text>
+  </g>
+
+
+  <g id="card4" transform="translate(40,400)">
+    <path fill="#FFFFFF" stroke="#E0DCD4" stroke-width="1.5" d="M6,0 H374 A6,6 0 0 1 380,6 V74 A6,6 0 0 1 374,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#1B2A4A" d="M18,12 H62 A6,6 0 0 1 68,18 V62 A6,6 0 0 1 62,68 H18 A6,6 0 0 1 12,62 V18 A6,6 0 0 1 18,12 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M22,22 H58 A2,2 0 0 1 60,24 V48 A2,2 0 0 1 58,50 H22 A2,2 0 0 1 20,48 V24 A2,2 0 0 1 22,22 Z" />
+    <polygon points="36,30 36,44 48,37" fill="#FFFFFF" />
+    <line x1="20" y1="50" x2="60" y2="50" stroke="#FFFFFF" stroke-width="2" />
+    <text x="84" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="700" fill="#1B2A4A">Reveal.js</text>
+    <text x="84" y="62" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="16" font-weight="500" fill="#2A9D8F">成熟 Web 演示</text>
+  </g>
+
+
+  <g id="card5" transform="translate(40,490)">
+    <path fill="#FFFFFF" stroke="#E0DCD4" stroke-width="1.5" d="M6,0 H374 A6,6 0 0 1 380,6 V74 A6,6 0 0 1 374,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#E8A838" d="M18,12 H62 A6,6 0 0 1 68,18 V62 A6,6 0 0 1 62,68 H18 A6,6 0 0 1 12,62 V18 A6,6 0 0 1 18,12 Z" />
+
+    <path d="M34,20 L34,38 M28,28 L34,22 L40,28 M28,34 C28,34 34,40 40,34" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+    <circle cx="34" cy="20" r="3" fill="#FFFFFF" />
+    <text x="84" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="700" fill="#1B2A4A">html-ppt</text>
+    <text x="84" y="62" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="16" font-weight="500" fill="#E8734A">主题化互动演示</text>
+  </g>
+
+
+  <line x1="420" y1="170" x2="520" y2="310" stroke="#1B2A4A" stroke-width="2" stroke-dasharray="8,6" opacity="0.7" />
+  <line x1="420" y1="260" x2="520" y2="310" stroke="#2A9D8F" stroke-width="2" stroke-dasharray="8,6" opacity="0.7" />
+  <line x1="420" y1="350" x2="520" y2="310" stroke="#E8734A" stroke-width="2" stroke-dasharray="8,6" opacity="0.7" />
+  <line x1="420" y1="440" x2="520" y2="310" stroke="#2A9D8F" stroke-width="2" stroke-dasharray="8,6" opacity="0.7" />
+  <line x1="420" y1="530" x2="520" y2="310" stroke="#E8A838" stroke-width="2" stroke-dasharray="8,6" opacity="0.7" />
+
+
+  <g id="bigArrow" transform="translate(520,270)">
+    <path d="M0,40 L80,40 L80,10 L130,55 L80,100 L80,70 L0,70 Z" fill="#1B2A4A" />
+  </g>
+
+
+
+
+  <g id="flow1" transform="translate(720,155)">
+    <path fill="#FFFFFF" stroke="#1B2A4A" stroke-width="2.5" d="M6,0 H514 A6,6 0 0 1 520,6 V74 A6,6 0 0 1 514,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#1B2A4A" d="M22,16 H58 A6,6 0 0 1 64,22 V58 A6,6 0 0 1 58,64 H22 A6,6 0 0 1 16,58 V22 A6,6 0 0 1 22,16 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M27,24 H53 A3,3 0 0 1 56,27 V45 A3,3 0 0 1 53,48 H27 A3,3 0 0 1 24,45 V27 A3,3 0 0 1 27,24 Z" />
+    <circle cx="34" cy="32" r="3" fill="#FFFFFF" />
+    <polyline points="24,44 36,34 44,40 56,28" fill="none" stroke="#FFFFFF" stroke-width="2" />
+    <text x="80" y="46" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="22" font-weight="700" fill="#1B2A4A">GPT-image 2 生成视觉稿</text>
+  </g>
+
+
+  <line x1="980" y1="235" x2="980" y2="275" stroke="#1B2A4A" stroke-width="3" marker-end="url(#flowArrow)" />
+
+
+  <g id="flow2" transform="translate(720,295)">
+    <path fill="#E8F5F3" stroke="#2A9D8F" stroke-width="2.5" d="M6,0 H514 A6,6 0 0 1 520,6 V74 A6,6 0 0 1 514,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#2A9D8F" d="M22,16 H58 A6,6 0 0 1 64,22 V58 A6,6 0 0 1 58,64 H22 A6,6 0 0 1 16,58 V22 A6,6 0 0 1 22,16 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M26,22 H50 A2,2 0 0 1 52,24 V54 A2,2 0 0 1 50,56 H26 A2,2 0 0 1 24,54 V24 A2,2 0 0 1 26,22 Z" />
+    <line x1="30" y1="30" x2="46" y2="30" stroke="#FFFFFF" stroke-width="2" />
+    <line x1="30" y1="38" x2="46" y2="38" stroke="#FFFFFF" stroke-width="2" />
+    <line x1="30" y1="46" x2="40" y2="46" stroke="#FFFFFF" stroke-width="2" />
+    <circle cx="48" cy="48" r="8" fill="#2A9D8F" stroke="#FFFFFF" stroke-width="2" />
+    <line x1="54" y1="54" x2="60" y2="60" stroke="#FFFFFF" stroke-width="2.5" />
+    <text x="80" y="46" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="22" font-weight="700" fill="#2A9D8F">OCR + 版面理解 + 元素分层</text>
+  </g>
+
+
+  <line x1="980" y1="375" x2="980" y2="415" stroke="#1B2A4A" stroke-width="3" marker-end="url(#flowArrow)" />
+
+
+  <g id="flow3" transform="translate(720,435)">
+    <path fill="#FFFFFF" stroke="#E8734A" stroke-width="2.5" d="M6,0 H514 A6,6 0 0 1 520,6 V74 A6,6 0 0 1 514,80 H6 A6,6 0 0 1 0,74 V6 A6,6 0 0 1 6,0 Z" />
+    <path fill="#E8734A" d="M22,16 H58 A6,6 0 0 1 64,22 V58 A6,6 0 0 1 58,64 H22 A6,6 0 0 1 16,58 V22 A6,6 0 0 1 22,16 Z" />
+
+    <path fill="none" stroke="#FFFFFF" stroke-width="2" d="M26,22 H54 A2,2 0 0 1 56,24 V48 A2,2 0 0 1 54,50 H26 A2,2 0 0 1 24,48 V24 A2,2 0 0 1 26,22 Z" />
+    <polygon points="34,30 34,42 44,36" fill="#FFFFFF" />
+    <line x1="24" y1="50" x2="56" y2="50" stroke="#FFFFFF" stroke-width="2" />
+    <text x="50" y="58" font-family="Arial,sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle">P</text>
+    <text x="80" y="46" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="22" font-weight="700" fill="#E8734A">PPTX 原生对象重建</text>
+  </g>
+
+
+  <g id="banner" transform="translate(0,640)">
+    <rect width="1280" height="60" fill="#1B2A4A" />
+
+    <circle cx="80" cy="30" r="16" fill="none" stroke="#FFFFFF" stroke-width="2.5" />
+    <circle cx="80" cy="30" r="10" fill="none" stroke="#FFFFFF" stroke-width="2" />
+    <circle cx="80" cy="30" r="4" fill="#FFFFFF" />
+    <line x1="92" y1="18" x2="100" y2="10" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+    <polygon points="98,8 102,12 100,16" fill="#FFFFFF" />
+
+    <line x1="110" y1="15" x2="110" y2="45" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+
+    <text x="130" y="38" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="28" font-weight="700" fill="#FFFFFF">可编辑的本质：重建对象，不是把整页图片放进 PPT</text>
+  </g>
+
+</svg>
