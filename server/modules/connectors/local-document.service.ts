@@ -10,7 +10,11 @@ export interface LocalDocumentResult {
 
 @Injectable()
 export class LocalDocumentService {
-  private readonly directory = join(process.cwd(), 'data', 'local-documents');
+  private readonly directory: string;
+
+  constructor(baseDir: string = process.cwd()) {
+    this.directory = join(baseDir, 'data', 'local-documents');
+  }
 
   async create(title: string, markdown: string): Promise<LocalDocumentResult> {
     await mkdir(this.directory, { recursive: true });
