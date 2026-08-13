@@ -9,6 +9,8 @@ import type {
   UpdateConnectorRequest,
 } from '@shared/api.interface';
 import { buildDescriptor, isConnectorType } from './connector.utils';
+import { FeishuAuthService } from './feishu-auth.service';
+import { DingTalkAuthService } from './dingtalk-auth.service';
 
 interface StoredConnectorConfig {
   activeConnector: ConnectorType;
@@ -31,25 +33,47 @@ export class ConnectorRegistryService {
   private readonly configPath: string;
   private current: StoredConnectorConfig | undefined;
 
-  constructor(@Optional() baseDir?: string) {
+  constructor(
+    @Optional() private readonly feishuAuthService?: FeishuAuthService,
+    @Optional() private readonly dingTalkAuthService?: DingTalkAuthService,
+    @Optional() baseDir?: string,
+  ) {
     this.configPath = join(baseDir || process.cwd(), '.connector-config.json');
   }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {
     const config = await this.load();
+    const authStatus = await this.resolveAuthStatus();
     return {
       activeConnector: config.activeConnector,
       items: CONNECTOR_TYPES.map((type: ConnectorType) => {
         const item = config.items.find((candidate) => candidate.type === type);
+        const hasCustomConfig = Boolean(item?.clientId || item?.webhookUrl || item?.userId);
+        const authed = authStatus[type] ?? false;
         return buildDescriptor(
           type,
           item?.enabled ?? type === 'local',
-          type === 'local' || Boolean(item?.clientId || item?.webhookUrl || item?.userId),
+          type === 'local' || hasCustomConfig || authed,
           item?.lastCheckedAt,
           item?.lastError,
         );
       }),
     };
+  }
+
+  private async resolveAuthStatus(): Promise<Record<'feishu' | 'dingtalk', boolean>> {
+    const result: Record<'feishu' | 'dingtalk', boolean> = { feishu: false, dingtalk: false };
+    try {
+      result.feishu = (await this.feishuAuthService?.isAuthenticated()) ?? false;
+    } catch {
+      // ignore: auth status unavailable
+    }
+    try {
+      result.dingtalk = (await this.dingTalkAuthService?.isAuthenticated()) ?? false;
+    } catch {
+      // ignore: auth status unavailable
+    }
+    return result;
   }
 
   async getActiveConnector(): Promise<ConnectorType> {

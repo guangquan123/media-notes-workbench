@@ -36,11 +36,11 @@ export class FeishuAuthService {
   private readonly logger = new Logger(FeishuAuthService.name);
   private readonly sessions = new Map<string, string>();
 
-  private async isAuthenticated(): Promise<boolean> {
+  async isAuthenticated(): Promise<boolean> {
     try {
-      const result = await this.run(this.cli(), ['auth', 'status', '--json', '--verify']);
+      const result = await this.run(this.cli(), ['auth', 'status', '--json']);
       const parsed = this.parseJson<{ identities?: { user?: { available?: boolean; tokenStatus?: string } } }>(result.stdout);
-      return parsed.identities?.user?.available === true && parsed.identities.user.tokenStatus === 'valid';
+      return parsed.identities?.user?.available === true && parsed.identities.user.tokenStatus !== 'missing';
     } catch {
       return false;
     }

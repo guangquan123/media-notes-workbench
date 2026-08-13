@@ -73,6 +73,16 @@ export class DingTalkAuthService {
     return { completed: false, message: '等待授权' };
   }
 
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const result = await this.run(this.cli(), ['auth', 'status', '--format', 'json']);
+      const parsed = this.parseJson<{ authenticated?: boolean }>(result.stdout);
+      return parsed.authenticated === true;
+    } catch {
+      return false;
+    }
+  }
+
   async testConnection(): Promise<DingTalkConnectionTest> {
     try {
       const result = await this.run(this.cli(), ['auth', 'status', '--format', 'json']);
