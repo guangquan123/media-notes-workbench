@@ -15,6 +15,7 @@ import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
 import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
+import { LocalDocumentParserService } from './local-document-parser.service';
 import { ConnectorModule } from '../connectors/connector.module';
 import { TaskNotificationModule } from '../task-notifications/task-notification.module';
 import {
@@ -48,6 +49,7 @@ import {
         new PlatformStorageClient(httpClientService.instance),
     },
     DocumentImageDownloadService,
+    LocalDocumentParserService,
   ],
   exports: [NoteJobsService],
 })

@@ -117,6 +117,8 @@ import {
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import { ConnectorRegistryService } from '../connectors/connector-registry.service';
 import { LocalDocumentService } from '../connectors/local-document.service';
+import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
+import { LocalDocumentParserService } from './local-document-parser.service';
 import { DingTalkDocumentService } from '../connectors/dingtalk-document.service';
 import { DingTalkTaskService } from '../connectors/dingtalk-task.service';
 import {
@@ -272,6 +274,8 @@ export class NoteJobsService implements OnModuleInit {
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
     private readonly documentImageDownloadService: DocumentImageDownloadService,
     private readonly taskNotificationService: TaskNotificationService,
+    private readonly runtimeRegistryService: RuntimeRegistryService,
+    private readonly localDocumentParserService: LocalDocumentParserService,
     private readonly connectorRegistryService: ConnectorRegistryService,
     private readonly localDocumentService: LocalDocumentService,
     private readonly dingTalkDocumentService: DingTalkDocumentService,
@@ -2797,6 +2801,13 @@ export class NoteJobsService implements OnModuleInit {
     if (isPlainTextDocumentFile(input.fileName)) {
       const content: string = await readFile(input.sourcePath, 'utf8');
       return normalizePlainTextDocumentContent(content);
+    }
+    if (await this.runtimeRegistryService.isLocal()) {
+      const ext = (input.fileName.split('.').pop() || '').toLowerCase();
+      if (ext === 'pdf') {
+        return this.localDocumentParserService.parsePdf(input.sourcePath);
+      }
+      throw new Error(`本地模式暂不支持 ${ext.toUpperCase() || '该'} 文档解析，请使用 PDF 或文本文件。`);
     }
     const pluginInstanceId = 'pdf-document-parser';
     const actionKey = 'parseDocToMarkdown';
