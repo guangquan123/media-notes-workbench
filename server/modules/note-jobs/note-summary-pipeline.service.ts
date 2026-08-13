@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CapabilityService } from '@lark-apaas/fullstack-nestjs-core';
+import { Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type {
   NoteStyle,
@@ -84,7 +85,7 @@ export class NoteSummaryPipelineService {
   constructor(
     @Inject() private readonly capabilityService: CapabilityService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
-    private readonly runtimeRegistryService: RuntimeRegistryService,
+    @Optional() private readonly runtimeRegistryService?: RuntimeRegistryService,
   ) {}
 
   async generate(
@@ -429,7 +430,7 @@ export class NoteSummaryPipelineService {
         };
       }
     }
-    if (await this.runtimeRegistryService.isLocal()) {
+    if (this.runtimeRegistryService && (await this.runtimeRegistryService.isLocal())) {
       throw new Error('本地模式未配置外部 AI 模型，请先在「模型设置」中配置并启用外部模型。');
     }
     return {

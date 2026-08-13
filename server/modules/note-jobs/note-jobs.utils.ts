@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { isLocalRuntime } from '../runtime/runtime.config';
 import type {
   CreateNoteJobRequest,
   JobStage,
@@ -202,7 +203,9 @@ export function validateMediaDownloadUrl(rawUrl: string): URL {
   try {
     const url: URL = new URL(rawUrl);
     const isLocalLoopback =
-      url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+      isLocalRuntime() &&
+      url.protocol === 'http:' &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
     if (url.protocol !== 'https:' && !isLocalLoopback) {
       throw new Error('unsafe');
     }
