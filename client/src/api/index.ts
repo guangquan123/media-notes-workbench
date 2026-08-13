@@ -648,3 +648,12 @@ export async function completeDingTalkAuth(): Promise<{ completed: boolean; mess
   });
   return response.data;
 }
+
+export async function logoutConnector(connector: ConnectorType): Promise<void> {
+  const response = await axiosForBackend({
+    url: `/api/connectors/${connector}/auth/logout`,
+    method: 'POST',
+    timeout: 30000,
+  });
+  return response.data;
+}

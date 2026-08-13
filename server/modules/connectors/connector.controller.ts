@@ -66,6 +66,18 @@ export class ConnectorController {
   }
 
   @NeedLogin()
+  @Post('feishu/auth/logout')
+  logoutFeishu() {
+    return this.feishuAuthService.logout();
+  }
+
+  @NeedLogin()
+  @Post('dingtalk/auth/logout')
+  logoutDingTalk() {
+    return this.dingTalkAuthService.logout();
+  }
+
+  @NeedLogin()
   @Post('feishu/auth/complete')
   completeFeishuAuth(@Body('deviceCode') deviceCode: string) {
     return this.feishuAuthService.complete(deviceCode);

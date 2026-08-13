@@ -48,6 +48,10 @@ export class FeishuAuthService {
     }
   }
 
+  async logout(): Promise<void> {
+    await this.run(this.cli(), ['auth', 'logout']);
+  }
+
   private cli(): string {
     return process.platform === 'win32' ? 'lark-cli.cmd' : 'lark-cli';
   }
