@@ -9,7 +9,7 @@ const localAuth = {
 const localCapability = {
   listCapabilities: () => [],
   getCapability: () => null,
-  load: () => { throw new Error("本地模式未配置 AI 模型，请先配置外部模型（Phase 3）。"); },
+  load: () => { throw new Error("本地模式未配置 AI 能力：文档解析/关键帧理解等需要配置外部多模态模型。"); },
 } as unknown as CapabilityService;
 
 @Global()
