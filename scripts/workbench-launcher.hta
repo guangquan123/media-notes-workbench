@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>多媒体笔记工作台</title>
+<hta:application id="oHTA"
+  applicationname="WorkbenchLauncher"
+  border="none"
+  caption="no"
+  contextmenu="no"
+  innerborder="no"
+  scroll="no"
+  showintaskbar="yes"
+  singleinstance="yes"
+  sysmenu="no"
+  maximizebutton="no"
+  minimizebutton="no"
+  commandline="yes"
+/>
+<style>
+  html, body { margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; height: 100vh; }
+  .card {
+    width: 400px; border-radius: 16px; background: #ffffff; box-shadow: 0 12px 40px rgba(0,0,0,0.18); overflow: hidden;
+  }
+  .head { display: flex; align-items: center; gap: 12px; padding: 20px 24px 16px; }
+  .logo { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #4f6bff, #7a5cff); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .title { font-size: 16px; font-weight: 600; color: #161616; }
+  .subtitle { font-size: 12px; color: #7a7a7a; margin-top: 2px; }
+  .body { padding: 0 24px 20px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .step { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 13px; color: #444; }
+  .step .dot { width: 8px; height: 8px; border-radius: 50%; background: #d9d9d9; flex: none; }
+  .step.active .dot { background: #4f6bff; box-shadow: 0 0 0 4px rgba(79,107,255,0.15); }
+  .step.done .dot { background: #16a34a; }
+  .step.done { color: #16a34a; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #d9d9d9; border-top-color: #4f6bff; border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .footer { padding: 14px 24px; border-top: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
+  .footer .msg { font-size: 12px; color: #7a7a7a; }
+  .btn { border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; background: #111315; color: #fff; }
+  .btn.ghost { background: #f1f1f1; color: #444; }
+  .error { color: #dc2626; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="logo">&#128172;</div>
+      <div>
+        <div class="title" id="title">多媒体笔记工作台</div>
+        <div class="subtitle" id="subtitle">正在准备…</div>
+      </div>
+    </div>
+    <div class="body">
+      <ul class="steps" id="steps"></ul>
+    </div>
+    <div class="footer">
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="closeBtn" onclick="window.close()">关闭</button>
+    </div>
+  </div>
+<script>
+  var action = "restart";
+  var rawCmd = oHTA.commandLine || "";
+  var m = rawCmd.match(/\b(start|restart|stop)\b/i);
+  if (m) action = m[1].toLowerCase();
+
+  var BACKEND = "http://127.0.0.1:3001/api/runtime";
+  var FRONTEND = "http://127.0.0.1:8081/";
+  var shell = new ActiveXObject("WScript.Shell");
+
+  var steps = (action === "stop") ? ["停止服务"] : ["停止旧服务", "启动后端", "启动前端", "启动完成"];
+  var stepIndex = action === "stop" ? 0 : -1;
+
+  function renderSteps() {
+    var list = document.getElementById("steps");
+    list.innerHTML = "";
+    for (var i = 0; i < steps.length; i++) {
+      var li = document.createElement("li");
+      li.className = "step";
+      var status = "";
+      if (i < stepIndex) { li.className += " done"; status = "&#10003; "; }
+      else if (i === stepIndex) { li.className += " active"; status = '<span class="spinner"></span>'; }
+      else { status = '<span class="dot"></span>'; }
+      li.innerHTML = status + steps[i];
+      list.appendChild(li);
+    }
+  }
+
+  function setMsg(text, isError) {
+    var m = document.getElementById("msg");
+    m.innerHTML = text;
+    m.className = "msg" + (isError ? " error" : "");
+  }
+
+  function httpOk(url, timeoutMs) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, false);
+      xhr.send();
+      return xhr.status >= 200 && xhr.status < 500;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function runCommand(scriptName) {
+    try {
+      var root = shell.CurrentDirectory;
+      shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var closeTimer = null;
+  var elapsed = 0;
+
+  function finish(success, text) {
+    setMsg(text, !success);
+    document.getElementById("subtitle").textContent = success ? "启动完成" : "启动未完成";
+    if (success) {
+      stepIndex = steps.length - 1;
+      renderSteps();
+      var n = 5;
+      document.getElementById("closeBtn").textContent = "立即关闭";
+      closeTimer = setInterval(function() {
+        n -= 1;
+        if (n <= 0) { window.close(); return; }
+        document.getElementById("closeBtn").textContent = n + " 秒后自动关闭";
+      }, 1000);
+    } else {
+      document.getElementById("closeBtn").textContent = "关闭";
+    }
+  }
+
+  function poll() {
+    elapsed += 1;
+    if (action === "stop") {
+      if (elapsed > 3) { finish(true, "已停止服务"); return; }
+      stepIndex = 0;
+    } else {
+      var backendUp = httpOk(BACKEND, 1200);
+      var frontendUp = backendUp && httpOk(FRONTEND, 1200);
+      if (frontendUp) { stepIndex = 3; finish(true, "启动完成，可以开始使用了"); return; }
+      if (backendUp) { stepIndex = 2; }
+      else if (elapsed > 2) { stepIndex = 1; }
+      else { stepIndex = 0; }
+      if (elapsed > 120) { finish(false, "启动超时，请查看日志"); return; }
+    }
+    renderSteps();
+    setTimeout(poll, 1000);
+  }
+
+  (function start() {
+    window.resizeTo(420, 380);
+    window.moveTo((screen.width - 420) / 2, (screen.height - 380) / 2);
+    var scriptName = action + ":windows";
+    if (!runCommand(scriptName)) { finish(false, "无法启动命令 " + scriptName); return; }
+    if (action === "stop") { setMsg("正在停止…"); }
+    else { setMsg("正在后台启动，请稍候…"); }
+    document.getElementById("subtitle").textContent = action === "stop" ? "正在停止服务" : "正在启动服务";
+    renderSteps();
+    setTimeout(poll, 1000);
+  })();
+</script>
+</body>
+</html>
