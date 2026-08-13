@@ -594,3 +594,33 @@ export async function testConnector(
   });
   return response.data;
 }
+
+export interface FeishuAuthInitiate {
+  deviceCode: string;
+  verificationUrl: string;
+  expiresIn: number;
+}
+
+export interface FeishuAuthComplete {
+  completed: boolean;
+  message: string;
+}
+
+export async function initiateFeishuAuth(): Promise<FeishuAuthInitiate> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/feishu/auth/initiate',
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function completeFeishuAuth(deviceCode: string): Promise<FeishuAuthComplete> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/feishu/auth/complete',
+    method: 'POST',
+    data: { deviceCode },
+    timeout: 30000,
+  });
+  return response.data;
+}
