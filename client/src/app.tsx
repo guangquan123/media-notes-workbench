@@ -12,8 +12,6 @@ import NoteTemplatesPage from './pages/NoteTemplatesPage/NoteTemplatesPage';
 import OperationManualPage from './pages/OperationManualPage/OperationManualPage';
 import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import HomePage from './pages/HomePage/HomePage';
-import NoteInboxPage from './pages/NoteInboxPage/NoteInboxPage';
-import NoteInboxMessagesPage from './pages/NoteInboxMessagesPage/NoteInboxMessagesPage';
 import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
 import TranscriptionSettingsPage from './pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import ModelSettingsPage from './pages/ModelSettingsPage/ModelSettingsPage';
@@ -25,8 +23,6 @@ const RoutesComponent = () => {
       <Route element={<Layout />}>
         <Route index element={<EntryPage />} />
         <Route path="video-notes" element={<HomePage />} />
-        <Route path="note-inbox" element={<NoteInboxPage />} />
-        <Route path="note-inbox/messages" element={<NoteInboxMessagesPage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
         <Route path="paired-media-notes" element={<PairedMediaNotesPage />} />

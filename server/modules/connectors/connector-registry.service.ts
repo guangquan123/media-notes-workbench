@@ -20,6 +20,7 @@ interface StoredConnectorConfig {
     lastCheckedAt?: string;
     lastError?: string;
     type: ConnectorType;
+    userId: string;
     webhookUrl: string;
   }>;
 }
@@ -65,6 +66,11 @@ export class ConnectorRegistryService {
     return active?.status === 'ready';
   }
 
+  async getActiveConfig(): Promise<StoredConnectorConfig['items'][number] & { type: ConnectorType }> {
+    const config = await this.load();
+    return this.getStoredItem(config, config.activeConnector);
+  }
+
   async update(
     typeValue: string,
     input: UpdateConnectorRequest,
@@ -81,6 +87,7 @@ export class ConnectorRegistryService {
       clientSecret: input.clientSecret?.trim() || existing.clientSecret,
       enabled: input.enabled ?? existing.enabled,
       type,
+      userId: input.userId?.trim() || existing.userId,
       webhookUrl: input.webhookUrl?.trim() || existing.webhookUrl,
     };
     const items = config.items.filter((item) => item.type !== type);
@@ -155,6 +162,7 @@ export class ConnectorRegistryService {
         clientSecret: '',
         enabled: type === 'local',
         type,
+        userId: '',
         webhookUrl: '',
       }
     );
@@ -185,6 +193,7 @@ export class ConnectorRegistryService {
         lastCheckedAt: typeof raw?.lastCheckedAt === 'string' ? raw.lastCheckedAt : undefined,
         lastError: typeof raw?.lastError === 'string' ? raw.lastError : undefined,
         type,
+        userId: typeof raw?.userId === 'string' ? raw.userId : '',
         webhookUrl: typeof raw?.webhookUrl === 'string' ? raw.webhookUrl : '',
       };
     });

@@ -1,0 +1,75 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+interface CommandResult {
+  stdout: string;
+  stderr: string;
+}
+
+export interface DingTalkDocumentResult {
+  externalId: string;
+  url: string;
+}
+
+interface DingTalkCreateResponse {
+  nodeId?: string;
+  data?: { nodeId?: string };
+}
+
+@Injectable()
+export class DingTalkDocumentService {
+  private readonly logger = new Logger(DingTalkDocumentService.name);
+
+  async create(title: string, markdown: string): Promise<DingTalkDocumentResult> {
+    const workDir = await mkdtemp(join(tmpdir(), 'dingtalk-doc-'));
+    const contentFile = join(workDir, 'content.md');
+    await writeFile(contentFile, markdown, { encoding: 'utf8' });
+    try {
+      const result = await this.runCommand(this.cli(), [
+        'doc', 'create', '--name', title.slice(0, 120), '--content-file', contentFile, '--format', 'json',
+      ]);
+      const parsed = this.parseJson<DingTalkCreateResponse>(result.stdout);
+      const nodeId = parsed.nodeId || parsed.data?.nodeId;
+      if (!nodeId) throw new Error(result.stderr.trim() || '钉钉文档创建未返回 nodeId');
+      return { externalId: nodeId, url: `https://alidocs.dingtalk.com/i/nodes/${nodeId}` };
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
+  async read(urlOrNodeId: string): Promise<string> {
+    const result = await this.runCommand(this.cli(), [
+      'doc', 'read', '--node', urlOrNodeId, '--format', 'json',
+    ]);
+    const parsed = this.parseJson<{ content?: string; data?: { content?: string } }>(result.stdout);
+    const content = parsed.content || parsed.data?.content;
+    if (content) return content;
+    return result.stdout.trim() || result.stderr.trim();
+  }
+
+  private cli(): string {
+    return process.platform === 'win32' ? 'dws.cmd' : 'dws';
+  }
+
+  private parseJson<T>(stdout: string): T {
+    try {
+      return JSON.parse(stdout) as T;
+    } catch {
+      return {} as T;
+    }
+  }
+
+  private runCommand(command: string, args: string[]): Promise<CommandResult> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      let stdout = ''; let stderr = '';
+      child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
+      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
+      child.on('error', reject);
+      child.on('close', (code: number | null) => code === 0 ? resolve({ stdout, stderr }) : reject(new Error(stderr.trim() || stdout.trim() || `${command} 执行失败`)));
+    });
+  }
+}

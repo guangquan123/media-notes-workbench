@@ -385,18 +385,6 @@ const OperationManualPage = () => {
           </div>
         </section>
 
-        <section className="mt-10 rounded-3xl border border-blue-100 bg-blue-50/60 p-6 sm:p-8">
-          <h2 className="font-bold text-blue-950">飞书链接收集箱</h2>
-          <p className="mt-2 text-sm leading-6 text-blue-950/70">用于把手机上的 B站或抖音分享链接自动送入笔记流程。</p>
-          <ol className="mt-5 space-y-3 text-sm leading-6 text-blue-950/80">
-            <li><strong>1. 配置：</strong>打开“飞书收集箱”，填写专用群的 <code>oc_</code> 会话 ID，点击“保存并启用”。保存成功后配置会持久化，输入框默认锁定。</li>
-            <li><strong>2. 修改：</strong>需要更换群聊时，先点击“修改配置”，完成编辑后再次保存；不要重复绑定。</li>
-            <li><strong>3. 查看消息：</strong>从配置页进入“消息列表”。列表只显示 B站或抖音链接，普通文字和系统消息不会展示。</li>
-            <li><strong>4. 处理状态：</strong>同一飞书消息不会重复入库；相同视频再次发送会标记为“重复，已关联原任务”，不会重新创建笔记任务。</li>
-            <li><strong>5. 追溯：</strong>点击消息旁的“查看转化记录”，可精确跳转到对应任务，查看笔记、失败原因或后续处理状态。</li>
-          </ol>
-          <div className="mt-5 flex flex-wrap gap-3"><Button asChild size="sm" variant="outline"><Link to="/note-inbox">打开收集箱配置</Link></Button><Button asChild size="sm" variant="outline"><Link to="/note-inbox/messages">打开消息列表</Link></Button></div>
-        </section>
 
         <section className="mt-10 pb-8">
           <h2 className="font-bold">常见问题</h2>

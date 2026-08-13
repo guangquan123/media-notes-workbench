@@ -117,6 +117,8 @@ import {
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import { ConnectorRegistryService } from '../connectors/connector-registry.service';
 import { LocalDocumentService } from '../connectors/local-document.service';
+import { DingTalkDocumentService } from '../connectors/dingtalk-document.service';
+import { DingTalkTaskService } from '../connectors/dingtalk-task.service';
 import {
   assessTranscriptQuality,
   formatTranscriptQualityWarnings,
@@ -272,6 +274,8 @@ export class NoteJobsService implements OnModuleInit {
     private readonly taskNotificationService: TaskNotificationService,
     private readonly connectorRegistryService: ConnectorRegistryService,
     private readonly localDocumentService: LocalDocumentService,
+    private readonly dingTalkDocumentService: DingTalkDocumentService,
+    private readonly dingTalkTaskService: DingTalkTaskService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -3282,6 +3286,17 @@ export class NoteJobsService implements OnModuleInit {
         url: localDocument.url,
       };
     }
+    if ((await this.connectorRegistryService.getActiveConnector()) === 'dingtalk') {
+      const dingtalkDocument = await this.dingTalkDocumentService.create(title, markdown);
+      return {
+        publishedCount: 0,
+        skippedOptional: media.map((asset) => ({
+          anchor: asset.anchor,
+          message: '钉钉文档暂不嵌入外部图片，已保留原始图片引用。',
+        })),
+        url: dingtalkDocument.url,
+      };
+    }
     const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
       'lark-cli',
@@ -4011,7 +4026,21 @@ export class NoteJobsService implements OnModuleInit {
       return;
     }
     if (connectorType === 'dingtalk') {
-      this.patch(jobId, { message: '笔记已创建，钉钉待办尚未接入。' });
+      const config = await this.connectorRegistryService.getActiveConfig();
+      if (!config.userId) {
+        this.patch(jobId, { message: '笔记已创建，但未配置钉钉待办执行人，未创建待办。' });
+        return;
+      }
+      try {
+        const task = await this.dingTalkTaskService.create({ title, executorUserId: config.userId });
+        await this.noteHistoryService.updateReviewTask(jobId, { guid: task.guid, url: task.url });
+        this.patch(jobId, { message: '完成！钉钉笔记和待办任务已创建。' });
+      } catch (error) {
+        const message: string = error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(`创建任务 ${jobId} 的钉钉待办任务失败: ${message}`);
+        await this.noteHistoryService.updateReviewTaskFailure(jobId, message).catch(() => undefined);
+        this.patch(jobId, { message: '笔记已创建，但待办任务未创建。' });
+      }
       return;
     }
     if (!larkUserId) {

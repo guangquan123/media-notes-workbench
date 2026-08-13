@@ -5,7 +5,6 @@ import {
   FileText,
   FileVideo,
   History,
-  MessageSquareText,
   ScanSearch,
   Settings2,
   type LucideIcon,
@@ -212,28 +211,6 @@ export default function EntryPage() {
               <Link to="/settings">
                 <Settings2 className="size-3.5" />
                 参数配置
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
-              size="sm"
-              variant="outline"
-            >
-              <Link to="/note-inbox">
-                <MessageSquareText className="size-3.5" />
-                飞书收集箱
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
-              size="sm"
-              variant="outline"
-            >
-              <Link to="/note-inbox/messages">
-                <MessageSquareText className="size-3.5" />
-                收集消息
               </Link>
             </Button>
             <Button

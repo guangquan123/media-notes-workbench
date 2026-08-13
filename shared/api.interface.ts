@@ -44,6 +44,7 @@ export interface UpdateConnectorRequest {
   clientId?: string;
   clientSecret?: string;
   enabled?: boolean;
+  userId?: string;
   webhookUrl?: string;
 }
 
