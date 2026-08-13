@@ -28,6 +28,7 @@
     "dotenv": "^17.2.2",
     "drizzle-orm": "0.44.6",
     "hbs": "^4.2.0",
+    "multer": "^2.0.2",
     "reflect-metadata": "^0.1.14",
     "tencentcloud-sdk-nodejs": "^4.1.278",
     "tslib": "^2.8.1"

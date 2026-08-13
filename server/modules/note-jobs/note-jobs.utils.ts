@@ -201,7 +201,12 @@ function isPrivateHostname(hostname: string): boolean {
 export function validateMediaDownloadUrl(rawUrl: string): URL {
   try {
     const url: URL = new URL(rawUrl);
-    if (url.protocol !== 'https:' || isPrivateHostname(url.hostname)) {
+    const isLocalLoopback =
+      url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+    if (url.protocol !== 'https:' && !isLocalLoopback) {
+      throw new Error('unsafe');
+    }
+    if (url.protocol === 'https:' && isPrivateHostname(url.hostname)) {
       throw new Error('unsafe');
     }
     return url;

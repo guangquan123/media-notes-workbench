@@ -12,6 +12,7 @@ import { ConnectorModule } from './modules/connectors/connector.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { DatabaseModule } from './database/database.module';
 import { LocalPlatformModule } from './modules/runtime/local-platform.module';
+import { LocalUploadsModule } from './modules/local-uploads/local-uploads.module';
 import { isLocalRuntime } from './modules/runtime/runtime.config';
 
 @Module({
@@ -27,6 +28,7 @@ import { isLocalRuntime } from './modules/runtime/runtime.config';
     TaskNotificationModule,
     ConnectorModule,
     RuntimeModule,
+    LocalUploadsModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

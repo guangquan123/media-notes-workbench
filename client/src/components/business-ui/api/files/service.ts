@@ -1,6 +1,7 @@
 'use client';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { isLocalRuntime } from '@/lib/runtime';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
 
 import { mapWithConcurrency } from '@shared/async.utils';
@@ -78,11 +79,25 @@ export function toStoredSourceObject(
   };
 }
 
+async function uploadFileLocal(file: File): Promise<UploadFileData> {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+  // eslint-disable-next-line no-restricted-syntax -- local multipart upload uses native fetch
+  const response = await fetch("/api/local-uploads", { method: "POST", body: formData });
+  if (!response.ok) throw new Error(`本地上传失败 HTTP ${response.status}`);
+  const data = (await response.json()) as { id: string; url: string; fileSize: number };
+  return { id: data.id, filePath: data.id, bucketId: "local", fileSize: data.fileSize, url: data.url };
+}
 export async function uploadFile(
   file: File,
   onPartProgress?: (uploadedBytes: number) => void,
   options: MediaUploadOptions = {},
 ): Promise<UploadFileData> {
+  if (isLocalRuntime()) {
+    const uploaded = await uploadFileLocal(file);
+    onPartProgress?.(file.size);
+    return uploaded;
+  }
   throwIfUploadAborted(options.signal);
   const dataloom = await runWithUploadDeadline(getDataloom(), options.signal);
   const bucketId: string = getDefaultBucketId();
@@ -130,6 +145,11 @@ export async function uploadMediaFile(
   onProgress?: (progress: MediaUploadProgress) => void,
   options: MediaUploadOptions = {},
 ): Promise<UploadFileData[]> {
+  if (isLocalRuntime()) {
+    const uploaded = await uploadFileLocal(file);
+    onProgress?.({ currentPart: 1, totalParts: 1, totalBytes: file.size, uploadedBytes: file.size });
+    return [uploaded];
+  }
   throwIfUploadAborted(options.signal);
   const startedAt: number = performance.now();
   if (file.size <= MEDIA_UPLOAD_PART_SIZE) {
