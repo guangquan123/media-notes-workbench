@@ -3,8 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { AppContainer } from '@lark-apaas/client-toolkit/components/AppContainer';
-import { ErrorRender } from '@lark-apaas/client-toolkit/components/ErrorRender';
+import { AppContainer as PlatformAppContainer } from '@lark-apaas/client-toolkit/components/AppContainer';
+import { ErrorRender as PlatformErrorRender } from '@lark-apaas/client-toolkit/components/ErrorRender';
+import { AppContainer as LocalAppContainer, ErrorRender as LocalErrorRender } from '@/lib/local-app-container';
+import { isLocalRuntime } from '@/lib/runtime';
+
+const AppContainer = isLocalRuntime() ? LocalAppContainer : PlatformAppContainer;
+const ErrorRender = isLocalRuntime() ? LocalErrorRender : PlatformErrorRender;
 
 import RoutesComponent from './app.tsx';
 import './index.css';

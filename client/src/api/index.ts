@@ -1,5 +1,10 @@
-import { logger } from '@lark-apaas/client-toolkit/logger';
-import { axiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
+import { logger as platformLogger } from '@lark-apaas/client-toolkit/logger';
+import { axiosForBackend as platformAxiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
+import { axiosForBackend as localAxiosForBackend, logger as localLogger } from '@/lib/local-http';
+import { isLocalRuntime } from '@/lib/runtime';
+
+export const axiosForBackend: any = isLocalRuntime() ? localAxiosForBackend : platformAxiosForBackend;
+export const logger: any = isLocalRuntime() ? localLogger : platformLogger;
 import type {
   ArticleArtifact,
   ArticleExportJob,
