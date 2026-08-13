@@ -2807,7 +2807,10 @@ export class NoteJobsService implements OnModuleInit {
       if (ext === 'pdf') {
         return this.localDocumentParserService.parsePdf(input.sourcePath);
       }
-      throw new Error(`本地模式暂不支持 ${ext.toUpperCase() || '该'} 文档解析，请使用 PDF 或文本文件。`);
+      if (['docx', 'doc', 'pptx', 'ppt', 'rtf', 'odt', 'odp'].includes(ext)) {
+        return this.localDocumentParserService.parseOfficeDocument(input.sourcePath);
+      }
+      throw new Error(`本地模式暂不支持 ${ext.toUpperCase() || '该'} 文档解析，请使用 PDF、Word、PPT 或文本文件。`);
     }
     const pluginInstanceId = 'pdf-document-parser';
     const actionKey = 'parseDocToMarkdown';
