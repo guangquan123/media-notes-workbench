@@ -354,7 +354,7 @@ export class ArticleExportService {
       return { markdown: await this.localDocumentService.read(match[1]) };
     }
     if (connectorType === 'dingtalk') {
-      return { markdown: await this.dingTalkDocumentService.read(sourceDocUrl) };
+      return await this.dingTalkDocumentService.read(sourceDocUrl);
     }
     const result = await this.runCommand('lark-cli', [
       'docs',

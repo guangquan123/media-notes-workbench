@@ -16,7 +16,12 @@ export interface DingTalkDocumentResult {
 
 interface DingTalkCreateResponse {
   nodeId?: string;
-  data?: { nodeId?: string };
+  docUrl?: string;
+}
+
+interface DingTalkReadResponse {
+  markdown?: string;
+  title?: string;
 }
 
 @Injectable()
@@ -32,22 +37,22 @@ export class DingTalkDocumentService {
         'doc', 'create', '--name', title.slice(0, 120), '--content-file', contentFile, '--format', 'json',
       ]);
       const parsed = this.parseJson<DingTalkCreateResponse>(result.stdout);
-      const nodeId = parsed.nodeId || parsed.data?.nodeId;
+      const nodeId = parsed.nodeId;
       if (!nodeId) throw new Error(result.stderr.trim() || '钉钉文档创建未返回 nodeId');
-      return { externalId: nodeId, url: `https://alidocs.dingtalk.com/i/nodes/${nodeId}` };
+      return { externalId: nodeId, url: parsed.docUrl || `https://alidocs.dingtalk.com/i/nodes/${nodeId}` };
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
   }
 
-  async read(urlOrNodeId: string): Promise<string> {
+  async read(urlOrNodeId: string): Promise<{ markdown: string; title?: string }> {
     const result = await this.runCommand(this.cli(), [
       'doc', 'read', '--node', urlOrNodeId, '--format', 'json',
     ]);
-    const parsed = this.parseJson<{ content?: string; data?: { content?: string } }>(result.stdout);
-    const content = parsed.content || parsed.data?.content;
-    if (content) return content;
-    return result.stdout.trim() || result.stderr.trim();
+    const parsed = this.parseJson<DingTalkReadResponse>(result.stdout);
+    const markdown = parsed.markdown?.trim();
+    if (!markdown) throw new Error(result.stderr.trim() || '钉钉文档读取未返回 markdown');
+    return { markdown, title: parsed.title };
   }
 
   private cli(): string {

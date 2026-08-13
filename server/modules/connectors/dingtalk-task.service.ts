@@ -17,8 +17,7 @@ export interface CreatedDingTalkTask {
 }
 
 interface DingTalkTaskCreateResponse {
-  taskId?: string;
-  data?: { taskId?: string };
+  result?: { taskId?: string };
 }
 
 @Injectable()
@@ -30,7 +29,7 @@ export class DingTalkTaskService {
       'todo', 'task', 'create', '--title', input.title.slice(0, 120), '--executors', input.executorUserId, '--format', 'json',
     ]);
     const parsed = this.parseJson<DingTalkTaskCreateResponse>(result.stdout);
-    const taskId = parsed.taskId || parsed.data?.taskId;
+    const taskId = parsed.result?.taskId;
     if (!taskId) throw new Error(result.stderr.trim() || '钉钉待办创建未返回 taskId');
     return { guid: taskId, url: null };
   }
