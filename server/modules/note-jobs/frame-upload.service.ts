@@ -106,6 +106,7 @@ async function runCommand(
     const process = spawn(command, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];

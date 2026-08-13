@@ -80,6 +80,7 @@ export class NoteReviewTaskService {
       const child = spawn(command, args, {
         cwd: process.cwd(),
         env: process.env,
+    shell: true,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';

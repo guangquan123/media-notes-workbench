@@ -461,7 +461,8 @@ export class ArticleExportService {
   }
 
   private commandExists(command: string): Promise<boolean> {
-    return this.runCommand('which', [command])
+    const locator = process.platform === 'win32' ? 'where' : 'which';
+    return this.runCommand(locator, [command])
       .then(() => true)
       .catch(() => false);
   }
@@ -472,10 +473,15 @@ export class ArticleExportService {
     stdin?: string,
   ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
+      const needsShell =
+        /\.(cmd|bat)$/iu.test(command) ||
+        command === 'lark-cli' ||
+        command === 'dws';
       const child = spawn(command, args, {
         cwd: process.cwd(),
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        ...(needsShell ? { shell: true } : {}),
       });
 
       let stdout = '';

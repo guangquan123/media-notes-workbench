@@ -4173,7 +4173,8 @@ export class NoteJobsService implements OnModuleInit {
   }
 
   private commandExists(command: string): Promise<boolean> {
-    return this.runCommand('which', [command])
+    const locator = process.platform === 'win32' ? 'where' : 'which';
+    return this.runCommand(locator, [command])
       .then(() => true)
       .catch(() => false);
   }
@@ -4198,10 +4199,15 @@ export class NoteJobsService implements OnModuleInit {
         reject(error);
         return;
       }
+      const needsShell =
+        /\.(cmd|bat)$/iu.test(command) ||
+        command === 'lark-cli' ||
+        command === 'dws';
       const child = spawn(command, args, {
         cwd,
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        ...(needsShell ? { shell: true } : {}),
       });
       if (jobId) {
         const commands = this.activeCommands.get(jobId) || new Set();
