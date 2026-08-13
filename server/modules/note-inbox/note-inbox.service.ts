@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '@lark-apaas/fullstack-nestjs-core';
+import { DRIZZLE_DATABASE } from '@lark-apaas/fullstack-nestjs-core';
+import type { AppDatabase } from '@server/database/database.types';
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { spawn } from 'node:child_process';
 import { noteConversionRecords, noteInboxBindings, noteInboxMedia, noteInboxMessages } from '@server/database/schema';
@@ -17,7 +18,7 @@ const POLL_INTERVAL_MS = 30_000;
 @Injectable()
 export class NoteInboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NoteInboxService.name); private pollTimer?: NodeJS.Timeout; private polling = false;
-  constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase, private readonly noteJobsService: NoteJobsService) {}
+  constructor(@Inject(DRIZZLE_DATABASE) private readonly db: AppDatabase, private readonly noteJobsService: NoteJobsService) {}
   async onModuleInit(): Promise<void> {
     this.pollTimer = setInterval(
       () => this.syncInBackground(),

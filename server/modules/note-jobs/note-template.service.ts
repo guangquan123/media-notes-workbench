@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   DRIZZLE_DATABASE,
-  type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
+import type { AppDatabase } from '@server/database/database.types';
 import { and, desc, eq } from 'drizzle-orm';
 
 import {
@@ -48,7 +48,7 @@ const HISTORY_LIMIT = 30;
 export class NoteTemplateService {
   constructor(
     @Inject(DRIZZLE_DATABASE)
-    private readonly db: PostgresJsDatabase,
+    private readonly db: AppDatabase,
   ) {}
 
   async list(ownerId: string): Promise<NoteTemplateConfigResponse> {

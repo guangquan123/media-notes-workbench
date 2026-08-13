@@ -17,7 +17,7 @@ build/
 .task-notification-config.json
 .connector-config.json
 .runtime-config.json
-data/local-documents/
+data/
 
 # Logs
 npm-debug.log*

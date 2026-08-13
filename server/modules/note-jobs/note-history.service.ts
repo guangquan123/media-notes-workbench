@@ -1,8 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   DRIZZLE_DATABASE,
-  type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
+import type { AppDatabase } from '@server/database/database.types';
 import {
   and,
   count,
@@ -152,7 +152,7 @@ const INTERRUPTED_JOB_STATUS_MESSAGE =
 export class NoteHistoryService {
   constructor(
     @Inject(DRIZZLE_DATABASE)
-    private readonly db: PostgresJsDatabase,
+    private readonly db: AppDatabase,
   ) {}
 
   async create(

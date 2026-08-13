@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import {
   DRIZZLE_DATABASE,
-  type PostgresJsDatabase,
 } from '@lark-apaas/fullstack-nestjs-core';
+import type { AppDatabase } from '@server/database/database.types';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { noteConversionRecords, noteJobFrames } from '@server/database/schema';
 import type {
@@ -35,7 +35,7 @@ interface PersistedVisualJob {
 export class FrameReviewService {
   constructor(
     @Inject(DRIZZLE_DATABASE)
-    private readonly db: PostgresJsDatabase,
+    private readonly db: AppDatabase,
   ) {}
 
   async saveCandidates(
