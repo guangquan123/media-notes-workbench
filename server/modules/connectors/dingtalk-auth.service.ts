@@ -48,28 +48,47 @@ export class DingTalkAuthService {
       const sessionId = randomUUID();
       const session: DingTalkSession = { process: child, completed: false };
       this.sessions.set(sessionId, session);
-      let stdout = ''; let stderr = ''; let resolved = false;
-      const timer = setTimeout(() => { if (!resolved) { resolved = true; this.sessions.delete(sessionId); reject(new Error('钉钉授权发起超时')); } }, 30000);
-      child.on('close', (code) => { if (code === 0) session.completed = true; });
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf8');
-        const m = stdout.match(/user_code=([A-Z0-9-]+)/iu);
+      let combined = ''; let resolved = false;
+
+      const tryResolve = (): void => {
+        const m = combined.match(/user_code=([A-Z0-9-]+)/iu);
         if (m && !resolved) {
-          resolved = true; clearTimeout(timer);
+          resolved = true;
+          clearTimeout(timer);
           const userCode = m[1];
-          resolve({ sessionId, verificationUrl: `https://login.dingtalk.com/oauth2/device/verify.htm?user_code=${userCode}`, userCode, expiresIn: 900, alreadyAuthenticated: false });
+          resolve({
+            sessionId,
+            verificationUrl: `https://login.dingtalk.com/oauth2/device/verify.htm?user_code=${userCode}`,
+            userCode,
+            expiresIn: 900,
+            alreadyAuthenticated: false,
+          });
+        }
+      };
+
+      const timer = setTimeout(() => { if (!resolved) { resolved = true; this.sessions.delete(sessionId); reject(new Error('钉钉授权发起超时')); } }, 30000);
+      child.stdout.on('data', (chunk: Buffer) => { combined += chunk.toString('utf8'); tryResolve(); });
+      child.stderr.on('data', (chunk: Buffer) => { combined += chunk.toString('utf8'); tryResolve(); });
+      child.on('error', (error) => { if (!resolved) { resolved = true; clearTimeout(timer); this.sessions.delete(sessionId); reject(error); } });
+      child.on('close', (code) => {
+        session.completed = code === 0;
+        clearTimeout(timer);
+        if (!resolved) {
+          resolved = true;
+          this.sessions.delete(sessionId);
+          reject(new Error(combined.trim() || '钉钉授权发起失败'));
         }
       });
-      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
-      child.on('error', (error) => { if (!resolved) { resolved = true; clearTimeout(timer); this.sessions.delete(sessionId); reject(error); } });
-      child.on('close', (code) => { if (!resolved) { resolved = true; clearTimeout(timer); this.sessions.delete(sessionId); reject(new Error(stderr.trim() || '钉钉授权发起失败')); } });
     });
   }
 
   async complete(sessionId: string): Promise<DingTalkAuthComplete> {
     const session = this.sessions.get(sessionId);
     if (!session) return { completed: false, message: '授权会话已失效，请重新发起' };
-    if (session.completed) { this.sessions.delete(sessionId); return { completed: true, message: '钉钉授权成功' }; }
+    if (session.completed || await this.isAuthenticated()) {
+      this.sessions.delete(sessionId);
+      return { completed: true, message: '钉钉授权成功' };
+    }
     return { completed: false, message: '等待授权' };
   }
 
