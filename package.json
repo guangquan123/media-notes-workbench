@@ -220,7 +220,7 @@
     "start": "NODE_ENV=production node main.js",
     "stop": "node ./scripts/stop.js",
     "stylelint": "stylelint client/src/**/*.css --quiet",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:frame-plugins": "ts-node --project tsconfig.node.json scripts/smoke-frame-plugins.ts",
     "test:e2e": "jest --config test/e2e/jest.config.js",
     "test:watch": "jest --watch",
