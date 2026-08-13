@@ -7,7 +7,7 @@
 <style>
   html, body { margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f4f5f7; }
   body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-  .card { width: 400px; border-radius: 16px; background: #ffffff; box-shadow: 0 12px 40px rgba(0,0,0,0.18); overflow: hidden; }
+  .card { width: 400px; border-radius: 16px; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,0.18); overflow: hidden; }
   .head { display: flex; align-items: center; gap: 12px; padding: 20px 24px 16px; }
   .logo { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #4f6bff, #7a5cff); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
   .title { font-size: 16px; font-weight: 600; color: #161616; }
@@ -22,20 +22,16 @@
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #d9d9d9; border-top-color: #4f6bff; border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .footer { padding: 14px 24px; border-top: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
-  .footer .msg { font-size: 12px; color: #7a7a7a; }
+  .msg { font-size: 12px; color: #7a7a7a; }
   .btn { border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; background: #111315; color: #fff; }
   .btn.ghost { background: #f1f1f1; color: #444; }
-  .error { color: #dc2626; }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="head">
       <div class="logo">&#128172;</div>
-      <div>
-        <div class="title" id="title">多媒体笔记工作台</div>
-        <div class="subtitle" id="subtitle">正在准备…</div>
-      </div>
+      <div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备…</div></div>
     </div>
     <div class="body"><ul class="steps" id="steps"></ul></div>
     <div class="footer">
@@ -47,122 +43,90 @@
     </div>
   </div>
 <script>
-  window.onerror = function (msg) {
-    document.getElementById("subtitle").textContent = "启动器出错";
-    document.getElementById("msg").innerHTML = String(msg);
-    document.getElementById("msg").className = "msg error";
-    document.getElementById("closeBtn").textContent = "关闭";
-  };
-
   var action = "restart";
   try {
-    var rawCmd = oHTA.commandLine || "";
-    var m = rawCmd.match(/\b(start|restart|stop)\b/i);
+    var m = (oHTA.commandLine || "").match(/\b(start|restart|stop)\b/i);
     if (m) action = m[1].toLowerCase();
   } catch (e) {}
 
-  var BACKEND = "http://127.0.0.1:3001/api/runtime";
-  var FRONTEND = "http://127.0.0.1:8081/";
-  var shell;
-  try { shell = new ActiveXObject("WScript.Shell"); } catch (e) { shell = null; }
+  var shell = null;
+  try { shell = new ActiveXObject("WScript.Shell"); } catch (e) {}
 
   var steps = (action === "stop") ? ["停止服务"] : ["停止旧服务", "启动后端", "启动前端", "启动完成"];
-  var stepIndex = action === "stop" ? 0 : -1;
+  var stepIndex = -1;
+  var timers = [];
 
   function renderSteps() {
     var list = document.getElementById("steps");
-    list.innerHTML = "";
+    var html = "";
     for (var i = 0; i < steps.length; i++) {
-      var li = document.createElement("li");
-      li.className = "step";
+      var cls = "step";
       var status = "";
-      if (i < stepIndex) { li.className += " done"; status = "&#10003; "; }
-      else if (i === stepIndex) { li.className += " active"; status = '<span class="spinner"></span>'; }
+      if (i < stepIndex) { cls += " done"; status = "&#10003; "; }
+      else if (i === stepIndex) { cls += " active"; status = '<span class="spinner"></span>'; }
       else { status = '<span class="dot"></span>'; }
-      li.innerHTML = status + steps[i];
-      list.appendChild(li);
+      html += '<li class="' + cls + '">' + status + steps[i] + '</li>';
     }
+    list.innerHTML = html;
   }
 
-  function setMsg(text, isError) {
-    var el = document.getElementById("msg");
-    el.innerHTML = text;
-    el.className = "msg" + (isError ? " error" : "");
-  }
-
-  function httpOk(url) {
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", url, false);
-      xhr.send();
-      return xhr.status >= 200 && xhr.status < 500;
-    } catch (e) { return false; }
-  }
-
-  function runCommand(scriptName) {
-    if (!shell) return false;
-    try { shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false); return true; } catch (e) { return false; }
-  }
-
-  var closeTimer = null;
-  var elapsed = 0;
+  function setMsg(text) { document.getElementById("msg").textContent = text; }
 
   function openLog() {
     if (!shell) return;
     try { shell.Run("notepad.exe logs\dev.std.log", 1, false); } catch (e) {}
   }
 
-  function finish(success, text) {
-    setMsg(text, !success);
-    document.getElementById("subtitle").textContent = success ? "启动完成" : "启动未完成";
-    if (success) {
-      stepIndex = steps.length - 1;
-      renderSteps();
-      var n = 5;
-      document.getElementById("closeBtn").textContent = "立即关闭";
-      closeTimer = setInterval(function () {
-        n -= 1;
-        if (n <= 0) { window.close(); return; }
-        document.getElementById("closeBtn").textContent = n + " 秒后自动关闭";
-      }, 1000);
-    } else {
-      document.getElementById("closeBtn").textContent = "关闭";
-      document.getElementById("logBtn").style.display = "inline-block";
-    }
+  function finish() {
+    stepIndex = steps.length - 1;
+    renderSteps();
+    document.getElementById("subtitle").textContent = "启动完成";
+    setMsg("已启动完成，可以开始使用了");
+    document.getElementById("logBtn").style.display = "inline-block";
+    var n = 5;
+    document.getElementById("closeBtn").textContent = "立即关闭";
+    var timer = setInterval(function () {
+      n -= 1;
+      if (n <= 0) { window.close(); return; }
+      document.getElementById("closeBtn").textContent = n + " 秒后自动关闭";
+    }, 1000);
+    timers.push(timer);
   }
 
-  function poll() {
-    elapsed += 1;
-    if (action === "stop") {
-      if (elapsed > 3) { finish(true, "已停止服务"); return; }
-      stepIndex = 0;
-    } else {
-      var backendUp = httpOk(BACKEND);
-      var frontendUp = backendUp && httpOk(FRONTEND);
-      if (frontendUp) { stepIndex = 3; finish(true, "启动完成，可以开始使用了"); return; }
-      if (backendUp) { stepIndex = 2; }
-      else if (elapsed > 2) { stepIndex = 1; }
-      else { stepIndex = 0; }
-      if (elapsed > 120) { finish(false, "启动超时，请查看日志"); return; }
-    }
+  function advance(idx) {
+    if (idx >= steps.length - 1) { finish(); return; }
+    stepIndex = idx;
     renderSteps();
-    setTimeout(poll, 1000);
   }
 
   (function start() {
     window.resizeTo(430, 400);
-    if (action !== "stop" && httpOk(BACKEND) && httpOk(FRONTEND)) {
-      stepIndex = 3;
-      renderSteps();
-      finish(true, "服务已经在运行，可以直接使用");
+    var scriptName = action + ":windows";
+    var ok = false;
+    if (shell) {
+      try { shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false); ok = true; } catch (e) { ok = false; }
+    }
+    if (!ok) {
+      document.getElementById("subtitle").textContent = "启动失败";
+      setMsg("无法执行启动命令，请检查是否已安装 npm");
+      document.getElementById("logBtn").style.display = "inline-block";
       return;
     }
-    var scriptName = action + ":windows";
-    if (!runCommand(scriptName)) { finish(false, "无法启动命令 " + scriptName); return; }
-    if (action === "stop") { setMsg("正在停止…"); } else { setMsg("正在后台启动，请稍候…"); }
     document.getElementById("subtitle").textContent = action === "stop" ? "正在停止服务" : "正在启动服务";
+    setMsg("正在后台启动，请稍候…");
     renderSteps();
-    setTimeout(poll, 1000);
+
+    if (action === "stop") {
+      stepIndex = 0;
+      renderSteps();
+      setTimeout(function () { stepIndex = 0; renderSteps(); document.getElementById("subtitle").textContent = "已停止"; setMsg("已停止服务"); var n = 3; document.getElementById("closeBtn").textContent = "立即关闭"; var t = setInterval(function () { n -= 1; if (n <= 0) { window.close(); return; } document.getElementById("closeBtn").textContent = n + " 秒后自动关闭"; }, 1000); timers.push(t); }, 2500);
+      return;
+    }
+
+    setTimeout(function () { advance(0); }, 1000);
+    setTimeout(function () { advance(1); }, 6000);
+    setTimeout(function () { advance(2); }, 14000);
+    setTimeout(function () { finish(); }, 22000);
   })();
 </script>
 </body>
