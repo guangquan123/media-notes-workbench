@@ -9,8 +9,10 @@ import type {
   UpdateConnectorRequest,
 } from '@shared/api.interface';
 import {
+  completeDingTalkAuth,
   completeFeishuAuth,
   getConnectorSettings,
+  initiateDingTalkAuth,
   initiateFeishuAuth,
   setActiveConnector,
   testConnector,
@@ -58,6 +60,9 @@ export default function ConnectorSettingsPage() {
   const [feishuVerificationUrl, setFeishuVerificationUrl] = useState('');
   const [feishuDeviceCode, setFeishuDeviceCode] = useState('');
   const [feishuAuthMessage, setFeishuAuthMessage] = useState('');
+  const [dingtalkAuthStatus, setDingtalkAuthStatus] = useState<FeishuAuthStatus>('idle');
+  const [dingtalkVerificationUrl, setDingtalkVerificationUrl] = useState('');
+  const [dingtalkAuthMessage, setDingtalkAuthMessage] = useState('');
   const pollTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -111,6 +116,36 @@ export default function ConnectorSettingsPage() {
       pollTimer.current = window.setTimeout(() => void pollFeishuAuth(deviceCode), 3000);
     } catch {
       pollTimer.current = window.setTimeout(() => void pollFeishuAuth(deviceCode), 3000);
+    }
+  };
+
+  const startDingtalkAuth = async (): Promise<void> => {
+    setDingtalkAuthStatus('pending');
+    setDingtalkAuthMessage('');
+    try {
+      const result = await initiateDingTalkAuth();
+      setDingtalkVerificationUrl(result.verificationUrl);
+      setDingtalkAuthMessage('请用钉钉扫描下方二维码完成授权');
+      void pollDingtalkAuth();
+    } catch (error) {
+      setDingtalkAuthStatus('failed');
+      setDingtalkAuthMessage(error instanceof Error ? error.message : '发起授权失败');
+    }
+  };
+
+  const pollDingtalkAuth = async (): Promise<void> => {
+    try {
+      const result = await completeDingTalkAuth();
+      if (result.completed) {
+        setDingtalkAuthStatus('completed');
+        setDingtalkAuthMessage('钉钉授权成功');
+        toast.success('钉钉授权成功');
+        setSettings(await getConnectorSettings());
+        return;
+      }
+      pollTimer.current = window.setTimeout(() => void pollDingtalkAuth(), 3000);
+    } catch {
+      pollTimer.current = window.setTimeout(() => void pollDingtalkAuth(), 3000);
     }
   };
 
@@ -192,6 +227,25 @@ export default function ConnectorSettingsPage() {
                   <div className="rounded-xl bg-white p-3"><QRCodeSVG value={feishuVerificationUrl} size={180} /></div>
                   <p className="break-all text-center text-xs text-black/55">{feishuVerificationUrl}</p>
                   {feishuAuthStatus === "completed" ? <p className="flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" />{feishuAuthMessage}</p> : <p className="flex items-center gap-1 text-sm text-black/55">{feishuAuthStatus === "pending" ? <><LoaderCircle className="size-4 animate-spin" />{feishuAuthMessage}</> : feishuAuthMessage}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selected === "dingtalk" && (
+            <div className="rounded-xl border border-black/8 bg-black/[0.02] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="font-medium">钉钉账号授权</p><p className="mt-1 text-xs text-black/50">扫码授权后，文档和待办将使用你的钉钉身份。</p></div>
+                <Button size="sm" onClick={() => void startDingtalkAuth()} disabled={dingtalkAuthStatus === "pending" && !dingtalkVerificationUrl}>
+                  {dingtalkAuthStatus === "pending" && !dingtalkVerificationUrl ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                  {dingtalkAuthStatus === "completed" ? "重新授权" : "扫码授权钉钉"}
+                </Button>
+              </div>
+              {dingtalkVerificationUrl && (
+                <div className="mt-4 flex flex-col items-center gap-3">
+                  <div className="rounded-xl bg-white p-3"><QRCodeSVG value={dingtalkVerificationUrl} size={180} /></div>
+                  <p className="break-all text-center text-xs text-black/55">{dingtalkVerificationUrl}</p>
+                  {dingtalkAuthStatus === "completed" ? <p className="flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" />{dingtalkAuthMessage}</p> : <p className="flex items-center gap-1 text-sm text-black/55">{dingtalkAuthStatus === "pending" ? <><LoaderCircle className="size-4 animate-spin" />{dingtalkAuthMessage}</> : dingtalkAuthMessage}</p>}
                 </div>
               )}
             </div>

@@ -9,6 +9,7 @@ import type {
 import { ConnectorRegistryService } from './connector-registry.service';
 import { LocalDocumentService } from './local-document.service';
 import { FeishuAuthService } from './feishu-auth.service';
+import { DingTalkAuthService } from './dingtalk-auth.service';
 
 @Controller('api/connectors')
 export class ConnectorController {
@@ -16,6 +17,7 @@ export class ConnectorController {
     private readonly registry: ConnectorRegistryService,
     private readonly localDocumentService: LocalDocumentService,
     private readonly feishuAuthService: FeishuAuthService,
+    private readonly dingTalkAuthService: DingTalkAuthService,
   ) {}
 
   @NeedLogin()
@@ -49,6 +51,18 @@ export class ConnectorController {
   @Post('feishu/auth/initiate')
   initiateFeishuAuth() {
     return this.feishuAuthService.initiate();
+  }
+
+  @NeedLogin()
+  @Post('dingtalk/auth/initiate')
+  initiateDingTalkAuth() {
+    return this.dingTalkAuthService.initiate();
+  }
+
+  @NeedLogin()
+  @Post('dingtalk/auth/complete')
+  completeDingTalkAuth() {
+    return this.dingTalkAuthService.complete();
   }
 
   @NeedLogin()

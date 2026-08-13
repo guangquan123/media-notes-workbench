@@ -5,10 +5,11 @@ import { LocalDocumentService } from './local-document.service';
 import { DingTalkDocumentService } from './dingtalk-document.service';
 import { DingTalkTaskService } from './dingtalk-task.service';
 import { FeishuAuthService } from './feishu-auth.service';
+import { DingTalkAuthService } from './dingtalk-auth.service';
 
 @Module({
   controllers: [ConnectorController],
   exports: [ConnectorRegistryService, LocalDocumentService, DingTalkDocumentService, DingTalkTaskService],
-  providers: [ConnectorRegistryService, LocalDocumentService, DingTalkDocumentService, DingTalkTaskService, FeishuAuthService],
+  providers: [ConnectorRegistryService, LocalDocumentService, DingTalkDocumentService, DingTalkTaskService, FeishuAuthService, DingTalkAuthService],
 })
 export class ConnectorModule {}

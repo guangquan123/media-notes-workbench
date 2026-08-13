@@ -624,3 +624,27 @@ export async function completeFeishuAuth(deviceCode: string): Promise<FeishuAuth
   });
   return response.data;
 }
+
+export interface DingTalkAuthInitiate {
+  verificationUrl: string;
+  userCode: string;
+  expiresIn: number;
+}
+
+export async function initiateDingTalkAuth(): Promise<DingTalkAuthInitiate> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/dingtalk/auth/initiate',
+    method: 'POST',
+    timeout: 35000,
+  });
+  return response.data;
+}
+
+export async function completeDingTalkAuth(): Promise<{ completed: boolean; message: string }> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/dingtalk/auth/complete',
+    method: 'POST',
+    timeout: 30000,
+  });
+  return response.data;
+}
