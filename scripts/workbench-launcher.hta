@@ -57,7 +57,10 @@
     </div>
     <div class="footer">
       <div class="msg" id="msg"></div>
-      <button class="btn" id="closeBtn" onclick="window.close()">关闭</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" id="logBtn" style="display:none" onclick="openLog()">打开日志</button>
+        <button class="btn" id="closeBtn" onclick="window.close()">关闭</button>
+      </div>
     </div>
   </div>
 <script>
@@ -118,6 +121,10 @@
   var closeTimer = null;
   var elapsed = 0;
 
+  function openLog() {
+    try { shell.Run("notepad.exe logs\\dev.std.log", 1, false); } catch (e) {}
+  }
+
   function finish(success, text) {
     setMsg(text, !success);
     document.getElementById("subtitle").textContent = success ? "启动完成" : "启动未完成";
@@ -133,6 +140,7 @@
       }, 1000);
     } else {
       document.getElementById("closeBtn").textContent = "关闭";
+      document.getElementById("logBtn").style.display = "inline-block";
     }
   }
 
@@ -155,8 +163,14 @@
   }
 
   (function start() {
-    window.resizeTo(420, 380);
+    window.resizeTo(420, 400);
     window.moveTo((screen.width - 420) / 2, (screen.height - 380) / 2);
+    if (action !== "stop" && httpOk(BACKEND, 1200) && httpOk(FRONTEND, 1200)) {
+      stepIndex = 3;
+      renderSteps();
+      finish(true, "服务已经在运行，可以直接使用");
+      return;
+    }
     var scriptName = action + ":windows";
     if (!runCommand(scriptName)) { finish(false, "无法启动命令 " + scriptName); return; }
     if (action === "stop") { setMsg("正在停止…"); }
