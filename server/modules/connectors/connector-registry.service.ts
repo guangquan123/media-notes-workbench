@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import type {
   ConnectorSettingsResponse,
   ConnectorTestResponse,
@@ -42,11 +41,10 @@ export class ConnectorRegistryService {
       activeConnector: config.activeConnector,
       items: CONNECTOR_TYPES.map((type: ConnectorType) => {
         const item = config.items.find((candidate) => candidate.type === type);
-        const cliConfigured = type === 'feishu' && this.hasFeishuCli();
         return buildDescriptor(
           type,
           item?.enabled ?? type === 'local',
-          type === 'local' || cliConfigured || Boolean(item?.clientId || item?.webhookUrl),
+          type === 'local' || Boolean(item?.clientId || item?.webhookUrl || item?.userId),
           item?.lastCheckedAt,
           item?.lastError,
         );
@@ -143,14 +141,6 @@ export class ConnectorRegistryService {
     return value;
   }
 
-  private hasFeishuCli(): boolean {
-    const command = process.platform === 'win32' ? 'lark-cli.cmd' : 'lark-cli';
-    const result = spawnSync(command, ['--version'], {
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    return result.status === 0;
-  }
 
   private getStoredItem(
     config: StoredConnectorConfig,
