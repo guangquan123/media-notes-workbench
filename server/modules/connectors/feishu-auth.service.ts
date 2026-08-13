@@ -100,15 +100,23 @@ export class FeishuAuthService {
   async complete(sessionId: string): Promise<FeishuAuthComplete> {
     const deviceCode = this.sessions.get(sessionId);
     if (!deviceCode) return { completed: false, code: 'expired', message: '授权会话已失效，请重新发起' };
+
+    // 先检查是否已经完成授权（上一次轮询可能已由被超时杀掉的孤儿进程完成兑换）
+    if (await this.isAuthenticated()) {
+      this.sessions.delete(sessionId);
+      return { completed: true, code: 'success', message: '飞书授权成功' };
+    }
+
     try {
-      const result = await this.run(this.cli(), ['auth', 'login', '--device-code', deviceCode, '--json'], 25000);
-      const parsed = this.parseJson<{ ok?: boolean; error?: { message?: string; subtype?: string } }>(result.stdout);
-      if (parsed.ok === false) {
-        return { completed: false, code: 'pending', message: parsed.error?.message || '等待授权' };
-      }
+      await this.run(this.cli(), ['auth', 'login', '--device-code', deviceCode, '--json'], 25000);
       this.sessions.delete(sessionId);
       return { completed: true, code: 'success', message: '飞书授权成功' };
     } catch (error) {
+      // --device-code 可能因超时被终止，但真正的兑换由后台子进程完成；重新检查登录态
+      if (await this.isAuthenticated()) {
+        this.sessions.delete(sessionId);
+        return { completed: true, code: 'success', message: '飞书授权成功' };
+      }
       const detail = error instanceof Error ? error.message : String(error);
       if (detail && !/timeout|SIGKILL|等待授权/i.test(detail)) {
         this.logger.warn(`飞书授权完成检测失败: ${detail}`);
@@ -135,6 +143,19 @@ export class FeishuAuthService {
     await this.run(this.cli(), ['auth', 'logout']);
   }
 
+  private killTree(child: { pid?: number; kill: (signal?: NodeJS.Signals) => boolean }): void {
+    if (!child.pid) return;
+    if (process.platform === 'win32') {
+      try {
+        spawn('taskkill', ['/F', '/T', '/PID', String(child.pid)], { windowsHide: true, stdio: 'ignore' });
+      } catch {
+        child.kill();
+      }
+    } else {
+      child.kill('SIGTERM');
+    }
+  }
+
   private cli(): string { return process.platform === 'win32' ? 'lark-cli.cmd' : 'lark-cli'; }
 
   private parseJson<T>(stdout: string): T { try { return JSON.parse(stdout) as T; } catch { return {} as T; } }
@@ -143,7 +164,7 @@ export class FeishuAuthService {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: true });
       let stdout = ''; let stderr = '';
-      const timer = setTimeout(() => child.kill(), timeoutMs);
+      const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
       child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
       child.on('error', (error) => { clearTimeout(timer); reject(error); });
@@ -159,7 +180,7 @@ export class FeishuAuthService {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: true });
       let stdout = ''; let stderr = '';
-      const timer = setTimeout(() => child.kill(), timeoutMs);
+      const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdin.on('error', () => { /* ignore */ });
       child.stdin.write(`${stdin}\n`);
       child.stdin.end();
