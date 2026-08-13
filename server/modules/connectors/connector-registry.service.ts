@@ -28,8 +28,12 @@ const CONNECTOR_TYPES: ConnectorType[] = ['local', 'feishu', 'dingtalk'];
 
 @Injectable()
 export class ConnectorRegistryService {
-  private readonly configPath = join(process.cwd(), '.connector-config.json');
+  private readonly configPath: string;
   private current: StoredConnectorConfig | undefined;
+
+  constructor(baseDir: string = process.cwd()) {
+    this.configPath = join(baseDir, '.connector-config.json');
+  }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {
     const config = await this.load();
