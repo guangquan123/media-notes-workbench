@@ -83,9 +83,14 @@ export class DingTalkAuthService {
   }
 
   async complete(sessionId: string): Promise<DingTalkAuthComplete> {
+    // 优先检查真实登录态：后台 CLI 完成兑换后，即使内存 session 被清理也能正确判定成功
+    if (await this.isAuthenticated()) {
+      this.sessions.delete(sessionId);
+      return { completed: true, message: '钉钉授权成功' };
+    }
     const session = this.sessions.get(sessionId);
     if (!session) return { completed: false, message: '授权会话已失效，请重新发起' };
-    if (session.completed || await this.isAuthenticated()) {
+    if (session.completed) {
       this.sessions.delete(sessionId);
       return { completed: true, message: '钉钉授权成功' };
     }
