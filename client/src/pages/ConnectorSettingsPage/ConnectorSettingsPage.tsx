@@ -39,7 +39,7 @@ export default function ConnectorSettingsPage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [verificationUrl, setVerificationUrl] = useState('');
-  const [authDeviceCode, setAuthDeviceCode] = useState('');
+  const [authSessionId, setAuthSessionId] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   const [authExpiresAt, setAuthExpiresAt] = useState(0);
   const [remainingSec, setRemainingSec] = useState(0);
@@ -57,7 +57,7 @@ export default function ConnectorSettingsPage() {
   const selectConnector = (type: ConnectorType): void => {
     setSelected(type);
     setClientId(''); setClientSecret(''); setWebhookUrl(''); setUserId('');
-    setAuthStatus('idle'); setVerificationUrl(''); setAuthDeviceCode(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false);
+    setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false);
   };
 
   const startAuth = async (): Promise<void> => {
@@ -70,28 +70,28 @@ export default function ConnectorSettingsPage() {
         return;
       }
       setVerificationUrl(result.verificationUrl);
-      const deviceCode = "deviceCode" in result ? result.deviceCode : "";
-      setAuthDeviceCode(deviceCode);
+      const sessionId = result.sessionId;
+      setAuthSessionId(sessionId);
       setAuthMessage('请用手机扫描下方二维码，并在手机上确认授权');
       const expiresAt = Date.now() + result.expiresIn * 1000;
       setAuthExpiresAt(expiresAt);
-      void pollAuth(deviceCode);
+      void pollAuth(sessionId);
     } catch (error) {
       setAuthStatus('failed'); setAuthMessage(friendlyError(error));
     }
   };
 
-  const pollAuth = async (deviceCode: string): Promise<void> => {
+  const pollAuth = async (sessionId: string): Promise<void> => {
     try {
-      const result = selected === "feishu" ? await completeFeishuAuth(deviceCode) : await completeDingTalkAuth();
+      const result = selected === "feishu" ? await completeFeishuAuth(sessionId) : await completeDingTalkAuth(sessionId);
       if (result.completed) {
         setAuthStatus('completed'); setAuthMessage('授权成功！下面点击「保存并启用」即可'); toast.success('授权成功');
         setSettings(await getConnectorSettings());
         return;
       }
-      pollTimer.current = window.setTimeout(() => void pollAuth(deviceCode), 3000);
+      pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
     } catch {
-      pollTimer.current = window.setTimeout(() => void pollAuth(deviceCode), 3000);
+      pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
     }
   };
 
@@ -109,7 +109,7 @@ export default function ConnectorSettingsPage() {
     try {
       await logoutConnector(selected);
       toast.success('已断开授权');
-      setAuthStatus('idle'); setVerificationUrl(''); setAuthMessage(''); setAuthExpiresAt(0);
+      setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0);
       setSettings(await getConnectorSettings());
     } catch (error) {
       toast.error(friendlyError(error));

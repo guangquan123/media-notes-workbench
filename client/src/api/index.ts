@@ -596,7 +596,7 @@ export async function testConnector(
 }
 
 export interface FeishuAuthInitiate {
-  deviceCode: string;
+  sessionId: string;
   verificationUrl: string;
   expiresIn: number;
 }
@@ -615,20 +615,22 @@ export async function initiateFeishuAuth(): Promise<FeishuAuthInitiate> {
   return response.data;
 }
 
-export async function completeFeishuAuth(deviceCode: string): Promise<FeishuAuthComplete> {
+export async function completeFeishuAuth(sessionId: string): Promise<FeishuAuthComplete> {
   const response = await axiosForBackend({
     url: '/api/connectors/feishu/auth/complete',
     method: 'POST',
-    data: { deviceCode },
+    data: { sessionId },
     timeout: 30000,
   });
   return response.data;
 }
 
 export interface DingTalkAuthInitiate {
+  sessionId: string;
   verificationUrl: string;
   userCode: string;
   expiresIn: number;
+  alreadyAuthenticated: boolean;
 }
 
 export async function initiateDingTalkAuth(): Promise<DingTalkAuthInitiate> {
@@ -640,7 +642,7 @@ export async function initiateDingTalkAuth(): Promise<DingTalkAuthInitiate> {
   return response.data;
 }
 
-export async function completeDingTalkAuth(): Promise<{ completed: boolean; message: string }> {
+export async function completeDingTalkAuth(sessionId: string): Promise<{ completed: boolean; message: string }> {
   const response = await axiosForBackend({
     url: '/api/connectors/dingtalk/auth/complete',
     method: 'POST',

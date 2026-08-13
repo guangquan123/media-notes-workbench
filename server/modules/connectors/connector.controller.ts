@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Put, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type {
@@ -43,8 +43,12 @@ export class ConnectorController {
 
   @NeedLogin()
   @Post(':type/test')
-  test(@Param('type') type: string): Promise<ConnectorTestResponse> {
-    return this.registry.test(type);
+  async test(@Param('type') type: string): Promise<ConnectorTestResponse> {
+    const checkedAt = new Date().toISOString();
+    if (type === 'local') return { checkedAt, connector: 'local', message: '本地连接器始终可用', status: 'success' };
+    if (type === 'feishu') { const r = await this.feishuAuthService.testConnection(); return { checkedAt, connector: 'feishu', message: r.message, status: r.ok ? 'success' : 'failed' }; }
+    if (type === 'dingtalk') { const r = await this.dingTalkAuthService.testConnection(); return { checkedAt, connector: 'dingtalk', message: r.message, status: r.ok ? 'success' : 'failed' }; }
+    throw new BadRequestException('不支持的连接器类型');
   }
 
   @NeedLogin()
@@ -61,8 +65,8 @@ export class ConnectorController {
 
   @NeedLogin()
   @Post('dingtalk/auth/complete')
-  completeDingTalkAuth() {
-    return this.dingTalkAuthService.complete();
+  completeDingTalkAuth(@Body('sessionId') sessionId: string) {
+    return this.dingTalkAuthService.complete(sessionId);
   }
 
   @NeedLogin()
@@ -79,8 +83,8 @@ export class ConnectorController {
 
   @NeedLogin()
   @Post('feishu/auth/complete')
-  completeFeishuAuth(@Body('deviceCode') deviceCode: string) {
-    return this.feishuAuthService.complete(deviceCode);
+  completeFeishuAuth(@Body('sessionId') sessionId: string) {
+    return this.feishuAuthService.complete(sessionId);
   }
 
   @Get('local/documents/:id')
