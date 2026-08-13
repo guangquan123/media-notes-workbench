@@ -16,6 +16,7 @@ build/
 .external-model-config.json
 .task-notification-config.json
 .connector-config.json
+.runtime-config.json
 data/local-documents/
 
 # Logs

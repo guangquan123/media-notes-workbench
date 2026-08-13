@@ -12,6 +12,18 @@ export type NoteStyle = 'learning' | 'meeting';
 
 export type ConnectorType = 'local' | 'feishu' | 'dingtalk';
 
+export type RuntimeMode = 'miaoda' | 'local';
+
+export interface RuntimeStatus {
+  mode: RuntimeMode;
+  label: string;
+  auth: 'platform' | 'local';
+  database: 'platform' | 'local';
+  ai: 'builtin' | 'external';
+  storage: 'platform' | 'local';
+  ready: boolean;
+}
+
 export type ConnectorCapability =
   | 'document.read'
   | 'document.write'

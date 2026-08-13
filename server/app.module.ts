@@ -9,6 +9,7 @@ import { NoteJobsModule } from './modules/note-jobs/note-jobs.module';
 import { NoteInboxModule } from './modules/note-inbox/note-inbox.module';
 import { TaskNotificationModule } from './modules/task-notifications/task-notification.module';
 import { ConnectorModule } from './modules/connectors/connector.module';
+import { RuntimeModule } from './modules/runtime/runtime.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ConnectorModule } from './modules/connectors/connector.module';
     NoteInboxModule,
     TaskNotificationModule,
     ConnectorModule,
+    RuntimeModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last
