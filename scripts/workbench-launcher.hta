@@ -5,38 +5,53 @@
 <title>多媒体笔记工作台</title>
 <hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" commandline="yes" />
 <style>
-  html, body { margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f4f5f7; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif; background: #f6f7fb; color: #1a1a1a; }
   body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-  .card { width: 400px; border-radius: 16px; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,0.18); overflow: hidden; }
-  .head { display: flex; align-items: center; gap: 12px; padding: 20px 24px 16px; }
-  .logo { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #4f6bff, #7a5cff); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
-  .title { font-size: 16px; font-weight: 600; color: #161616; }
-  .subtitle { font-size: 12px; color: #7a7a7a; margin-top: 2px; }
-  .body { padding: 0 24px 20px; }
-  .steps { list-style: none; margin: 0; padding: 0; }
-  .step { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 13px; color: #444; }
-  .step .dot { width: 8px; height: 8px; border-radius: 50%; background: #d9d9d9; flex: none; }
-  .step.active .dot { background: #4f6bff; box-shadow: 0 0 0 4px rgba(79,107,255,0.15); }
-  .step.done .dot { background: #16a34a; }
+  .card { width: 420px; border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(20,30,70,0.16); overflow: hidden; }
+  .head { padding: 24px 26px 20px; background: linear-gradient(135deg, #4f6bff 0%, #7a5cff 100%); color: #fff; }
+  .head .row { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 44px; height: 44px; border-radius: 13px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-size: 22px; backdrop-filter: blur(6px); }
+  .title { font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+  .subtitle { font-size: 12.5px; opacity: 0.85; margin-top: 3px; }
+  .body { padding: 22px 26px 20px; }
+  .steps { list-style: none; margin: 0 0 18px; padding: 0; }
+  .step { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: 14px; color: #6b7280; }
+  .step .icon { width: 22px; height: 22px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; background: #e5e7eb; color: #9ca3af; }
+  .step.active { color: #4f6bff; }
+  .step.active .icon { background: #4f6bff; color: #fff; }
   .step.done { color: #16a34a; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #d9d9d9; border-top-color: #4f6bff; border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
+  .step.done .icon { background: #16a34a; color: #fff; }
+  .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .footer { padding: 14px 24px; border-top: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
-  .msg { font-size: 12px; color: #7a7a7a; }
-  .btn { border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; background: #111315; color: #fff; }
-  .btn.ghost { background: #f1f1f1; color: #444; }
+  .progress { height: 6px; border-radius: 3px; background: #eef0f5; overflow: hidden; }
+  .progress .bar { height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(90deg, #4f6bff, #7a5cff); transition: width 0.5s ease; }
+  .footer { padding: 16px 26px; border-top: 1px solid #f0f1f5; display: flex; align-items: center; justify-content: space-between; }
+  .msg { font-size: 13px; color: #6b7280; }
+  .msg.ok { color: #16a34a; }
+  .msg.err { color: #dc2626; }
+  .actions { display: flex; gap: 8px; }
+  .btn { border: none; border-radius: 10px; padding: 8px 16px; font-size: 13px; cursor: pointer; background: #111315; color: #fff; font-weight: 500; }
+  .btn:hover { background: #000; }
+  .btn.ghost { background: #f1f2f6; color: #374151; }
+  .btn.ghost:hover { background: #e5e7eb; }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="head">
-      <div class="logo">&#128172;</div>
-      <div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备…</div></div>
+      <div class="row">
+        <div class="logo">&#128172;</div>
+        <div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备…</div></div>
+      </div>
     </div>
-    <div class="body"><ul class="steps" id="steps"></ul></div>
+    <div class="body">
+      <ul class="steps" id="steps"></ul>
+      <div class="progress"><div class="bar" id="bar"></div></div>
+    </div>
     <div class="footer">
       <div class="msg" id="msg"></div>
-      <div style="display:flex; gap:8px;">
+      <div class="actions">
         <button class="btn ghost" id="logBtn" style="display:none" onclick="openLog()">打开日志</button>
         <button class="btn" id="closeBtn" onclick="window.close()">关闭</button>
       </div>
@@ -44,71 +59,56 @@
   </div>
 <script>
   var action = "restart";
-  try {
-    var m = (oHTA.commandLine || "").match(/\b(start|restart|stop)\b/i);
-    if (m) action = m[1].toLowerCase();
-  } catch (e) {}
+  try { var m = (oHTA.commandLine || "").match(/\b(start|restart|stop)\b/i); if (m) action = m[1].toLowerCase(); } catch (e) {}
 
   var shell = null;
   try { shell = new ActiveXObject("WScript.Shell"); } catch (e) {}
 
   var steps = (action === "stop") ? ["停止服务"] : ["停止旧服务", "启动后端", "启动前端", "启动完成"];
   var stepIndex = -1;
-  var timers = [];
 
   function renderSteps() {
     var list = document.getElementById("steps");
     var html = "";
     for (var i = 0; i < steps.length; i++) {
-      var cls = "step";
-      var status = "";
-      if (i < stepIndex) { cls += " done"; status = "&#10003; "; }
-      else if (i === stepIndex) { cls += " active"; status = '<span class="spinner"></span>'; }
-      else { status = '<span class="dot"></span>'; }
-      html += '<li class="' + cls + '">' + status + steps[i] + '</li>';
+      var cls = "step"; var icon = "";
+      if (i < stepIndex) { cls += " done"; icon = "&#10003;"; }
+      else if (i === stepIndex) { cls += " active"; icon = '<span class="spinner"></span>'; }
+      else { icon = "&#9679;"; }
+      html += '<li class="' + cls + '"><span class="icon">' + icon + '</span>' + steps[i] + '</li>';
     }
     list.innerHTML = html;
+    var pct = stepIndex < 0 ? 0 : Math.round(((stepIndex + 1) / steps.length) * 100);
+    document.getElementById("bar").style.width = pct + "%";
   }
 
-  function setMsg(text) { document.getElementById("msg").textContent = text; }
-
-  function openLog() {
-    if (!shell) return;
-    try { shell.Run("notepad.exe logs\dev.std.log", 1, false); } catch (e) {}
+  function setMsg(text, kind) {
+    var el = document.getElementById("msg");
+    el.textContent = text;
+    el.className = "msg" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
   }
 
-  function finish() {
+  function openLog() { if (shell) { try { shell.Run("notepad.exe logs\dev.std.log", 1, false); } catch (e) {} } }
+
+  function finish(ok, text) {
     stepIndex = steps.length - 1;
     renderSteps();
-    document.getElementById("subtitle").textContent = "启动完成";
-    setMsg("已启动完成，可以开始使用了");
-    document.getElementById("logBtn").style.display = "inline-block";
+    document.getElementById("subtitle").textContent = ok ? "启动完成" : "启动未完成";
+    setMsg(text, ok ? "ok" : "err");
+    if (!ok) { document.getElementById("logBtn").style.display = "inline-block"; }
     var n = 5;
     document.getElementById("closeBtn").textContent = "立即关闭";
-    var timer = setInterval(function () {
-      n -= 1;
-      if (n <= 0) { window.close(); return; }
-      document.getElementById("closeBtn").textContent = n + " 秒后自动关闭";
-    }, 1000);
-    timers.push(timer);
-  }
-
-  function advance(idx) {
-    if (idx >= steps.length - 1) { finish(); return; }
-    stepIndex = idx;
-    renderSteps();
+    var t = setInterval(function () { n -= 1; if (n <= 0) { window.close(); return; } document.getElementById("closeBtn").textContent = n + " 秒后自动关闭"; }, 1000);
   }
 
   (function start() {
-    window.resizeTo(430, 400);
+    window.resizeTo(440, 420);
     var scriptName = action + ":windows";
     var ok = false;
-    if (shell) {
-      try { shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false); ok = true; } catch (e) { ok = false; }
-    }
+    if (shell) { try { shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false); ok = true; } catch (e) { ok = false; } }
     if (!ok) {
       document.getElementById("subtitle").textContent = "启动失败";
-      setMsg("无法执行启动命令，请检查是否已安装 npm");
+      setMsg("无法执行启动命令，请检查 npm 是否安装", "err");
       document.getElementById("logBtn").style.display = "inline-block";
       return;
     }
@@ -117,16 +117,14 @@
     renderSteps();
 
     if (action === "stop") {
-      stepIndex = 0;
-      renderSteps();
-      setTimeout(function () { stepIndex = 0; renderSteps(); document.getElementById("subtitle").textContent = "已停止"; setMsg("已停止服务"); var n = 3; document.getElementById("closeBtn").textContent = "立即关闭"; var t = setInterval(function () { n -= 1; if (n <= 0) { window.close(); return; } document.getElementById("closeBtn").textContent = n + " 秒后自动关闭"; }, 1000); timers.push(t); }, 2500);
+      stepIndex = 0; renderSteps();
+      setTimeout(function () { finish(true, "已停止服务"); }, 2500);
       return;
     }
-
-    setTimeout(function () { advance(0); }, 1000);
-    setTimeout(function () { advance(1); }, 6000);
-    setTimeout(function () { advance(2); }, 14000);
-    setTimeout(function () { finish(); }, 22000);
+    setTimeout(function () { stepIndex = 0; renderSteps(); }, 1000);
+    setTimeout(function () { stepIndex = 1; renderSteps(); }, 6000);
+    setTimeout(function () { stepIndex = 2; renderSteps(); }, 14000);
+    setTimeout(function () { finish(true, "已启动完成，可以开始使用了"); }, 22000);
   })();
 </script>
 </body>

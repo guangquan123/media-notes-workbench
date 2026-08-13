@@ -8,6 +8,7 @@ export interface FeishuAuthInitiate {
   sessionId: string;
   verificationUrl: string;
   expiresIn: number;
+  alreadyAuthenticated: boolean;
 }
 
 export interface FeishuAuthComplete {
@@ -25,28 +26,37 @@ export class FeishuAuthService {
   private readonly logger = new Logger(FeishuAuthService.name);
   private readonly sessions = new Map<string, string>();
 
+  private async isAuthenticated(): Promise<boolean> {
+    try {
+      const result = await this.run(this.cli(), ['auth', 'status', '--json']);
+      const parsed = this.parseJson<{ identities?: { user?: { available?: boolean; tokenStatus?: string } } }>(result.stdout);
+      return parsed.identities?.user?.available === true && parsed.identities.user.tokenStatus === 'valid';
+    } catch {
+      return false;
+    }
+  }
+
   async initiate(): Promise<FeishuAuthInitiate> {
+    if (await this.isAuthenticated()) {
+      return { sessionId: '', verificationUrl: '', expiresIn: 0, alreadyAuthenticated: true };
+    }
     const result = await this.run(this.cli(), ['auth', 'login', '--no-wait', '--json', '--domain', 'docs,task,drive,im']);
     const parsed = this.parseJson<{ device_code?: string; verification_url?: string; expires_in?: number; error?: { message?: string } }>(result.stdout);
     if (!parsed.device_code || !parsed.verification_url) throw new Error(parsed.error?.message || '飞书授权发起失败');
     const sessionId = randomUUID();
     this.sessions.set(sessionId, parsed.device_code);
-    return { sessionId, verificationUrl: parsed.verification_url, expiresIn: parsed.expires_in || 600 };
+    return { sessionId, verificationUrl: parsed.verification_url, expiresIn: parsed.expires_in || 600, alreadyAuthenticated: false };
   }
 
   async complete(sessionId: string): Promise<FeishuAuthComplete> {
     const deviceCode = this.sessions.get(sessionId);
     if (!deviceCode) return { completed: false, message: '授权会话已失效，请重新发起' };
-    try {
-      const result = await this.run(this.cli(), ['auth', 'login', '--device-code', deviceCode, '--json'], 15000);
-      const parsed = this.parseJson<{ ok?: boolean; error?: { message?: string } }>(result.stdout);
-      if (parsed.ok === false) return { completed: false, message: parsed.error?.message || '等待授权' };
+    // 用 auth status 判断是否已完成授权（避免 --device-code 阻塞）
+    if (await this.isAuthenticated()) {
       this.sessions.delete(sessionId);
       return { completed: true, message: '飞书授权成功' };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '等待授权';
-      return { completed: false, message };
     }
+    return { completed: false, message: '等待授权' };
   }
 
   async testConnection(): Promise<FeishuConnectionTest> {
@@ -65,13 +75,8 @@ export class FeishuAuthService {
     await this.run(this.cli(), ['auth', 'logout']);
   }
 
-  private cli(): string {
-    return process.platform === 'win32' ? 'lark-cli.cmd' : 'lark-cli';
-  }
-
-  private parseJson<T>(stdout: string): T {
-    try { return JSON.parse(stdout) as T; } catch { return {} as T; }
-  }
+  private cli(): string { return process.platform === 'win32' ? 'lark-cli.cmd' : 'lark-cli'; }
+  private parseJson<T>(stdout: string): T { try { return JSON.parse(stdout) as T; } catch { return {} as T; } }
 
   private run(command: string, args: string[], timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {

@@ -599,6 +599,7 @@ export interface FeishuAuthInitiate {
   sessionId: string;
   verificationUrl: string;
   expiresIn: number;
+  alreadyAuthenticated: boolean;
 }
 
 export interface FeishuAuthComplete {
