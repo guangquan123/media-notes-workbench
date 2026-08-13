@@ -32,6 +32,7 @@ export default function ConnectorSettingsPage() {
   const [selected, setSelected] = useState<ConnectorType>('local');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
+  const [useCustomApp, setUseCustomApp] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [userId, setUserId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,14 +58,14 @@ export default function ConnectorSettingsPage() {
   const selectConnector = (type: ConnectorType): void => {
     setSelected(type);
     setClientId(''); setClientSecret(''); setWebhookUrl(''); setUserId('');
-    setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false);
+    setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false); setUseCustomApp(false);
   };
 
   const startAuth = async (): Promise<void> => {
     setAuthStatus('pending'); setAuthMessage('正在生成二维码…'); setVerificationUrl(''); setAuthExpiresAt(0);
     try {
       const isFeishu = selected === "feishu";
-      const result = isFeishu ? await initiateFeishuAuth() : await initiateDingTalkAuth();
+      const result = isFeishu ? await initiateFeishuAuth(useCustomApp ? clientId : undefined, useCustomApp ? clientSecret : undefined) : await initiateDingTalkAuth();
       if ('alreadyAuthenticated' in result && result.alreadyAuthenticated) {
         setAuthStatus('completed'); setAuthMessage('检测到你已经授权过，无需重复扫码'); toast.success('已授权');
         return;
@@ -87,6 +88,10 @@ export default function ConnectorSettingsPage() {
       if (result.completed) {
         setAuthStatus('completed'); setAuthMessage('授权成功！下面点击「保存并启用」即可'); toast.success('授权成功');
         setSettings(await getConnectorSettings());
+        return;
+      }
+      if ('code' in result && result.code === 'expired') {
+        setAuthStatus('expired'); setAuthMessage(result.message || '二维码已过期，请点击上方按钮重新生成');
         return;
       }
       pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
@@ -166,6 +171,29 @@ export default function ConnectorSettingsPage() {
 
         <section className="mt-8 space-y-6 rounded-2xl border border-black/8 bg-white p-6">
           <div><h1 className="text-2xl font-semibold">{label}连接器</h1><p className="mt-2 text-sm leading-6 text-black/55">{selected === "local" ? "选择本地后，所有内容保存在这台电脑上，无需任何外部账号，最适合刚开始使用。" : `把${label}作为协作平台，生成的笔记和待办会自动同步过去。`}</p></div>
+
+          {selected === "feishu" && (
+            <div className="rounded-xl border border-black/8 bg-white p-4">
+              <div className="flex items-start gap-2"><Cable className="mt-0.5 size-4 shrink-0 text-black/55" /><div><p className="font-medium">飞书应用</p><p className="mt-1 text-xs text-black/50">选择扫码授权时使用的飞书应用。</p></div></div>
+              <div className="mt-3 grid gap-2">
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${useCustomApp ? "border-black/8" : "border-[#111315] bg-black/[0.02]"}`}>
+                  <input checked={!useCustomApp} className="mt-1" onChange={(): void => setUseCustomApp(false)} type="radio" />
+                  <span><span className="block text-sm font-medium">使用飞书官方应用（推荐）</span><span className="mt-0.5 block text-xs text-black/50">无需任何配置，直接扫码授权即可。</span></span>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${useCustomApp ? "border-[#111315] bg-black/[0.02]" : "border-black/8"}`}>
+                  <input checked={useCustomApp} className="mt-1" onChange={(): void => setUseCustomApp(true)} type="radio" />
+                  <span><span className="block text-sm font-medium">使用自定义应用</span><span className="mt-0.5 block text-xs text-black/50">使用你在飞书开放平台创建的自建应用。</span></span>
+                </label>
+              </div>
+              {useCustomApp && (
+                <div className="mt-3 grid gap-3">
+                  <Input onChange={(e): void => setClientId(e.target.value)} placeholder="App ID（通常以 cli_ 开头）" value={clientId} />
+                  <Input onChange={(e): void => setClientSecret(e.target.value)} placeholder="App Secret" type="password" value={clientSecret} />
+                  <p className="text-xs leading-5 text-black/50">还没有应用？前往 <a className="text-blue-600 underline" href="https://open.feishu.cn/app" rel="noreferrer" target="_blank">飞书开放平台</a> 创建「企业自建应用」，在「凭证与基础信息」里获取 App ID 和 App Secret。</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {selected !== "local" && (
             <div className="rounded-xl border border-black/8 bg-black/[0.02] p-4">

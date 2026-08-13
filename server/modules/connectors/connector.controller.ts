@@ -52,9 +52,15 @@ export class ConnectorController {
   }
 
   @NeedLogin()
+  @Get('feishu/app-info')
+  getFeishuAppInfo() {
+    return this.feishuAuthService.getAppInfo();
+  }
+
+  @NeedLogin()
   @Post('feishu/auth/initiate')
-  initiateFeishuAuth() {
-    return this.feishuAuthService.initiate();
+  initiateFeishuAuth(@Body() body: { appId?: string; appSecret?: string }) {
+    return this.feishuAuthService.initiate(body.appId, body.appSecret);
   }
 
   @NeedLogin()

@@ -600,18 +600,36 @@ export interface FeishuAuthInitiate {
   verificationUrl: string;
   expiresIn: number;
   alreadyAuthenticated: boolean;
+  appId: string;
 }
 
 export interface FeishuAuthComplete {
   completed: boolean;
+  code: 'success' | 'pending' | 'expired';
   message: string;
 }
 
-export async function initiateFeishuAuth(): Promise<FeishuAuthInitiate> {
+export async function initiateFeishuAuth(appId?: string, appSecret?: string): Promise<FeishuAuthInitiate> {
   const response = await axiosForBackend({
     url: '/api/connectors/feishu/auth/initiate',
     method: 'POST',
+    data: { appId: appId || undefined, appSecret: appSecret || undefined },
     timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export interface FeishuAppInfo {
+  appId: string;
+  brand: string;
+  usingDefault: boolean;
+}
+
+export async function getFeishuAppInfo(): Promise<FeishuAppInfo> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/feishu/app-info',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
 }
