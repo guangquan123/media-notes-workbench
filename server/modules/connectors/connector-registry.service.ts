@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -31,8 +31,8 @@ export class ConnectorRegistryService {
   private readonly configPath: string;
   private current: StoredConnectorConfig | undefined;
 
-  constructor(baseDir: string = process.cwd()) {
-    this.configPath = join(baseDir, '.connector-config.json');
+  constructor(@Optional() baseDir?: string) {
+    this.configPath = join(baseDir || process.cwd(), '.connector-config.json');
   }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {

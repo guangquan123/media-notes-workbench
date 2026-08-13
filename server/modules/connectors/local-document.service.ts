@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,8 +12,8 @@ export interface LocalDocumentResult {
 export class LocalDocumentService {
   private readonly directory: string;
 
-  constructor(baseDir: string = process.cwd()) {
-    this.directory = join(baseDir, 'data', 'local-documents');
+  constructor(@Optional() baseDir?: string) {
+    this.directory = join(baseDir || process.cwd(), 'data', 'local-documents');
   }
 
   async create(title: string, markdown: string): Promise<LocalDocumentResult> {

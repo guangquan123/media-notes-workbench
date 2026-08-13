@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RuntimeStatus } from '@shared/api.interface';
@@ -9,7 +9,7 @@ export class RuntimeRegistryService {
   private readonly configPath = join(process.cwd(), '.runtime-config.json');
   private current: RuntimeConfig | undefined;
 
-  constructor(configPath?: string) {
+  constructor(@Optional() configPath?: string) {
     if (configPath) this.configPath = configPath;
   }
 
