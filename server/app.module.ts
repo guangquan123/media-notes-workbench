@@ -11,12 +11,15 @@ import { TaskNotificationModule } from './modules/task-notifications/task-notifi
 import { ConnectorModule } from './modules/connectors/connector.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { DatabaseModule } from './database/database.module';
+import { LocalPlatformModule } from './modules/runtime/local-platform.module';
+import { isLocalRuntime } from './modules/runtime/runtime.config';
 
 @Module({
   imports: [
     // 平台 Module，提供平台能力
-    PlatformModule.forRoot(),
+    ...(isLocalRuntime() ? [] : [PlatformModule.forRoot()]),
     DatabaseModule.forRoot(),
+    ...(isLocalRuntime() ? [LocalPlatformModule] : []),
     // ====== @route-section: business-modules START ======
     ArticleExportModule,
     NoteJobsModule,

@@ -32,3 +32,14 @@ export function normalizeRuntimeConfig(input: unknown): RuntimeConfig {
     storage: { kind: storage.kind === 'local' ? 'local' : 'platform', root: typeof storage.root === 'string' ? storage.root : undefined },
   };
 }
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+export function isLocalRuntime(): boolean {
+  try {
+    return normalizeRuntimeConfig(JSON.parse(readFileSync(join(process.cwd(), '.runtime-config.json'), 'utf8'))).mode === 'local';
+  } catch {
+    return false;
+  }
+}
