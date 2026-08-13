@@ -22,6 +22,7 @@ import {
   ExternalModelSettingsService,
   type ExternalModelCredentials,
 } from './external-model-settings.service';
+import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
 import { extractHighValueSourceAnchors } from './note-summary-source-anchors.utils';
 
 interface EvidenceCacheEntry {
@@ -83,6 +84,7 @@ export class NoteSummaryPipelineService {
   constructor(
     @Inject() private readonly capabilityService: CapabilityService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
+    private readonly runtimeRegistryService: RuntimeRegistryService,
   ) {}
 
   async generate(
@@ -426,6 +428,9 @@ export class NoteSummaryPipelineService {
           text: externalResult,
         };
       }
+    }
+    if (await this.runtimeRegistryService.isLocal()) {
+      throw new Error('本地模式未配置外部 AI 模型，请先在「模型设置」中配置并启用外部模型。');
     }
     return {
       modelName: '妙搭内置 AI',
