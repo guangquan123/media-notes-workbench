@@ -12,5 +12,5 @@ For index = 1 To WScript.Arguments.Count - 1
   commandLine = commandLine & " " & Chr(34) & Replace(WScript.Arguments(index), Chr(34), Chr(34) & Chr(34)) & Chr(34)
 Next
 
-exitCode = shell.Run(commandLine, 0, True)
+exitCode = shell.Run(commandLine, 0, False)
 WScript.Quit exitCode

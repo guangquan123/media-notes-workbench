@@ -53,7 +53,7 @@ if (process.platform === 'win32') {
   const inspectionBlocked = inspection.error?.code === 'EPERM';
   if (
     !inspectionBlocked &&
-    (inspection.status !== 0 || !commandLine.includes('scripts/dev-windows.js'))
+    (inspection.status !== 0 || !commandLine.includes('scripts/dev-local.js') && !commandLine.includes('scripts/dev.js'))
   ) {
     const reason = (
       inspection.stderr ||

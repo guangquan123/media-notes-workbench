@@ -1,9 +1,11 @@
 Option Explicit
-Dim shell, root
+Dim shell, root, code
 Set shell = CreateObject("WScript.Shell")
 root = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
 shell.CurrentDirectory = root
-WScript.Quit shell.Run("wscript.exe " & Quote(root & "\scripts\run-hidden.vbs") & " npm.cmd run stop:windows", 0, True)
-Function Quote(value)
-  Quote = Chr(34) & Replace(value, Chr(34), Chr(34) & Chr(34)) & Chr(34)
-End Function
+
+code = shell.Run("cmd.exe /c npm.cmd run stop:windows", 1, True)
+
+MsgBox "已停止多媒体笔记工作台。", vbInformation, "多媒体笔记工作台"
+
+WScript.Quit code
