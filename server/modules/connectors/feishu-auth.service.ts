@@ -62,7 +62,7 @@ export class FeishuAuthService {
 
   private run(command: string, args: string[], timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: true });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => { child.kill('SIGKILL'); }, timeoutMs);
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
