@@ -10,6 +10,50 @@ export type NoteSourceType =
 
 export type NoteStyle = 'learning' | 'meeting';
 
+export type ConnectorType = 'local' | 'feishu' | 'dingtalk';
+
+export type ConnectorCapability =
+  | 'document.read'
+  | 'document.write'
+  | 'document.media'
+  | 'task.read'
+  | 'task.write'
+  | 'inbox.read'
+  | 'notification.send'
+  | 'identity.read';
+
+export type ConnectorStatus = 'ready' | 'unconfigured' | 'disabled' | 'error';
+
+export interface ConnectorDescriptor {
+  capabilities: ConnectorCapability[];
+  configured: boolean;
+  enabled: boolean;
+  label: string;
+  lastCheckedAt?: string;
+  lastError?: string;
+  status: ConnectorStatus;
+  type: ConnectorType;
+}
+
+export interface ConnectorSettingsResponse {
+  activeConnector: ConnectorType;
+  items: ConnectorDescriptor[];
+}
+
+export interface UpdateConnectorRequest {
+  clientId?: string;
+  clientSecret?: string;
+  enabled?: boolean;
+  webhookUrl?: string;
+}
+
+export interface ConnectorTestResponse {
+  checkedAt: string;
+  connector: ConnectorType;
+  message: string;
+  status: 'success' | 'failed';
+}
+
 export interface NoteTemplateConfig {
   activeVersionId?: string;
   activeVersionNumber?: number;
@@ -326,6 +370,8 @@ export interface SystemReadiness {
   documentReady: boolean;
   /** @deprecated 旧客户端兼容字段，请使用 documentReady。 */
   pdfReady: boolean;
+  connectorType?: ConnectorType;
+  connectorReady?: boolean;
 }
 
 export interface TencentAsrSettings {
@@ -384,6 +430,7 @@ export type TaskNotificationEvent = 'completed' | 'failed' | 'cancelled';
 export type TaskNotificationTestStatus = 'success' | 'failed';
 
 export interface TaskNotificationWebhook {
+  connectorType?: ConnectorType;
   enabled: boolean;
   id: string;
   lastTestAt?: string;
@@ -400,6 +447,7 @@ export interface TaskNotificationSettings {
 }
 
 export interface CreateTaskNotificationWebhookRequest {
+  connectorType?: ConnectorType;
   enabled: boolean;
   name: string;
   secret?: string;
@@ -407,6 +455,7 @@ export interface CreateTaskNotificationWebhookRequest {
 }
 
 export interface UpdateTaskNotificationWebhookRequest {
+  connectorType?: ConnectorType;
   enabled: boolean;
   name: string;
   /** 留空表示保留已保存的签名密钥。 */
@@ -609,4 +658,6 @@ export interface ArticleExportReadiness {
   larkCli: boolean;
   larkAuth: boolean;
   ready: boolean;
+  connectorType?: ConnectorType;
+  connectorReady?: boolean;
 }

@@ -172,7 +172,7 @@ export default function HomePage() {
       !readiness.ffmpeg && 'ffmpeg',
       !readiness.whisperCli && 'Whisper',
       !readiness.whisperModel && 'Whisper 模型',
-      !readiness.larkCli && '飞书 CLI',
+      readiness.connectorReady === false && '当前连接器',
     ].filter(Boolean);
     return missing.length
       ? `缺少：${missing.join('、')}`

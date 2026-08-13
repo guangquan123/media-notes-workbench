@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { ArticleExportController } from './article-export.controller';
 import { ArticleExportService } from './article-export.service';
 import { TaskNotificationModule } from '../task-notifications/task-notification.module';
+import { ConnectorModule } from '../connectors/connector.module';
 
 @Module({
   controllers: [ArticleExportController],
-  imports: [TaskNotificationModule],
+  imports: [ConnectorModule, TaskNotificationModule],
   providers: [ArticleExportService],
 })
 export class ArticleExportModule {}

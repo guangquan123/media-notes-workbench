@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import { createHmac, randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -10,7 +10,9 @@ import type {
   TaskNotificationSettings,
   TaskNotificationWebhook,
   UpdateTaskNotificationWebhookRequest,
+  ConnectorType,
 } from '@shared/api.interface';
+import { ConnectorRegistryService } from '../connectors/connector-registry.service';
 
 const MAX_WEBHOOKS = 20;
 const WEBHOOK_TIMEOUT_MS = 5000;
@@ -18,6 +20,7 @@ const WEBHOOK_RETRY_DELAYS_MS = [1000, 3000] as const;
 const FEISHU_WEBHOOK_HOSTS = ['open.feishu.cn', 'open.larksuite.com'] as const;
 
 interface StoredWebhook {
+  connectorType: ConnectorType;
   enabled: boolean;
   id: string;
   lastTestAt?: string;
@@ -53,13 +56,17 @@ export class TaskNotificationService {
   private current: StoredConfig | undefined;
   private readonly notifiedEvents = new Set<string>();
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    @Optional() private readonly connectorRegistryService?: ConnectorRegistryService,
+  ) {}
 
   async getSettings(): Promise<TaskNotificationSettings> {
     const config: StoredConfig = await this.load();
     return {
       configured: config.items.length > 0,
       items: config.items.map((item: StoredWebhook): TaskNotificationWebhook => ({
+        connectorType: item.connectorType,
         enabled: item.enabled,
         id: item.id,
         lastTestAt: item.lastTestAt,
@@ -80,11 +87,12 @@ export class TaskNotificationService {
       throw new BadRequestException(`最多配置 ${MAX_WEBHOOKS} 个飞书机器人。`);
     }
     const next: StoredWebhook = {
+      connectorType: input.connectorType || 'feishu',
       enabled: input.enabled,
       id: randomUUID(),
       name: validateName(input.name),
       secret: input.secret?.trim() || '',
-      url: validateFeishuWebhookUrl(input.url),
+      url: validateWebhookUrl(input.url, input.connectorType || 'feishu'),
     };
     this.assertUniqueUrl(config.items, next.url);
     await this.save({ items: [...config.items, next] });
@@ -100,12 +108,14 @@ export class TaskNotificationService {
       (item: StoredWebhook): boolean => item.id === id,
     );
     if (!current) throw new BadRequestException('飞书机器人配置不存在。');
+    const connectorType = input.connectorType || current.connectorType;
     const url: string = input.url.trim()
-      ? validateFeishuWebhookUrl(input.url)
+      ? validateWebhookUrl(input.url, connectorType)
       : current.url;
     this.assertUniqueUrl(config.items, url, id);
     const next: StoredWebhook = {
       ...current,
+      connectorType,
       enabled: input.enabled,
       name: validateName(input.name),
       secret: input.secret?.trim() || current.secret,
@@ -146,11 +156,12 @@ export class TaskNotificationService {
     input: CreateTaskNotificationWebhookRequest,
   ): Promise<TaskNotificationConnectionStatus> {
     const webhook: StoredWebhook = {
+      connectorType: input.connectorType || 'feishu',
       enabled: input.enabled,
       id: 'test',
       name: validateName(input.name),
       secret: input.secret?.trim() || '',
-      url: validateFeishuWebhookUrl(input.url),
+      url: validateWebhookUrl(input.url, input.connectorType || 'feishu'),
     };
     return this.sendTest(webhook);
   }
@@ -161,9 +172,17 @@ export class TaskNotificationService {
     this.notifiedEvents.add(eventKey);
 
     const config: StoredConfig = await this.load();
+    const activeConnector = this.connectorRegistryService
+      ? await this.connectorRegistryService.getActiveConnector()
+      : 'feishu';
     const webhooks: StoredWebhook[] = config.items.filter(
-      (item: StoredWebhook): boolean => item.enabled,
+      (item: StoredWebhook): boolean =>
+        item.enabled && item.connectorType === activeConnector,
     );
+    if (activeConnector === 'local' && webhooks.length === 0) {
+      this.logger.log(`本地连接器任务通知: ${buildTaskText(input)}`);
+      return;
+    }
     await Promise.all(
       webhooks.map(async (webhook: StoredWebhook): Promise<void> => {
         try {
@@ -235,18 +254,23 @@ export class TaskNotificationService {
 
   private async sendOnce(webhook: StoredWebhook, text: string): Promise<void> {
     const timestamp: string = String(Math.floor(Date.now() / 1000));
-    const body: { content: { text: string }; msg_type: 'text'; timestamp?: string; sign?: string } = {
-      content: { text },
-      msg_type: 'text',
-    };
-    if (webhook.secret) {
-      body.timestamp = timestamp;
-      body.sign = buildFeishuSign(timestamp, webhook.secret);
-    }
-    const response = await this.httpService.axiosRef.post(webhook.url, body, {
+    const isDingTalk = webhook.connectorType === 'dingtalk';
+    const body = isDingTalk
+      ? { msgtype: 'text', text: { content: text } }
+      : {
+          content: { text },
+          msg_type: 'text' as const,
+          ...(webhook.secret
+            ? { timestamp, sign: buildFeishuSign(timestamp, webhook.secret) }
+            : {}),
+        };
+    const responseUrl = isDingTalk && webhook.secret
+      ? `${webhook.url}${webhook.url.includes('?') ? '&' : '?'}timestamp=${timestamp}&sign=${encodeURIComponent(buildDingTalkSign(timestamp, webhook.secret))}`
+      : webhook.url;
+    const response = await this.httpService.axiosRef.post(responseUrl, body, {
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'media-notes-workbench/feishu-notification',
+        'User-Agent': `media-notes-workbench/${webhook.connectorType}-notification`,
       },
       maxRedirects: 0,
       timeout: WEBHOOK_TIMEOUT_MS,
@@ -256,8 +280,8 @@ export class TaskNotificationService {
       throw new Error(`HTTP ${response.status}`);
     }
     const responseBody: unknown = response.data;
-    if (isFeishuFailure(responseBody)) {
-      throw new Error(`飞书返回错误 ${responseBody.code ?? responseBody.StatusCode}`);
+    if (isConnectorFailure(responseBody)) {
+      throw new Error(`${webhook.connectorType} 返回错误 ${responseBody.code ?? responseBody.StatusCode}`);
     }
   }
 
@@ -314,6 +338,10 @@ function validateName(value: string): string {
 }
 
 export function validateFeishuWebhookUrl(value: string): string {
+  return validateWebhookUrl(value, 'feishu');
+}
+
+function validateWebhookUrl(value: string, connectorType: ConnectorType): string {
   const url: string = value.trim();
   let parsed: URL;
   try {
@@ -327,13 +355,23 @@ export function validateFeishuWebhookUrl(value: string): string {
   if (parsed.username || parsed.password || url.length > 2048) {
     throw new BadRequestException('Webhook 地址格式不安全或过长。');
   }
+  const allowedHosts = connectorType === 'dingtalk'
+    ? ['oapi.dingtalk.com']
+    : FEISHU_WEBHOOK_HOSTS;
+  const requiredPath = connectorType === 'dingtalk'
+    ? '/robot/send'
+    : '/open-apis/bot/v2/hook/';
   if (
-    !FEISHU_WEBHOOK_HOSTS.some(
+    !allowedHosts.some(
       (host: string): boolean => host === parsed.hostname,
     ) ||
-    !parsed.pathname.startsWith('/open-apis/bot/v2/hook/')
+    !parsed.pathname.startsWith(requiredPath)
   ) {
-    throw new BadRequestException('请填写飞书机器人提供的 Webhook 地址。');
+    throw new BadRequestException(
+      connectorType === 'feishu'
+        ? '请填写飞书机器人提供的 Webhook 地址。'
+        : `${connectorType} 机器人 Webhook 地址格式不正确。`,
+    );
   }
   return url;
 }
@@ -344,6 +382,9 @@ function normalizeConfig(input: Partial<StoredConfig>): StoredConfig {
   const items: StoredWebhook[] = rawItems
     .filter((item: unknown): item is Partial<StoredWebhook> => isObject(item))
     .map((item: Partial<StoredWebhook>): StoredWebhook => ({
+      connectorType: item.connectorType === 'dingtalk' || item.connectorType === 'local'
+        ? item.connectorType
+        : 'feishu',
       enabled: item.enabled === true,
       id: typeof item.id === 'string' && item.id ? item.id : randomUUID(),
       lastTestAt: typeof item.lastTestAt === 'string' ? item.lastTestAt : undefined,
@@ -377,6 +418,12 @@ export function buildFeishuSign(timestamp: string, secret: string): string {
   return createHmac('sha256', stringToSign).digest('base64');
 }
 
+export function buildDingTalkSign(timestamp: string, secret: string): string {
+  return createHmac('sha256', secret)
+    .update(`${timestamp}\n${secret}`)
+    .digest('base64');
+}
+
 export function buildTaskText(input: TaskNotificationInput): string {
   const statusLabel: { completed: string; failed: string; cancelled: string } = {
     cancelled: '已取消',
@@ -400,7 +447,7 @@ export function buildTaskText(input: TaskNotificationInput): string {
   return lines.join('\n');
 }
 
-export function isFeishuFailure(
+export function isConnectorFailure(
   value: unknown,
 ): value is { code?: number; StatusCode?: number } {
   if (!isObject(value)) return false;
@@ -409,6 +456,8 @@ export function isFeishuFailure(
     (typeof value.StatusCode === 'number' && value.StatusCode !== 0)
   );
 }
+
+export const isFeishuFailure = isConnectorFailure;
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve: () => void): void => {

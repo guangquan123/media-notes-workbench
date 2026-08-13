@@ -5,6 +5,7 @@ import {
   FilePenLine,
   Settings2,
   Speech,
+  Cable,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -14,8 +15,9 @@ import ModelSettingsPage from '@/pages/ModelSettingsPage/ModelSettingsPage';
 import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import TaskNotificationSettingsPage from '@/pages/TaskNotificationSettingsPage/TaskNotificationSettingsPage';
+import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
 
-type SettingsSection = 'model' | 'notifications' | 'prompts' | 'transcription';
+type SettingsSection = 'model' | 'notifications' | 'prompts' | 'transcription' | 'connectors';
 
 interface SettingsSectionOption {
   description: string;
@@ -25,6 +27,12 @@ interface SettingsSectionOption {
 }
 
 const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
+  {
+    value: 'connectors',
+    label: '连接器',
+    description: '选择本地、飞书或钉钉协作能力。',
+    icon: Cable,
+  },
   {
     value: 'prompts',
     label: '提示词模板',
@@ -57,6 +65,7 @@ function getSelectedSection(section: string | null): SettingsSection {
     section === 'notifications' ||
     section === 'prompts' ||
     section === 'transcription'
+    || section === 'connectors'
   ) {
     return section;
   }
@@ -156,6 +165,7 @@ export default function SettingsPage() {
               {selectedSection === 'notifications' && (
                 <TaskNotificationSettingsPage embedded />
               )}
+              {selectedSection === 'connectors' && <ConnectorSettingsPage />}
             </section>
           </div>
         </div>

@@ -38,6 +38,10 @@ import type {
   UpdateFrameSelectionRequest,
   UpdateFrameSelectionResponse,
   RegenerateRawDocumentResponse,
+  ConnectorSettingsResponse,
+  ConnectorTestResponse,
+  ConnectorType,
+  UpdateConnectorRequest,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -537,6 +541,51 @@ export async function getArticleExportArtifact(
     url: `/api/article-export/${id}/artifacts/${platform}`,
     method: 'GET',
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getConnectorSettings(): Promise<ConnectorSettingsResponse> {
+  const response = await axiosForBackend({
+    url: '/api/connectors',
+    method: 'GET',
+    timeout: READINESS_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateConnectorConfig(
+  type: ConnectorType,
+  input: UpdateConnectorRequest,
+): Promise<ConnectorSettingsResponse> {
+  const response = await axiosForBackend({
+    url: `/api/connectors/${type}/config`,
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function setActiveConnector(
+  connector: ConnectorType,
+): Promise<ConnectorSettingsResponse> {
+  const response = await axiosForBackend({
+    url: '/api/connectors/active',
+    method: 'PUT',
+    data: { connector },
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testConnector(
+  connector: ConnectorType,
+): Promise<ConnectorTestResponse> {
+  const response = await axiosForBackend({
+    url: `/api/connectors/${connector}/test`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }

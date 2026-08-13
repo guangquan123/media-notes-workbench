@@ -115,6 +115,8 @@ import {
   type TaskNotificationInput,
 } from '../task-notifications/task-notification.service';
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
+import { ConnectorRegistryService } from '../connectors/connector-registry.service';
+import { LocalDocumentService } from '../connectors/local-document.service';
 import {
   assessTranscriptQuality,
   formatTranscriptQualityWarnings,
@@ -268,6 +270,8 @@ export class NoteJobsService implements OnModuleInit {
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
     private readonly documentImageDownloadService: DocumentImageDownloadService,
     private readonly taskNotificationService: TaskNotificationService,
+    private readonly connectorRegistryService: ConnectorRegistryService,
+    private readonly localDocumentService: LocalDocumentService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -298,7 +302,7 @@ export class NoteJobsService implements OnModuleInit {
   }
 
   async getReadiness(): Promise<SystemReadiness> {
-    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli, tencentAsr] =
+    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli, tencentAsr, connectorReady, connectorType] =
       await Promise.all([
         this.commandExists('yt-dlp'),
         this.commandExists('ffmpeg'),
@@ -306,25 +310,29 @@ export class NoteJobsService implements OnModuleInit {
         this.fileExists(this.whisperModelPath),
         this.commandExists('lark-cli'),
         this.tencentAsrTranscriptionService.isEnabled(),
+        this.connectorRegistryService.isActiveConnectorReady(),
+        this.connectorRegistryService.getActiveConnector(),
       ]);
     return {
       ytDlp,
       ffmpeg,
       whisperCli,
       whisperModel,
-      larkCli,
+      larkCli: connectorType === 'local' || larkCli,
       tencentAsr,
       tencentAsrEnabled: tencentAsr,
-      ready: ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
+      ready: ffmpeg && connectorReady && (tencentAsr || (whisperCli && whisperModel)),
       platformReady:
         ytDlp &&
         ffmpeg &&
-        larkCli &&
+        connectorReady &&
         (tencentAsr || (whisperCli && whisperModel)),
       mediaReady:
-        ffmpeg && larkCli && (tencentAsr || (whisperCli && whisperModel)),
-      documentReady: larkCli,
-      pdfReady: larkCli,
+        ffmpeg && connectorReady && (tencentAsr || (whisperCli && whisperModel)),
+      documentReady: connectorReady,
+      pdfReady: connectorReady,
+      connectorReady,
+      connectorType,
     };
   }
 
@@ -1021,8 +1029,8 @@ export class NoteJobsService implements OnModuleInit {
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
-      if (!readiness.larkCli) {
-        throw new Error('未找到 lark-cli，请先安装并登录飞书');
+      if (!readiness.connectorReady) {
+        throw new Error('当前连接器未配置或不可用，请先在连接器设置中完成配置。');
       }
       if (input.sourceType === 'pdf' || input.sourceType === 'document') {
         await this.runDocument(id, workDir, input, ownerId, larkUserId);
@@ -3263,6 +3271,17 @@ export class NoteJobsService implements OnModuleInit {
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
   ): Promise<LarkDocumentPublishResult> {
+    if ((await this.connectorRegistryService.getActiveConnector()) === 'local') {
+      const localDocument = await this.localDocumentService.create(title, markdown);
+      return {
+        publishedCount: 0,
+        skippedOptional: media.map((asset) => ({
+          anchor: asset.anchor,
+          message: '本地文档暂不嵌入外部图片，已保留原始图片引用。',
+        })),
+        url: localDocument.url,
+      };
+    }
     const safeTitle = title.slice(0, 120);
     const result = await this.runCommand(
       'lark-cli',
@@ -3985,6 +4004,16 @@ export class NoteJobsService implements OnModuleInit {
     documentUrl: string,
     larkUserId?: string | null,
   ): Promise<void> {
+    const connectorType =
+      await this.connectorRegistryService.getActiveConnector();
+    if (connectorType === 'local') {
+      this.patch(jobId, { message: '笔记已创建（本地模式不创建外部待办）。' });
+      return;
+    }
+    if (connectorType === 'dingtalk') {
+      this.patch(jobId, { message: '笔记已创建，钉钉待办尚未接入。' });
+      return;
+    }
     if (!larkUserId) {
       await this.noteHistoryService.updateReviewTaskFailure(
         jobId,

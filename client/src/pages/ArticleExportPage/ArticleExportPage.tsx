@@ -189,11 +189,13 @@ export default function ArticleExportPage() {
 
   const readinessText = useMemo(() => {
     if (!readiness) return '正在检查本机环境…';
-    const missing = [
-      !readiness.larkCli && 'lark-cli',
-      !readiness.larkAuth && '飞书授权',
-    ].filter(Boolean);
-    return missing.length ? `缺少：${missing.join('、')}` : '飞书导出环境已就绪';
+    const missing = readiness.connectorType === 'local'
+      ? []
+      : [
+          !readiness.larkCli && 'lark-cli',
+          !readiness.larkAuth && '飞书授权',
+        ].filter(Boolean);
+    return missing.length ? `缺少：${missing.join('、')}` : `${readiness.connectorType || '当前'}连接器已就绪`;
   }, [readiness]);
 
   const artifactMap = useMemo(() => {

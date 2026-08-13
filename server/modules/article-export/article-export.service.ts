@@ -29,6 +29,8 @@ import {
   renderBlocksToMarkdown,
 } from './article-export.utils';
 import { TaskNotificationService } from '../task-notifications/task-notification.service';
+import { ConnectorRegistryService } from '../connectors/connector-registry.service';
+import { LocalDocumentService } from '../connectors/local-document.service';
 
 type CommandResult = {
   stdout: string;
@@ -61,15 +63,21 @@ export class ArticleExportService {
 
   constructor(
     private readonly taskNotificationService: TaskNotificationService,
+    private readonly connectorRegistryService: ConnectorRegistryService,
+    private readonly localDocumentService: LocalDocumentService,
   ) {}
 
   async getReadiness(): Promise<ArticleExportReadiness> {
+    const connectorType = await this.connectorRegistryService.getActiveConnector();
     const larkCli = await this.commandExists('lark-cli');
     const larkAuth = larkCli ? await this.checkLarkAuth() : false;
+    const connectorReady = await this.connectorRegistryService.isActiveConnectorReady();
     return {
       larkCli,
       larkAuth,
-      ready: larkCli && larkAuth,
+      ready: connectorType === 'local' ? connectorReady : connectorType === 'feishu' && connectorReady && larkCli && larkAuth,
+      connectorType,
+      connectorReady,
     };
   }
 
@@ -124,10 +132,13 @@ export class ArticleExportService {
     try {
       this.update(id, 'checking', 8, '正在检查飞书 CLI 与登录态…');
       const readiness = await this.getReadiness();
-      if (!readiness.larkCli) {
+      if (readiness.connectorType !== 'local' && !readiness.larkCli) {
         throw new Error('未找到 lark-cli，请先安装飞书 CLI');
       }
-      if (!readiness.larkAuth) {
+      if (readiness.connectorType === 'dingtalk') {
+        throw new Error('钉钉文档读取连接器尚未启用。');
+      }
+      if (readiness.connectorType !== 'local' && !readiness.larkAuth) {
         throw new Error('lark-cli 未登录或授权无效，请先完成飞书登录');
       }
 
@@ -337,6 +348,15 @@ export class ArticleExportService {
     markdown: string;
     title?: string;
   }> {
+    const connectorType = await this.connectorRegistryService.getActiveConnector();
+    if (connectorType === 'local') {
+      const match = sourceDocUrl.match(/\/api\/connectors\/local\/documents\/([0-9a-f-]{36})$/iu);
+      if (!match?.[1]) throw new BadRequestException('本地文档地址无效。');
+      return { markdown: await this.localDocumentService.read(match[1]) };
+    }
+    if (connectorType === 'dingtalk') {
+      throw new Error('钉钉文档读取连接器尚未启用。');
+    }
     const result = await this.runCommand('lark-cli', [
       'docs',
       '+fetch',
