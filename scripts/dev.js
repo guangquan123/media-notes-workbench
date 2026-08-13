@@ -81,7 +81,11 @@ function killProcessGroup(pid, signal) {
 
 function killOrphansByPort(port) {
   try {
-    const pids = execSync(`lsof -ti :${port}`, { encoding: 'utf8', timeout: 5000 }).trim();
+    const pids = execSync(`lsof -ti :${port}`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: process.platform === 'win32',
+    }).trim();
     if (pids) {
       const pidList = pids.split('\n').filter(Boolean);
       for (const p of pidList) {
@@ -122,6 +126,7 @@ function startProcess({ name, command, args, cleanupPort }) {
         shell: true,
         cwd: PROJECT_ROOT,
         env: { ...process.env },
+        windowsHide: process.platform === 'win32',
       });
 
       entry.pid = child.pid;
@@ -257,7 +262,11 @@ async function main() {
   // Initialize action plugins
   writeOutput('\n🔌 Initializing action plugins...\n');
   try {
-    execSync('fullstack-cli action-plugin init', { cwd: PROJECT_ROOT, stdio: 'inherit' });
+    execSync('fullstack-cli action-plugin init', {
+      cwd: PROJECT_ROOT,
+      stdio: 'inherit',
+      windowsHide: process.platform === 'win32',
+    });
     writeOutput('✅ Action plugins initialized\n\n');
   } catch {
     writeOutput('⚠️  Action plugin initialization failed, continuing anyway...\n\n');

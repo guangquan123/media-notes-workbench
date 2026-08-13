@@ -16,6 +16,7 @@ function runCommand(command, args) {
       cwd,
       stdio: 'inherit',
       shell: false,
+      windowsHide: process.platform === 'win32',
     });
 
     child.on('close', (code) => resolve(code || 0));

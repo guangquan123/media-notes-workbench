@@ -25,7 +25,11 @@ function checkLockfileRegistry() {
   const res = spawnSync(
     'git',
     ['diff', '--cached', '--diff-filter=ACMR', '--', 'package-lock.json'],
-    { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+      windowsHide: process.platform === 'win32',
+    },
   );
   // git 不可用 / 不在 git 仓库 → 静默放行,交给 lint 步骤报错
   if (res.error || res.status !== 0) return;
@@ -58,6 +62,7 @@ function runLint() {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
+    windowsHide: process.platform === 'win32',
   });
   if (res.error) {
     failAndExit('lint', String(res.error.message || res.error));

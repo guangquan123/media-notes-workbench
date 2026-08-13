@@ -67,6 +67,7 @@ if (hasLarkCli) {
   if (appId) {
     const r = spawnSync('lark-cli', ['apps', '+env-pull', '--app-id', appId, '--as', 'user'], {
       stdio: 'inherit',
+      windowsHide: process.platform === 'win32',
     });
     if (r.status !== 0) warn('env pull 失败，继续按 .env.local 现状启动');
   } else {
@@ -79,7 +80,10 @@ if (hasLarkCli) {
 // 2. action-plugin init —— 装 user app 在 package.json.actionPlugins 里声明的插件。
 console.log('[dev-local] (2/5) action-plugin init...');
 try {
-  execSync('npx -y @lark-apaas/fullstack-cli@latest action-plugin init', { stdio: 'inherit' });
+    execSync('npx -y @lark-apaas/fullstack-cli@latest action-plugin init', {
+      stdio: 'inherit',
+      windowsHide: process.platform === 'win32',
+    });
 } catch {
   warn('action-plugin init 失败，继续启动');
 }
@@ -89,7 +93,10 @@ try {
 // 保证每次本地 npm run dev 都把 skills 升到最新。
 console.log('[dev-local] (3/5) miaoda skills sync...');
 try {
-  execSync('npx -y @lark-apaas/miaoda-cli@latest skills sync --local', { stdio: 'inherit' });
+  execSync('npx -y @lark-apaas/miaoda-cli@latest skills sync --local', {
+    stdio: 'inherit',
+    windowsHide: process.platform === 'win32',
+  });
 } catch {
   console.log('  (skills sync 失败，继续启动)');
 }
@@ -137,7 +144,11 @@ const child = spawn(
     'npm run dev:server:stable',
     'npm run dev:client:after-server',
   ],
-  { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
+  {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+    windowsHide: process.platform === 'win32',
+  },
 );
 
 const tee = (src) =>

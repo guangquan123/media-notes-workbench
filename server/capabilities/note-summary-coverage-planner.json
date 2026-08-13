@@ -1,0 +1,29 @@
+{
+  "id": "note-summary-coverage-planner",
+  "pluginKey": "@official-plugins/ai-text-generate",
+  "pluginVersion": "1.0.17",
+  "name": "笔记证据覆盖规划",
+  "description": "为全部证据规划正文落点与复习结构",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "task_instruction": {
+        "type": "string",
+        "description": "由笔记流水线生成的完整阶段任务指令"
+      }
+    },
+    "required": [
+      "task_instruction"
+    ]
+  },
+  "formValue": {
+    "modelID": "87",
+    "modelParams": {
+      "temperature": 0.2,
+      "maxTokens": 8192
+    },
+    "prompt": "你是高可靠中文笔记处理引擎。你正在执行多阶段流水线中的一个阶段。必须严格依据输入材料，不得编造，不得输出内部推理过程；按阶段指令直接返回完整结果。\n\n阶段任务：\n{{input.task_instruction}}"
+  },
+  "createdAt": 1785378147000,
+  "updatedAt": 1785378147000
+}
