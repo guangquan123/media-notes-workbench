@@ -1,118 +1,328 @@
-import { Link } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, Cable, CheckCircle2, ChevronDown, ChevronUp, LoaderCircle, LogOut, ScanLine, TriangleAlert } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactElement } from 'react';
+import {
+  ArrowLeft,
+  BookOpenCheck,
+  Cable,
+  Check,
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  Link2,
+  LoaderCircle,
+  LogOut,
+  RefreshCw,
+  ScanLine,
+  ShieldCheck,
+  Unplug,
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { ConnectorSettingsResponse, ConnectorType, UpdateConnectorRequest } from '@shared/api.interface';
-import { completeDingTalkAuth, completeFeishuAuth, getConnectorSettings, initiateDingTalkAuth, initiateFeishuAuth, logoutConnector, setActiveConnector, testConnector, updateConnectorConfig } from '@/api';
+import type {
+  ConnectorDescriptor,
+  ConnectorSettingsResponse,
+  ConnectorStatus,
+  ConnectorType,
+} from '@shared/api.interface';
+import {
+  completeDingTalkAuth,
+  completeFeishuAuth,
+  getConnectorSettings,
+  initiateDingTalkAuth,
+  initiateFeishuAuth,
+  logoutConnector,
+  setActiveConnector,
+  testConnector,
+  updateConnectorConfig,
+} from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+import {
+  getConnectorAction,
+  getConnectorStatusLabel,
+  hasConnectorDraftChanges,
+  validateConnectorDraft,
+  type ConnectorDraft,
+  type ConnectorDraftErrors,
+} from './connector-settings.utils';
 
-const CONNECTOR_OPTIONS: Array<{ label: string; description: string; type: ConnectorType; recommended?: boolean }> = [
-  { label: '本地', description: '零配置，数据保存在本机', type: 'local', recommended: true },
-  { label: '飞书', description: '文档和待办同步到飞书', type: 'feishu' },
-  { label: '钉钉', description: '文档和待办同步到钉钉', type: 'dingtalk' },
+const CONNECTOR_OPTIONS: Array<{
+  description: string;
+  label: string;
+  type: ConnectorType;
+}> = [
+  {
+    type: 'local',
+    label: '本地',
+    description: '数据保存在这台电脑，无需外部账号。',
+  },
+  {
+    type: 'feishu',
+    label: '飞书',
+    description: '笔记和待办同步到飞书。',
+  },
+  {
+    type: 'dingtalk',
+    label: '钉钉',
+    description: '笔记和待办同步到钉钉。',
+  },
 ];
 
-const STATUS_LABELS: Record<string, string> = { ready: '已就绪', unconfigured: '未配置', disabled: '已禁用', error: '异常' };
+const EMPTY_DRAFT: ConnectorDraft = {
+  clientId: '',
+  clientSecret: '',
+  userId: '',
+  webhookUrl: '',
+};
+
+type AuthState =
+  | 'idle'
+  | 'requesting'
+  | 'waiting'
+  | 'completed'
+  | 'expired'
+  | 'failed';
+
+type TestState = 'idle' | 'running' | 'success' | 'failed';
+
+type Drafts = Record<ConnectorType, ConnectorDraft>;
+
+function createDrafts(): Drafts {
+  return {
+    local: { ...EMPTY_DRAFT },
+    feishu: { ...EMPTY_DRAFT },
+    dingtalk: { ...EMPTY_DRAFT },
+  };
+}
 
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  if (/status code 500/i.test(raw)) return '服务暂时不可用，请稍后重试';
-  if (/status code 404/i.test(raw)) return '接口不存在，请重启服务后重试';
-  if (/status code 401|403/i.test(raw)) return '登录状态已失效，请重新登录';
-  if (/timeout|超时/i.test(raw)) return '请求超时，请稍后重试';
-  return raw || '操作失败，请重试';
+  if (/status code 500/i.test(raw)) return '服务暂时不可用，请稍后重试。';
+  if (/status code 404/i.test(raw)) return '连接器服务未启动，请重启服务后重试。';
+  if (/status code 401|403/i.test(raw)) return '登录状态已失效，请重新登录。';
+  if (/timeout|超时/i.test(raw)) return '请求超时，请稍后重试。';
+  return raw || '操作失败，请重试。';
 }
 
-type AuthStatus = 'idle' | 'pending' | 'completed' | 'failed' | 'expired';
+function formatRemaining(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
 
-export default function ConnectorSettingsPage() {
+function formatCheckedAt(value?: string): string {
+  if (!value) return '尚未验证';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '尚未验证';
+  return `最近验证于 ${date.toLocaleString('zh-CN', { hour12: false })}`;
+}
+
+function getLabel(type: ConnectorType): string {
+  return CONNECTOR_OPTIONS.find((option) => option.type === type)?.label || type;
+}
+
+function getStatusTone(status: ConnectorStatus, active: boolean): string {
+  if (active || status === 'ready') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (status === 'error') return 'border-red-200 bg-red-50 text-red-800';
+  if (status === 'disabled') return 'border-black/10 bg-black/[0.04] text-black/55';
+  return 'border-amber-200 bg-amber-50 text-amber-800';
+}
+
+function StatusPill({
+  active,
+  status,
+}: {
+  active: boolean;
+  status: ConnectorStatus;
+}): ReactElement {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusTone(status, active)}`}
+    >
+      {active || status === 'ready' ? <CheckCircle2 className="size-3.5" /> : null}
+      {getConnectorStatusLabel(status, active)}
+    </span>
+  );
+}
+
+function Stepper({
+  authState,
+  hasReadyConnection,
+}: {
+  authState: AuthState;
+  hasReadyConnection: boolean;
+}): ReactElement {
+  const steps = [
+    { label: '选择应用', done: true },
+    {
+      label: '扫码授权',
+      done: authState === 'completed' || hasReadyConnection,
+    },
+    { label: '连接验证', done: hasReadyConnection },
+  ];
+  return (
+    <ol className="grid gap-2 sm:grid-cols-3" aria-label="连接配置进度">
+      {steps.map((step, index) => (
+        <li
+          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${step.done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-black/8 bg-black/[0.02] text-black/50'}`}
+          key={step.label}
+        >
+          <span className="grid size-5 shrink-0 place-items-center rounded-full border border-current text-[11px]">
+            {step.done ? <Check className="size-3" /> : index + 1}
+          </span>
+          {step.label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function FieldError({ message }: { message?: string }): ReactElement | null {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-700">{message}</p>;
+}
+
+export default function ConnectorSettingsPage(): ReactElement {
   const [settings, setSettings] = useState<ConnectorSettingsResponse | null>(null);
   const [selected, setSelected] = useState<ConnectorType>('local');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [useCustomApp, setUseCustomApp] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [userId, setUserId] = useState('');
+  const [drafts, setDrafts] = useState<Drafts>(createDrafts);
+  const [useCustomFeishuApp, setUseCustomFeishuApp] = useState(false);
+  const [authState, setAuthState] = useState<AuthState>('idle');
+  const [authMessage, setAuthMessage] = useState('');
+  const [verificationUrl, setVerificationUrl] = useState('');
+  const [authExpiresAt, setAuthExpiresAt] = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [testState, setTestState] = useState<TestState>('idle');
+  const [testMessage, setTestMessage] = useState('');
+  const [draftErrors, setDraftErrors] = useState<ConnectorDraftErrors>({});
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
-  const [verificationUrl, setVerificationUrl] = useState('');
-  const [authSessionId, setAuthSessionId] = useState('');
-  const [authMessage, setAuthMessage] = useState('');
-  const [authExpiresAt, setAuthExpiresAt] = useState(0);
-  const [remainingSec, setRemainingSec] = useState(0);
   const pollTimer = useRef<number | undefined>(undefined);
   const countdownTimer = useRef<number | undefined>(undefined);
 
+  const loadSettings = async (isRetry = false): Promise<void> => {
+    if (isRetry) setRetrying(true);
+    else setLoading(true);
+    setLoadError('');
+    try {
+      const next = await getConnectorSettings();
+      setSettings(next);
+      setSelected(next.activeConnector);
+    } catch (error) {
+      setLoadError(friendlyError(error));
+    } finally {
+      setLoading(false);
+      setRetrying(false);
+    }
+  };
+
   useEffect(() => {
-    void getConnectorSettings().then(setSettings).catch((e: unknown) => setLoadError(friendlyError(e)));
-    return () => { if (pollTimer.current) window.clearTimeout(pollTimer.current); if (countdownTimer.current) window.clearInterval(countdownTimer.current); };
+    void loadSettings();
+    return () => {
+      if (pollTimer.current) window.clearTimeout(pollTimer.current);
+      if (countdownTimer.current) window.clearInterval(countdownTimer.current);
+    };
   }, []);
 
-  const selectedDescriptor = settings?.items.find((i) => i.type === selected);
-  const label = CONNECTOR_OPTIONS.find((o) => o.type === selected)?.label || selected;
+  useEffect(() => {
+    if (!authExpiresAt) return undefined;
+    countdownTimer.current = window.setInterval(() => {
+      const next = Math.max(0, Math.round((authExpiresAt - Date.now()) / 1000));
+      setRemainingSeconds(next);
+      if (next <= 0 && authState === 'waiting') {
+        setAuthState('expired');
+        setAuthMessage('二维码已过期，请重新生成。');
+      }
+    }, 1000);
+    return () => {
+      if (countdownTimer.current) window.clearInterval(countdownTimer.current);
+    };
+  }, [authExpiresAt, authState]);
+
+  const selectedDescriptor: ConnectorDescriptor | undefined = useMemo(
+    () => settings?.items.find((item) => item.type === selected),
+    [selected, settings],
+  );
+  const draft = drafts[selected];
+  const activeLabel = settings ? getLabel(settings.activeConnector) : '读取中';
+  const hasReadyConnection = selectedDescriptor?.status === 'ready';
+  const active = settings?.activeConnector === selected;
+  const action = getConnectorAction(
+    selected,
+    selectedDescriptor?.status || 'unconfigured',
+    Boolean(active),
+  );
+
+  const updateDraft = (field: keyof ConnectorDraft, value: string): void => {
+    setDrafts((previous) => ({
+      ...previous,
+      [selected]: { ...previous[selected], [field]: value },
+    }));
+    setDraftErrors((previous) => ({ ...previous, [field]: undefined }));
+  };
 
   const selectConnector = (type: ConnectorType): void => {
+    if (pollTimer.current) window.clearTimeout(pollTimer.current);
     setSelected(type);
-    setClientId(''); setClientSecret(''); setWebhookUrl(''); setUserId('');
-    setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false); setUseCustomApp(false);
+    setAuthState('idle');
+    setAuthMessage('');
+    setVerificationUrl('');
+    setAuthExpiresAt(0);
+    setRemainingSeconds(0);
+    setTestState('idle');
+    setTestMessage('');
+    setDraftErrors({});
   };
 
-  const activateConnector = async (type: ConnectorType): Promise<void> => {
-    selectConnector(type);
-    if (type === 'local') {
-      try { setSettings(await setActiveConnector('local')); toast.success('已切换到本地连接器'); }
-      catch (error) { toast.error(friendlyError(error)); }
-      return;
-    }
-    const descriptor = settings?.items.find((i) => i.type === type);
-    if (descriptor?.status !== 'ready') {
-      toast.error(`请先完成${CONNECTOR_OPTIONS.find((o) => o.type === type)?.label || type}的授权或配置，再启用`);
-      return;
-    }
-    try {
-      setSettings(await setActiveConnector(type));
-      toast.success(`${CONNECTOR_OPTIONS.find((o) => o.type === type)?.label || type}连接器已启用`);
-    } catch (error) {
-      toast.error(friendlyError(error));
-    }
+  const refreshAfterAction = async (): Promise<ConnectorSettingsResponse> => {
+    const next = await getConnectorSettings();
+    setSettings(next);
+    return next;
   };
 
-  const startAuth = async (): Promise<void> => {
-    setAuthStatus('pending'); setAuthMessage('正在生成二维码…'); setVerificationUrl(''); setAuthExpiresAt(0);
+  const verifyConnection = async (): Promise<boolean> => {
+    setTestState('running');
+    setTestMessage('正在检查授权和连接能力…');
     try {
-      const isFeishu = selected === "feishu";
-      const result = isFeishu ? await initiateFeishuAuth(useCustomApp ? clientId : undefined, useCustomApp ? clientSecret : undefined) : await initiateDingTalkAuth();
-      if ('alreadyAuthenticated' in result && result.alreadyAuthenticated) {
-        setAuthStatus('completed'); setAuthMessage('检测到你已经授权过，无需重复扫码'); toast.success('已授权');
-        return;
+      const result = await testConnector(selected);
+      await refreshAfterAction();
+      if (result.status !== 'success') {
+        setTestState('failed');
+        setTestMessage(result.message);
+        return false;
       }
-      setVerificationUrl(result.verificationUrl);
-      const sessionId = result.sessionId;
-      setAuthSessionId(sessionId);
-      setAuthMessage('请用手机扫描下方二维码，并在手机上确认授权');
-      const expiresAt = Date.now() + result.expiresIn * 1000;
-      setAuthExpiresAt(expiresAt);
-      void pollAuth(sessionId);
+      setTestState('success');
+      setTestMessage(result.message);
+      return true;
     } catch (error) {
-      setAuthStatus('failed'); setAuthMessage(friendlyError(error));
+      setTestState('failed');
+      setTestMessage(friendlyError(error));
+      return false;
     }
   };
 
   const pollAuth = async (sessionId: string): Promise<void> => {
     try {
-      const result = selected === "feishu" ? await completeFeishuAuth(sessionId) : await completeDingTalkAuth(sessionId);
+      const result =
+        selected === 'feishu'
+          ? await completeFeishuAuth(sessionId)
+          : await completeDingTalkAuth(sessionId);
       if (result.completed) {
-        setAuthStatus('completed'); setAuthMessage('授权成功！下面点击「保存并启用」即可'); toast.success('授权成功');
-        setSettings(await getConnectorSettings());
+        setAuthState('completed');
+        setAuthMessage('授权成功，正在验证连接能力…');
+        const verified = await verifyConnection();
+        if (verified) {
+          setAuthMessage('授权和连接验证均已完成。');
+          toast.success(`${getLabel(selected)}已连接`);
+        }
         return;
       }
       if ('code' in result && result.code === 'expired') {
-        setAuthStatus('expired'); setAuthMessage(result.message || '二维码已过期，请点击上方按钮重新生成');
+        setAuthState('expired');
+        setAuthMessage(result.message || '授权会话已过期，请重新生成二维码。');
         return;
       }
       pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
@@ -121,169 +331,559 @@ export default function ConnectorSettingsPage() {
     }
   };
 
-  useEffect(() => {
-    if (!authExpiresAt) return;
-    countdownTimer.current = window.setInterval(() => {
-      const sec = Math.max(0, Math.round((authExpiresAt - Date.now()) / 1000));
-      setRemainingSec(sec);
-      if (sec <= 0 && authStatus !== "completed") setAuthStatus("expired");
-    }, 1000);
-    return () => { if (countdownTimer.current) window.clearInterval(countdownTimer.current); };
-  }, [authExpiresAt, authStatus]);
+  const startAuth = async (): Promise<void> => {
+    const errors = validateConnectorDraft(
+      selected,
+      draft,
+      selected === 'feishu' && useCustomFeishuApp,
+    );
+    setDraftErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
-  const disconnect = async (): Promise<void> => {
+    setAuthState('requesting');
+    setAuthMessage('正在生成授权二维码…');
+    setVerificationUrl('');
+    if (pollTimer.current) window.clearTimeout(pollTimer.current);
     try {
-      await logoutConnector(selected);
-      toast.success('已断开授权');
-      setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0);
-      setSettings(await getConnectorSettings());
+      const result =
+        selected === 'feishu'
+          ? await initiateFeishuAuth(
+              useCustomFeishuApp ? draft.clientId : undefined,
+              useCustomFeishuApp ? draft.clientSecret : undefined,
+            )
+          : await initiateDingTalkAuth();
+      if (result.alreadyAuthenticated) {
+        setAuthState('completed');
+        setAuthMessage('检测到已有授权，正在验证连接能力…');
+        const verified = await verifyConnection();
+        if (verified) toast.success(`${getLabel(selected)}已连接`);
+        return;
+      }
+      setAuthState('waiting');
+      setVerificationUrl(result.verificationUrl);
+      setAuthExpiresAt(Date.now() + result.expiresIn * 1000);
+      setRemainingSeconds(result.expiresIn);
+      setAuthMessage('请用手机扫码并在手机上确认授权。');
+      void pollAuth(result.sessionId);
     } catch (error) {
-      toast.error(friendlyError(error));
+      setAuthState('failed');
+      setAuthMessage(friendlyError(error));
     }
   };
 
-  const save = async (): Promise<void> => {
+  const activateSelected = async (): Promise<void> => {
+    if (!settings || action === 'active') return;
+    if (selected !== 'local' && !hasReadyConnection) {
+      setAuthMessage(`请先完成${getLabel(selected)}授权并通过连接验证。`);
+      setAuthState('failed');
+      return;
+    }
     setSaving(true);
     try {
-      const input: UpdateConnectorRequest = { clientId: clientId || undefined, clientSecret: clientSecret || undefined, userId: userId || undefined, enabled: true, webhookUrl: webhookUrl || undefined };
-      const next = selected === "local" ? await setActiveConnector("local") : await updateConnectorConfig(selected, input);
-      setSettings(next);
-      if (selected !== "local") {
-        const test = await testConnector(selected);
-        if (test.status !== 'success') throw new Error(test.message);
-        setSettings(await setActiveConnector(selected));
-      }
-      toast.success(`${label}连接器已启用`);
+      setSettings(await setActiveConnector(selected));
+      toast.success(`${getLabel(selected)}已设为当前使用`);
     } catch (error) {
       toast.error(friendlyError(error));
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const formatRemaining = (sec: number): string => { const m = Math.floor(sec / 60); const s = sec % 60; return `${m}:${String(s).padStart(2, "0")}`; };
+  const saveOptionalSettings = async (): Promise<void> => {
+    const errors = validateConnectorDraft(
+      selected,
+      draft,
+      selected === 'feishu' && useCustomFeishuApp,
+    );
+    setDraftErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    if (selected === 'local') {
+      await activateSelected();
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateConnectorConfig(selected, {
+        clientId: draft.clientId || undefined,
+        clientSecret: draft.clientSecret || undefined,
+        enabled: true,
+        userId: draft.userId || undefined,
+        webhookUrl: draft.webhookUrl || undefined,
+      });
+      await refreshAfterAction();
+      if (hasReadyConnection) await verifyConnection();
+      toast.success('可选设置已保存');
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disconnect = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      await logoutConnector(selected);
+      await refreshAfterAction();
+      setAuthState('idle');
+      setAuthMessage('');
+      setVerificationUrl('');
+      setTestState('idle');
+      setTestMessage('');
+      toast.success(`已断开${getLabel(selected)}授权`);
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyVerificationUrl = async (): Promise<void> => {
+    if (!verificationUrl) return;
+    try {
+      await navigator.clipboard.writeText(verificationUrl);
+      toast.success('授权链接已复制');
+    } catch {
+      toast.error('复制失败，请直接打开下方链接');
+    }
+  };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
+        <div className="mx-auto max-w-5xl animate-pulse space-y-6">
+          <div className="h-16 rounded-2xl bg-black/[0.06]" />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div className="h-28 rounded-2xl bg-black/[0.06]" key={item} />
+            ))}
+          </div>
+          <div className="h-[34rem] rounded-2xl bg-black/[0.06]" />
+        </div>
+      </main>
+    );
+  }
+
+  if (loadError || !settings) {
+    return (
+      <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
+        <div className="mx-auto max-w-3xl">
+          <header className="flex items-center justify-between border-b border-black/8 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white">
+                <Cable className="size-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">连接器设置</p>
+                <p className="text-xs text-black/45">管理内容的保存和同步位置</p>
+              </div>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/settings">
+                <ArrowLeft className="size-4" />返回设置
+              </Link>
+            </Button>
+          </header>
+          <section className="mt-10 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+            <div className="flex items-start gap-3">
+              <CircleAlert className="mt-0.5 size-5 shrink-0" />
+              <div>
+                <h1 className="font-semibold">暂时无法读取连接器配置</h1>
+                <p className="mt-2 text-sm leading-6 text-red-800">
+                  {loadError || '连接器服务没有返回配置。'}
+                </p>
+                <Button
+                  className="mt-5 bg-white text-red-900 hover:bg-red-100"
+                  disabled={retrying}
+                  onClick={() => void loadSettings(true)}
+                  variant="outline"
+                >
+                  {retrying ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                  重新加载
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
-      <div className="mx-auto max-w-3xl">
-        <header className="flex items-center justify-between border-b border-black/8 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white"><Cable className="size-5" /></div>
-            <div><p className="text-sm font-semibold">连接器设置</p><p className="text-xs text-black/45">选择你的笔记、待办和通知保存在哪里</p></div>
+      <div className="mx-auto max-w-5xl">
+        <header className="flex flex-col gap-5 border-b border-black/8 pb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#111315] text-white">
+              <Cable className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">连接方式</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">让内容去你常用的地方</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
+                选择内容保存位置。授权完成后会自动检查连接能力，启用动作单独确认。
+              </p>
+            </div>
           </div>
-          <Button asChild size="sm" variant="outline"><Link to="/settings"><ArrowLeft className="size-4" />返回设置</Link></Button>
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs text-black/45">当前使用</p>
+              <p className="mt-1 text-sm font-semibold">{activeLabel}</p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/settings">
+                <ArrowLeft className="size-4" />返回设置
+              </Link>
+            </Button>
+          </div>
         </header>
 
-        {loadError && (
-          <section className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><div><p className="font-medium">连接器配置暂时无法读取</p><p className="mt-1 break-all">{loadError}</p></div></section>
-        )}
-
-        <section className="mt-8 grid gap-3 sm:grid-cols-3">
+        <section className="mt-7 grid gap-3 sm:grid-cols-3" aria-label="可用连接器">
           {CONNECTOR_OPTIONS.map((option) => {
-            const descriptor = settings?.items.find((i) => i.type === option.type);
-            const isSelected = selected === option.type;
-            const isActive = settings?.activeConnector === option.type;
+            const descriptor = settings.items.find((item) => item.type === option.type);
+            const isSelected = option.type === selected;
+            const isActive = settings.activeConnector === option.type;
+            const status = descriptor?.status || 'unconfigured';
             return (
-              <div
-                className={`cursor-pointer rounded-2xl border p-4 text-left transition ${isSelected ? "border-[#111315] bg-[#111315] text-white" : "border-black/8 bg-white hover:border-black/20"}`}
+              <button
+                aria-pressed={isSelected}
+                className={`rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111315] ${isSelected ? 'border-[#111315] bg-[#111315] text-white shadow-lg' : 'border-black/8 bg-white hover:border-black/20'}`}
                 key={option.type}
-                onClick={(): void => selectConnector(option.type)}
-                onKeyDown={(e): void => { if (e.key === 'Enter' || e.key === ' ') selectConnector(option.type); }}
-                role="button"
-                tabIndex={0}
+                onClick={() => selectConnector(option.type)}
+                type="button"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="font-semibold">{option.label}</p>
-                      {option.recommended ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">推荐</span> : null}
-                      {isActive ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"}`}>使用中</span> : null}
-                    </div>
-                    <p className={`mt-1 text-xs ${isSelected ? "text-white/65" : "text-black/45"}`}>{option.description}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{option.label}</p>
+                    <p className={`mt-1 text-xs leading-5 ${isSelected ? 'text-white/65' : 'text-black/50'}`}>
+                      {option.description}
+                    </p>
                   </div>
-                  <span onClick={(e): void => e.stopPropagation()}>
-                    <Switch checked={isActive} disabled={!settings} onCheckedChange={(checked): void => { if (checked) void activateConnector(option.type); }} />
+                  {option.type === 'local' ? (
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-medium ${isSelected ? 'bg-white/15 text-white/80' : 'bg-amber-100 text-amber-800'}`}>
+                      推荐
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <span className={`text-xs ${isSelected ? 'text-white/60' : 'text-black/45'}`}>查看配置</span>
+                  <span className={isSelected ? 'text-white' : ''}>
+                    <StatusPill active={isActive} status={status} />
                   </span>
                 </div>
-                <p className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs ${isSelected ? "bg-white/15 text-white" : "bg-black/5 text-black/55"}`}>{descriptor ? STATUS_LABELS[descriptor.status] || descriptor.status : "读取中"}</p>
-              </div>
+              </button>
             );
           })}
         </section>
 
-        <section className="mt-8 space-y-6 rounded-2xl border border-black/8 bg-white p-6">
-          <div><h1 className="text-2xl font-semibold">{label}连接器</h1><p className="mt-2 text-sm leading-6 text-black/55">{selected === "local" ? "选择本地后，所有内容保存在这台电脑上，无需任何外部账号，最适合刚开始使用。" : `把${label}作为协作平台，生成的笔记和待办会自动同步过去。`}</p></div>
-
-          {selected === "feishu" && (
-            <div className="rounded-xl border border-black/8 bg-white p-4">
-              <div className="flex items-start gap-2"><Cable className="mt-0.5 size-4 shrink-0 text-black/55" /><div><p className="font-medium">飞书应用</p><p className="mt-1 text-xs text-black/50">选择扫码授权时使用的飞书应用。</p></div></div>
-              <div className="mt-3 grid gap-2">
-                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${useCustomApp ? "border-black/8" : "border-[#111315] bg-black/[0.02]"}`}>
-                  <input checked={!useCustomApp} className="mt-1" onChange={(): void => setUseCustomApp(false)} type="radio" />
-                  <span><span className="block text-sm font-medium">使用飞书官方应用（推荐）</span><span className="mt-0.5 block text-xs text-black/50">无需任何配置，直接扫码授权即可。</span></span>
-                </label>
-                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${useCustomApp ? "border-[#111315] bg-black/[0.02]" : "border-black/8"}`}>
-                  <input checked={useCustomApp} className="mt-1" onChange={(): void => setUseCustomApp(true)} type="radio" />
-                  <span><span className="block text-sm font-medium">使用自定义应用</span><span className="mt-0.5 block text-xs text-black/50">使用你在飞书开放平台创建的自建应用。</span></span>
-                </label>
+        <section className="mt-7 overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm" aria-live="polite">
+          <div className="border-b border-black/8 px-6 py-6 md:px-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-2xl font-semibold">{getLabel(selected)}连接器</h2>
+                  <StatusPill active={Boolean(active)} status={selectedDescriptor?.status || 'unconfigured'} />
+                </div>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
+                  {selected === 'local'
+                    ? '所有文档、待办和通知保存在本机，不需要外部账号。'
+                    : `连接${getLabel(selected)}后，生成的笔记和待办可以同步到你的协作平台。`}
+                </p>
               </div>
-              {useCustomApp && (
-                <div className="mt-3 grid gap-3">
-                  <Input onChange={(e): void => setClientId(e.target.value)} placeholder="App ID（通常以 cli_ 开头）" value={clientId} />
-                  <Input onChange={(e): void => setClientSecret(e.target.value)} placeholder="App Secret" type="password" value={clientSecret} />
-                  <p className="text-xs leading-5 text-black/50">还没有应用？前往 <a className="text-blue-600 underline" href="https://open.feishu.cn/app" rel="noreferrer" target="_blank">飞书开放平台</a> 创建「企业自建应用」，在「凭证与基础信息」里获取 App ID 和 App Secret。</p>
-                </div>
-              )}
+              {selectedDescriptor?.lastError ? (
+                <span className="max-w-xs text-right text-xs leading-5 text-red-700">
+                  {selectedDescriptor.lastError}
+                </span>
+              ) : null}
             </div>
-          )}
+          </div>
 
-          {selected !== "local" && (
-            <div className="rounded-xl border border-black/8 bg-black/[0.02] p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2"><ScanLine className="mt-0.5 size-4 shrink-0 text-black/55" /><div><p className="font-medium">授权{label}账号</p><p className="mt-1 text-xs text-black/50">扫码授权后，笔记和待办会同步到你的{label}。</p></div></div>
-                <div className="flex gap-2">
-                  {authStatus === "completed" && <Button size="sm" variant="outline" onClick={() => void disconnect()}><LogOut className="size-4" />断开</Button>}
-                  <Button size="sm" onClick={() => void startAuth()} disabled={authStatus === "pending" && !verificationUrl}>{authStatus === "pending" && !verificationUrl ? <LoaderCircle className="size-4 animate-spin" /> : <ScanLine className="size-4" />}{authStatus === "completed" ? "重新授权" : `扫码授权${label}`}</Button>
+          <div className="space-y-7 px-6 py-7 md:px-8">
+            {selected === 'local' ? (
+              <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                    <div>
+                      <p className="font-semibold">本地模式随时可用</p>
+                      <p className="mt-1 text-sm leading-6 text-emerald-900/75">
+                        数据不会离开这台电脑。你可以直接开始处理资料，也可以稍后切换到飞书或钉钉。
+                      </p>
+                    </div>
+                  </div>
                 </div>
+                <Button
+                  className="h-11 min-w-44"
+                  disabled={saving || active}
+                  onClick={() => void activateSelected()}
+                >
+                  {saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  {active ? '当前使用中' : '启用本地'}
+                </Button>
               </div>
+            ) : (
+              <>
+                <Stepper authState={authState} hasReadyConnection={hasReadyConnection} />
 
-              {verificationUrl && (
-                <div className="mt-4 flex flex-col items-center gap-3">
-                  <div className="rounded-xl bg-white p-3 shadow-sm"><QRCodeSVG value={verificationUrl} size={180} /></div>
-                  <a className="break-all text-center text-xs text-blue-600 underline" href={verificationUrl} rel="noreferrer" target="_blank">{verificationUrl}</a>
-                  {authStatus === "expired" ? <p className="flex items-center gap-1 text-sm text-red-600"><TriangleAlert className="size-4" />二维码已过期，请点击上方按钮重新生成</p> : authStatus === "completed" ? <p className="flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" />{authMessage}</p> : <p className="flex items-center gap-1 text-sm text-black/60">{authStatus === "pending" ? <><LoaderCircle className="size-4 animate-spin" />{authMessage}（{formatRemaining(remainingSec)}）</> : authMessage}</p>}
+                {selected === 'feishu' ? (
+                  <section className="space-y-4" aria-labelledby="feishu-app-title">
+                    <div>
+                      <h3 className="font-semibold" id="feishu-app-title">1. 选择飞书应用</h3>
+                      <p className="mt-1 text-sm text-black/50">大多数用户直接使用官方应用即可。</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className={`cursor-pointer rounded-xl border p-4 transition ${!useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}>
+                        <input
+                          checked={!useCustomFeishuApp}
+                          className="sr-only"
+                          name="feishu-app"
+                          onChange={() => setUseCustomFeishuApp(false)}
+                          type="radio"
+                        />
+                        <span className="flex items-start gap-3">
+                          <span className={`mt-0.5 grid size-5 place-items-center rounded-full border ${!useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}>
+                            {!useCustomFeishuApp ? <Check className="size-3" /> : null}
+                          </span>
+                          <span>
+                            <span className="block text-sm font-semibold">官方应用</span>
+                            <span className="mt-1 block text-xs leading-5 text-black/50">无需填写凭据，直接扫码。</span>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`cursor-pointer rounded-xl border p-4 transition ${useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}>
+                        <input
+                          checked={useCustomFeishuApp}
+                          className="sr-only"
+                          name="feishu-app"
+                          onChange={() => setUseCustomFeishuApp(true)}
+                          type="radio"
+                        />
+                        <span className="flex items-start gap-3">
+                          <span className={`mt-0.5 grid size-5 place-items-center rounded-full border ${useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}>
+                            {useCustomFeishuApp ? <Check className="size-3" /> : null}
+                          </span>
+                          <span>
+                            <span className="block text-sm font-semibold">自定义应用</span>
+                            <span className="mt-1 block text-xs leading-5 text-black/50">使用企业自建应用的凭据。</span>
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    {useCustomFeishuApp ? (
+                      <div className="grid gap-4 rounded-xl bg-black/[0.025] p-4 md:grid-cols-2">
+                        <label className="text-sm font-medium">
+                          App ID
+                          <Input
+                            aria-invalid={Boolean(draftErrors.clientId)}
+                            className="mt-2 bg-white"
+                            onChange={(event) => updateDraft('clientId', event.target.value)}
+                            placeholder="cli_xxxxxxxxx"
+                            value={draft.clientId}
+                          />
+                          <FieldError message={draftErrors.clientId} />
+                        </label>
+                        <label className="text-sm font-medium">
+                          App Secret
+                          <Input
+                            aria-invalid={Boolean(draftErrors.clientSecret)}
+                            className="mt-2 bg-white"
+                            onChange={(event) => updateDraft('clientSecret', event.target.value)}
+                            placeholder="输入 App Secret"
+                            type="password"
+                            value={draft.clientSecret}
+                          />
+                          <FieldError message={draftErrors.clientSecret} />
+                        </label>
+                        <p className="text-xs leading-5 text-black/50 md:col-span-2">
+                          还没有应用？前往
+                          <a className="mx-1 text-blue-700 underline" href="https://open.feishu.cn/app" rel="noreferrer" target="_blank">
+                            飞书开放平台 <ExternalLink className="inline size-3" />
+                          </a>
+                          创建企业自建应用。
+                        </p>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : (
+                  <section aria-labelledby="dingtalk-app-title">
+                    <h3 className="font-semibold" id="dingtalk-app-title">1. 准备钉钉授权</h3>
+                    <p className="mt-1 text-sm leading-6 text-black/50">
+                      使用钉钉手机端确认授权。系统会自动读取授权身份，不需要填写 App ID 或 App Secret。
+                    </p>
+                  </section>
+                )}
+
+                <section className="rounded-xl border border-black/8 bg-black/[0.02] p-5" aria-labelledby="auth-title">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <ScanLine className="mt-0.5 size-5 shrink-0 text-black/60" />
+                      <div>
+                        <h3 className="font-semibold" id="auth-title">2. 扫码授权{getLabel(selected)}账号</h3>
+                        <p className="mt-1 text-sm leading-6 text-black/50">
+                          授权只需要确认一次；之后系统会在使用前自动检查连接状态。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {authState === 'completed' || hasReadyConnection ? (
+                        <Button disabled={saving} onClick={() => void disconnect()} size="sm" variant="outline">
+                          <LogOut className="size-4" />断开授权
+                        </Button>
+                      ) : null}
+                      <Button
+                        disabled={authState === 'requesting' || authState === 'waiting'}
+                        onClick={() => void startAuth()}
+                        size="sm"
+                      >
+                        {authState === 'requesting' ? <LoaderCircle className="size-4 animate-spin" /> : <ScanLine className="size-4" />}
+                        {authState === 'completed' || hasReadyConnection ? '重新授权' : `扫码连接${getLabel(selected)}`}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {verificationUrl ? (
+                    <div className="mt-5 grid gap-5 border-t border-black/8 pt-5 md:grid-cols-[auto_1fr] md:items-center">
+                      <div className="mx-auto rounded-xl bg-white p-3 shadow-sm">
+                        <QRCodeSVG value={verificationUrl} size={184} aria-label={`${getLabel(selected)}授权二维码`} />
+                      </div>
+                      <div className="space-y-3 text-center md:text-left">
+                        <div>
+                          <p className="font-medium">请用手机扫码确认</p>
+                          <p className="mt-1 text-sm text-black/50">二维码有效期还剩 {formatRemaining(remainingSeconds)}</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-2 md:justify-start">
+                          <Button onClick={() => void copyVerificationUrl()} size="sm" variant="outline">
+                            <Link2 className="size-4" />复制授权链接
+                          </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <a href={verificationUrl} rel="noreferrer" target="_blank">
+                              <ExternalLink className="size-4" />在新窗口打开
+                            </a>
+                          </Button>
+                        </div>
+                        <p className={`flex items-center justify-center gap-2 text-sm md:justify-start ${authState === 'failed' || authState === 'expired' ? 'text-red-700' : authState === 'completed' ? 'text-emerald-700' : 'text-black/55'}`}>
+                          {authState === 'waiting' ? <LoaderCircle className="size-4 animate-spin" /> : authState === 'completed' ? <CheckCircle2 className="size-4" /> : authState === 'failed' || authState === 'expired' ? <CircleAlert className="size-4" /> : null}
+                          {authState === 'expired' ? '二维码已过期，请重新生成。' : authMessage || '等待授权确认。'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {!verificationUrl && authState === 'failed' ? (
+                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                      <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                      <span>{authMessage || '授权失败，请重试。'}</span>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section aria-labelledby="connection-test-title">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h3 className="font-semibold" id="connection-test-title">3. 连接验证</h3>
+                      <p className="mt-1 text-sm leading-6 text-black/50">授权完成后自动检查；也可以手动重新验证。</p>
+                    </div>
+                    <Button
+                      disabled={testState === 'running' || !hasReadyConnection}
+                      onClick={() => void verifyConnection()}
+                      size="sm"
+                      variant="outline"
+                    >
+                      {testState === 'running' ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                      重新验证
+                    </Button>
+                  </div>
+                  <div className={`mt-3 rounded-xl border p-4 ${testState === 'failed' ? 'border-red-200 bg-red-50 text-red-900' : testState === 'success' || hasReadyConnection ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-black/8 bg-black/[0.02] text-black/55'}`}>
+                    <div className="flex items-start gap-3">
+                      {testState === 'failed' ? <CircleAlert className="mt-0.5 size-5 shrink-0 text-red-700" /> : testState === 'success' || hasReadyConnection ? <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" /> : <Cable className="mt-0.5 size-5 shrink-0 text-black/40" />}
+                      <div>
+                        <p className="font-medium">{testState === 'failed' ? '连接验证失败' : testState === 'running' ? '正在验证连接' : testState === 'success' || hasReadyConnection ? '连接验证通过' : '等待授权完成'}</p>
+                        <p className="mt-1 text-sm leading-6 opacity-75">{testMessage || formatCheckedAt(selectedDescriptor?.lastCheckedAt)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="border-t border-black/8 pt-6" aria-labelledby="optional-settings-title">
+                  <div>
+                    <h3 className="font-semibold" id="optional-settings-title">可选设置</h3>
+                    <p className="mt-1 text-sm leading-6 text-black/50">不填写也不影响连接。Webhook 用于接收任务完成通知。</p>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    {selected === 'dingtalk' ? (
+                      <label className="text-sm font-medium">
+                        待办执行人 ID
+                        <Input
+                          className="mt-2 bg-white"
+                          onChange={(event) => updateDraft('userId', event.target.value)}
+                          placeholder="不知道可留空，系统优先使用授权身份"
+                          value={draft.userId}
+                        />
+                      </label>
+                    ) : null}
+                    <label className="text-sm font-medium md:col-span-2">
+                      任务完成通知 Webhook
+                      <Input
+                        aria-invalid={Boolean(draftErrors.webhookUrl)}
+                        className="mt-2 bg-white"
+                        onChange={(event) => updateDraft('webhookUrl', event.target.value)}
+                        placeholder="https://…（可选）"
+                        type="url"
+                        value={draft.webhookUrl}
+                      />
+                      <FieldError message={draftErrors.webhookUrl} />
+                    </label>
+                  </div>
+                </section>
+
+                <div className="flex flex-col gap-3 border-t border-black/8 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="flex items-center gap-2 text-sm text-black/50">
+                    <BookOpenCheck className="size-4" />
+                    {formatCheckedAt(selectedDescriptor?.lastCheckedAt)}
+                  </p>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    {hasConnectorDraftChanges(draft) ? (
+                      <Button disabled={saving} onClick={() => void saveOptionalSettings()} variant="outline">
+                        {saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                        保存可选设置
+                      </Button>
+                    ) : null}
+                    <Button
+                      disabled={saving || action === 'active' || !hasReadyConnection}
+                      onClick={() => void activateSelected()}
+                    >
+                      {saving ? <LoaderCircle className="size-4 animate-spin" /> : action === 'active' ? <CheckCircle2 className="size-4" /> : <Cable className="size-4" />}
+                      {action === 'active' ? '当前使用中' : '设为当前使用'}
+                    </Button>
+                  </div>
                 </div>
-              )}
-
-              {authStatus === "failed" && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><div><p className="font-medium">授权没有成功</p><p className="mt-1 break-all">{authMessage}</p></div></div>
-              )}
-            </div>
-          )}
-
-          {selected !== "local" && (
-            <div className="grid gap-4">
-              {selected === "dingtalk" && <Input onChange={(e): void => setUserId(e.target.value)} placeholder="钉钉用户 ID（待办执行人，不知道可留空）" value={userId} />}
-              <Input onChange={(e): void => setWebhookUrl(e.target.value)} placeholder="机器人 Webhook（可选，用于任务完成通知）" type="url" value={webhookUrl} />
-              <button className="flex items-center gap-1 text-left text-xs text-black/45" onClick={(): void => setAdvancedOpen(!advancedOpen)} type="button">{advancedOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}高级设置（一般不用改）</button>
-              {advancedOpen && (
-                <div className="grid gap-4 rounded-xl bg-black/[0.02] p-4">
-                  <Input onChange={(e): void => setClientId(e.target.value)} placeholder="Client ID / App ID（可选）" value={clientId} />
-                  <Input onChange={(e): void => setClientSecret(e.target.value)} placeholder="Client Secret（可选）" type="password" value={clientSecret} />
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-4 border-t border-black/8 pt-5">
-            <p className="flex items-center gap-2 text-sm text-black/55">{selectedDescriptor?.status === "ready" ? <CheckCircle2 className="size-4 text-emerald-600" /> : null}当前使用：{settings?.activeConnector ? CONNECTOR_OPTIONS.find((o) => o.type === settings.activeConnector)?.label : "读取中"}</p>
-            <Button disabled={saving || !settings} onClick={() => void save()}>{saving ? <LoaderCircle className="size-4 animate-spin" /> : null}保存并启用</Button>
+              </>
+            )}
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-black/8 bg-white p-6">
-          <div className="flex items-center gap-2"><BookOpen className="size-4 text-black/55" /><h2 className="font-semibold">{selected === "local" ? "本地模式说明" : `如何连接${label}`}</h2></div>
-          <ol className="mt-4 space-y-2 text-sm leading-6 text-black/65">
-            {selected === "local" ? ["无需任何账号，文档、待办、通知都保存在本机。", "选择「本地」后点击「保存并启用」即可开始使用。"].map((s) => <li key={s}>{s}</li>) : ["点击「扫码授权」并用手机扫码确认。", "如需任务完成通知，填一个机器人 Webhook（可跳过）。", "点击「保存并启用」完成。"].map((s) => <li key={s}>{s}</li>)}
-          </ol>
+        <section className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-black/8 bg-white p-5">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 size-5 text-black/55" />
+              <div>
+                <h2 className="font-semibold">数据和权限</h2>
+                <p className="mt-1 text-sm leading-6 text-black/55">
+                  连接器只申请页面展示的文档、待办和通知能力。授权信息不会显示在页面或写入日志。
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-black/8 bg-white p-5">
+            <div className="flex items-start gap-3">
+              {selected === 'local' ? <BookOpenCheck className="mt-0.5 size-5 text-black/55" /> : <Unplug className="mt-0.5 size-5 text-black/55" />}
+              <div>
+                <h2 className="font-semibold">需要帮助？</h2>
+                <p className="mt-1 text-sm leading-6 text-black/55">
+                  {selected === 'local' ? '本地模式无需任何授权，启用后即可开始处理资料。' : `完成${getLabel(selected)}授权后，系统会自动检查连接状态。`}
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </main>

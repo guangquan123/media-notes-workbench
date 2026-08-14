@@ -665,6 +665,7 @@ export async function completeDingTalkAuth(sessionId: string): Promise<{ complet
   const response = await axiosForBackend({
     url: '/api/connectors/dingtalk/auth/complete',
     method: 'POST',
+    data: { sessionId },
     timeout: 30000,
   });
   return response.data;

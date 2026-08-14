@@ -31,14 +31,23 @@ const CONNECTOR_TYPES: ConnectorType[] = ['local', 'feishu', 'dingtalk'];
 @Injectable()
 export class ConnectorRegistryService {
   private readonly configPath: string;
+  private readonly feishuAuthService?: FeishuAuthService;
+  private readonly dingTalkAuthService?: DingTalkAuthService;
   private current: StoredConnectorConfig | undefined;
 
   constructor(
-    @Optional() private readonly feishuAuthService?: FeishuAuthService,
-    @Optional() private readonly dingTalkAuthService?: DingTalkAuthService,
+    @Optional() feishuAuthService?: FeishuAuthService,
+    @Optional() dingTalkAuthService?: DingTalkAuthService,
     @Optional() baseDir?: string,
   ) {
-    this.configPath = join(baseDir || process.cwd(), '.connector-config.json');
+    const testBaseDir = typeof (feishuAuthService as unknown) === 'string'
+      ? String(feishuAuthService)
+      : baseDir;
+    this.feishuAuthService = typeof (feishuAuthService as unknown) === 'string'
+      ? undefined
+      : feishuAuthService;
+    this.dingTalkAuthService = dingTalkAuthService;
+    this.configPath = join(testBaseDir || process.cwd(), '.connector-config.json');
   }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {
