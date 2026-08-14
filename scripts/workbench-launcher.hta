@@ -6,32 +6,45 @@
 <hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" maximizebutton="no" minimizebutton="no" showintaskbar="yes" singleinstance="yes" sysmenu="yes" />
 <style>
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 100%; height: 100%; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #152238; background: #edf2f6; }
+  html, body { margin: 0; width: 100%; height: 100%; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #152238; background: #eef3f6; }
   body { display: flex; align-items: center; justify-content: center; }
-  .shell { width: 560px; min-height: 620px; overflow: hidden; background: #fff; border: 1px solid #d7e0e8; border-radius: 14px; box-shadow: 0 18px 50px rgba(23, 43, 64, .16); }
-  .header { padding: 24px 28px 22px; color: #fff; background: #152b45; }
+  .shell { width: 640px; min-height: 700px; overflow: hidden; background: #fff; border: 1px solid #d7e0e8; border-radius: 16px; box-shadow: 0 20px 60px rgba(23, 43, 64, .18); }
+  .header { padding: 22px 28px; color: #fff; background: #152b45; border-bottom: 3px solid #68d0bf; }
   .header-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
   .brand { display: flex; align-items: center; min-width: 0; gap: 12px; }
-  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border-radius: 10px; color: #152b45; background: #68d0bf; font-size: 20px; font-weight: 800; }
-  .title { overflow: hidden; font-size: 18px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+  .brand-mark { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none; border-radius: 10px; color: #152b45; background: #68d0bf; font-size: 18px; font-weight: 800; }
+  .title { overflow: hidden; font-size: 17px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
   .subtitle { margin-top: 4px; color: #b8c8d8; font-size: 12px; }
-  .operation { padding: 7px 10px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; color: #e6f0f5; font-size: 12px; white-space: nowrap; }
-  .content { padding: 24px 28px 22px; }
-  .status-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .stage { font-size: 18px; font-weight: 650; }
-  .detail { max-width: 390px; margin-top: 5px; color: #6c7a89; font-size: 13px; line-height: 1.5; }
-  .status-chip { padding: 6px 9px; border-radius: 6px; color: #876116; background: #fff3d7; font-size: 12px; white-space: nowrap; }
+  .operation { padding: 7px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; color: #e6f0f5; font-size: 12px; white-space: nowrap; }
+  .content { padding: 25px 28px 20px; }
+  .hero { display: flex; align-items: center; gap: 16px; }
+  .state-icon { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; flex: none; border: 1px solid #efd9a5; border-radius: 14px; color: #8a6318; background: #fff7e3; font-size: 17px; font-weight: 700; }
+  .state-icon.busy:after { width: 17px; height: 17px; border: 2px solid #d8b96f; border-top-color: #8a6318; border-radius: 50%; content: ""; animation: spin .8s linear infinite; }
+  .state-icon.busy { font-size: 0; }
+  .state-icon.success { border-color: #9bd8ca; color: #147562; background: #e3f7f1; }
+  .state-icon.error { border-color: #efbbb5; color: #a33a35; background: #fff0ee; }
+  .hero-copy { min-width: 0; flex: 1; }
+  .eyebrow { color: #7c8b98; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .stage { margin-top: 4px; font-size: 21px; font-weight: 680; }
+  .detail { max-width: 430px; margin-top: 5px; color: #6c7a89; font-size: 13px; line-height: 1.5; }
+  .elapsed-card { min-width: 74px; padding: 9px 10px; border: 1px solid #e1e9ee; border-radius: 9px; text-align: right; background: #f8fafb; }
+  .elapsed-card span { display: block; color: #8794a1; font-size: 10px; }
+  .elapsed-card strong { display: block; margin-top: 3px; color: #263e52; font-size: 17px; font-weight: 650; }
+  .status-chip { display: none; padding: 6px 9px; border-radius: 6px; color: #876116; background: #fff3d7; font-size: 12px; white-space: nowrap; }
   .status-chip.success { color: #16715e; background: #dff5ef; }
   .status-chip.error { color: #a33a35; background: #fde7e5; }
-  .progress-wrap { margin-top: 20px; }
+  .progress-wrap { margin-top: 24px; }
+  .progress-label { display: flex; justify-content: space-between; margin-bottom: 8px; color: #6c7a89; font-size: 12px; }
+  .progress-label strong { color: #20384b; font-weight: 650; }
   .progress-track { height: 8px; overflow: hidden; border-radius: 4px; background: #e8eef2; }
   .progress-bar { width: 0; height: 100%; border-radius: 4px; background: #1aa98c; transition: width .35s ease; }
   .progress-meta { display: flex; justify-content: space-between; margin-top: 7px; color: #8794a1; font-size: 11px; }
-  .timeline { margin: 22px 0 0; padding: 0; list-style: none; }
-  .step { position: relative; display: flex; min-height: 43px; gap: 12px; color: #8996a4; }
-  .step:not(:last-child):before { position: absolute; top: 25px; left: 10px; width: 1px; height: 26px; background: #dfe6eb; content: ""; }
+  .timeline-title { margin-top: 23px; color: #506273; font-size: 12px; font-weight: 650; }
+  .timeline { margin: 12px 0 0; padding: 0; list-style: none; }
+  .step { position: relative; display: flex; min-height: 35px; gap: 10px; color: #8996a4; }
+  .step:not(:last-child):before { position: absolute; top: 23px; left: 9px; width: 1px; height: 20px; background: #dfe6eb; content: ""; }
   .step-indicator { z-index: 1; display: flex; align-items: center; justify-content: center; width: 21px; height: 21px; flex: none; border: 1px solid #d4dee5; border-radius: 50%; color: #9ba8b2; background: #fff; font-size: 11px; }
-  .step-copy { padding-bottom: 12px; font-size: 13px; }
+  .step-copy { padding-bottom: 8px; font-size: 12px; }
   .step.active { color: #176e69; }
   .step.active .step-indicator { border-color: #1aa98c; color: #fff; background: #1aa98c; }
   .step.done { color: #344d5c; }
@@ -40,7 +53,13 @@
   .step.error .step-indicator { border-color: #d9665c; color: #fff; background: #d9665c; }
   .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .notice { display: none; margin-top: 10px; padding: 11px 12px; border-left: 3px solid #d9665c; color: #8c3d38; background: #fff6f5; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .diagnostics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
+  .diagnostic { padding: 9px 10px; border: 1px solid #e1e9ee; border-radius: 8px; background: #f8fafb; }
+  .diagnostic-label { color: #8794a1; font-size: 10px; }
+  .diagnostic-value { margin-top: 4px; color: #4b6374; font-size: 12px; font-weight: 650; }
+  .diagnostic-value.ok { color: #16816d; }
+  .diagnostic-value.bad { color: #a33a35; }
+  .notice { display: none; margin-top: 15px; padding: 11px 12px; border: 1px solid #efcbc7; border-radius: 8px; color: #8c3d38; background: #fff7f6; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 28px; border-top: 1px solid #e8edf0; }
   .elapsed { color: #83909d; font-size: 12px; }
   .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
@@ -60,12 +79,14 @@
       </div>
     </header>
     <section class="content">
-      <div class="status-line"><div><div class="stage" id="stage">准备中</div><div class="detail" id="detail">正在读取本地配置并检查服务状态</div></div><div class="status-chip" id="statusChip">准备中</div></div>
-      <div class="progress-wrap"><div class="progress-track"><div class="progress-bar" id="progressBar"></div></div><div class="progress-meta"><span id="progressText">0%</span><span id="elapsed">已用时 0 秒</span></div></div>
+      <div class="hero"><div class="state-icon busy" id="stateIcon">M</div><div class="hero-copy"><div class="eyebrow" id="eyebrow">LOCAL SERVICE CONTROL</div><div class="stage" id="stage">准备中</div><div class="detail" id="detail">正在读取本地配置并检查服务状态</div></div><div class="elapsed-card"><span>已用时</span><strong id="elapsed">0s</strong></div></div>
+      <div class="progress-wrap"><div class="progress-label"><span>执行进度</span><strong id="progressText">0%</strong></div><div class="progress-track"><div class="progress-bar" id="progressBar"></div></div></div>
+      <div class="timeline-title">执行步骤</div>
       <ol class="timeline" id="timeline"></ol>
+      <div class="diagnostics"><div class="diagnostic"><div class="diagnostic-label">后端服务</div><div class="diagnostic-value" id="backendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">前端页面</div><div class="diagnostic-value" id="frontendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">主进程</div><div class="diagnostic-value" id="pidState">待检查</div></div></div>
       <div class="notice" id="notice"></div>
     </section>
-    <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">立即打开</button><button id="logButton" style="display:none" onclick="openLog()">打开日志</button><button id="retryButton" style="display:none" onclick="retry()">重试</button><button id="closeButton" onclick="closeLauncher()">后台运行</button></div></footer>
+    <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">打开工作台</button><button id="logButton" style="display:none" onclick="openLog()">查看日志</button><button id="retryButton" class="primary" style="display:none" onclick="retry()">重新尝试</button><button id="closeButton" onclick="closeLauncher()">后台运行</button></div></footer>
   </main>
 <script>
   var action = "start";
@@ -137,10 +158,31 @@
 
   function backendUp() { var status = httpStatus(serverUrl()); return status > 0 && status < 500; }
   function frontendReady() { var status = httpStatus(workbenchUrl()); return status >= 200 && status < 400; }
-  function pidExists() { try { return fso && fso.FileExists(fso.BuildPath(root, "pids\\dev-local.pid")); } catch (e) { return false; } }
+  function readPid() {
+    if (!fso) return 0;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\dev-local.pid"), 1, false, 0);
+      var value = parseInt(file.ReadAll().replace(/^\s+|\s+$/g, ""), 10);
+      file.Close();
+      return isNaN(value) ? 0 : value;
+    } catch (e) { return 0; }
+  }
+  function launcherActive() {
+    var pid = readPid();
+    if (!pid) return false;
+    try {
+      var locator = new ActiveXObject("WbemScripting.SWbemLocator");
+      var service = locator.ConnectServer(".", "root\\cimv2");
+      var process = service.Get("Win32_Process.Handle='" + pid + "'");
+      var commandLine = String(process.CommandLine || "").toLowerCase().replace(/\\/g, "/");
+      return commandLine.indexOf("scripts/dev-windows.js") >= 0;
+    } catch (e) { return false; }
+  }
 
   function setText(id, value) { document.getElementById(id).innerText = value; }
   function setStatus(label, kind) { var chip = document.getElementById("statusChip"); chip.innerText = label; chip.className = "status-chip" + (kind ? " " + kind : ""); }
+  function setDiagnostic(id, label, good) { var element = document.getElementById(id); element.innerText = label; element.className = "diagnostic-value" + (good === true ? " ok" : good === false ? " bad" : ""); }
+  function updateDiagnostics(backend, frontend, active) { var stopping = action === "stop"; setDiagnostic("backendState", backend ? "已响应" : stopping ? "已停止" : "未响应", stopping ? !backend : backend); setDiagnostic("frontendState", frontend ? "可访问" : stopping ? "已停止" : "未访问", stopping ? !frontend : frontend); setDiagnostic("pidState", active ? "运行中" : "已释放", stopping ? !active : active); }
   function setProgress(value) { var percent = Math.max(0, Math.min(100, value)); document.getElementById("progressBar").style.width = percent + "%"; setText("progressText", Math.round(percent) + "%"); }
   function renderSteps() {
     var html = "";
@@ -157,7 +199,7 @@
   }
   function moveTo(index, stage, detail) { currentStep = index; setText("stage", stage); setText("detail", detail); setProgress(Math.round((index / Math.max(1, steps.length - 1)) * 100)); renderSteps(); }
   function setFailure(stage, detail) {
-    failed = true; setText("stage", stage); setText("detail", detail); setStatus("需要处理", "error"); setText("footerMessage", "服务没有按预期完成"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
+    failed = true; setText("stage", stage); setText("detail", "请查看下方诊断状态，必要时打开日志重试。"); setText("eyebrow", "ACTION REQUIRED"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon error"; icon.innerText = "!"; setText("footerMessage", "服务没有按预期完成"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail.indexOf("\n") >= 0 ? detail.substring(0, detail.indexOf("\n")) : detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
   }
   function readLogTail() {
     if (!fso) return "";
@@ -168,13 +210,13 @@
   function openWorkbench() { if (shell) { try { shell.Run(workbenchUrl(), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
   function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“打开日志”查看详情。\n" + e.message); return false; } }
-  function complete(message, shouldOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setStatus("已完成", "success"); setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; var seconds = action === "stop" ? 2 : 3; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); }
-  function tickElapsed() { if (!finished && !failed) { setText("elapsed", "已用时 " + Math.floor((new Date().getTime() - startedAt) / 1000) + " 秒"); window.setTimeout(tickElapsed, 1000); } }
+  function complete(message, shouldOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "OK"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; var seconds = action === "stop" ? 2 : 3; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); }
+  function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function poll() {
     if (finished || failed) return;
     var elapsed = new Date().getTime() - startedAt;
     if (elapsed > deadline) { setFailure("等待超时", "服务在 120 秒内没有达到预期状态。\n\n" + readLogTail()); return; }
-    var backend = backendUp(); var frontend = frontendReady(); var pid = pidExists();
+    var backend = backendUp(); var frontend = frontendReady(); var pid = launcherActive(); updateDiagnostics(backend, frontend, pid);
     if (action === "stop") {
       if (backend || frontend || pid) moveTo(1, "正在确认进程退出", "正在等待后台进程和端口完全释放");
       else complete("服务已停止，端口已释放", false);
@@ -192,9 +234,9 @@
     pollTimer = window.setTimeout(poll, 700);
   }
   function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台运行"; begin(); }
-  function begin() { loadConfig(); restartObservedDown = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setStatus("执行中", ""); setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  function begin() { loadConfig(); restartObservedDown = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
   document.getElementById("openButton").style.display = "none";
-  window.resizeTo(600, 680);
+  window.resizeTo(680, 760);
   tickElapsed();
   begin();
 </script>
