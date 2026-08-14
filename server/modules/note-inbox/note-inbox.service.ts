@@ -3,6 +3,7 @@ import { DRIZZLE_DATABASE } from '@lark-apaas/fullstack-nestjs-core';
 import type { AppDatabase } from '@server/database/database.types';
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { spawn } from 'node:child_process';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 import { noteConversionRecords, noteInboxBindings, noteInboxMedia, noteInboxMessages } from '@server/database/schema';
 import type { InboxMessageStatus, NoteInboxMessageListResponse, NoteInboxStatus, NoteStyle, SourcePlatform } from '@shared/api.interface';
 import { NoteJobsService } from '../note-jobs/note-jobs.service';
@@ -72,6 +73,5 @@ export class NoteInboxService implements OnModuleInit, OnModuleDestroy {
   }
   private async getBinding(ownerId: string) { return (await this.db.select().from(noteInboxBindings).where(eq(noteInboxBindings.ownerId, ownerId)).limit(1))[0]; }
   private async fetchMessages(chatId: string) { const output = await this.runCommand('lark-cli', ['im', '+chat-messages-list', '--as', 'user', '--chat-id', chatId, '--order', 'asc', '--page-size', '50', '--no-reactions', '--format', 'json']); return parseInboxMessages(JSON.parse(output)); }
-  private runCommand(command: string, args: string[]): Promise<string> { return new Promise((resolve, reject) => { const child = spawn(command, args, { cwd: process.cwd(), env: process.env,
-    shell: true, windowsHide: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] }); let stdout = ''; let stderr = ''; child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); }); child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); }); child.on('error', reject); child.on('close', (code: number | null) => code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || `${command} 执行失败（${code}）`))); }); }
+  private runCommand(command: string, args: string[]): Promise<string> { return new Promise((resolve, reject) => { const invocation = resolveCliInvocation(command, args); const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, windowsHide: process.platform === 'win32', ...(invocation.shell ? { shell: true } : {}), stdio: ['ignore', 'pipe', 'pipe'] }); let stdout = ''; let stderr = ''; child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); }); child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); }); child.on('error', reject); child.on('close', (code: number | null) => code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || `${command} 执行失败（${code}）`))); }); }
 }

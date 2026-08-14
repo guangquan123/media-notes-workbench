@@ -25,6 +25,7 @@ import { basename, dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 import type {
   ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
@@ -4199,16 +4200,13 @@ export class NoteJobsService implements OnModuleInit {
         reject(error);
         return;
       }
-      const needsShell =
-        /\.(cmd|bat)$/iu.test(command) ||
-        command === 'lark-cli' ||
-        command === 'dws';
-      const child = spawn(command, args, {
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, {
         cwd,
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
-        ...(needsShell ? { shell: true } : {}),
+        ...(invocation.shell ? { shell: true } : {}),
       });
       if (jobId) {
         const commands = this.activeCommands.get(jobId) || new Set();

@@ -9,6 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 import type {
   ArticleArtifact,
   ArticleExportJob,
@@ -473,16 +474,13 @@ export class ArticleExportService {
     stdin?: string,
   ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const needsShell =
-        /\.(cmd|bat)$/iu.test(command) ||
-        command === 'lark-cli' ||
-        command === 'dws';
-      const child = spawn(command, args, {
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
-        ...(needsShell ? { shell: true } : {}),
+        ...(invocation.shell ? { shell: true } : {}),
       });
 
       let stdout = '';

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 import type { KeyFrame } from './frame-extraction.service';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 
 type CommandResult = { stderr: string; stdout: string };
 
@@ -103,11 +104,12 @@ async function runCommand(
   cwd: string,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const childProcess = spawn(command, args, {
+    const invocation = resolveCliInvocation(command, args);
+    const childProcess = spawn(invocation.command, invocation.args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
       windowsHide: process.platform === 'win32',
+      ...(invocation.shell ? { shell: true } : {}),
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];

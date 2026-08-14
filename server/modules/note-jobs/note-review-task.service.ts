@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
 import { buildReviewTaskPayload } from './note-review-task.utils';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult {
   stderr: string;
@@ -77,11 +78,12 @@ export class NoteReviewTaskService {
 
   private runCommand(command: string, args: string[]): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, {
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
         env: process.env,
-        shell: true,
         windowsHide: process.platform === 'win32',
+        ...(invocation.shell ? { shell: true } : {}),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';

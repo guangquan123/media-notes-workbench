@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult {
   stdout: string;
@@ -69,7 +70,8 @@ export class DingTalkDocumentService {
 
   private runCommand(command: string, args: string[]): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: true });
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
       let stdout = ''; let stderr = '';
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
       child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));

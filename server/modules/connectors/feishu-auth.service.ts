@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult { stdout: string; stderr: string; }
 
@@ -162,7 +163,8 @@ export class FeishuAuthService {
 
   private run(command: string, args: string[], timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: true });
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
@@ -178,7 +180,8 @@ export class FeishuAuthService {
 
   private runWithStdin(command: string, args: string[], stdin: string, timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: true });
+      const invocation = resolveCliInvocation(command, args);
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdin.on('error', () => { /* ignore */ });
