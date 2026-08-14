@@ -93,7 +93,11 @@ export default function TranscriptionSettingsPage({
     setTesting(true);
     try {
       const result = await testTencentAsrConnection();
-      toast.success(result.message);
+      if (result.asrConnected && result.cosConnected) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
     } catch {
       toast.error('连通性校验失败，请核对启用状态、存储桶和 CAM 权限');
     } finally {

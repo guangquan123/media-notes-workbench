@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import COS from 'cos-nodejs-sdk-v5';
 import * as TencentCloud from 'tencentcloud-sdk-nodejs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
@@ -8,6 +8,7 @@ import type {
   TencentAsrConnectionStatus,
   UpdateTencentAsrSettingsRequest,
 } from '@shared/api.interface';
+import { formatTencentAsrError } from './tencent-asr-error.utils';
 
 export interface TencentAsrCredentials {
   asrRegion: string;
@@ -25,6 +26,7 @@ const DEFAULT_ASR_REGION = 'ap-guangzhou';
 
 @Injectable()
 export class TencentAsrSettingsService {
+  private readonly logger = new Logger(TencentAsrSettingsService.name);
   private readonly configPath = join(process.cwd(), '.tencent-asr-config.json');
   private current: TencentAsrCredentials | undefined;
 
@@ -88,7 +90,18 @@ export class TencentAsrSettingsService {
       SecretId: current.secretId,
       SecretKey: current.secretKey,
     });
-    await cos.headBucket({ Bucket: current.bucket, Region: current.region });
+    try {
+      await cos.headBucket({ Bucket: current.bucket, Region: current.region });
+    } catch (error) {
+      const message: string = formatTencentAsrError(error, 'COS');
+      this.logger.warn(`腾讯云 COS 连通性失败：${message}`);
+      return {
+        asrConnected: false,
+        checkedAt: new Date().toISOString(),
+        cosConnected: false,
+        message,
+      };
+    }
     const asr = new TencentCloud.asr.v20190614.Client({
       credential: {
         secretId: current.secretId,
@@ -99,11 +112,22 @@ export class TencentAsrSettingsService {
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Shanghai',
     }).format(new Date());
-    await asr.GetUsageByDate({
-      BizNameList: ['asr_rec'],
-      EndDate: today,
-      StartDate: today,
-    });
+    try {
+      await asr.GetUsageByDate({
+        BizNameList: ['asr_rec'],
+        EndDate: today,
+        StartDate: today,
+      });
+    } catch (error) {
+      const message: string = formatTencentAsrError(error);
+      this.logger.warn(`腾讯云 ASR 连通性失败：${message}`);
+      return {
+        asrConnected: false,
+        checkedAt: new Date().toISOString(),
+        cosConnected: true,
+        message,
+      };
+    }
     return {
       asrConnected: true,
       checkedAt: new Date().toISOString(),

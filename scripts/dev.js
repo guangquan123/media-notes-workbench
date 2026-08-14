@@ -262,7 +262,7 @@ async function main() {
   // Initialize action plugins
   writeOutput('\n🔌 Initializing action plugins...\n');
   try {
-    execSync('fullstack-cli action-plugin init', {
+    execSync('node scripts/init-action-plugins.js', {
       cwd: PROJECT_ROOT,
       stdio: 'inherit',
       windowsHide: process.platform === 'win32',

@@ -84,7 +84,8 @@ if (hasLarkCli) {
 // 2. action-plugin init —— 装 user app 在 package.json.actionPlugins 里声明的插件。
 console.log('[dev-local] (2/5) action-plugin init...');
 try {
-    execSync('npx -y @lark-apaas/fullstack-cli@latest action-plugin init', {
+    execSync('node scripts/init-action-plugins.js', {
+      cwd: process.cwd(),
       stdio: 'inherit',
       windowsHide: process.platform === 'win32',
     });
