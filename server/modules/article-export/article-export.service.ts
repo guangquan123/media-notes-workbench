@@ -481,6 +481,7 @@ export class ArticleExportService {
         cwd: process.cwd(),
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: process.platform === 'win32',
         ...(needsShell ? { shell: true } : {}),
       });
 

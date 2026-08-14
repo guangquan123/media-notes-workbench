@@ -4,7 +4,15 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 console.log('[restart-windows] 停止旧服务...');
-spawnSync(process.execPath, [path.resolve(__dirname, 'stop.js')], { cwd: root, stdio: 'inherit' });
+spawnSync(process.execPath, [path.resolve(__dirname, 'stop.js')], {
+  cwd: root,
+  stdio: 'inherit',
+  windowsHide: process.platform === 'win32',
+});
 console.log('[restart-windows] 启动新服务...');
-spawnSync(process.execPath, [path.resolve(__dirname, 'launch-windows.js')], { cwd: root, stdio: 'inherit' });
+spawnSync(process.execPath, [path.resolve(__dirname, 'launch-windows.js')], {
+  cwd: root,
+  stdio: 'inherit',
+  windowsHide: process.platform === 'win32',
+});
 process.exit(0);

@@ -56,7 +56,11 @@ const clearPidFile = () => {
 
 // 1. env pull
 console.log('[dev-local] (1/5) env pull...');
-const hasLarkCli = spawnSync('command', ['-v', 'lark-cli'], { shell: true, stdio: 'ignore' }).status === 0;
+const hasLarkCli = spawnSync('command', ['-v', 'lark-cli'], {
+  shell: true,
+  stdio: 'ignore',
+  windowsHide: process.platform === 'win32',
+}).status === 0;
 if (hasLarkCli) {
   let appId = '';
   try {

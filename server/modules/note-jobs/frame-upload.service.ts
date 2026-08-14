@@ -103,22 +103,23 @@ async function runCommand(
   cwd: string,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, {
+    const childProcess = spawn(command, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
+      windowsHide: process.platform === 'win32',
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
-    process.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    process.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-    process.on('close', (code) => {
+    childProcess.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+    childProcess.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+    childProcess.on('close', (code) => {
       const stdout = Buffer.concat(stdoutChunks).toString('utf8');
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       if (code === 0) resolve({ stderr, stdout });
       else reject(new Error(`${command} exited with code ${code}\n${stderr}`));
     });
-    process.on('error', reject);
+    childProcess.on('error', reject);
   });
 }
 

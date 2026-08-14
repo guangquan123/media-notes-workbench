@@ -103,12 +103,12 @@
 
   (function start() {
     window.resizeTo(440, 420);
-    var scriptName = action + ":windows";
+    var scriptFile = action === "start" ? "launch-windows.js" : action === "restart" ? "restart-windows.js" : "stop.js";
     var ok = false;
-    if (shell) { try { shell.Run("cmd.exe /c npm.cmd run " + scriptName, 0, false); ok = true; } catch (e) { ok = false; } }
+    if (shell) { try { shell.Run("node.exe scripts\\" + scriptFile, 0, false); ok = true; } catch (e) { ok = false; } }
     if (!ok) {
       document.getElementById("subtitle").textContent = "启动失败";
-      setMsg("无法执行启动命令，请检查 npm 是否安装", "err");
+      setMsg("无法执行启动命令，请检查 Node.js 是否安装", "err");
       document.getElementById("logBtn").style.display = "inline-block";
       return;
     }

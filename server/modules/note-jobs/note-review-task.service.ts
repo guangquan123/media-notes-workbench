@@ -80,7 +80,8 @@ export class NoteReviewTaskService {
       const child = spawn(command, args, {
         cwd: process.cwd(),
         env: process.env,
-    shell: true,
+        shell: true,
+        windowsHide: process.platform === 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';

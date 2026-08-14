@@ -238,18 +238,21 @@ async function runCommand(
   args: string[],
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const childProcess = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: process.platform === 'win32',
+    });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
-    process.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    process.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-    process.on('close', (code) => {
+    childProcess.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+    childProcess.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+    childProcess.on('close', (code) => {
       const stdout = Buffer.concat(stdoutChunks).toString('utf8');
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       if (code === 0) resolve({ stderr, stdout });
       else reject(new Error(`${command} exited with code ${code}\n${stderr}`));
     });
-    process.on('error', reject);
+    childProcess.on('error', reject);
   });
 }
 
@@ -258,15 +261,18 @@ async function runCommandBuffer(
   args: string[],
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const childProcess = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: process.platform === 'win32',
+    });
     const chunks: Buffer[] = [];
     const errors: Buffer[] = [];
-    process.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
-    process.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
-    process.on('close', (code) => {
+    childProcess.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    childProcess.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
+    childProcess.on('close', (code) => {
       if (code === 0) resolve(Buffer.concat(chunks));
       else reject(new Error(Buffer.concat(errors).toString('utf8')));
     });
-    process.on('error', reject);
+    childProcess.on('error', reject);
   });
 }
