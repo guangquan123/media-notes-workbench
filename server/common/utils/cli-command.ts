@@ -4,7 +4,6 @@ import { delimiter, dirname, join } from 'node:path';
 export interface CliInvocation {
   args: string[];
   command: string;
-  shell: boolean;
 }
 
 const windowsCliCache = new Map<string, CliInvocation>();
@@ -15,19 +14,19 @@ export function resolveCliInvocation(
   args: string[],
 ): CliInvocation {
   if (process.platform !== 'win32') {
-    return { args, command, shell: false };
+    return { args, command };
   }
 
   const baseName = command.replace(/\.cmd$/iu, '').toLowerCase();
   if (baseName !== 'lark-cli' && baseName !== 'dws') {
-    return { args, command, shell: false };
+    return { args, command };
   }
 
   const cached = windowsCliCache.get(baseName);
   if (cached) return { ...cached, args: [...cached.args, ...args] };
 
   const shimPath = findWindowsShim(`${baseName}.cmd`);
-  if (!shimPath) return { args, command, shell: false };
+  if (!shimPath) return { args, command };
 
   const binDirectory = dirname(shimPath);
   const nodePath = join(binDirectory, 'node.exe');
@@ -36,13 +35,12 @@ export function resolveCliInvocation(
       ? join(binDirectory, 'node_modules', '@larksuite', 'cli', 'scripts', 'run.js')
       : join(binDirectory, 'node_modules', 'dingtalk-workspace-cli', 'bin', 'dws.js');
   if (!existsSync(nodePath) || !existsSync(entrypoint)) {
-    return { args, command, shell: false };
+    return { args, command };
   }
 
   const invocation: CliInvocation = {
     args: [entrypoint],
     command: nodePath,
-    shell: false,
   };
   windowsCliCache.set(baseName, invocation);
   return { ...invocation, args: [...invocation.args, ...args] };

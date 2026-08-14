@@ -109,7 +109,6 @@ async function runCommand(
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: process.platform === 'win32',
-      ...(invocation.shell ? { shell: true } : {}),
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];

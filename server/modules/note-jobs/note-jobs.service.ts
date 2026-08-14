@@ -4206,7 +4206,6 @@ export class NoteJobsService implements OnModuleInit {
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
-        ...(invocation.shell ? { shell: true } : {}),
       });
       if (jobId) {
         const commands = this.activeCommands.get(jobId) || new Set();

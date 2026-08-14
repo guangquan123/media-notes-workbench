@@ -71,7 +71,7 @@ export class DingTalkDocumentService {
   private runCommand(command: string, args: string[]): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
       child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));

@@ -83,7 +83,6 @@ export class NoteReviewTaskService {
         cwd: process.cwd(),
         env: process.env,
         windowsHide: process.platform === 'win32',
-        ...(invocation.shell ? { shell: true } : {}),
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let stdout = '';

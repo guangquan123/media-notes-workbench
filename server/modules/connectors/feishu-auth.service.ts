@@ -164,7 +164,7 @@ export class FeishuAuthService {
   private run(command: string, args: string[], timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
@@ -181,7 +181,7 @@ export class FeishuAuthService {
   private runWithStdin(command: string, args: string[], stdin: string, timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, ...(invocation.shell ? { shell: true } : {}) });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdin.on('error', () => { /* ignore */ });

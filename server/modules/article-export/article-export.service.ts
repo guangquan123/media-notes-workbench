@@ -480,7 +480,6 @@ export class ArticleExportService {
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
-        ...(invocation.shell ? { shell: true } : {}),
       });
 
       let stdout = '';
