@@ -20,14 +20,14 @@ export function resolveCliInvocation(
 
   const baseName = command.replace(/\.cmd$/iu, '').toLowerCase();
   if (baseName !== 'lark-cli' && baseName !== 'dws') {
-    return { args, command, shell: /\.(cmd|bat)$/iu.test(command) };
+    return { args, command, shell: false };
   }
 
   const cached = windowsCliCache.get(baseName);
   if (cached) return { ...cached, args: [...cached.args, ...args] };
 
   const shimPath = findWindowsShim(`${baseName}.cmd`);
-  if (!shimPath) return { args, command, shell: true };
+  if (!shimPath) return { args, command, shell: false };
 
   const binDirectory = dirname(shimPath);
   const nodePath = join(binDirectory, 'node.exe');
@@ -36,7 +36,7 @@ export function resolveCliInvocation(
       ? join(binDirectory, 'node_modules', '@larksuite', 'cli', 'scripts', 'run.js')
       : join(binDirectory, 'node_modules', 'dingtalk-workspace-cli', 'bin', 'dws.js');
   if (!existsSync(nodePath) || !existsSync(entrypoint)) {
-    return { args, command, shell: true };
+    return { args, command, shell: false };
   }
 
   const invocation: CliInvocation = {
