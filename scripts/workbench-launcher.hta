@@ -1,131 +1,202 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <title>多媒体笔记工作台</title>
-<hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" commandline="yes" />
+<hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" maximizebutton="no" minimizebutton="no" showintaskbar="yes" singleinstance="yes" sysmenu="yes" />
 <style>
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif; background: #f6f7fb; color: #1a1a1a; }
-  body { display: flex; align-items: center; justify-content: center; height: 100vh; }
-  .card { width: 420px; border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(20,30,70,0.16); overflow: hidden; }
-  .head { padding: 24px 26px 20px; background: linear-gradient(135deg, #4f6bff 0%, #7a5cff 100%); color: #fff; }
-  .head .row { display: flex; align-items: center; gap: 12px; }
-  .logo { width: 44px; height: 44px; border-radius: 13px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-size: 22px; backdrop-filter: blur(6px); }
-  .title { font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
-  .subtitle { font-size: 12.5px; opacity: 0.85; margin-top: 3px; }
-  .body { padding: 22px 26px 20px; }
-  .steps { list-style: none; margin: 0 0 18px; padding: 0; }
-  .step { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: 14px; color: #6b7280; }
-  .step .icon { width: 22px; height: 22px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; background: #e5e7eb; color: #9ca3af; }
-  .step.active { color: #4f6bff; }
-  .step.active .icon { background: #4f6bff; color: #fff; }
-  .step.done { color: #16a34a; }
-  .step.done .icon { background: #16a34a; color: #fff; }
-  .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  html, body { margin: 0; width: 100%; height: 100%; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #152238; background: #edf2f6; }
+  body { display: flex; align-items: center; justify-content: center; }
+  .shell { width: 560px; min-height: 620px; overflow: hidden; background: #fff; border: 1px solid #d7e0e8; border-radius: 14px; box-shadow: 0 18px 50px rgba(23, 43, 64, .16); }
+  .header { padding: 24px 28px 22px; color: #fff; background: #152b45; }
+  .header-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  .brand { display: flex; align-items: center; min-width: 0; gap: 12px; }
+  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border-radius: 10px; color: #152b45; background: #68d0bf; font-size: 20px; font-weight: 800; }
+  .title { overflow: hidden; font-size: 18px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+  .subtitle { margin-top: 4px; color: #b8c8d8; font-size: 12px; }
+  .operation { padding: 7px 10px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; color: #e6f0f5; font-size: 12px; white-space: nowrap; }
+  .content { padding: 24px 28px 22px; }
+  .status-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .stage { font-size: 18px; font-weight: 650; }
+  .detail { max-width: 390px; margin-top: 5px; color: #6c7a89; font-size: 13px; line-height: 1.5; }
+  .status-chip { padding: 6px 9px; border-radius: 6px; color: #876116; background: #fff3d7; font-size: 12px; white-space: nowrap; }
+  .status-chip.success { color: #16715e; background: #dff5ef; }
+  .status-chip.error { color: #a33a35; background: #fde7e5; }
+  .progress-wrap { margin-top: 20px; }
+  .progress-track { height: 8px; overflow: hidden; border-radius: 4px; background: #e8eef2; }
+  .progress-bar { width: 0; height: 100%; border-radius: 4px; background: #1aa98c; transition: width .35s ease; }
+  .progress-meta { display: flex; justify-content: space-between; margin-top: 7px; color: #8794a1; font-size: 11px; }
+  .timeline { margin: 22px 0 0; padding: 0; list-style: none; }
+  .step { position: relative; display: flex; min-height: 43px; gap: 12px; color: #8996a4; }
+  .step:not(:last-child):before { position: absolute; top: 25px; left: 10px; width: 1px; height: 26px; background: #dfe6eb; content: ""; }
+  .step-indicator { z-index: 1; display: flex; align-items: center; justify-content: center; width: 21px; height: 21px; flex: none; border: 1px solid #d4dee5; border-radius: 50%; color: #9ba8b2; background: #fff; font-size: 11px; }
+  .step-copy { padding-bottom: 12px; font-size: 13px; }
+  .step.active { color: #176e69; }
+  .step.active .step-indicator { border-color: #1aa98c; color: #fff; background: #1aa98c; }
+  .step.done { color: #344d5c; }
+  .step.done .step-indicator { border-color: #1aa98c; color: #fff; background: #1aa98c; }
+  .step.error { color: #a33a35; }
+  .step.error .step-indicator { border-color: #d9665c; color: #fff; background: #d9665c; }
+  .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .progress { height: 6px; border-radius: 3px; background: #eef0f5; overflow: hidden; }
-  .progress .bar { height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(90deg, #4f6bff, #7a5cff); transition: width 0.5s ease; }
-  .footer { padding: 16px 26px; border-top: 1px solid #f0f1f5; display: flex; align-items: center; justify-content: space-between; }
-  .msg { font-size: 13px; color: #6b7280; }
-  .msg.ok { color: #16a34a; }
-  .msg.err { color: #dc2626; }
-  .actions { display: flex; gap: 8px; }
-  .btn { border: none; border-radius: 10px; padding: 8px 16px; font-size: 13px; cursor: pointer; background: #111315; color: #fff; font-weight: 500; }
-  .btn:hover { background: #000; }
-  .btn.ghost { background: #f1f2f6; color: #374151; }
-  .btn.ghost:hover { background: #e5e7eb; }
+  .notice { display: none; margin-top: 10px; padding: 11px 12px; border-left: 3px solid #d9665c; color: #8c3d38; background: #fff6f5; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 28px; border-top: 1px solid #e8edf0; }
+  .elapsed { color: #83909d; font-size: 12px; }
+  .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  button { min-height: 32px; padding: 0 12px; border: 1px solid #d6e0e6; border-radius: 6px; color: #415363; background: #fff; font-family: inherit; font-size: 12px; cursor: pointer; }
+  button:hover { background: #f3f7f8; }
+  button.primary { border-color: #168d78; color: #fff; background: #168d78; }
+  button.primary:hover { background: #117563; }
+  button[disabled] { cursor: default; opacity: .55; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="head">
-      <div class="row">
-        <div class="logo">&#128172;</div>
-        <div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备…</div></div>
+  <main class="shell">
+    <header class="header">
+      <div class="header-row">
+        <div class="brand"><div class="brand-mark">M</div><div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备运行环境</div></div></div>
+        <div class="operation" id="operation">启动服务</div>
       </div>
-    </div>
-    <div class="body">
-      <ul class="steps" id="steps"></ul>
-      <div class="progress"><div class="bar" id="bar"></div></div>
-    </div>
-    <div class="footer">
-      <div class="msg" id="msg"></div>
-      <div class="actions">
-        <button class="btn ghost" id="logBtn" style="display:none" onclick="openLog()">打开日志</button>
-        <button class="btn" id="closeBtn" onclick="window.close()">关闭</button>
-      </div>
-    </div>
-  </div>
+    </header>
+    <section class="content">
+      <div class="status-line"><div><div class="stage" id="stage">准备中</div><div class="detail" id="detail">正在读取本地配置并检查服务状态</div></div><div class="status-chip" id="statusChip">准备中</div></div>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-bar" id="progressBar"></div></div><div class="progress-meta"><span id="progressText">0%</span><span id="elapsed">已用时 0 秒</span></div></div>
+      <ol class="timeline" id="timeline"></ol>
+      <div class="notice" id="notice"></div>
+    </section>
+    <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">立即打开</button><button id="logButton" style="display:none" onclick="openLog()">打开日志</button><button id="retryButton" style="display:none" onclick="retry()">重试</button><button id="closeButton" onclick="closeLauncher()">后台运行</button></div></footer>
+  </main>
 <script>
-  var action = "restart";
-  try { var m = (oHTA.commandLine || "").match(/\b(start|restart|stop)\b/i); if (m) action = m[1].toLowerCase(); } catch (e) {}
-
+  var action = "start";
   var shell = null;
+  var fso = null;
+  var root = ".";
+  var config = { serverHost: "127.0.0.1", serverPort: "3000", clientHost: "127.0.0.1", clientPort: "8081", basePath: "" };
+  var steps = [];
+  var currentStep = -1;
+  var failed = false;
+  var finished = false;
+  var pollTimer = null;
+  var closeTimer = null;
+  var startedAt = new Date().getTime();
+  var deadline = 120000;
+  var restartObservedDown = false;
+  var operationNames = { start: "启动服务", stop: "停止服务", restart: "重启服务" };
+  var scriptNames = { start: "launch-windows.js", stop: "stop.js", restart: "restart-windows.js" };
+
   try { shell = new ActiveXObject("WScript.Shell"); } catch (e) {}
+  try { fso = new ActiveXObject("Scripting.FileSystemObject"); root = fso.GetAbsolutePathName("."); } catch (e) {}
+  try { var match = (oHTA.commandLine || "").match(/\b(start|restart|stop)\b/i); if (match) action = match[1].toLowerCase(); } catch (e) {}
 
-  var steps = (action === "stop") ? ["停止服务"] : ["停止旧服务", "启动后端", "启动前端", "启动完成"];
-  var stepIndex = -1;
+  function readEnvFile(name) {
+    var values = {};
+    if (!fso) return values;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(root, name), 1, false, 0);
+      while (!file.AtEndOfStream) {
+        var line = file.ReadLine().replace(/^\s+|\s+$/g, "");
+        if (!line || line.charAt(0) === "#") continue;
+        var index = line.indexOf("=");
+        if (index < 1) continue;
+        var key = line.substring(0, index).replace(/^export\s+/, "").replace(/^\s+|\s+$/g, "");
+        var value = line.substring(index + 1).replace(/^\s+|\s+$/g, "").replace(/^['"]|['"]$/g, "");
+        values[key] = value;
+      }
+      file.Close();
+    } catch (e) {}
+    return values;
+  }
 
+  function loadConfig() {
+    var values = readEnvFile(".env");
+    var local = readEnvFile(".env.local");
+    var key;
+    for (key in local) values[key] = local[key];
+    config.serverHost = values.SERVER_HOST || config.serverHost;
+    config.serverPort = values.SERVER_PORT || config.serverPort;
+    config.clientHost = values.CLIENT_DEV_HOST || config.clientHost;
+    config.clientPort = values.CLIENT_DEV_PORT || config.clientPort;
+    config.basePath = values.CLIENT_BASE_PATH || "";
+    if (config.basePath === "/") config.basePath = "";
+    if (config.basePath.charAt(0) !== "/" && config.basePath) config.basePath = "/" + config.basePath;
+    config.basePath = config.basePath.replace(/\/+$/, "");
+  }
+
+  function url(host, port, path) { return "http://" + host + ":" + port + (path || "/"); }
+  function serverUrl() { return url(config.serverHost, config.serverPort, "/"); }
+  function workbenchUrl() { return url(config.clientHost, config.clientPort, config.basePath + "/"); }
+
+  function httpStatus(target) {
+    var request = null;
+    try { request = new ActiveXObject("WinHttp.WinHttpRequest.5.1"); } catch (e) { try { request = new ActiveXObject("Microsoft.XMLHTTP"); } catch (e2) {} }
+    if (!request) return 0;
+    try { request.SetTimeouts(500, 800, 800, 1200); } catch (e) {}
+    try { request.Open("GET", target, false); request.Send(); return request.Status || 0; } catch (e) { return 0; }
+  }
+
+  function backendUp() { var status = httpStatus(serverUrl()); return status > 0 && status < 500; }
+  function frontendReady() { var status = httpStatus(workbenchUrl()); return status >= 200 && status < 400; }
+  function pidExists() { try { return fso && fso.FileExists(fso.BuildPath(root, "pids\\dev-local.pid")); } catch (e) { return false; } }
+
+  function setText(id, value) { document.getElementById(id).innerText = value; }
+  function setStatus(label, kind) { var chip = document.getElementById("statusChip"); chip.innerText = label; chip.className = "status-chip" + (kind ? " " + kind : ""); }
+  function setProgress(value) { var percent = Math.max(0, Math.min(100, value)); document.getElementById("progressBar").style.width = percent + "%"; setText("progressText", Math.round(percent) + "%"); }
   function renderSteps() {
-    var list = document.getElementById("steps");
     var html = "";
-    for (var i = 0; i < steps.length; i++) {
+    var i;
+    for (i = 0; i < steps.length; i++) {
       var cls = "step"; var icon = "";
-      if (i < stepIndex) { cls += " done"; icon = "&#10003;"; }
-      else if (i === stepIndex) { cls += " active"; icon = '<span class="spinner"></span>'; }
-      else { icon = "&#9679;"; }
-      html += '<li class="' + cls + '"><span class="icon">' + icon + '</span>' + steps[i] + '</li>';
+      if (failed && i === currentStep) { cls += " error"; icon = "!"; }
+      else if (i < currentStep || (finished && i === currentStep)) { cls += " done"; icon = "&#10003;"; }
+      else if (i === currentStep) { cls += " active"; icon = '<span class="spinner"></span>'; }
+      else { icon = String(i + 1); }
+      html += '<li class="' + cls + '"><span class="step-indicator">' + icon + '</span><span class="step-copy">' + steps[i] + '</span></li>';
     }
-    list.innerHTML = html;
-    var pct = stepIndex < 0 ? 0 : Math.round(((stepIndex + 1) / steps.length) * 100);
-    document.getElementById("bar").style.width = pct + "%";
+    document.getElementById("timeline").innerHTML = html;
   }
-
-  function setMsg(text, kind) {
-    var el = document.getElementById("msg");
-    el.textContent = text;
-    el.className = "msg" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
+  function moveTo(index, stage, detail) { currentStep = index; setText("stage", stage); setText("detail", detail); setProgress(Math.round((index / Math.max(1, steps.length - 1)) * 100)); renderSteps(); }
+  function setFailure(stage, detail) {
+    failed = true; setText("stage", stage); setText("detail", detail); setStatus("需要处理", "error"); setText("footerMessage", "服务没有按预期完成"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
   }
-
-  function openLog() { if (shell) { try { shell.Run("notepad.exe logs\dev.std.log", 1, false); } catch (e) {} } }
-
-  function finish(ok, text) {
-    stepIndex = steps.length - 1;
-    renderSteps();
-    document.getElementById("subtitle").textContent = ok ? "启动完成" : "启动未完成";
-    setMsg(text, ok ? "ok" : "err");
-    if (!ok) { document.getElementById("logBtn").style.display = "inline-block"; }
-    var n = 5;
-    document.getElementById("closeBtn").textContent = "立即关闭";
-    var t = setInterval(function () { n -= 1; if (n <= 0) { window.close(); return; } document.getElementById("closeBtn").textContent = n + " 秒后自动关闭"; }, 1000);
+  function readLogTail() {
+    if (!fso) return "";
+    try { var file = fso.OpenTextFile(fso.BuildPath(root, "logs\\dev.std.log"), 1, false, 0); var text = file.ReadAll(); file.Close(); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
   }
-
-  (function start() {
-    window.resizeTo(440, 420);
-    var scriptFile = action === "start" ? "launch-windows.js" : action === "restart" ? "restart-windows.js" : "stop.js";
-    var ok = false;
-    if (shell) { try { shell.Run("node.exe scripts\\" + scriptFile, 0, false); ok = true; } catch (e) { ok = false; } }
-    if (!ok) {
-      document.getElementById("subtitle").textContent = "启动失败";
-      setMsg("无法执行启动命令，请检查 Node.js 是否安装", "err");
-      document.getElementById("logBtn").style.display = "inline-block";
-      return;
-    }
-    document.getElementById("subtitle").textContent = action === "stop" ? "正在停止服务" : "正在启动服务";
-    setMsg("正在后台启动，请稍候…");
-    renderSteps();
-
+  function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(root, "logs\\dev.std.log")), 1, false); } catch (e) {} } }
+  function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
+  function openWorkbench() { if (shell) { try { shell.Run(workbenchUrl(), 1, false); } catch (e) {} } }
+  function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
+  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“打开日志”查看详情。\n" + e.message); return false; } }
+  function complete(message, shouldOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setStatus("已完成", "success"); setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; var seconds = action === "stop" ? 2 : 3; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); }
+  function tickElapsed() { if (!finished && !failed) { setText("elapsed", "已用时 " + Math.floor((new Date().getTime() - startedAt) / 1000) + " 秒"); window.setTimeout(tickElapsed, 1000); } }
+  function poll() {
+    if (finished || failed) return;
+    var elapsed = new Date().getTime() - startedAt;
+    if (elapsed > deadline) { setFailure("等待超时", "服务在 120 秒内没有达到预期状态。\n\n" + readLogTail()); return; }
+    var backend = backendUp(); var frontend = frontendReady(); var pid = pidExists();
     if (action === "stop") {
-      stepIndex = 0; renderSteps();
-      setTimeout(function () { finish(true, "已停止服务"); }, 2500);
-      return;
+      if (backend || frontend || pid) moveTo(1, "正在确认进程退出", "正在等待后台进程和端口完全释放");
+      else complete("服务已停止，端口已释放", false);
+    } else if (action === "restart") {
+      if (!pid && !backend && !frontend) restartObservedDown = true;
+      if (restartObservedDown && currentStep < 2) moveTo(2, "旧服务已停止", "正在等待新服务接管端口");
+      else if (restartObservedDown && backend && currentStep < 4) moveTo(4, "后端已就绪", "正在等待前端页面响应");
+      else if (restartObservedDown && frontend && currentStep < 6) moveTo(6, "页面已就绪", "正在打开工作台");
+      if (restartObservedDown && frontend) complete("重启完成，正在打开工作台", true);
+    } else {
+      if (pid && currentStep < 1) moveTo(1, "服务已启动", "正在等待后端开始监听");
+      if (backend && currentStep < 3) moveTo(3, "后端已就绪", "正在等待前端页面响应");
+      if (frontend) complete("启动完成，正在打开工作台", true);
     }
-    setTimeout(function () { stepIndex = 0; renderSteps(); }, 1000);
-    setTimeout(function () { stepIndex = 1; renderSteps(); }, 6000);
-    setTimeout(function () { stepIndex = 2; renderSteps(); }, 14000);
-    setTimeout(function () { finish(true, "已启动完成，可以开始使用了"); }, 22000);
-  })();
+    pollTimer = window.setTimeout(poll, 700);
+  }
+  function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台运行"; begin(); }
+  function begin() { loadConfig(); restartObservedDown = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setStatus("执行中", ""); setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  document.getElementById("openButton").style.display = "none";
+  window.resizeTo(600, 680);
+  tickElapsed();
+  begin();
 </script>
 </body>
 </html>
