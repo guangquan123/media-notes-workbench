@@ -7,6 +7,7 @@ import type { ConnectorSettingsResponse, ConnectorType, UpdateConnectorRequest }
 import { completeDingTalkAuth, completeFeishuAuth, getConnectorSettings, initiateDingTalkAuth, initiateFeishuAuth, logoutConnector, setActiveConnector, testConnector, updateConnectorConfig } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 
 const CONNECTOR_OPTIONS: Array<{ label: string; description: string; type: ConnectorType; recommended?: boolean }> = [
   { label: '本地', description: '零配置，数据保存在本机', type: 'local', recommended: true },
@@ -59,6 +60,26 @@ export default function ConnectorSettingsPage() {
     setSelected(type);
     setClientId(''); setClientSecret(''); setWebhookUrl(''); setUserId('');
     setAuthStatus('idle'); setVerificationUrl(''); setAuthSessionId(''); setAuthMessage(''); setAuthExpiresAt(0); setRemainingSec(0); setAdvancedOpen(false); setUseCustomApp(false);
+  };
+
+  const activateConnector = async (type: ConnectorType): Promise<void> => {
+    selectConnector(type);
+    if (type === 'local') {
+      try { setSettings(await setActiveConnector('local')); toast.success('已切换到本地连接器'); }
+      catch (error) { toast.error(friendlyError(error)); }
+      return;
+    }
+    const descriptor = settings?.items.find((i) => i.type === type);
+    if (descriptor?.status !== 'ready') {
+      toast.error(`请先完成${CONNECTOR_OPTIONS.find((o) => o.type === type)?.label || type}的授权或配置，再启用`);
+      return;
+    }
+    try {
+      setSettings(await setActiveConnector(type));
+      toast.success(`${CONNECTOR_OPTIONS.find((o) => o.type === type)?.label || type}连接器已启用`);
+    } catch (error) {
+      toast.error(friendlyError(error));
+    }
   };
 
   const startAuth = async (): Promise<void> => {
@@ -158,13 +179,32 @@ export default function ConnectorSettingsPage() {
         <section className="mt-8 grid gap-3 sm:grid-cols-3">
           {CONNECTOR_OPTIONS.map((option) => {
             const descriptor = settings?.items.find((i) => i.type === option.type);
-            const active = selected === option.type;
+            const isSelected = selected === option.type;
+            const isActive = settings?.activeConnector === option.type;
             return (
-              <button className={`rounded-2xl border p-4 text-left transition ${active ? "border-[#111315] bg-[#111315] text-white" : "border-black/8 bg-white hover:border-black/20"}`} key={option.type} onClick={(): void => selectConnector(option.type)} type="button">
-                <div className="flex items-center justify-between"><p className="font-semibold">{option.label}</p>{option.recommended ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">推荐</span> : null}</div>
-                <p className={`mt-1 text-xs ${active ? "text-white/65" : "text-black/45"}`}>{option.description}</p>
-                <p className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/15 text-white" : "bg-black/5 text-black/55"}`}>{descriptor ? STATUS_LABELS[descriptor.status] || descriptor.status : "读取中"}</p>
-              </button>
+              <div
+                className={`cursor-pointer rounded-2xl border p-4 text-left transition ${isSelected ? "border-[#111315] bg-[#111315] text-white" : "border-black/8 bg-white hover:border-black/20"}`}
+                key={option.type}
+                onClick={(): void => selectConnector(option.type)}
+                onKeyDown={(e): void => { if (e.key === 'Enter' || e.key === ' ') selectConnector(option.type); }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="font-semibold">{option.label}</p>
+                      {option.recommended ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">推荐</span> : null}
+                      {isActive ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"}`}>使用中</span> : null}
+                    </div>
+                    <p className={`mt-1 text-xs ${isSelected ? "text-white/65" : "text-black/45"}`}>{option.description}</p>
+                  </div>
+                  <span onClick={(e): void => e.stopPropagation()}>
+                    <Switch checked={isActive} disabled={!settings} onCheckedChange={(checked): void => { if (checked) void activateConnector(option.type); }} />
+                  </span>
+                </div>
+                <p className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs ${isSelected ? "bg-white/15 text-white" : "bg-black/5 text-black/55"}`}>{descriptor ? STATUS_LABELS[descriptor.status] || descriptor.status : "读取中"}</p>
+              </div>
             );
           })}
         </section>
