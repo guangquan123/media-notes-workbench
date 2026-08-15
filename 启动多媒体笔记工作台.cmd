@@ -2,15 +2,18 @@
 setlocal
 cd /d "%~dp0"
 
-echo Starting Media Notes Workbench...
-call wscript.exe "%~dp0scripts\run-hidden.vbs" npm.cmd run start:windows
-if errorlevel 1 goto failed
+set "LAUNCHER=%~dp0scripts\workbench-launcher.hta"
+set "MSHTA=%SystemRoot%\System32\mshta.exe"
 
-echo Media Notes Workbench is ready.
-exit /b 0
+if not exist "%LAUNCHER%" goto missing_launcher
 
-:failed
+echo Opening the startup window...
+start "" /wait "%MSHTA%" "%LAUNCHER%" start
+set "LAUNCHER_EXIT_CODE=%ERRORLEVEL%"
+endlocal & exit /b %LAUNCHER_EXIT_CODE%
+
+:missing_launcher
 echo.
-echo Startup failed. Check logs\dev-windows-console.log and logs\dev.std.log.
+echo Startup window was not found: %LAUNCHER%
 pause
 exit /b 1
