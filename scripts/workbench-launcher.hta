@@ -118,7 +118,9 @@
   var closeTimer = null;
   var startedAt = new Date().getTime();
   var deadline = 120000;
-  var restartObservedDown = false;
+  var initialPid = 0;
+  var operationToken = "";
+  var restartLaunchObserved = false;
   var operationNames = { start: "启动服务", stop: "停止服务", restart: "重启服务" };
   var scriptNames = { start: "launch-windows.js", stop: "stop.js", restart: "restart-windows.js" };
 
@@ -164,17 +166,32 @@
   function url(host, port, path) { return "http://" + host + ":" + port + (path || "/"); }
   function serverUrl() { return url(config.serverHost, config.serverPort, "/"); }
   function workbenchUrl() { return url(config.clientHost, config.clientPort, config.basePath + "/"); }
+  function runtimeUrl() { return url(config.serverHost, config.serverPort, config.basePath + "/api/runtime"); }
 
-  function httpStatus(target) {
+  function httpRequest(target) {
     var request = null;
     try { request = new ActiveXObject("WinHttp.WinHttpRequest.5.1"); } catch (e) { try { request = new ActiveXObject("Microsoft.XMLHTTP"); } catch (e2) {} }
-    if (!request) return 0;
+    if (!request) return { status: 0, contentType: "", body: "" };
     try { request.SetTimeouts(500, 800, 800, 1200); } catch (e) {}
-    try { request.Open("GET", target, false); request.Send(); return request.Status || 0; } catch (e) { return 0; }
+    try {
+      request.Open("GET", target, false);
+      request.Send();
+      var contentType = "";
+      try { contentType = String(request.GetResponseHeader("Content-Type") || "").toLowerCase(); } catch (e) {}
+      return { status: request.Status || 0, contentType: contentType, body: String(request.ResponseText || "") };
+    } catch (e) { return { status: 0, contentType: "", body: "" }; }
   }
 
+  function httpStatus(target) { return httpRequest(target).status; }
   function backendUp() { var status = httpStatus(serverUrl()); return status > 0 && status < 500; }
-  function frontendReady() { var status = httpStatus(workbenchUrl()); return status >= 200 && status < 400; }
+  function frontendReady() {
+    var response = httpRequest(workbenchUrl());
+    return response.status >= 200 && response.status < 400 && response.contentType.indexOf("text/html") >= 0 && /id=["']root["']/.test(response.body) && /type=["']module["']/.test(response.body);
+  }
+  function backendRouteReachable() {
+    var status = httpStatus(runtimeUrl());
+    return (status >= 200 && status < 400) || status === 401 || status === 403;
+  }
   function readPid() {
     if (!fso) return 0;
     try {
@@ -223,6 +240,25 @@
     if (!fso) return "";
     try { var file = fso.OpenTextFile(fso.BuildPath(root, "logs\\dev.std.log"), 1, false, 0); var text = file.ReadAll(); file.Close(); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
   }
+  function createOperationToken() {
+    if (!fso) return "";
+    try {
+      var token = String(new Date().getTime()) + "-" + String(Math.floor(Math.random() * 1000000));
+      var file = fso.CreateTextFile(fso.BuildPath(root, "pids\\launcher-operation.token"), true, false);
+      file.Write(token);
+      file.Close();
+      return token;
+    } catch (e) { return ""; }
+  }
+  function restartReadyTokenMatches() {
+    if (!fso || !operationToken) return false;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-ready.token"), 1, false, 0);
+      var token = file.ReadAll().replace(/^\s+|\s+$/g, "");
+      file.Close();
+      return token === operationToken;
+    } catch (e) { return false; }
+  }
   function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(root, "logs\\dev.std.log")), 1, false); } catch (e) {} } }
   function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
   function openWorkbench() { if (shell) { try { shell.Run(workbenchUrl(), 1, false); } catch (e) {} } }
@@ -234,25 +270,25 @@
     if (finished || failed) return;
     var elapsed = new Date().getTime() - startedAt;
     if (elapsed > deadline) { setFailure("等待超时", "服务在 120 秒内没有达到预期状态。\n\n" + readLogTail()); return; }
-    var backend = backendUp(); var frontend = frontendReady(); var pid = launcherActive(); updateDiagnostics(backend, frontend, pid);
+    var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api, frontend, pid);
     if (action === "stop") {
       if (backend || frontend || pid) moveTo(1, "正在确认进程退出", "正在等待后台进程和端口完全释放");
       else complete("服务已停止，端口已释放", false);
     } else if (action === "restart") {
-      if (!pid && !backend && !frontend) restartObservedDown = true;
-      if (restartObservedDown && currentStep < 2) moveTo(2, "旧服务已停止", "正在等待新服务接管端口");
-      else if (restartObservedDown && backend && currentStep < 4) moveTo(4, "后端已就绪", "正在等待前端页面响应");
-      else if (restartObservedDown && frontend && currentStep < 6) moveTo(6, "页面已就绪", "正在打开工作台");
-      if (restartObservedDown && frontend) complete("重启完成，正在打开工作台", true);
+      if (!restartLaunchObserved && (restartReadyTokenMatches() || (initialPid > 0 && currentPid > 0 && currentPid !== initialPid))) restartLaunchObserved = true;
+      if (restartLaunchObserved && currentStep < 2) moveTo(2, "旧服务已停止", "新服务已接管，正在确认后端状态");
+      if (restartLaunchObserved && backend && api && currentStep < 4) moveTo(4, "后端已就绪", "正在等待前端页面响应");
+      if (restartLaunchObserved && frontend && currentStep < 6) moveTo(6, "页面已就绪", "页面和本地 API 已可访问，正在打开工作台");
+      if (restartLaunchObserved && backend && frontend && api) complete("重启完成，正在打开工作台", true);
     } else {
       if (pid && currentStep < 1) moveTo(1, "服务已启动", "正在等待后端开始监听");
-      if (backend && currentStep < 3) moveTo(3, "后端已就绪", "正在等待前端页面响应");
-      if (frontend) complete("启动完成，正在打开工作台", true);
+      if (backend && api && currentStep < 3) moveTo(3, "后端已就绪", "正在等待前端页面响应");
+      if (frontend && api) complete("启动完成，正在打开工作台", true);
     }
     pollTimer = window.setTimeout(poll, 700);
   }
   function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台继续"; begin(); }
-  function begin() { loadConfig(); restartObservedDown = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  function begin() { loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
   document.getElementById("openButton").style.display = "none";
   window.resizeTo(760, 820);
   tickElapsed();

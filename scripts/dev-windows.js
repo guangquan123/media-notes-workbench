@@ -2,6 +2,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
@@ -13,10 +14,25 @@ process.chdir(rootDir);
 const logDir = path.resolve(rootDir, process.env.LOG_DIR || 'logs');
 const pidDir = path.resolve(rootDir, 'pids');
 const pidPath = path.join(pidDir, 'dev-local.pid');
+const launcherOperationTokenPath = path.join(
+  pidDir,
+  'launcher-operation.token',
+);
+const launcherReadyTokenPath = path.join(pidDir, 'launcher-ready.token');
 const logPath = path.join(logDir, 'dev.std.log');
 
 fs.mkdirSync(logDir, { recursive: true });
 fs.mkdirSync(pidDir, { recursive: true });
+
+function readLauncherOperationToken() {
+  try {
+    return fs.readFileSync(launcherOperationTokenPath, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+const launcherOperationToken = readLauncherOperationToken();
 
 require('dotenv').config({ path: path.join(rootDir, '.env.local') });
 require('dotenv').config({ path: path.join(rootDir, '.env') });
@@ -134,6 +150,16 @@ function writeLine(message) {
   fs.writeSync(logFd, line);
 }
 
+function writeLauncherReadyToken() {
+  try {
+    if (launcherOperationToken) {
+      fs.writeFileSync(launcherReadyTokenPath, launcherOperationToken, 'utf8');
+    }
+  } catch {
+    // 直接从命令行启动时没有 HTA 操作令牌，不影响服务启动。
+  }
+}
+
 function pipeWithPrefix(stream, name) {
   let pending = '';
   stream.setEncoding('utf8');
@@ -226,6 +252,64 @@ async function waitForPort(name, host, port, child, timeoutMs = 120000) {
   throw new Error(
     `等待 ${name} 端口 ${host}:${port} 超时（${Math.round(timeoutMs / 1000)}s）。` +
       `若端口被其他进程占用，先运行 npm run stop，或执行: netstat -ano | findstr :${port} 查占用进程`,
+  );
+}
+
+function requestHttp(target, timeoutMs = 2500) {
+  return new Promise((resolve) => {
+    const request = http.get(target, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        if (body.length < 32768) body += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          status: response.statusCode || 0,
+          contentType: String(response.headers['content-type'] || '').toLowerCase(),
+          body,
+        });
+      });
+    });
+    request.setTimeout(timeoutMs, () => request.destroy());
+    request.once('error', () => resolve({ status: 0, contentType: '', body: '' }));
+  });
+}
+
+function isApplicationHtmlReady(response) {
+  return (
+    response.status >= 200 &&
+    response.status < 400 &&
+    response.contentType.includes('text/html') &&
+    /id=["']root["']/.test(response.body) &&
+    /type=["']module["']/.test(response.body)
+  );
+}
+
+function isApplicationApiReachable(response) {
+  return (
+    (response.status >= 200 && response.status < 400) ||
+    response.status === 401 ||
+    response.status === 403
+  );
+}
+
+async function waitForApplicationReady(child, timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs;
+  const runtimeUrl = `http://${serverHost}:${serverPort}${clientBasePath}/api/runtime`;
+  while (Date.now() < deadline) {
+    if (child && (child.exitCode !== null || child.signalCode !== null)) {
+      throw new Error('前端在页面可访问前已退出');
+    }
+    const [page, runtime] = await Promise.all([
+      requestHttp(appUrl),
+      requestHttp(runtimeUrl),
+    ]);
+    if (isApplicationHtmlReady(page) && isApplicationApiReachable(runtime)) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(
+    `等待工作台页面可访问超时（${Math.round(timeoutMs / 1000)}s）：${appUrl}`,
   );
 }
 
@@ -325,6 +409,8 @@ async function main() {
       [viteCliPath, '--config', 'vite.config.ts'],
       {
         NODE_ENV: 'development',
+        MIAODA_LOCAL_DEV: '1',
+        VITE_RUNTIME: 'local',
         VITE_STABLE_MODE: 'true',
         CLIENT_DEV_HOST: clientHost,
         CLIENT_DEV_PORT: String(clientPort),
@@ -359,6 +445,9 @@ async function main() {
     throw clientStartError || new Error('前端启动失败');
   }
   client?.once('close', handleUnexpectedExit('前端'));
+  await waitForApplicationReady(client);
+  writeLine('[dev-windows] 页面和本地 API 已验证可访问');
+  writeLauncherReadyToken();
   writeLine(`[dev-windows] 项目已启动: ${appUrl}`);
 }
 
