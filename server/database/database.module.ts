@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DRIZZLE_DATABASE } from '@lark-apaas/fullstack-nestjs-core';
@@ -15,6 +15,7 @@ function loadRuntimeConfig() {
   }
 }
 
+@Global()
 @Module({})
 export class DatabaseModule {
   static forRoot(): DynamicModule {
@@ -23,7 +24,12 @@ export class DatabaseModule {
     }
     return {
       module: DatabaseModule,
-      providers: [{ provide: DRIZZLE_DATABASE, useFactory: (): AppDatabase => createLocalDatabase() }],
+      providers: [
+        {
+          provide: DRIZZLE_DATABASE,
+          useFactory: (): Promise<AppDatabase> => createLocalDatabase(),
+        },
+      ],
       exports: [DRIZZLE_DATABASE],
     };
   }

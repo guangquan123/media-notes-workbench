@@ -35,6 +35,7 @@ function warn(msg) {
 
 if (!process.env.MIAODA_APP_TYPE) process.env.MIAODA_APP_TYPE = '3';
 process.env.MIAODA_LOCAL_DEV = '1';
+process.env.VITE_RUNTIME = 'local';
 
 // 先建 logs/,防止任何步骤(尤其是 spawn 子进程前的 shell redirect)因父目录不存在挂掉
 const LOG_DIR = process.env.LOG_DIR || 'logs';

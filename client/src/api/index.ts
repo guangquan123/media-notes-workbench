@@ -1,9 +1,14 @@
 import { logger as platformLogger } from '@lark-apaas/client-toolkit/logger';
 import { axiosForBackend as platformAxiosForBackend } from '@lark-apaas/client-toolkit/utils/getAxiosForBackend';
-import { axiosForBackend as localAxiosForBackend, logger as localLogger } from '@/lib/local-http';
+import {
+  axiosForBackend as localAxiosForBackend,
+  logger as localLogger,
+} from '@/lib/local-http';
 import { isLocalRuntime } from '@/lib/runtime';
 
-export const axiosForBackend: any = isLocalRuntime() ? localAxiosForBackend : platformAxiosForBackend;
+export const axiosForBackend: any = isLocalRuntime()
+  ? localAxiosForBackend
+  : platformAxiosForBackend;
 export const logger: any = isLocalRuntime() ? localLogger : platformLogger;
 import type {
   ArticleArtifact,
@@ -46,6 +51,7 @@ import type {
   ConnectorSettingsResponse,
   ConnectorTestResponse,
   ConnectorType,
+  RuntimeStatus,
   UpdateConnectorRequest,
 } from '@shared/api.interface';
 
@@ -106,6 +112,15 @@ export async function getReadiness(): Promise<SystemReadiness> {
     });
     return response.data;
   });
+}
+
+export async function getRuntimeStatus(): Promise<RuntimeStatus> {
+  const response = await axiosForBackend({
+    url: '/api/runtime',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
 }
 
 export async function getTencentAsrSettings(): Promise<TencentAsrSettings> {
@@ -609,7 +624,10 @@ export interface FeishuAuthComplete {
   message: string;
 }
 
-export async function initiateFeishuAuth(appId?: string, appSecret?: string): Promise<FeishuAuthInitiate> {
+export async function initiateFeishuAuth(
+  appId?: string,
+  appSecret?: string,
+): Promise<FeishuAuthInitiate> {
   const response = await axiosForBackend({
     url: '/api/connectors/feishu/auth/initiate',
     method: 'POST',
@@ -634,7 +652,9 @@ export async function getFeishuAppInfo(): Promise<FeishuAppInfo> {
   return response.data;
 }
 
-export async function completeFeishuAuth(sessionId: string): Promise<FeishuAuthComplete> {
+export async function completeFeishuAuth(
+  sessionId: string,
+): Promise<FeishuAuthComplete> {
   const response = await axiosForBackend({
     url: '/api/connectors/feishu/auth/complete',
     method: 'POST',
@@ -661,7 +681,9 @@ export async function initiateDingTalkAuth(): Promise<DingTalkAuthInitiate> {
   return response.data;
 }
 
-export async function completeDingTalkAuth(sessionId: string): Promise<{ completed: boolean; message: string }> {
+export async function completeDingTalkAuth(
+  sessionId: string,
+): Promise<{ completed: boolean; message: string }> {
   const response = await axiosForBackend({
     url: '/api/connectors/dingtalk/auth/complete',
     method: 'POST',

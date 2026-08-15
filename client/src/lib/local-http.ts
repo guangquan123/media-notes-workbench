@@ -7,9 +7,20 @@ export interface BackendResponse<T = unknown> {
   [key: string]: unknown;
 }
 
-// 本地模式：直连同源 /api，无需妙搭网关鉴权。
+export function resolveLocalBackendBasePath(
+  pathname: string,
+): string | undefined {
+  return pathname.match(/^\/app\/app_[^/]+/)?.[0];
+}
+
+// 本地模式：直连同源 API；部署在 /app/app_xxx 下时保留应用前缀。
 export function axiosForBackend<T = unknown>(config: AxiosRequestConfig): Promise<BackendResponse<T>> {
-  return axios({ withCredentials: true, ...config }) as Promise<BackendResponse<T>>;
+  const baseURL = resolveLocalBackendBasePath(window.location.pathname);
+  return axios({
+    ...(baseURL ? { baseURL } : {}),
+    withCredentials: true,
+    ...config,
+  }) as Promise<BackendResponse<T>>;
 }
 
 export const logger = {

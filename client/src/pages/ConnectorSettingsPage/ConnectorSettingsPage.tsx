@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
   ArrowLeft,
-  BookOpenCheck,
   Cable,
   Check,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   ExternalLink,
   Link2,
@@ -14,7 +14,6 @@ import {
   RefreshCw,
   ScanLine,
   ShieldCheck,
-  Unplug,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
@@ -38,6 +37,7 @@ import {
 } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   getConnectorAction,
   getConnectorStatusLabel,
@@ -99,7 +99,8 @@ function createDrafts(): Drafts {
 function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   if (/status code 500/i.test(raw)) return '服务暂时不可用，请稍后重试。';
-  if (/status code 404/i.test(raw)) return '连接器服务未启动，请重启服务后重试。';
+  if (/status code 404/i.test(raw))
+    return '连接器服务未启动，请重启服务后重试。';
   if (/status code 401|403/i.test(raw)) return '登录状态已失效，请重新登录。';
   if (/timeout|超时/i.test(raw)) return '请求超时，请稍后重试。';
   return raw || '操作失败，请重试。';
@@ -119,13 +120,17 @@ function formatCheckedAt(value?: string): string {
 }
 
 function getLabel(type: ConnectorType): string {
-  return CONNECTOR_OPTIONS.find((option) => option.type === type)?.label || type;
+  return (
+    CONNECTOR_OPTIONS.find((option) => option.type === type)?.label || type
+  );
 }
 
 function getStatusTone(status: ConnectorStatus, active: boolean): string {
-  if (active || status === 'ready') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  if (active || status === 'ready')
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
   if (status === 'error') return 'border-red-200 bg-red-50 text-red-800';
-  if (status === 'disabled') return 'border-black/10 bg-black/[0.04] text-black/55';
+  if (status === 'disabled')
+    return 'border-black/10 bg-black/[0.04] text-black/55';
   return 'border-amber-200 bg-amber-50 text-amber-800';
 }
 
@@ -140,41 +145,11 @@ function StatusPill({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusTone(status, active)}`}
     >
-      {active || status === 'ready' ? <CheckCircle2 className="size-3.5" /> : null}
+      {active || status === 'ready' ? (
+        <CheckCircle2 className="size-3.5" />
+      ) : null}
       {getConnectorStatusLabel(status, active)}
     </span>
-  );
-}
-
-function Stepper({
-  authState,
-  hasReadyConnection,
-}: {
-  authState: AuthState;
-  hasReadyConnection: boolean;
-}): ReactElement {
-  const steps = [
-    { label: '选择应用', done: true },
-    {
-      label: '扫码授权',
-      done: authState === 'completed' || hasReadyConnection,
-    },
-    { label: '连接验证', done: hasReadyConnection },
-  ];
-  return (
-    <ol className="grid gap-2 sm:grid-cols-3" aria-label="连接配置进度">
-      {steps.map((step, index) => (
-        <li
-          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${step.done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-black/8 bg-black/[0.02] text-black/50'}`}
-          key={step.label}
-        >
-          <span className="grid size-5 shrink-0 place-items-center rounded-full border border-current text-[11px]">
-            {step.done ? <Check className="size-3" /> : index + 1}
-          </span>
-          {step.label}
-        </li>
-      ))}
-    </ol>
   );
 }
 
@@ -184,7 +159,9 @@ function FieldError({ message }: { message?: string }): ReactElement | null {
 }
 
 export default function ConnectorSettingsPage(): ReactElement {
-  const [settings, setSettings] = useState<ConnectorSettingsResponse | null>(null);
+  const [settings, setSettings] = useState<ConnectorSettingsResponse | null>(
+    null,
+  );
   const [selected, setSelected] = useState<ConnectorType>('local');
   const [drafts, setDrafts] = useState<Drafts>(createDrafts);
   const [useCustomFeishuApp, setUseCustomFeishuApp] = useState(false);
@@ -196,6 +173,7 @@ export default function ConnectorSettingsPage(): ReactElement {
   const [testState, setTestState] = useState<TestState>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [draftErrors, setDraftErrors] = useState<ConnectorDraftErrors>({});
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -275,6 +253,7 @@ export default function ConnectorSettingsPage(): ReactElement {
     setTestState('idle');
     setTestMessage('');
     setDraftErrors({});
+    setShowAdvanced(false);
   };
 
   const refreshAfterAction = async (): Promise<ConnectorSettingsResponse> => {
@@ -325,9 +304,15 @@ export default function ConnectorSettingsPage(): ReactElement {
         setAuthMessage(result.message || '授权会话已过期，请重新生成二维码。');
         return;
       }
-      pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
+      pollTimer.current = window.setTimeout(
+        () => void pollAuth(sessionId),
+        3000,
+      );
     } catch {
-      pollTimer.current = window.setTimeout(() => void pollAuth(sessionId), 3000);
+      pollTimer.current = window.setTimeout(
+        () => void pollAuth(sessionId),
+        3000,
+      );
     }
   };
 
@@ -368,6 +353,33 @@ export default function ConnectorSettingsPage(): ReactElement {
     } catch (error) {
       setAuthState('failed');
       setAuthMessage(friendlyError(error));
+    }
+  };
+
+  const toggleConnector = async (
+    type: ConnectorType,
+    enabled: boolean,
+  ): Promise<void> => {
+    if (!enabled && settings?.activeConnector === type) {
+      toast.error('当前正在使用，请先切换到其他连接器');
+      return;
+    }
+    setSaving(true);
+    try {
+      const next = await updateConnectorConfig(type, { enabled });
+      setSettings(next);
+      if (selected === type && !enabled) {
+        setAuthState('idle');
+        setAuthMessage('');
+        setVerificationUrl('');
+        setTestState('idle');
+        setTestMessage('');
+      }
+      toast.success(`${getLabel(type)}已${enabled ? '开启' : '关闭'}`);
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -475,12 +487,15 @@ export default function ConnectorSettingsPage(): ReactElement {
               </div>
               <div>
                 <p className="text-sm font-semibold">连接器设置</p>
-                <p className="text-xs text-black/45">管理内容的保存和同步位置</p>
+                <p className="text-xs text-black/45">
+                  管理内容的保存和同步位置
+                </p>
               </div>
             </div>
             <Button asChild size="sm" variant="outline">
               <Link to="/settings">
-                <ArrowLeft className="size-4" />返回设置
+                <ArrowLeft className="size-4" />
+                返回设置
               </Link>
             </Button>
           </header>
@@ -498,7 +513,11 @@ export default function ConnectorSettingsPage(): ReactElement {
                   onClick={() => void loadSettings(true)}
                   variant="outline"
                 >
-                  {retrying ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                  {retrying ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
                   重新加载
                 </Button>
               </div>
@@ -519,9 +538,11 @@ export default function ConnectorSettingsPage(): ReactElement {
             </div>
             <div>
               <p className="text-sm font-semibold">连接方式</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">让内容去你常用的地方</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-                选择内容保存位置。授权完成后会自动检查连接能力，启用动作单独确认。
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+                连接器
+              </h1>
+              <p className="mt-2 text-sm text-black/55">
+                选择一个连接器作为当前使用方式。
               </p>
             </div>
           </div>
@@ -532,57 +553,93 @@ export default function ConnectorSettingsPage(): ReactElement {
             </div>
             <Button asChild size="sm" variant="outline">
               <Link to="/settings">
-                <ArrowLeft className="size-4" />返回设置
+                <ArrowLeft className="size-4" />
+                返回设置
               </Link>
             </Button>
           </div>
         </header>
 
-        <section className="mt-7 grid gap-3 sm:grid-cols-3" aria-label="可用连接器">
+        <section
+          className="mt-7 grid gap-3 sm:grid-cols-3"
+          aria-label="连接器列表"
+        >
           {CONNECTOR_OPTIONS.map((option) => {
-            const descriptor = settings.items.find((item) => item.type === option.type);
+            const descriptor = settings.items.find(
+              (item) => item.type === option.type,
+            );
             const isSelected = option.type === selected;
             const isActive = settings.activeConnector === option.type;
             const status = descriptor?.status || 'unconfigured';
             return (
-              <button
-                aria-pressed={isSelected}
-                className={`rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111315] ${isSelected ? 'border-[#111315] bg-[#111315] text-white shadow-lg' : 'border-black/8 bg-white hover:border-black/20'}`}
+              <div
+                className={`rounded-2xl border p-4 transition ${isSelected ? 'border-[#111315] bg-[#111315] text-white shadow-lg' : 'border-black/8 bg-white hover:border-black/20'}`}
                 key={option.type}
-                onClick={() => selectConnector(option.type)}
-                type="button"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <button
+                    aria-pressed={isSelected}
+                    className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111315] focus-visible:ring-offset-2"
+                    onClick={() => selectConnector(option.type)}
+                    type="button"
+                  >
                     <p className="font-semibold">{option.label}</p>
-                    <p className={`mt-1 text-xs leading-5 ${isSelected ? 'text-white/65' : 'text-black/50'}`}>
+                    <p
+                      className={`mt-1 text-xs ${isSelected ? 'text-white/65' : 'text-black/50'}`}
+                    >
                       {option.description}
                     </p>
-                  </div>
-                  {option.type === 'local' ? (
-                    <span className={`rounded-full px-2 py-1 text-[10px] font-medium ${isSelected ? 'bg-white/15 text-white/80' : 'bg-amber-100 text-amber-800'}`}>
-                      推荐
+                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <Switch
+                      aria-label={`${option.label}${descriptor?.enabled ? '已开启' : '已关闭'}`}
+                      checked={descriptor?.enabled ?? option.type === 'local'}
+                      disabled={saving || isActive}
+                      onCheckedChange={(checked: boolean) =>
+                        void toggleConnector(option.type, checked)
+                      }
+                    />
+                    <span
+                      className={`text-[11px] ${isSelected ? 'text-white/55' : 'text-black/45'}`}
+                    >
+                      {isActive
+                        ? '当前使用'
+                        : descriptor?.enabled
+                          ? '已开启'
+                          : '已关闭'}
                     </span>
-                  ) : null}
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-2">
-                  <span className={`text-xs ${isSelected ? 'text-white/60' : 'text-black/45'}`}>查看配置</span>
+                  <span
+                    className={`text-xs ${isSelected ? 'text-white/60' : 'text-black/45'}`}
+                  >
+                    {isSelected ? '正在配置' : '点击配置'}
+                  </span>
                   <span className={isSelected ? 'text-white' : ''}>
-                    <StatusPill active={isActive} status={status} />
+                    <StatusPill active={false} status={status} />
                   </span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </section>
 
-        <section className="mt-7 overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm" aria-live="polite">
+        <section
+          className="mt-7 overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm"
+          aria-live="polite"
+        >
           <div className="border-b border-black/8 px-6 py-6 md:px-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-semibold">{getLabel(selected)}连接器</h2>
-                  <StatusPill active={Boolean(active)} status={selectedDescriptor?.status || 'unconfigured'} />
+                  <h2 className="text-2xl font-semibold">
+                    {getLabel(selected)}连接器
+                  </h2>
+                  <StatusPill
+                    active={Boolean(active)}
+                    status={selectedDescriptor?.status || 'unconfigured'}
+                  />
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
                   {selected === 'local'
@@ -617,22 +674,50 @@ export default function ConnectorSettingsPage(): ReactElement {
                   disabled={saving || active}
                   onClick={() => void activateSelected()}
                 >
-                  {saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  {saving ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="size-4" />
+                  )}
                   {active ? '当前使用中' : '启用本地'}
+                </Button>
+              </div>
+            ) : !selectedDescriptor?.enabled ? (
+              <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">{getLabel(selected)}已关闭</p>
+                  <p className="mt-1 text-sm text-amber-900/75">
+                    打开上方开关后，才能继续配置和使用。
+                  </p>
+                </div>
+                <Button
+                  disabled={saving}
+                  onClick={() => void toggleConnector(selected, true)}
+                  size="sm"
+                >
+                  <CheckCircle2 className="size-4" />
+                  开启连接器
                 </Button>
               </div>
             ) : (
               <>
-                <Stepper authState={authState} hasReadyConnection={hasReadyConnection} />
-
                 {selected === 'feishu' ? (
-                  <section className="space-y-4" aria-labelledby="feishu-app-title">
+                  <section
+                    className="space-y-4"
+                    aria-labelledby="feishu-app-title"
+                  >
                     <div>
-                      <h3 className="font-semibold" id="feishu-app-title">1. 选择飞书应用</h3>
-                      <p className="mt-1 text-sm text-black/50">大多数用户直接使用官方应用即可。</p>
+                      <h3 className="font-semibold" id="feishu-app-title">
+                        选择飞书应用
+                      </h3>
+                      <p className="mt-1 text-sm text-black/50">
+                        默认使用官方应用，需要企业权限时再切换自定义应用。
+                      </p>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
-                      <label className={`cursor-pointer rounded-xl border p-4 transition ${!useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}>
+                      <label
+                        className={`cursor-pointer rounded-xl border p-4 transition ${!useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}
+                      >
                         <input
                           checked={!useCustomFeishuApp}
                           className="sr-only"
@@ -641,16 +726,26 @@ export default function ConnectorSettingsPage(): ReactElement {
                           type="radio"
                         />
                         <span className="flex items-start gap-3">
-                          <span className={`mt-0.5 grid size-5 place-items-center rounded-full border ${!useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}>
-                            {!useCustomFeishuApp ? <Check className="size-3" /> : null}
+                          <span
+                            className={`mt-0.5 grid size-5 place-items-center rounded-full border ${!useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}
+                          >
+                            {!useCustomFeishuApp ? (
+                              <Check className="size-3" />
+                            ) : null}
                           </span>
                           <span>
-                            <span className="block text-sm font-semibold">官方应用</span>
-                            <span className="mt-1 block text-xs leading-5 text-black/50">无需填写凭据，直接扫码。</span>
+                            <span className="block text-sm font-semibold">
+                              官方应用
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-black/50">
+                              无需填写凭据，直接扫码。
+                            </span>
                           </span>
                         </span>
                       </label>
-                      <label className={`cursor-pointer rounded-xl border p-4 transition ${useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}>
+                      <label
+                        className={`cursor-pointer rounded-xl border p-4 transition ${useCustomFeishuApp ? 'border-[#111315] bg-black/[0.02]' : 'border-black/8 hover:border-black/20'}`}
+                      >
                         <input
                           checked={useCustomFeishuApp}
                           className="sr-only"
@@ -659,12 +754,20 @@ export default function ConnectorSettingsPage(): ReactElement {
                           type="radio"
                         />
                         <span className="flex items-start gap-3">
-                          <span className={`mt-0.5 grid size-5 place-items-center rounded-full border ${useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}>
-                            {useCustomFeishuApp ? <Check className="size-3" /> : null}
+                          <span
+                            className={`mt-0.5 grid size-5 place-items-center rounded-full border ${useCustomFeishuApp ? 'border-[#111315] bg-[#111315] text-white' : 'border-black/20'}`}
+                          >
+                            {useCustomFeishuApp ? (
+                              <Check className="size-3" />
+                            ) : null}
                           </span>
                           <span>
-                            <span className="block text-sm font-semibold">自定义应用</span>
-                            <span className="mt-1 block text-xs leading-5 text-black/50">使用企业自建应用的凭据。</span>
+                            <span className="block text-sm font-semibold">
+                              自定义应用
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-black/50">
+                              使用企业自建应用的凭据。
+                            </span>
                           </span>
                         </span>
                       </label>
@@ -676,7 +779,9 @@ export default function ConnectorSettingsPage(): ReactElement {
                           <Input
                             aria-invalid={Boolean(draftErrors.clientId)}
                             className="mt-2 bg-white"
-                            onChange={(event) => updateDraft('clientId', event.target.value)}
+                            onChange={(event) =>
+                              updateDraft('clientId', event.target.value)
+                            }
                             placeholder="cli_xxxxxxxxx"
                             value={draft.clientId}
                           />
@@ -687,7 +792,9 @@ export default function ConnectorSettingsPage(): ReactElement {
                           <Input
                             aria-invalid={Boolean(draftErrors.clientSecret)}
                             className="mt-2 bg-white"
-                            onChange={(event) => updateDraft('clientSecret', event.target.value)}
+                            onChange={(event) =>
+                              updateDraft('clientSecret', event.target.value)
+                            }
                             placeholder="输入 App Secret"
                             type="password"
                             value={draft.clientSecret}
@@ -696,8 +803,14 @@ export default function ConnectorSettingsPage(): ReactElement {
                         </label>
                         <p className="text-xs leading-5 text-black/50 md:col-span-2">
                           还没有应用？前往
-                          <a className="mx-1 text-blue-700 underline" href="https://open.feishu.cn/app" rel="noreferrer" target="_blank">
-                            飞书开放平台 <ExternalLink className="inline size-3" />
+                          <a
+                            className="mx-1 text-blue-700 underline"
+                            href="https://open.feishu.cn/app"
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            飞书开放平台{' '}
+                            <ExternalLink className="inline size-3" />
                           </a>
                           创建企业自建应用。
                         </p>
@@ -706,37 +819,55 @@ export default function ConnectorSettingsPage(): ReactElement {
                   </section>
                 ) : (
                   <section aria-labelledby="dingtalk-app-title">
-                    <h3 className="font-semibold" id="dingtalk-app-title">1. 准备钉钉授权</h3>
-                    <p className="mt-1 text-sm leading-6 text-black/50">
-                      使用钉钉手机端确认授权。系统会自动读取授权身份，不需要填写 App ID 或 App Secret。
+                    <h3 className="font-semibold" id="dingtalk-app-title">
+                      准备钉钉授权
+                    </h3>
+                    <p className="mt-1 text-sm text-black/50">
+                      使用钉钉手机端确认授权，无需填写 App ID 或 App Secret。
                     </p>
                   </section>
                 )}
 
-                <section className="rounded-xl border border-black/8 bg-black/[0.02] p-5" aria-labelledby="auth-title">
+                <section
+                  className="rounded-xl border border-black/8 bg-black/[0.02] p-5"
+                  aria-labelledby="auth-title"
+                >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3">
                       <ScanLine className="mt-0.5 size-5 shrink-0 text-black/60" />
                       <div>
-                        <h3 className="font-semibold" id="auth-title">2. 扫码授权{getLabel(selected)}账号</h3>
-                        <p className="mt-1 text-sm leading-6 text-black/50">
-                          授权只需要确认一次；之后系统会在使用前自动检查连接状态。
-                        </p>
+                        <h3 className="font-semibold" id="auth-title">
+                          扫码授权
+                        </h3>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {authState === 'completed' || hasReadyConnection ? (
-                        <Button disabled={saving} onClick={() => void disconnect()} size="sm" variant="outline">
-                          <LogOut className="size-4" />断开授权
+                        <Button
+                          disabled={saving}
+                          onClick={() => void disconnect()}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <LogOut className="size-4" />
+                          断开授权
                         </Button>
                       ) : null}
                       <Button
-                        disabled={authState === 'requesting' || authState === 'waiting'}
+                        disabled={
+                          authState === 'requesting' || authState === 'waiting'
+                        }
                         onClick={() => void startAuth()}
                         size="sm"
                       >
-                        {authState === 'requesting' ? <LoaderCircle className="size-4 animate-spin" /> : <ScanLine className="size-4" />}
-                        {authState === 'completed' || hasReadyConnection ? '重新授权' : `扫码连接${getLabel(selected)}`}
+                        {authState === 'requesting' ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <ScanLine className="size-4" />
+                        )}
+                        {authState === 'completed' || hasReadyConnection
+                          ? '重新授权'
+                          : `扫码连接${getLabel(selected)}`}
                       </Button>
                     </div>
                   </div>
@@ -744,26 +875,43 @@ export default function ConnectorSettingsPage(): ReactElement {
                   {verificationUrl ? (
                     <div className="mt-5 grid gap-5 border-t border-black/8 pt-5 md:grid-cols-[auto_1fr] md:items-center">
                       <div className="mx-auto rounded-xl bg-white p-3 shadow-sm">
-                        <QRCodeSVG value={verificationUrl} size={184} aria-label={`${getLabel(selected)}授权二维码`} />
+                        <QRCodeSVG
+                          value={verificationUrl}
+                          size={184}
+                          aria-label={`${getLabel(selected)}授权二维码`}
+                        />
                       </div>
                       <div className="space-y-3 text-center md:text-left">
                         <div>
                           <p className="font-medium">请用手机扫码确认</p>
-                          <p className="mt-1 text-sm text-black/50">二维码有效期还剩 {formatRemaining(remainingSeconds)}</p>
+                          <p className="mt-1 text-sm text-black/50">
+                            二维码有效期还剩 {formatRemaining(remainingSeconds)}
+                          </p>
                         </div>
                         <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-                          <Button onClick={() => void copyVerificationUrl()} size="sm" variant="outline">
-                            <Link2 className="size-4" />复制授权链接
-                          </Button>
-                          <Button asChild size="sm" variant="outline">
-                            <a href={verificationUrl} rel="noreferrer" target="_blank">
-                              <ExternalLink className="size-4" />在新窗口打开
-                            </a>
+                          <Button
+                            onClick={() => void copyVerificationUrl()}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Link2 className="size-4" />
+                            复制授权链接
                           </Button>
                         </div>
-                        <p className={`flex items-center justify-center gap-2 text-sm md:justify-start ${authState === 'failed' || authState === 'expired' ? 'text-red-700' : authState === 'completed' ? 'text-emerald-700' : 'text-black/55'}`}>
-                          {authState === 'waiting' ? <LoaderCircle className="size-4 animate-spin" /> : authState === 'completed' ? <CheckCircle2 className="size-4" /> : authState === 'failed' || authState === 'expired' ? <CircleAlert className="size-4" /> : null}
-                          {authState === 'expired' ? '二维码已过期，请重新生成。' : authMessage || '等待授权确认。'}
+                        <p
+                          className={`flex items-center justify-center gap-2 text-sm md:justify-start ${authState === 'failed' || authState === 'expired' ? 'text-red-700' : authState === 'completed' ? 'text-emerald-700' : 'text-black/55'}`}
+                        >
+                          {authState === 'waiting' ? (
+                            <LoaderCircle className="size-4 animate-spin" />
+                          ) : authState === 'completed' ? (
+                            <CheckCircle2 className="size-4" />
+                          ) : authState === 'failed' ||
+                            authState === 'expired' ? (
+                            <CircleAlert className="size-4" />
+                          ) : null}
+                          {authState === 'expired'
+                            ? '二维码已过期，请重新生成。'
+                            : authMessage || '等待授权确认。'}
                         </p>
                       </div>
                     </div>
@@ -777,10 +925,11 @@ export default function ConnectorSettingsPage(): ReactElement {
                 </section>
 
                 <section aria-labelledby="connection-test-title">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="font-semibold" id="connection-test-title">3. 连接验证</h3>
-                      <p className="mt-1 text-sm leading-6 text-black/50">授权完成后自动检查；也可以手动重新验证。</p>
+                      <h3 className="font-semibold" id="connection-test-title">
+                        连接状态
+                      </h3>
                     </div>
                     <Button
                       disabled={testState === 'running' || !hasReadyConnection}
@@ -788,101 +937,128 @@ export default function ConnectorSettingsPage(): ReactElement {
                       size="sm"
                       variant="outline"
                     >
-                      {testState === 'running' ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                      {testState === 'running' ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
                       重新验证
                     </Button>
                   </div>
-                  <div className={`mt-3 rounded-xl border p-4 ${testState === 'failed' ? 'border-red-200 bg-red-50 text-red-900' : testState === 'success' || hasReadyConnection ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-black/8 bg-black/[0.02] text-black/55'}`}>
+                  <div
+                    className={`mt-3 rounded-xl border p-4 ${testState === 'failed' ? 'border-red-200 bg-red-50 text-red-900' : testState === 'success' || hasReadyConnection ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-black/8 bg-black/[0.02] text-black/55'}`}
+                  >
                     <div className="flex items-start gap-3">
-                      {testState === 'failed' ? <CircleAlert className="mt-0.5 size-5 shrink-0 text-red-700" /> : testState === 'success' || hasReadyConnection ? <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" /> : <Cable className="mt-0.5 size-5 shrink-0 text-black/40" />}
+                      {testState === 'failed' ? (
+                        <CircleAlert className="mt-0.5 size-5 shrink-0 text-red-700" />
+                      ) : testState === 'success' || hasReadyConnection ? (
+                        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                      ) : (
+                        <Cable className="mt-0.5 size-5 shrink-0 text-black/40" />
+                      )}
                       <div>
-                        <p className="font-medium">{testState === 'failed' ? '连接验证失败' : testState === 'running' ? '正在验证连接' : testState === 'success' || hasReadyConnection ? '连接验证通过' : '等待授权完成'}</p>
-                        <p className="mt-1 text-sm leading-6 opacity-75">{testMessage || formatCheckedAt(selectedDescriptor?.lastCheckedAt)}</p>
+                        <p className="font-medium">
+                          {testState === 'failed'
+                            ? '连接验证失败'
+                            : testState === 'running'
+                              ? '正在验证连接'
+                              : testState === 'success' || hasReadyConnection
+                                ? '连接验证通过'
+                                : '等待授权完成'}
+                        </p>
+                        <p className="mt-1 text-sm opacity-75">
+                          {testMessage ||
+                            formatCheckedAt(selectedDescriptor?.lastCheckedAt)}
+                        </p>
                       </div>
                     </div>
                   </div>
                 </section>
 
-                <section className="border-t border-black/8 pt-6" aria-labelledby="optional-settings-title">
-                  <div>
-                    <h3 className="font-semibold" id="optional-settings-title">可选设置</h3>
-                    <p className="mt-1 text-sm leading-6 text-black/50">不填写也不影响连接。Webhook 用于接收任务完成通知。</p>
-                  </div>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    {selected === 'dingtalk' ? (
-                      <label className="text-sm font-medium">
-                        待办执行人 ID
+                <section
+                  className="border-t border-black/8 pt-4"
+                  aria-labelledby="optional-settings-title"
+                >
+                  <Button
+                    aria-expanded={showAdvanced}
+                    className="px-0 text-black/65 hover:bg-transparent hover:text-black"
+                    onClick={() => setShowAdvanced((value) => !value)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ChevronDown
+                      className={`size-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                    />
+                    高级设置
+                  </Button>
+                  {showAdvanced ? (
+                    <div className="mt-4 grid gap-4 rounded-xl bg-black/[0.025] p-4 md:grid-cols-2">
+                      {selected === 'dingtalk' ? (
+                        <label className="text-sm font-medium">
+                          待办执行人 ID
+                          <Input
+                            className="mt-2 bg-white"
+                            onChange={(event) =>
+                              updateDraft('userId', event.target.value)
+                            }
+                            placeholder="可留空，默认使用授权身份"
+                            value={draft.userId}
+                          />
+                        </label>
+                      ) : null}
+                      <label className="text-sm font-medium md:col-span-2">
+                        任务完成通知 Webhook
                         <Input
+                          aria-invalid={Boolean(draftErrors.webhookUrl)}
                           className="mt-2 bg-white"
-                          onChange={(event) => updateDraft('userId', event.target.value)}
-                          placeholder="不知道可留空，系统优先使用授权身份"
-                          value={draft.userId}
+                          onChange={(event) =>
+                            updateDraft('webhookUrl', event.target.value)
+                          }
+                          placeholder="https://…（可选）"
+                          type="url"
+                          value={draft.webhookUrl}
                         />
+                        <FieldError message={draftErrors.webhookUrl} />
                       </label>
-                    ) : null}
-                    <label className="text-sm font-medium md:col-span-2">
-                      任务完成通知 Webhook
-                      <Input
-                        aria-invalid={Boolean(draftErrors.webhookUrl)}
-                        className="mt-2 bg-white"
-                        onChange={(event) => updateDraft('webhookUrl', event.target.value)}
-                        placeholder="https://…（可选）"
-                        type="url"
-                        value={draft.webhookUrl}
-                      />
-                      <FieldError message={draftErrors.webhookUrl} />
-                    </label>
-                  </div>
+                    </div>
+                  ) : null}
                 </section>
 
-                <div className="flex flex-col gap-3 border-t border-black/8 pt-6 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="flex items-center gap-2 text-sm text-black/50">
-                    <BookOpenCheck className="size-4" />
-                    {formatCheckedAt(selectedDescriptor?.lastCheckedAt)}
-                  </p>
+                <div className="flex flex-col gap-3 border-t border-black/8 pt-6 sm:flex-row sm:items-center sm:justify-end">
                   <div className="flex flex-wrap gap-2 sm:justify-end">
                     {hasConnectorDraftChanges(draft) ? (
-                      <Button disabled={saving} onClick={() => void saveOptionalSettings()} variant="outline">
-                        {saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                      <Button
+                        disabled={saving}
+                        onClick={() => void saveOptionalSettings()}
+                        variant="outline"
+                      >
+                        {saving ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="size-4" />
+                        )}
                         保存可选设置
                       </Button>
                     ) : null}
                     <Button
-                      disabled={saving || action === 'active' || !hasReadyConnection}
+                      disabled={
+                        saving || action === 'active' || !hasReadyConnection
+                      }
                       onClick={() => void activateSelected()}
                     >
-                      {saving ? <LoaderCircle className="size-4 animate-spin" /> : action === 'active' ? <CheckCircle2 className="size-4" /> : <Cable className="size-4" />}
+                      {saving ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : action === 'active' ? (
+                        <CheckCircle2 className="size-4" />
+                      ) : (
+                        <Cable className="size-4" />
+                      )}
                       {action === 'active' ? '当前使用中' : '设为当前使用'}
                     </Button>
                   </div>
                 </div>
               </>
             )}
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-black/8 bg-white p-5">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 size-5 text-black/55" />
-              <div>
-                <h2 className="font-semibold">数据和权限</h2>
-                <p className="mt-1 text-sm leading-6 text-black/55">
-                  连接器只申请页面展示的文档、待办和通知能力。授权信息不会显示在页面或写入日志。
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-black/8 bg-white p-5">
-            <div className="flex items-start gap-3">
-              {selected === 'local' ? <BookOpenCheck className="mt-0.5 size-5 text-black/55" /> : <Unplug className="mt-0.5 size-5 text-black/55" />}
-              <div>
-                <h2 className="font-semibold">需要帮助？</h2>
-                <p className="mt-1 text-sm leading-6 text-black/55">
-                  {selected === 'local' ? '本地模式无需任何授权，启用后即可开始处理资料。' : `完成${getLabel(selected)}授权后，系统会自动检查连接状态。`}
-                </p>
-              </div>
-            </div>
           </div>
         </section>
       </div>

@@ -40,6 +40,7 @@ if (process.env.LOCALAPPDATA && fs.existsSync(wingetLinks)) {
 
 process.env.MIAODA_APP_TYPE ||= '3';
 process.env.MIAODA_LOCAL_DEV = '1';
+process.env.VITE_RUNTIME = 'local';
 
 const serverHost = process.env.SERVER_HOST || '127.0.0.1';
 const serverPort = parsePort(process.env.SERVER_PORT, 3000, 'SERVER_PORT');

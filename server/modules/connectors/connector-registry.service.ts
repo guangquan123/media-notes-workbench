@@ -40,14 +40,19 @@ export class ConnectorRegistryService {
     @Optional() dingTalkAuthService?: DingTalkAuthService,
     @Optional() baseDir?: string,
   ) {
-    const testBaseDir = typeof (feishuAuthService as unknown) === 'string'
-      ? String(feishuAuthService)
-      : baseDir;
-    this.feishuAuthService = typeof (feishuAuthService as unknown) === 'string'
-      ? undefined
-      : feishuAuthService;
+    const testBaseDir =
+      typeof (feishuAuthService as unknown) === 'string'
+        ? String(feishuAuthService)
+        : baseDir;
+    this.feishuAuthService =
+      typeof (feishuAuthService as unknown) === 'string'
+        ? undefined
+        : feishuAuthService;
     this.dingTalkAuthService = dingTalkAuthService;
-    this.configPath = join(testBaseDir || process.cwd(), '.connector-config.json');
+    this.configPath = join(
+      testBaseDir || process.cwd(),
+      '.connector-config.json',
+    );
   }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {
@@ -57,7 +62,9 @@ export class ConnectorRegistryService {
       activeConnector: config.activeConnector,
       items: CONNECTOR_TYPES.map((type: ConnectorType) => {
         const item = config.items.find((candidate) => candidate.type === type);
-        const hasCustomConfig = Boolean(item?.clientId || item?.webhookUrl || item?.userId);
+        const hasCustomConfig = Boolean(
+          item?.clientId || item?.webhookUrl || item?.userId,
+        );
         const authed = authStatus[type] ?? false;
         return buildDescriptor(
           type,
@@ -70,15 +77,22 @@ export class ConnectorRegistryService {
     };
   }
 
-  private async resolveAuthStatus(): Promise<Record<'feishu' | 'dingtalk', boolean>> {
-    const result: Record<'feishu' | 'dingtalk', boolean> = { feishu: false, dingtalk: false };
+  private async resolveAuthStatus(): Promise<
+    Record<'feishu' | 'dingtalk', boolean>
+  > {
+    const result: Record<'feishu' | 'dingtalk', boolean> = {
+      feishu: false,
+      dingtalk: false,
+    };
     try {
-      result.feishu = (await this.feishuAuthService?.isAuthenticated()) ?? false;
+      result.feishu =
+        (await this.feishuAuthService?.isAuthenticated()) ?? false;
     } catch {
       // ignore: auth status unavailable
     }
     try {
-      result.dingtalk = (await this.dingTalkAuthService?.isAuthenticated()) ?? false;
+      result.dingtalk =
+        (await this.dingTalkAuthService?.isAuthenticated()) ?? false;
     } catch {
       // ignore: auth status unavailable
     }
@@ -97,7 +111,9 @@ export class ConnectorRegistryService {
     return active?.status === 'ready';
   }
 
-  async getActiveConfig(): Promise<StoredConnectorConfig['items'][number] & { type: ConnectorType }> {
+  async getActiveConfig(): Promise<
+    StoredConnectorConfig['items'][number] & { type: ConnectorType }
+  > {
     const config = await this.load();
     return this.getStoredItem(config, config.activeConnector);
   }
@@ -107,10 +123,12 @@ export class ConnectorRegistryService {
     input: UpdateConnectorRequest,
   ): Promise<ConnectorSettingsResponse> {
     const type = this.parseType(typeValue);
-    if (type === 'local' && input.enabled === false) {
-      throw new BadRequestException('本地连接器不能禁用。');
-    }
     const config = await this.load();
+    if (input.enabled === false && config.activeConnector === type) {
+      throw new BadRequestException(
+        '当前使用的连接器不能关闭，请先切换到其他连接器。',
+      );
+    }
     const existing = this.getStoredItem(config, type);
     const next = {
       ...existing,
@@ -132,7 +150,9 @@ export class ConnectorRegistryService {
     const settings = await this.getSettings();
     const selected = settings.items.find((item) => item.type === type);
     if (!selected || selected.status !== 'ready') {
-      throw new BadRequestException(`${selected?.label || type} 连接器尚未就绪。`);
+      throw new BadRequestException(
+        `${selected?.label || type} 连接器尚未就绪。`,
+      );
     }
     const config = await this.load();
     await this.save({ ...config, activeConnector: type });
@@ -174,7 +194,6 @@ export class ConnectorRegistryService {
     return value;
   }
 
-
   private getStoredItem(
     config: StoredConnectorConfig,
     type: ConnectorType,
@@ -195,26 +214,38 @@ export class ConnectorRegistryService {
     if (this.current) return this.current;
     try {
       const raw = await readFile(this.configPath, 'utf8');
-      this.current = this.normalize(JSON.parse(raw) as Partial<StoredConnectorConfig>);
+      this.current = this.normalize(
+        JSON.parse(raw) as Partial<StoredConnectorConfig>,
+      );
     } catch {
       this.current = {
         activeConnector: 'local',
-        items: [this.getStoredItem({ activeConnector: 'local', items: [] }, 'local')],
+        items: [
+          this.getStoredItem({ activeConnector: 'local', items: [] }, 'local'),
+        ],
       };
     }
     return this.current;
   }
 
-  private normalize(input: Partial<StoredConnectorConfig>): StoredConnectorConfig {
+  private normalize(
+    input: Partial<StoredConnectorConfig>,
+  ): StoredConnectorConfig {
     const rawItems = Array.isArray(input.items) ? input.items : [];
     const items = CONNECTOR_TYPES.map((type) => {
       const raw = rawItems.find((item) => item.type === type);
       return {
         clientId: typeof raw?.clientId === 'string' ? raw.clientId : '',
-        clientSecret: typeof raw?.clientSecret === 'string' ? raw.clientSecret : '',
-        enabled: type === 'local' || raw?.enabled === true,
-        lastCheckedAt: typeof raw?.lastCheckedAt === 'string' ? raw.lastCheckedAt : undefined,
-        lastError: typeof raw?.lastError === 'string' ? raw.lastError : undefined,
+        clientSecret:
+          typeof raw?.clientSecret === 'string' ? raw.clientSecret : '',
+        enabled:
+          typeof raw?.enabled === 'boolean' ? raw.enabled : type === 'local',
+        lastCheckedAt:
+          typeof raw?.lastCheckedAt === 'string'
+            ? raw.lastCheckedAt
+            : undefined,
+        lastError:
+          typeof raw?.lastError === 'string' ? raw.lastError : undefined,
         type,
         userId: typeof raw?.userId === 'string' ? raw.userId : '',
         webhookUrl: typeof raw?.webhookUrl === 'string' ? raw.webhookUrl : '',

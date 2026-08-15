@@ -203,7 +203,7 @@
     "build:server": "nest build",
     "dev": "./scripts/dev.sh",
     "dev:client": "cross-env NODE_ENV=development vite --config vite.config.ts",
-    "dev:client:local": "cross-env MIAODA_LOCAL_DEV=1 NODE_ENV=development vite --config vite.config.ts",
+    "dev:client:local": "cross-env MIAODA_LOCAL_DEV=1 VITE_RUNTIME=local NODE_ENV=development vite --config vite.config.ts",
     "dev:client:after-server": "node ./scripts/wait-for-server.js && npm run dev:client:stable",
     "dev:client:stable": "cross-env VITE_STABLE_MODE=true NODE_ENV=development vite --config vite.config.ts",
     "dev:local": "node ./scripts/dev-local.js",

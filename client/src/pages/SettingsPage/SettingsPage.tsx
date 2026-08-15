@@ -3,6 +3,7 @@ import {
   BotMessageSquare,
   Bell,
   FilePenLine,
+  ListChecks,
   Settings2,
   Speech,
   Cable,
@@ -16,8 +17,15 @@ import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import TaskNotificationSettingsPage from '@/pages/TaskNotificationSettingsPage/TaskNotificationSettingsPage';
 import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
+import SetupOverview from './SetupOverview';
 
-type SettingsSection = 'model' | 'notifications' | 'prompts' | 'transcription' | 'connectors';
+type SettingsSection =
+  | 'connectors'
+  | 'model'
+  | 'notifications'
+  | 'prompts'
+  | 'setup'
+  | 'transcription';
 
 interface SettingsSectionOption {
   description: string;
@@ -27,6 +35,12 @@ interface SettingsSectionOption {
 }
 
 const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
+  {
+    value: 'setup',
+    label: '开始使用',
+    description: '自动检测环境并给出下一步。',
+    icon: ListChecks,
+  },
   {
     value: 'connectors',
     label: '连接器',
@@ -64,12 +78,13 @@ function getSelectedSection(section: string | null): SettingsSection {
     section === 'model' ||
     section === 'notifications' ||
     section === 'prompts' ||
-    section === 'transcription'
-    || section === 'connectors'
+    section === 'setup' ||
+    section === 'transcription' ||
+    section === 'connectors'
   ) {
     return section;
   }
-  return 'prompts';
+  return 'setup';
 }
 
 export default function SettingsPage() {
@@ -95,7 +110,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-semibold">参数配置</p>
                   <p className="text-xs text-black/45">
-                    集中管理笔记生成所需的提示词、转录与模型参数
+                    先完成自动检测，再按需调整连接器、转录与模型
                   </p>
                 </div>
               </div>
@@ -141,7 +156,9 @@ export default function SettingsPage() {
                     >
                       <Icon className="mt-0.5 size-4 shrink-0" />
                       <span className="grid gap-1 whitespace-normal">
-                        <span className="text-sm font-semibold">{item.label}</span>
+                        <span className="text-sm font-semibold">
+                          {item.label}
+                        </span>
                         <span
                           className={`text-xs font-normal leading-5 ${
                             isSelected ? 'text-white/62' : 'text-black/45'
@@ -157,6 +174,9 @@ export default function SettingsPage() {
             </nav>
 
             <section aria-live="polite" className="min-w-0">
+              {selectedSection === 'setup' && (
+                <SetupOverview onSelectSection={selectSection} />
+              )}
               {selectedSection === 'prompts' && <NoteTemplatesPage embedded />}
               {selectedSection === 'transcription' && (
                 <TranscriptionSettingsPage embedded />
