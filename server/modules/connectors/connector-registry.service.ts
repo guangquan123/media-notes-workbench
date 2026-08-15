@@ -68,7 +68,7 @@ export class ConnectorRegistryService {
         const authed = authStatus[type] ?? false;
         return buildDescriptor(
           type,
-          item?.enabled ?? type === 'local',
+          type === config.activeConnector,
           type === 'local' || hasCustomConfig || authed,
           item?.lastCheckedAt,
           item?.lastError,
@@ -124,17 +124,12 @@ export class ConnectorRegistryService {
   ): Promise<ConnectorSettingsResponse> {
     const type = this.parseType(typeValue);
     const config = await this.load();
-    if (input.enabled === false && config.activeConnector === type) {
-      throw new BadRequestException(
-        '当前使用的连接器不能关闭，请先切换到其他连接器。',
-      );
-    }
     const existing = this.getStoredItem(config, type);
     const next = {
       ...existing,
       clientId: input.clientId?.trim() || existing.clientId,
       clientSecret: input.clientSecret?.trim() || existing.clientSecret,
-      enabled: input.enabled ?? existing.enabled,
+      enabled: type === config.activeConnector,
       type,
       userId: input.userId?.trim() || existing.userId,
       webhookUrl: input.webhookUrl?.trim() || existing.webhookUrl,
@@ -238,8 +233,7 @@ export class ConnectorRegistryService {
         clientId: typeof raw?.clientId === 'string' ? raw.clientId : '',
         clientSecret:
           typeof raw?.clientSecret === 'string' ? raw.clientSecret : '',
-        enabled:
-          typeof raw?.enabled === 'boolean' ? raw.enabled : type === 'local',
+        enabled: type === input.activeConnector,
         lastCheckedAt:
           typeof raw?.lastCheckedAt === 'string'
             ? raw.lastCheckedAt

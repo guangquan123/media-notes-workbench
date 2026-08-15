@@ -1,8 +1,8 @@
-import { Outlet } from "react-router-dom";
+import { Outlet } from 'react-router-dom';
 
 const Layout = () => {
   return (
-    <div className="w-screen h-screen">
+    <div className="min-h-screen w-full min-w-0 max-w-full">
       <Outlet />
     </div>
   );

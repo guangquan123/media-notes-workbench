@@ -30,22 +30,20 @@ describe('connector registry service', () => {
     await expect(service.setActive('feishu')).rejects.toThrow();
   });
 
-  it('does not allow disabling the connector currently in use', async () => {
+  it('exposes exactly one enabled output connector after selection changes', async () => {
     const service = new ConnectorRegistryService(baseDir);
     await service.update('dingtalk', {
       clientId: 'app',
       clientSecret: 'secret',
-      enabled: true,
     });
     await service.setActive('dingtalk');
 
-    await expect(
-      service.update('dingtalk', { enabled: false }),
-    ).rejects.toThrow('当前使用的连接器不能关闭');
-
-    const settings = await service.update('local', { enabled: false });
+    const settings = await service.getSettings();
+    const enabledOutputs = settings.items
+      .filter((item) => item.enabled)
+      .map((item) => item.type);
     const local = settings.items.find((item) => item.type === 'local');
-    expect(local?.enabled).toBe(false);
-    expect(local?.status).toBe('disabled');
+    expect(enabledOutputs).toEqual(['dingtalk']);
+    expect(local?.status).toBe('ready');
   });
 });

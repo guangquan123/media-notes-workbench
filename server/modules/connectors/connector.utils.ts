@@ -4,7 +4,10 @@ import type {
   ConnectorType,
 } from '@shared/api.interface';
 
-export const CONNECTOR_CAPABILITIES: Record<ConnectorType, ConnectorCapability[]> = {
+export const CONNECTOR_CAPABILITIES: Record<
+  ConnectorType,
+  ConnectorCapability[]
+> = {
   dingtalk: [
     'document.read',
     'document.write',
@@ -52,13 +55,7 @@ export function buildDescriptor(
   lastCheckedAt?: string,
   lastError?: string,
 ): ConnectorDescriptor {
-  const status = !enabled
-    ? 'disabled'
-    : !configured
-      ? 'unconfigured'
-      : lastError
-        ? 'error'
-        : 'ready';
+  const status = !configured ? 'unconfigured' : lastError ? 'error' : 'ready';
   return {
     capabilities: CONNECTOR_CAPABILITIES[type],
     configured,

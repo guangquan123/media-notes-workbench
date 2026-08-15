@@ -30,12 +30,20 @@ describe('local-mode end-to-end scenarios', () => {
 
   it('configures DingTalk executor and switches the active connector', async () => {
     const registry = new ConnectorRegistryService(baseDir);
-    await registry.update('dingtalk', { enabled: true, clientId: 'app', clientSecret: 'secret', userId: '643816303', webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=x' });
+    await registry.update('dingtalk', {
+      clientId: 'app',
+      clientSecret: 'secret',
+      userId: '643816303',
+      webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=x',
+    });
     let settings = await registry.getSettings();
     const dingtalk = settings.items.find((item) => item.type === 'dingtalk');
     expect(dingtalk?.configured).toBe(true);
-    settings = await registry.setActive("dingtalk");
+    settings = await registry.setActive('dingtalk');
     expect(settings.activeConnector).toBe('dingtalk');
+    expect(
+      settings.items.filter((item) => item.enabled).map((item) => item.type),
+    ).toEqual(['dingtalk']);
     const config = await registry.getActiveConfig();
     expect(config.userId).toBe('643816303');
   });
@@ -55,7 +63,9 @@ describe('local-mode end-to-end scenarios', () => {
   });
 
   it('reports miaoda runtime by default', async () => {
-    const runtime = new RuntimeRegistryService(join(baseDir, ".runtime-config.json"));
+    const runtime = new RuntimeRegistryService(
+      join(baseDir, '.runtime-config.json'),
+    );
     await expect(runtime.getMode()).resolves.toBe('miaoda');
     await expect(runtime.isLocal()).resolves.toBe(false);
     const status = await runtime.getStatus();
@@ -65,8 +75,18 @@ describe('local-mode end-to-end scenarios', () => {
   });
 
   it('reports local runtime when configured', async () => {
-    const configPath = join(baseDir, ".runtime-config.json");
-    await writeFile(configPath, JSON.stringify({ mode: 'local', database: { kind: 'sqlite' }, auth: { kind: 'local', ownerId: 'owner-1' }, ai: { provider: 'external' }, storage: { kind: 'local' } }), 'utf8');
+    const configPath = join(baseDir, '.runtime-config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        mode: 'local',
+        database: { kind: 'sqlite' },
+        auth: { kind: 'local', ownerId: 'owner-1' },
+        ai: { provider: 'external' },
+        storage: { kind: 'local' },
+      }),
+      'utf8',
+    );
     const runtime = new RuntimeRegistryService(configPath);
     await expect(runtime.getMode()).resolves.toBe('local');
     const status = await runtime.getStatus();
@@ -76,8 +96,14 @@ describe('local-mode end-to-end scenarios', () => {
   });
 
   it('accepts only https URLs in miaoda mode', () => {
-    expect(() => validateMediaDownloadUrl('http://localhost:3000/api/local-uploads/x')).toThrow();
-    expect(() => validateMediaDownloadUrl('https://example.com/file.mp4')).not.toThrow();
-    expect(() => validateMediaDownloadUrl('https://169.254.1.1/file')).toThrow();
+    expect(() =>
+      validateMediaDownloadUrl('http://localhost:3000/api/local-uploads/x'),
+    ).toThrow();
+    expect(() =>
+      validateMediaDownloadUrl('https://example.com/file.mp4'),
+    ).not.toThrow();
+    expect(() =>
+      validateMediaDownloadUrl('https://169.254.1.1/file'),
+    ).toThrow();
   });
 });

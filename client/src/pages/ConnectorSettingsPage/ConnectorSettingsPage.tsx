@@ -37,7 +37,6 @@ import {
 } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import {
   getConnectorAction,
   getConnectorStatusLabel,
@@ -356,33 +355,6 @@ export default function ConnectorSettingsPage(): ReactElement {
     }
   };
 
-  const toggleConnector = async (
-    type: ConnectorType,
-    enabled: boolean,
-  ): Promise<void> => {
-    if (!enabled && settings?.activeConnector === type) {
-      toast.error('当前正在使用，请先切换到其他连接器');
-      return;
-    }
-    setSaving(true);
-    try {
-      const next = await updateConnectorConfig(type, { enabled });
-      setSettings(next);
-      if (selected === type && !enabled) {
-        setAuthState('idle');
-        setAuthMessage('');
-        setVerificationUrl('');
-        setTestState('idle');
-        setTestMessage('');
-      }
-      toast.success(`${getLabel(type)}已${enabled ? '开启' : '关闭'}`);
-    } catch (error) {
-      toast.error(friendlyError(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const activateSelected = async (): Promise<void> => {
     if (!settings || action === 'active') return;
     if (selected !== 'local' && !hasReadyConnection) {
@@ -418,7 +390,6 @@ export default function ConnectorSettingsPage(): ReactElement {
       await updateConnectorConfig(selected, {
         clientId: draft.clientId || undefined,
         clientSecret: draft.clientSecret || undefined,
-        enabled: true,
         userId: draft.userId || undefined,
         webhookUrl: draft.webhookUrl || undefined,
       });
@@ -462,7 +433,7 @@ export default function ConnectorSettingsPage(): ReactElement {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
+      <main className="min-h-screen w-full min-w-0 max-w-full bg-[#f7f7f5] px-4 py-6 text-[#161616] sm:px-5 sm:py-8 md:px-8">
         <div className="mx-auto max-w-5xl animate-pulse space-y-6">
           <div className="h-16 rounded-2xl bg-black/[0.06]" />
           <div className="grid gap-3 sm:grid-cols-3">
@@ -478,7 +449,7 @@ export default function ConnectorSettingsPage(): ReactElement {
 
   if (loadError || !settings) {
     return (
-      <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
+      <main className="min-h-screen w-full min-w-0 max-w-full bg-[#f7f7f5] px-4 py-6 text-[#161616] sm:px-5 sm:py-8 md:px-8">
         <div className="mx-auto max-w-3xl">
           <header className="flex items-center justify-between border-b border-black/8 pb-5">
             <div className="flex items-center gap-3">
@@ -529,8 +500,8 @@ export default function ConnectorSettingsPage(): ReactElement {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] px-5 py-8 text-[#161616] md:px-10">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen w-full min-w-0 max-w-full bg-[#f7f7f5] px-4 py-6 text-[#161616] sm:px-5 sm:py-8 md:px-8">
+      <div className="mx-auto w-full min-w-0 max-w-5xl">
         <header className="flex flex-col gap-5 border-b border-black/8 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#111315] text-white">
@@ -542,7 +513,7 @@ export default function ConnectorSettingsPage(): ReactElement {
                 连接器
               </h1>
               <p className="mt-2 text-sm text-black/55">
-                选择一个连接器作为当前使用方式。
+                每次只能选择一个输出位置；生成的笔记与待办只会发送到当前选择的连接器。
               </p>
             </div>
           </div>
@@ -561,7 +532,7 @@ export default function ConnectorSettingsPage(): ReactElement {
         </header>
 
         <section
-          className="mt-7 grid gap-3 sm:grid-cols-3"
+          className="mt-7 grid gap-3 md:grid-cols-3"
           aria-label="连接器列表"
         >
           {CONNECTOR_OPTIONS.map((option) => {
@@ -590,34 +561,24 @@ export default function ConnectorSettingsPage(): ReactElement {
                       {option.description}
                     </p>
                   </button>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <Switch
-                      aria-label={`${option.label}${descriptor?.enabled ? '已开启' : '已关闭'}`}
-                      checked={descriptor?.enabled ?? option.type === 'local'}
-                      disabled={saving || isActive}
-                      onCheckedChange={(checked: boolean) =>
-                        void toggleConnector(option.type, checked)
-                      }
-                    />
-                    <span
-                      className={`text-[11px] ${isSelected ? 'text-white/55' : 'text-black/45'}`}
-                    >
-                      {isActive
-                        ? '当前使用'
-                        : descriptor?.enabled
-                          ? '已开启'
-                          : '已关闭'}
-                    </span>
-                  </div>
+                  <span className={isSelected ? 'text-white' : ''}>
+                    <StatusPill active={isActive} status={status} />
+                  </span>
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-2">
                   <span
                     className={`text-xs ${isSelected ? 'text-white/60' : 'text-black/45'}`}
                   >
-                    {isSelected ? '正在配置' : '点击配置'}
+                    {isActive
+                      ? '当前唯一输出'
+                      : status === 'ready'
+                        ? '已连接，可切换'
+                        : '需要连接'}
                   </span>
-                  <span className={isSelected ? 'text-white' : ''}>
-                    <StatusPill active={false} status={status} />
+                  <span
+                    className={isSelected ? 'text-white/60' : 'text-black/45'}
+                  >
+                    {isSelected ? '正在配置' : '查看配置'}
                   </span>
                 </div>
               </div>
@@ -643,8 +604,8 @@ export default function ConnectorSettingsPage(): ReactElement {
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
                   {selected === 'local'
-                    ? '所有文档、待办和通知保存在本机，不需要外部账号。'
-                    : `连接${getLabel(selected)}后，生成的笔记和待办可以同步到你的协作平台。`}
+                    ? '笔记会保存为本机 Markdown 文件，不需要外部账号，也不会创建外部待办。'
+                    : `连接${getLabel(selected)}后，生成的笔记和待办会同步到当前唯一输出位置。`}
                 </p>
               </div>
               {selectedDescriptor?.lastError ? (
@@ -656,6 +617,13 @@ export default function ConnectorSettingsPage(): ReactElement {
           </div>
 
           <div className="space-y-7 px-6 py-7 md:px-8">
+            {selected === 'dingtalk' ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
+                钉钉模式会只向钉钉创建文档。需要同步钉钉待办时，请在高级设置中填写待办执行人
+                ID；留空时只创建文档。
+              </div>
+            ) : null}
+
             {selected === 'local' ? (
               <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
@@ -664,7 +632,8 @@ export default function ConnectorSettingsPage(): ReactElement {
                     <div>
                       <p className="font-semibold">本地模式随时可用</p>
                       <p className="mt-1 text-sm leading-6 text-emerald-900/75">
-                        数据不会离开这台电脑。你可以直接开始处理资料，也可以稍后切换到飞书或钉钉。
+                        文档以 UTF-8 Markdown 保存到
+                        data/local-documents。无需飞书或钉钉授权；本地模式不会创建外部待办。
                       </p>
                     </div>
                   </div>
@@ -679,24 +648,7 @@ export default function ConnectorSettingsPage(): ReactElement {
                   ) : (
                     <CheckCircle2 className="size-4" />
                   )}
-                  {active ? '当前使用中' : '启用本地'}
-                </Button>
-              </div>
-            ) : !selectedDescriptor?.enabled ? (
-              <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold">{getLabel(selected)}已关闭</p>
-                  <p className="mt-1 text-sm text-amber-900/75">
-                    打开上方开关后，才能继续配置和使用。
-                  </p>
-                </div>
-                <Button
-                  disabled={saving}
-                  onClick={() => void toggleConnector(selected, true)}
-                  size="sm"
-                >
-                  <CheckCircle2 className="size-4" />
-                  开启连接器
+                  {active ? '当前输出位置' : '设为输出位置'}
                 </Button>
               </div>
             ) : (
