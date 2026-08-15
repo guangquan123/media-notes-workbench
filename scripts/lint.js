@@ -10,6 +10,27 @@ function getBinName(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name;
 }
 
+function getPackageManagerInvocation(name, args) {
+  if (process.platform !== 'win32') {
+    return { command: getBinName(name), args };
+  }
+
+  const cliName = name === 'npx' ? 'npx-cli.js' : 'npm-cli.js';
+  const cliPath = path.join(
+    path.dirname(process.execPath),
+    'node_modules',
+    'npm',
+    'bin',
+    cliName,
+  );
+
+  if (fs.existsSync(cliPath)) {
+    return { command: process.execPath, args: [cliPath, ...args] };
+  }
+
+  return { command: getBinName(name), args };
+}
+
 function runCommand(command, args) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -22,6 +43,11 @@ function runCommand(command, args) {
     child.on('close', (code) => resolve(code || 0));
     child.on('error', () => resolve(1));
   });
+}
+
+function runPackageManager(name, args) {
+  const invocation = getPackageManagerInvocation(name, args);
+  return runCommand(invocation.command, invocation.args);
 }
 
 function normalizeProjectFile(filePath) {
@@ -65,7 +91,7 @@ function isStylelintTarget(filePath) {
 }
 
 async function runDefaultLint() {
-  const code = await runCommand(getBinName('npx'), [
+  const code = await runPackageManager('npx', [
     'concurrently',
     'npm run eslint',
     'npm run type:check',
@@ -105,19 +131,19 @@ async function runSelectiveLint(inputFiles) {
   const tasks = [];
 
   if (eslintFiles.length > 0) {
-    tasks.push(runCommand(getBinName('npx'), ['eslint', '--quiet', ...eslintFiles]));
+    tasks.push(runPackageManager('npx', ['eslint', '--quiet', ...eslintFiles]));
   }
 
   if (stylelintFiles.length > 0) {
-    tasks.push(runCommand(getBinName('npx'), ['stylelint', '--quiet', ...stylelintFiles]));
+    tasks.push(runPackageManager('npx', ['stylelint', '--quiet', ...stylelintFiles]));
   }
 
   if (clientTypeFiles.length > 0) {
-    tasks.push(runCommand(getBinName('npm'), ['run', 'type:check:client']));
+    tasks.push(runPackageManager('npm', ['run', 'type:check:client']));
   }
 
   if (serverTypeFiles.length > 0) {
-    tasks.push(runCommand(getBinName('npm'), ['run', 'type:check:server']));
+    tasks.push(runPackageManager('npm', ['run', 'type:check:server']));
   }
 
   if (tasks.length === 0) {

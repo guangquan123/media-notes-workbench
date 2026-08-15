@@ -2,6 +2,8 @@
 // FULLSTACK_PRECOMMIT_V1
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const SEP = '  ' + '─'.repeat(36);
@@ -9,6 +11,26 @@ const SEP = '  ' + '─'.repeat(36);
 // package-lock.json 锁内网镜像源 → 线上构建无法访问,改用公共镜像源。
 // 后续如有其它内网域名需要拦截,在这里加 pattern 即可。
 const INTERNAL_REGISTRY_PATTERNS = [/bnpm\.byted\.org/];
+
+function getNpmInvocation(args) {
+  if (process.platform !== 'win32') {
+    return { command: 'npm', args };
+  }
+
+  const npmCliPath = path.join(
+    path.dirname(process.execPath),
+    'node_modules',
+    'npm',
+    'bin',
+    'npm-cli.js',
+  );
+
+  if (fs.existsSync(npmCliPath)) {
+    return { command: process.execPath, args: [npmCliPath, ...args] };
+  }
+
+  return { command: 'npm.cmd', args };
+}
 
 function failAndExit(step, body) {
   process.stderr.write('\n✗ pre-commit failed: ' + step + '\n');
@@ -58,7 +80,8 @@ function checkLockfileRegistry() {
 
 function runLint() {
   const cwd = process.cwd();
-  const res = spawnSync('npm', ['run', 'lint'], {
+  const invocation = getNpmInvocation(['run', 'lint']);
+  const res = spawnSync(invocation.command, invocation.args, {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
