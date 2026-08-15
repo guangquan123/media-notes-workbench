@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { normalizeRuntimeConfig } from '../../server/modules/runtime/runtime.config';
@@ -34,6 +34,28 @@ describe('runtime registry', () => {
       const status = await service.getStatus();
       expect(status.database).toBe('local');
       expect(status.ai).toBe('external');
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it('records the launcher UI acknowledgement only for the current operation token', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'launcher-ready-'));
+    const operationTokenPath = join(baseDir, 'launcher-operation.token');
+    const uiReadyTokenPath = join(baseDir, 'launcher-ui-ready.token');
+    const service = new RuntimeRegistryService(join(baseDir, '.runtime-config.json'));
+    const launcherPaths = service as unknown as {
+      launcherOperationTokenPath: string;
+      launcherUiReadyTokenPath: string;
+    };
+    launcherPaths.launcherOperationTokenPath = operationTokenPath;
+    launcherPaths.launcherUiReadyTokenPath = uiReadyTokenPath;
+
+    try {
+      await writeFile(operationTokenPath, 'current-launch-token', 'utf8');
+      await expect(service.recordLauncherUiReady('expired-token')).resolves.toEqual({ ready: false });
+      await expect(service.recordLauncherUiReady('current-launch-token')).resolves.toEqual({ ready: true });
+      await expect(readFile(uiReadyTokenPath, 'utf8')).resolves.toBe('current-launch-token');
     } finally {
       await rm(baseDir, { recursive: true, force: true });
     }

@@ -19,6 +19,7 @@ const launcherOperationTokenPath = path.join(
   'launcher-operation.token',
 );
 const launcherReadyTokenPath = path.join(pidDir, 'launcher-ready.token');
+const launcherUiReadyTokenPath = path.join(pidDir, 'launcher-ui-ready.token');
 const logPath = path.join(logDir, 'dev.std.log');
 
 fs.mkdirSync(logDir, { recursive: true });
@@ -88,6 +89,7 @@ const viteCliPath = path.join(
 const serverEntryPath = path.join(rootDir, 'dist', 'server', 'main.js');
 const clientIndexPath = path.join(rootDir, 'dist', 'client', 'index.html');
 const staticClientPath = path.join(rootDir, 'scripts', 'static-client.js');
+const { isApplicationReady } = require('./application-readiness.js');
 
 for (const requiredPath of [nestCliPath, viteCliPath]) {
   if (!fs.existsSync(requiredPath)) {
@@ -160,6 +162,15 @@ function writeLauncherReadyToken() {
   }
 }
 
+function clearLauncherReadyTokens() {
+  for (const tokenPath of [launcherReadyTokenPath, launcherUiReadyTokenPath]) {
+    try {
+      fs.unlinkSync(tokenPath);
+    } catch (error) {
+      if (error && error.code !== 'ENOENT') throw error;
+    }
+  }
+}
 function pipeWithPrefix(stream, name) {
   let pending = '';
   stream.setEncoding('utf8');
@@ -276,23 +287,6 @@ function requestHttp(target, timeoutMs = 2500) {
   });
 }
 
-function isApplicationHtmlReady(response) {
-  return (
-    response.status >= 200 &&
-    response.status < 400 &&
-    response.contentType.includes('text/html') &&
-    /id=["']root["']/.test(response.body) &&
-    /type=["']module["']/.test(response.body)
-  );
-}
-
-function isApplicationApiReachable(response) {
-  return (
-    (response.status >= 200 && response.status < 400) ||
-    response.status === 401 ||
-    response.status === 403
-  );
-}
 
 async function waitForApplicationReady(child, timeoutMs = 120000) {
   const deadline = Date.now() + timeoutMs;
@@ -301,11 +295,15 @@ async function waitForApplicationReady(child, timeoutMs = 120000) {
     if (child && (child.exitCode !== null || child.signalCode !== null)) {
       throw new Error('前端在页面可访问前已退出');
     }
-    const [page, runtime] = await Promise.all([
-      requestHttp(appUrl),
-      requestHttp(runtimeUrl),
-    ]);
-    if (isApplicationHtmlReady(page) && isApplicationApiReachable(runtime)) return;
+    if (
+      await isApplicationReady({
+        pageUrl: appUrl,
+        runtimeUrl,
+        request: requestHttp,
+      })
+    ) {
+      return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(
@@ -355,6 +353,7 @@ process.once('SIGTERM', () => shutdown(0));
 process.once('exit', clearPidFile);
 
 async function main() {
+  clearLauncherReadyTokens();
   // 端口预检：被其他进程占用时直接报错，避免启动后空等 120s 超时
   for (const [pName, pHost, pPort] of [
     ['后端', serverHost, serverPort],

@@ -121,6 +121,7 @@
   var initialPid = 0;
   var operationToken = "";
   var restartLaunchObserved = false;
+  var browserLaunchObserved = false;
   var operationNames = { start: "启动服务", stop: "停止服务", restart: "重启服务" };
   var scriptNames = { start: "launch-windows.js", stop: "stop.js", restart: "restart-windows.js" };
 
@@ -259,36 +260,46 @@
       return token === operationToken;
     } catch (e) { return false; }
   }
+  function launcherUiReadyTokenMatches() {
+    if (!fso || !operationToken) return false;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-ui-ready.token"), 1, false, 0);
+      var token = file.ReadAll().replace(/^\s+|\s+$/g, "");
+      file.Close();
+      return token === operationToken;
+    } catch (e) { return false; }
+  }
   function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(root, "logs\\dev.std.log")), 1, false); } catch (e) {} } }
   function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
-  function openWorkbench() { if (shell) { try { shell.Run(workbenchUrl(), 1, false); } catch (e) {} } }
+  function openWorkbench() { if (shell) { try { var separator = workbenchUrl().indexOf("?") >= 0 ? "&" : "?"; shell.Run(workbenchUrl() + separator + "launcherReadyToken=" + encodeURIComponent(operationToken), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
   function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“打开日志”查看详情。\n" + e.message); return false; } }
-  function complete(message, shouldOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "OK"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; var seconds = action === "stop" ? 2 : 3; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); }
+  function complete(message, shouldOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "OK"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); }
   function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function poll() {
     if (finished || failed) return;
     var elapsed = new Date().getTime() - startedAt;
     if (elapsed > deadline) { setFailure("等待超时", "服务在 120 秒内没有达到预期状态。\n\n" + readLogTail()); return; }
-    var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api, frontend, pid);
+    var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var servicesReady = restartReadyTokenMatches(); var uiReady = launcherUiReadyTokenMatches(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api && servicesReady, frontend && servicesReady, pid);
     if (action === "stop") {
       if (backend || frontend || pid) moveTo(1, "正在确认进程退出", "正在等待后台进程和端口完全释放");
       else complete("服务已停止，端口已释放", false);
     } else if (action === "restart") {
       if (!restartLaunchObserved && (restartReadyTokenMatches() || (initialPid > 0 && currentPid > 0 && currentPid !== initialPid))) restartLaunchObserved = true;
       if (restartLaunchObserved && currentStep < 2) moveTo(2, "旧服务已停止", "新服务已接管，正在确认后端状态");
-      if (restartLaunchObserved && backend && api && currentStep < 4) moveTo(4, "后端已就绪", "正在等待前端页面响应");
-      if (restartLaunchObserved && frontend && currentStep < 6) moveTo(6, "页面已就绪", "页面和本地 API 已可访问，正在打开工作台");
-      if (restartLaunchObserved && backend && frontend && api) complete("重启完成，正在打开工作台", true);
+      if (restartLaunchObserved && servicesReady && currentStep < 4) moveTo(4, "后端已就绪", "后端状态和前端入口资源已验证");
+      if (restartLaunchObserved && servicesReady && !browserLaunchObserved) { browserLaunchObserved = true; moveTo(6, "正在打开工作台", "服务已验证，正在等待浏览器完成页面渲染"); openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; }
+      if (restartLaunchObserved && browserLaunchObserved && uiReady) complete("重启完成，页面已完成渲染", false);
     } else {
       if (pid && currentStep < 1) moveTo(1, "服务已启动", "正在等待后端开始监听");
-      if (backend && api && currentStep < 3) moveTo(3, "后端已就绪", "正在等待前端页面响应");
-      if (frontend && api) complete("启动完成，正在打开工作台", true);
+      if (servicesReady && currentStep < 3) moveTo(3, "后端已就绪", "后端状态和前端入口资源已验证");
+      if (servicesReady && !browserLaunchObserved) { browserLaunchObserved = true; moveTo(4, "正在打开工作台", "服务已验证，正在等待浏览器完成页面渲染"); openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; }
+      if (browserLaunchObserved && uiReady) complete("启动完成，页面已完成渲染", false);
     }
     pollTimer = window.setTimeout(poll, 700);
   }
   function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台继续"; begin(); }
-  function begin() { loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  function begin() { loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; browserLaunchObserved = false; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
   document.getElementById("openButton").style.display = "none";
   window.resizeTo(760, 820);
   tickElapsed();
