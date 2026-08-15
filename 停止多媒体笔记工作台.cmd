@@ -2,15 +2,18 @@
 setlocal
 cd /d "%~dp0"
 
-echo Stopping Media Notes Workbench...
-call wscript.exe "%~dp0scripts\run-hidden.vbs" npm.cmd run stop:windows
-if errorlevel 1 goto failed
+set "LAUNCHER=%~dp0scripts\workbench-launcher.hta"
+set "MSHTA=%SystemRoot%\System32\mshta.exe"
 
-echo Media Notes Workbench has stopped.
-exit /b 0
+if not exist "%LAUNCHER%" goto missing_launcher
 
-:failed
+echo Opening the stop window...
+start "" /wait "%MSHTA%" "%LAUNCHER%" stop
+set "LAUNCHER_EXIT_CODE=%ERRORLEVEL%"
+endlocal & exit /b %LAUNCHER_EXIT_CODE%
+
+:missing_launcher
 echo.
-echo Stop failed. Review the error above.
+echo Control window was not found: %LAUNCHER%
 pause
 exit /b 1
