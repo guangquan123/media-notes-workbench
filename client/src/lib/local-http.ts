@@ -13,6 +13,16 @@ export function resolveLocalBackendBasePath(
   return pathname.match(/^\/app\/app_[^/]+/)?.[0];
 }
 
+export function resolveLocalBackendRequestPath(
+  pathname: string,
+  requestPath: string,
+): string {
+  const normalizedRequestPath = requestPath.startsWith('/')
+    ? requestPath
+    : `/${requestPath}`;
+  return `${resolveLocalBackendBasePath(pathname) ?? ''}${normalizedRequestPath}`;
+}
+
 // 本地模式：直连同源 API；部署在 /app/app_xxx 下时保留应用前缀。
 export function axiosForBackend<T = unknown>(config: AxiosRequestConfig): Promise<BackendResponse<T>> {
   const baseURL = resolveLocalBackendBasePath(window.location.pathname);
