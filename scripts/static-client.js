@@ -14,7 +14,10 @@ const port = Number(process.env.CLIENT_DEV_PORT || 8081);
 const serverHost = process.env.SERVER_HOST || '127.0.0.1';
 const serverPort = Number(process.env.SERVER_PORT || 3001);
 const basePath =
-  `${process.env.CLIENT_BASE_PATH || '/app/app_179bn4jet6k'}`.replace(/\/+$/, '') || '/';
+  `${process.env.CLIENT_BASE_PATH || '/app/app_179bn4jet6k'}`.replace(
+    /\/+$/,
+    '',
+  ) || '/';
 const indexFile = path.join(clientRoot, 'static-fallback-index.html');
 const backendTarget = new URL(`http://${serverHost}:${serverPort}`);
 const localDevUtils = require(
@@ -30,6 +33,7 @@ const localDevUtils = require(
 );
 const sandboxOrigin = localDevUtils.resolveSandboxOrigin();
 const runtimeTarget = sandboxOrigin ? new URL(sandboxOrigin) : null;
+const instanceToken = process.env.STATIC_CLIENT_INSTANCE_TOKEN || '';
 
 function contentType(filePath) {
   const extension = path.extname(filePath).toLowerCase();
@@ -66,15 +70,15 @@ function resolveStaticRequest(requestRelativePath) {
 
 function isPlatformRuntimePath(pathname) {
   const runtimeBasePath = `${basePath === '/' ? '' : basePath}/__runtime__`;
-  return pathname === runtimeBasePath || pathname.startsWith(`${runtimeBasePath}/`);
+  return (
+    pathname === runtimeBasePath || pathname.startsWith(`${runtimeBasePath}/`)
+  );
 }
 
-function resolveBackendProxyPath(requestUrl, configuredBasePath = basePath) {
-  if (configuredBasePath === '/') return requestUrl;
-  const apiPrefix = `${configuredBasePath}/api/`;
-  return requestUrl.startsWith(apiPrefix)
-    ? requestUrl.slice(configuredBasePath.length)
-    : requestUrl;
+function resolveBackendProxyPath(requestUrl) {
+  // 本地后端由应用宿主挂载在 /app/app_xxx 下。浏览器客户端也会保留
+  // 这个前缀；静态兜底服务必须原样转发，不能重写成 /api/...。
+  return requestUrl;
 }
 
 function buildFallbackIndex() {
@@ -135,7 +139,9 @@ function getBackendProxyHeaders(request) {
   const { cookie, csrfToken } = localDevUtils.composeSandboxOutboundAuth();
   const webUser = localDevUtils.parseSudaWebUserEnv(process.env.SUDA_WEBUSER);
   const incomingCookie = request.headers.cookie || '';
-  const cookieCsrf = /(?:^|;\s*)suda-csrf-token=([^;]+)/.exec(incomingCookie)?.[1];
+  const cookieCsrf = /(?:^|;\s*)suda-csrf-token=([^;]+)/.exec(
+    incomingCookie,
+  )?.[1];
   const outboundCookie = cookieCsrf
     ? incomingCookie
     : [incomingCookie, cookie].filter(Boolean).join('; ');
@@ -144,7 +150,7 @@ function getBackendProxyHeaders(request) {
     ...(webUser
       ? { 'x-larkgw-suda-webuser': encodeURIComponent(JSON.stringify(webUser)) }
       : {}),
-    ...((cookieCsrf || csrfToken)
+    ...(cookieCsrf || csrfToken
       ? { 'x-suda-csrf-token': cookieCsrf || csrfToken }
       : {}),
   };
@@ -184,11 +190,18 @@ function start() {
   }
   const indexHtml = buildFallbackIndex();
   const server = http.createServer((request, response) => {
+    if (instanceToken) {
+      response.setHeader('x-media-notes-static-client', instanceToken);
+    }
     const requestUrl = new URL(request.url || '/', `http://${host}:${port}`);
     if (isPlatformRuntimePath(requestUrl.pathname)) {
       if (!runtimeTarget) {
-        response.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ message: 'Platform runtime is unavailable' }));
+        response.writeHead(502, {
+          'content-type': 'application/json; charset=utf-8',
+        });
+        response.end(
+          JSON.stringify({ message: 'Platform runtime is unavailable' }),
+        );
         return;
       }
       proxyRequest(request, response, runtimeTarget, getRuntimeProxyHeaders());
@@ -228,13 +241,26 @@ function start() {
     if (servedPath === indexFile) response.end(indexHtml);
     else fs.createReadStream(servedPath).pipe(response);
   });
-  server.listen(port, host, () => {
-    process.stdout.write(`[static-client] listening at http://${host}:${port}${basePath}/\n`);
+  server.ready = new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.once('listening', () => {
+      process.stdout.write(
+        `[static-client] listening at http://${host}:${port}${basePath}/\n`,
+      );
+      resolve(server);
+    });
   });
+  server.listen(port, host);
   return server;
 }
 
-if (require.main === module) start();
+if (require.main === module) {
+  const server = start();
+  server.ready.catch((error) => {
+    process.stderr.write(`[static-client] failed to listen: ${error.message}\n`);
+    process.exitCode = 1;
+  });
+}
 
 module.exports = {
   isPlatformRuntimePath,

@@ -20,10 +20,18 @@ if (!Number.isInteger(pid) || pid <= 0) {
 
 try {
   process.kill(pid, 0);
-} catch {
-  fs.unlinkSync(pidPath);
-  console.log('[stop] 开发进程已停止，已清理过期 PID 文件。');
-  process.exit(0);
+} catch (error) {
+  if (error?.code === 'ESRCH') {
+    fs.unlinkSync(pidPath);
+    console.log('[stop] 开发进程已停止，已清理过期 PID 文件。');
+    process.exit(0);
+  }
+  if (error?.code !== 'EPERM') {
+    const message = error instanceof Error ? error.message : '未知错误';
+    console.error('[stop] 无法确认项目启动进程状态: ' + message);
+    process.exit(1);
+  }
+  console.warn('[stop] 无法直接探测项目 PID，继续执行定向停止确认。');
 }
 
 if (process.platform === 'win32') {
@@ -50,7 +58,16 @@ if (process.platform === 'win32') {
     .trim()
     .toLowerCase()
     .replace(/\\/g, '/');
-  const inspectionBlocked = inspection.error?.code === 'EPERM';
+  const inspectionMessage = [
+    inspection.stderr || '',
+    inspection.error?.message || '',
+  ]
+    .join('\n')
+    .toLowerCase();
+  const inspectionBlocked =
+    inspection.error?.code === 'EPERM' ||
+    inspectionMessage.includes('access is denied') ||
+    inspectionMessage.includes('拒绝访问');
   if (
     !inspectionBlocked &&
     (inspection.status !== 0 || !commandLine.includes('scripts/dev-windows.js'))
@@ -66,7 +83,9 @@ if (process.platform === 'win32') {
     process.exit(1);
   }
   if (inspectionBlocked) {
-    console.warn('[stop] 无法读取 Windows 进程命令行，改用项目 PID 文件执行定向停止。');
+    console.warn(
+      '[stop] 无法读取 Windows 进程命令行，改用项目 PID 文件执行定向停止。',
+    );
   }
 
   const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
