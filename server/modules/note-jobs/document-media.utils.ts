@@ -41,22 +41,22 @@ export interface DocumentMediaPublishResult {
 
 export const MAX_DOCUMENT_IMAGE_BYTES = 20 * 1024 * 1024;
 /**
- * The Feishu document tool rejects Markdown payloads above 10,000 characters.
- * Keep room for title and command-level metadata to avoid boundary failures.
+ * Document connectors reject Markdown payloads above 10,000 characters.
+ * Keep room for command-level metadata to avoid boundary failures.
  */
-export const MAX_LARK_MARKDOWN_CHUNK_LENGTH = 9_000;
+export const MAX_DOCUMENT_MARKDOWN_CHUNK_LENGTH = 9_000;
 
 /**
  * Splits Markdown without dropping or reordering any characters. Paragraph and
- * line boundaries are preferred so each appended Lark document chunk remains
- * readable on its own; a long unbroken line falls back to a hard boundary.
+ * line boundaries are preferred so each appended document chunk remains readable
+ * on its own; a long unbroken line falls back to a hard boundary.
  */
-export function splitMarkdownForLark(
+export function splitMarkdownForDocument(
   markdown: string,
-  maxLength = MAX_LARK_MARKDOWN_CHUNK_LENGTH,
+  maxLength = MAX_DOCUMENT_MARKDOWN_CHUNK_LENGTH,
 ): string[] {
   if (!Number.isSafeInteger(maxLength) || maxLength < 1) {
-    throw new Error('飞书 Markdown 分段长度必须为正整数');
+    throw new Error('文档 Markdown 分段长度必须为正整数');
   }
   if (markdown.length <= maxLength) return [markdown];
 
@@ -82,6 +82,13 @@ export function splitMarkdownForLark(
   }
   return chunks;
 }
+
+/** @deprecated Use MAX_DOCUMENT_MARKDOWN_CHUNK_LENGTH for connector-neutral code. */
+export const MAX_LARK_MARKDOWN_CHUNK_LENGTH =
+  MAX_DOCUMENT_MARKDOWN_CHUNK_LENGTH;
+
+/** @deprecated Use splitMarkdownForDocument for connector-neutral code. */
+export const splitMarkdownForLark = splitMarkdownForDocument;
 
 export function parsePlatformStorageUrl(
   rawUrl: string,
