@@ -670,6 +670,7 @@ export interface DingTalkAuthInitiate {
   userCode: string;
   expiresIn: number;
   alreadyAuthenticated: boolean;
+  message?: string;
 }
 
 export async function initiateDingTalkAuth(): Promise<DingTalkAuthInitiate> {

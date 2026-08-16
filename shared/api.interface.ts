@@ -44,6 +44,7 @@ export interface ConnectorDescriptor {
   lastCheckedAt?: string;
   lastError?: string;
   status: ConnectorStatus;
+  taskExecutorUserId?: string;
   type: ConnectorType;
 }
 

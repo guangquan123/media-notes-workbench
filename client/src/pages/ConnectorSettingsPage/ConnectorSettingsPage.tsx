@@ -219,6 +219,17 @@ export default function ConnectorSettingsPage(): ReactElement {
     };
   }, [authExpiresAt, authState]);
 
+  useEffect(() => {
+    const dingtalkExecutorUserId = settings?.items.find(
+      (item) => item.type === 'dingtalk',
+    )?.taskExecutorUserId;
+    if (!dingtalkExecutorUserId) return;
+    setDrafts((previous) => ({
+      ...previous,
+      dingtalk: { ...previous.dingtalk, userId: dingtalkExecutorUserId },
+    }));
+  }, [settings]);
+
   const selectedDescriptor: ConnectorDescriptor | undefined = useMemo(
     () => settings?.items.find((item) => item.type === selected),
     [selected, settings],
@@ -290,10 +301,14 @@ export default function ConnectorSettingsPage(): ReactElement {
           : await completeDingTalkAuth(sessionId);
       if (result.completed) {
         setAuthState('completed');
-        setAuthMessage('授权成功，正在验证连接能力…');
+        setAuthMessage(result.message || '授权成功，正在验证连接能力…');
         const verified = await verifyConnection();
         if (verified) {
-          setAuthMessage('授权和连接验证均已完成。');
+          setAuthMessage(
+            result.message
+              ? `${result.message}；连接验证通过。`
+              : '授权和连接验证均已完成。',
+          );
           toast.success(`${getLabel(selected)}已连接`);
         }
         return;
@@ -336,11 +351,22 @@ export default function ConnectorSettingsPage(): ReactElement {
               useCustomFeishuApp ? draft.clientSecret : undefined,
             )
           : await initiateDingTalkAuth();
+      const authorizationMessage =
+        'message' in result ? result.message : undefined;
       if (result.alreadyAuthenticated) {
         setAuthState('completed');
-        setAuthMessage('检测到已有授权，正在验证连接能力…');
+        setAuthMessage(
+          authorizationMessage || '检测到已有授权，正在验证连接能力…',
+        );
         const verified = await verifyConnection();
-        if (verified) toast.success(`${getLabel(selected)}已连接`);
+        if (verified) {
+          setAuthMessage(
+            authorizationMessage
+              ? `${authorizationMessage}；连接验证通过。`
+              : '检测到已有授权，连接验证通过。',
+          );
+          toast.success(`${getLabel(selected)}已连接`);
+        }
         return;
       }
       setAuthState('waiting');
@@ -953,9 +979,23 @@ export default function ConnectorSettingsPage(): ReactElement {
                             onChange={(event) =>
                               updateDraft('userId', event.target.value)
                             }
-                            placeholder="可留空，默认使用授权身份"
+                            placeholder="授权成功后会自动填入"
                             value={draft.userId}
                           />
+                          <p className="mt-2 text-xs font-normal leading-5 text-black/55">
+                            授权成功后会自动使用当前钉钉授权人的通讯录
+                            userId；如需转交待办，可改为其他成员的 userId。
+                          </p>
+                          <p className="mt-1 text-xs font-normal leading-5 text-black/55">
+                            手工查询：当前授权人运行{' '}
+                            <code>dws contact user get-self --format json</code>
+                            ；其他成员运行{' '}
+                            <code>
+                              dws contact user search --query "姓名" --format
+                              json
+                            </code>
+                            ，复制结果中的 <code>userId</code>。
+                          </p>
                         </label>
                       ) : null}
                       <label className="text-sm font-medium md:col-span-2">

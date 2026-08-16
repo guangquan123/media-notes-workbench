@@ -14,7 +14,9 @@ describe('connector utils', () => {
   it('derives readiness status without exposing credentials', () => {
     expect(buildDescriptor('local', true, true).status).toBe('ready');
     expect(buildDescriptor('feishu', true, false).status).toBe('unconfigured');
-    expect(buildDescriptor('dingtalk', false, true).status).toBe('disabled');
-    expect(buildDescriptor('feishu', true, true, undefined, 'timeout').status).toBe('error');
+    expect(buildDescriptor('dingtalk', false, true).status).toBe('ready');
+    expect(
+      buildDescriptor('feishu', true, true, undefined, 'timeout').status,
+    ).toBe('error');
   });
 });

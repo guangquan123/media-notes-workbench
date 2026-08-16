@@ -46,4 +46,19 @@ describe('connector registry service', () => {
     expect(enabledOutputs).toEqual(['dingtalk']);
     expect(local?.status).toBe('ready');
   });
+
+  it('stores the authorized DingTalk user as the task executor and returns it to the settings page', async () => {
+    const service = new ConnectorRegistryService(baseDir);
+
+    await service.setDingTalkTaskExecutorUserId('ding-user-123');
+
+    await expect(service.getActiveConfig()).resolves.toMatchObject({
+      type: 'local',
+    });
+    const settings = await service.getSettings();
+    expect(
+      settings.items.find((item) => item.type === 'dingtalk')
+        ?.taskExecutorUserId,
+    ).toBe('ding-user-123');
+  });
 });

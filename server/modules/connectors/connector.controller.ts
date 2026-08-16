@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Put, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  Put,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type {
@@ -13,6 +23,8 @@ import { DingTalkAuthService } from './dingtalk-auth.service';
 
 @Controller('api/connectors')
 export class ConnectorController {
+  private readonly logger = new Logger(ConnectorController.name);
+
   constructor(
     private readonly registry: ConnectorRegistryService,
     private readonly localDocumentService: LocalDocumentService,
@@ -28,7 +40,9 @@ export class ConnectorController {
 
   @NeedLogin()
   @Put('active')
-  setActive(@Body('connector') connector: string): Promise<ConnectorSettingsResponse> {
+  setActive(
+    @Body('connector') connector: string,
+  ): Promise<ConnectorSettingsResponse> {
     return this.registry.setActive(connector);
   }
 
@@ -45,9 +59,31 @@ export class ConnectorController {
   @Post(':type/test')
   async test(@Param('type') type: string): Promise<ConnectorTestResponse> {
     const checkedAt = new Date().toISOString();
-    if (type === 'local') return { checkedAt, connector: 'local', message: '本地连接器始终可用', status: 'success' };
-    if (type === 'feishu') { const r = await this.feishuAuthService.testConnection(); return { checkedAt, connector: 'feishu', message: r.message, status: r.ok ? 'success' : 'failed' }; }
-    if (type === 'dingtalk') { const r = await this.dingTalkAuthService.testConnection(); return { checkedAt, connector: 'dingtalk', message: r.message, status: r.ok ? 'success' : 'failed' }; }
+    if (type === 'local')
+      return {
+        checkedAt,
+        connector: 'local',
+        message: '本地连接器始终可用',
+        status: 'success',
+      };
+    if (type === 'feishu') {
+      const r = await this.feishuAuthService.testConnection();
+      return {
+        checkedAt,
+        connector: 'feishu',
+        message: r.message,
+        status: r.ok ? 'success' : 'failed',
+      };
+    }
+    if (type === 'dingtalk') {
+      const r = await this.dingTalkAuthService.testConnection();
+      return {
+        checkedAt,
+        connector: 'dingtalk',
+        message: r.message,
+        status: r.ok ? 'success' : 'failed',
+      };
+    }
     throw new BadRequestException('不支持的连接器类型');
   }
 
@@ -65,14 +101,32 @@ export class ConnectorController {
 
   @NeedLogin()
   @Post('dingtalk/auth/initiate')
-  initiateDingTalkAuth() {
-    return this.dingTalkAuthService.initiate();
+  async initiateDingTalkAuth() {
+    const result = await this.dingTalkAuthService.initiate();
+    if (!result.alreadyAuthenticated) return result;
+    const executorSync = await this.syncDingTalkTaskExecutor();
+    return { ...result, message: executorSync.message };
   }
 
   @NeedLogin()
   @Post('dingtalk/auth/complete')
-  completeDingTalkAuth(@Body('sessionId') sessionId: string) {
-    return this.dingTalkAuthService.complete(sessionId);
+  async completeDingTalkAuth(@Body('sessionId') sessionId: string) {
+    const result = await this.dingTalkAuthService.complete(sessionId);
+    if (!result.completed) return result;
+    const executorSync = await this.syncDingTalkTaskExecutor();
+    return { ...result, message: `${result.message}；${executorSync.message}` };
+  }
+
+  private async syncDingTalkTaskExecutor(): Promise<{ message: string }> {
+    try {
+      const user = await this.dingTalkAuthService.getAuthorizedUser();
+      await this.registry.setDingTalkTaskExecutorUserId(user.userId);
+      return { message: '已自动填入授权人的待办执行人 ID' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(`未能自动填入钉钉待办执行人 ID: ${message}`);
+      return { message: `未能自动填入待办执行人 ID：${message}` };
+    }
   }
 
   @NeedLogin()

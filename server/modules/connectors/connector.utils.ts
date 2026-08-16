@@ -54,6 +54,7 @@ export function buildDescriptor(
   configured: boolean,
   lastCheckedAt?: string,
   lastError?: string,
+  taskExecutorUserId?: string,
 ): ConnectorDescriptor {
   const status = !configured ? 'unconfigured' : lastError ? 'error' : 'ready';
   return {
@@ -64,6 +65,7 @@ export function buildDescriptor(
     lastCheckedAt,
     lastError,
     status,
+    taskExecutorUserId,
     type,
   };
 }

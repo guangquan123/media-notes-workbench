@@ -72,6 +72,7 @@ export class ConnectorRegistryService {
           type === 'local' || hasCustomConfig || authed,
           item?.lastCheckedAt,
           item?.lastError,
+          type === 'dingtalk' ? item?.userId || undefined : undefined,
         );
       }),
     };
@@ -138,6 +139,25 @@ export class ConnectorRegistryService {
     items.push(next);
     await this.save({ ...config, items });
     return this.getSettings();
+  }
+
+  async setDingTalkTaskExecutorUserId(userId: string): Promise<void> {
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) {
+      throw new BadRequestException('钉钉授权用户未返回有效的 userId。');
+    }
+    const config = await this.load();
+    const items = config.items.map((item) =>
+      item.type === 'dingtalk' ? { ...item, userId: normalizedUserId } : item,
+    );
+    if (!items.some((item) => item.type === 'dingtalk')) {
+      items.push({
+        ...this.getStoredItem(config, 'dingtalk'),
+        type: 'dingtalk',
+        userId: normalizedUserId,
+      });
+    }
+    await this.save({ ...config, items });
   }
 
   async setActive(typeValue: string): Promise<ConnectorSettingsResponse> {
