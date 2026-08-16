@@ -99,12 +99,15 @@ import {
 } from './frame-selection.utils';
 import {
   assertDocumentImageAcceptance,
+  assertLarkDocumentCommandSucceeded,
   assertMediaInsertSucceeded,
+  buildDocumentAppendCommand,
   buildDocumentFetchCommand,
   buildDocumentMediaInsertCommand,
   detectDocumentImageType,
   MAX_DOCUMENT_IMAGE_BYTES,
   publishDocumentMediaAssets,
+  splitMarkdownForLark,
   type DocumentDraft,
   type DocumentMediaAsset,
   type DocumentMediaPublishResult,
@@ -3313,6 +3316,7 @@ export class NoteJobsService implements OnModuleInit {
       };
     }
     const safeTitle = title.slice(0, 120);
+    const [initialMarkdown, ...remainingMarkdown] = splitMarkdownForLark(markdown);
     const result = await this.runCommand(
       'lark-cli',
       [
@@ -3328,9 +3332,22 @@ export class NoteJobsService implements OnModuleInit {
         '-',
         '--json',
       ],
-      markdown,
+      initialMarkdown,
     );
     const created = parseCreatedLarkDocument(result.stdout);
+    for (const chunk of remainingMarkdown) {
+      const appendResult = await this.runCommand(
+        'lark-cli',
+        buildDocumentAppendCommand(created.documentId),
+        chunk,
+      );
+      assertLarkDocumentCommandSucceeded(appendResult.stdout);
+    }
+    if (remainingMarkdown.length > 0) {
+      this.logger.log(
+        `飞书 Markdown 已分 ${remainingMarkdown.length + 1} 段写入，避免单次内容超过 10000 字符。`,
+      );
+    }
     if (media.length === 0) {
       return { publishedCount: 0, skippedOptional: [], url: created.url };
     }

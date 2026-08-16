@@ -1,5 +1,7 @@
 import {
   assertDocumentImageAcceptance,
+  assertLarkDocumentCommandSucceeded,
+  buildDocumentAppendCommand,
   buildDocumentFetchCommand,
   buildDocumentMediaInsertCommand,
   countDocumentImageBlocks,
@@ -7,6 +9,8 @@ import {
   publishDocumentMediaAssets,
   parsePlatformStorageUrl,
   parseCreatedLarkDocument,
+  splitMarkdownForLark,
+  MAX_LARK_MARKDOWN_CHUNK_LENGTH,
 } from '../../server/modules/note-jobs/document-media.utils';
 
 describe('native Lark document media', () => {
@@ -41,6 +45,55 @@ describe('native Lark document media', () => {
     );
   });
 
+  it('splits long Markdown into append-safe chunks and builds the append command', () => {
+    const paragraph = '# 第一节\n\n';
+    const markdown = `${paragraph.repeat(
+      Math.ceil((MAX_LARK_MARKDOWN_CHUNK_LENGTH + 1) / paragraph.length),
+    )}尾部`;
+    const chunks = splitMarkdownForLark(markdown);
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks.join('')).toBe(markdown);
+    expect(
+      chunks.every((chunk) => chunk.length <= MAX_LARK_MARKDOWN_CHUNK_LENGTH),
+    ).toBe(true);
+    expect(buildDocumentAppendCommand('CT3TdzpFioms2fxx3N9cxXwznmh')).toEqual([
+      'docs',
+      '+update',
+      '--as',
+      'user',
+      '--doc',
+      'CT3TdzpFioms2fxx3N9cxXwznmh',
+      '--command',
+      'append',
+      '--doc-format',
+      'markdown',
+      '--content',
+      '-',
+      '--format',
+      'json',
+    ]);
+    expect(() =>
+      assertLarkDocumentCommandSucceeded('{"ok":true}'),
+    ).not.toThrow();
+    expect(() =>
+      assertLarkDocumentCommandSucceeded(
+        '{"ok":false,"error":{"message":"invalid"}}',
+      ),
+    ).toThrow('invalid');
+  });
+
+  it('splits an unbroken Markdown line without exceeding the configured limit', () => {
+    const markdown = '中'.repeat(MAX_LARK_MARKDOWN_CHUNK_LENGTH * 2 + 17);
+    const chunks = splitMarkdownForLark(markdown);
+
+    expect(chunks.map((chunk) => chunk.length)).toEqual([
+      MAX_LARK_MARKDOWN_CHUNK_LENGTH,
+      MAX_LARK_MARKDOWN_CHUNK_LENGTH,
+      17,
+    ]);
+    expect(chunks.join('')).toBe(markdown);
+  });
   it('parses the created document id and verifies real image blocks', () => {
     const created = parseCreatedLarkDocument(
       JSON.stringify({

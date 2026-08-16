@@ -17,7 +17,14 @@ import { useDropzone } from 'react-dropzone';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { cancelNoteJob, createNoteJob, getNoteJob, getReadiness } from '@/api';
+import {
+  axiosForBackend,
+  cancelNoteJob,
+  createNoteJob,
+  getConnectorSettings,
+  getNoteJob,
+  getReadiness,
+} from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
 import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
@@ -43,11 +50,17 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
+import { downloadBlob } from '@/utils/download';
 import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
+import {
+  getMediaNoteConnectorCopy,
+  toMarkdownFileName,
+} from './media-note-connector.utils';
 import type {
   NoteJob,
   NoteStyle,
   NoteSourceType,
+  ConnectorType,
   NoteVisualOptions,
   SystemReadiness,
 } from '@shared/api.interface';
@@ -74,6 +87,25 @@ const MAX_DOCUMENT_FILES = 10;
 const READINESS_MAX_ATTEMPTS = 3;
 const READINESS_RETRY_DELAY_MS = 1200;
 
+interface LocalMarkdownWritable {
+  close(): Promise<void>;
+  write(data: Blob): Promise<void>;
+}
+
+interface LocalMarkdownFileHandle {
+  createWritable(): Promise<LocalMarkdownWritable>;
+}
+
+interface SaveFilePickerWindow extends Window {
+  showSaveFilePicker?: (options: {
+    suggestedName: string;
+    types: Array<{
+      accept: Record<string, string[]>;
+      description: string;
+    }>;
+  }) => Promise<LocalMarkdownFileHandle>;
+}
+
 const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
   video: {
     accent: '#e86f3d',
@@ -85,7 +117,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
       'video/webm': ['.webm'],
     },
     description:
-      '上传课程、讲座或屏幕录制，系统会提取音轨、转录内容并整理成飞书学习笔记。',
+      '上传课程、讲座或屏幕录制，系统会提取音轨、转录内容并整理成可复习的学习笔记。',
     eyebrow: '本地视频工作台',
     fileHint: '最多 10 个视频，单个及累计均不超过 10 GB',
     title: '把本地视频，变成一篇有结构的学习笔记。',
@@ -103,7 +135,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
       'audio/ogg': ['.ogg'],
     },
     description:
-      '上传课堂录音、访谈或语音备忘，系统会转成文字、提炼重点并写入飞书。',
+      '上传课堂录音、访谈或语音备忘，系统会转成文字、提炼重点并整理成可复习的学习笔记。',
     eyebrow: '录音整理工作台',
     fileHint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG，最大 10 GB',
     title: '让一段录音，沉淀成真正可复习的笔记。',
@@ -125,7 +157,7 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
       'text/markdown': ['.md', '.markdown'],
     },
     description:
-      '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的飞书学习笔记。',
+      '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的学习笔记。',
     eyebrow: '文档学习工作台',
     fileHint:
       '支持 PDF、Word、PowerPoint、TXT、Markdown；最多 10 个，累计不超过 200 MB',
@@ -210,6 +242,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   });
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
+  const [activeConnector, setActiveConnector] = useState<ConnectorType | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -221,12 +254,20 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     sourceType,
     job?.visualOptions || visualOptions,
   );
-  const processStages =
+  const currentConnector = activeConnector || readiness?.connectorType;
+  const connectorCopy = getMediaNoteConnectorCopy(currentConnector);
+  const baseProcessStages =
     sourceType === 'document'
       ? PDF_PROCESS_STAGES
       : MEDIA_PROCESS_STAGES.filter(
           ([stage]) => stage !== 'extracting-frames' || showVisualStage,
         );
+  const processStages: ReadonlyArray<readonly [string, string]> = baseProcessStages.map(
+    ([stage, label]): readonly [string, string] =>
+      stage === 'publishing'
+        ? [stage, currentConnector ? connectorCopy.publishingLabel : '保存笔记']
+        : [stage, label],
+  );
   const running: boolean = Boolean(
     job &&
       !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
@@ -311,6 +352,22 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   );
 
   useEffect(() => {
+    let cancelled = false;
+    const loadConnector = async (): Promise<void> => {
+      try {
+        const settings = await getConnectorSettings();
+        if (!cancelled) setActiveConnector(settings.activeConnector);
+      } catch {
+        if (!cancelled) toast.error('暂时无法读取文档输出连接器');
+      }
+    };
+    void loadConnector();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!job || !running) return;
     let cancelled = false;
     let timer: number | undefined;
@@ -320,7 +377,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         if (cancelled) return;
         setJob(next);
         if (next.stage === 'completed') {
-          toast.success('飞书学习笔记已经创建，源文件已保留');
+          toast.success(connectorCopy.successToast);
         }
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
@@ -334,7 +391,53 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [job?.id, running]);
+  }, [connectorCopy.successToast, job?.id, running]);
+
+  const saveLocalMarkdown = async (): Promise<void> => {
+    if (!job?.documentUrl) return;
+    try {
+      const response = await axiosForBackend({
+        method: 'GET',
+        responseType: 'blob',
+        timeout: 15_000,
+        url: job.documentUrl,
+      });
+      const markdown =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'text/markdown;charset=utf-8' });
+      const fileName = toMarkdownFileName(
+        job.mediaFileName || files[0]?.name,
+      );
+      const picker = (window as SaveFilePickerWindow).showSaveFilePicker;
+      if (!picker) {
+        downloadBlob(markdown, fileName);
+        toast.success('Markdown 文件已开始下载');
+        return;
+      }
+
+      try {
+        const fileHandle = await picker({
+          suggestedName: fileName,
+          types: [
+            {
+              accept: { 'text/markdown': ['.md', '.markdown'] },
+              description: 'Markdown 文件',
+            },
+          ],
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(markdown);
+        await writable.close();
+        toast.success('Markdown 文件已保存');
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        throw error;
+      }
+    } catch {
+      toast.error('保存 Markdown 文件失败，请重试');
+    }
+  };
 
   const start = async () => {
     if (files.length === 0) {
@@ -493,7 +596,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     : job?.progress || 0;
   const displayMessage: string = uploading
     ? '正在安全上传文件…'
-    : job?.message || '等待开始';
+    : job?.stage === 'publishing'
+      ? `正在${connectorCopy.publishingLabel}…`
+      : job?.message || '等待开始';
   const uploadedSizeLabel: string =
     selectedFileSize > 0
       ? `已上传 ${formatFileSize(uploadedBytes)} / ${formatFileSize(selectedFileSize)}`
@@ -789,10 +894,14 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">
-                            飞书文档创建成功
+                            {job.documentUrl?.includes('/api/connectors/local/documents/')
+                              ? getMediaNoteConnectorCopy('local').completionTitle
+                              : connectorCopy.completionTitle}
                           </p>
                           <p className="mt-0.5 text-xs text-emerald-800/60">
-                            现在可以打开检查学习笔记
+                            {job.documentUrl?.includes('/api/connectors/local/documents/')
+                              ? getMediaNoteConnectorCopy('local').completionDescription
+                              : connectorCopy.completionDescription}
                           </p>
                         </div>
                       </div>
@@ -803,15 +912,21 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   {job?.documentUrl && (
                     <Button
                       className="h-12 w-full rounded-xl bg-[#3370ff] hover:bg-[#2864ea]"
-                      onClick={() =>
+                      onClick={() => {
+                        if (job.documentUrl?.includes('/api/connectors/local/documents/')) {
+                          void saveLocalMarkdown();
+                          return;
+                        }
                         window.open(
                           job.documentUrl,
                           '_blank',
                           'noopener,noreferrer',
-                        )
-                      }
+                        );
+                      }}
                     >
-                      打开总结笔记
+                      {job.documentUrl.includes('/api/connectors/local/documents/')
+                        ? getMediaNoteConnectorCopy('local').documentActionLabel
+                        : connectorCopy.documentActionLabel}
                       <ArrowUpRight className="ml-2 size-4" />
                     </Button>
                   )}
