@@ -835,7 +835,7 @@ export class NoteJobsService implements OnModuleInit {
         '会议培训笔记';
       const publishingJob: NoteJob = {
         ...snapshot,
-        message: '选择已确认，正在发布飞书文档…',
+        message: '选择已确认，正在发布连接器文档…',
         progress: 92,
         stage: 'publishing',
         updatedAt: new Date().toISOString(),
@@ -962,7 +962,7 @@ export class NoteJobsService implements OnModuleInit {
       const noteTitle: string =
         this.extractMarkdownTitle(summaryResult.markdown) || context.title;
       await this.persistTitle(id, noteTitle);
-      this.update(id, 'publishing', 92, '新版笔记已生成，正在写入飞书文档…');
+      this.update(id, 'publishing', 92, '新版笔记已生成，正在写入连接器文档…');
       const publishResult = await this.createLarkDocument(
         `${noteTitle}（V${versionNumber}）`,
         finalMarkdown,
@@ -1386,7 +1386,7 @@ export class NoteJobsService implements OnModuleInit {
         this.extractMarkdownTitle(reviewedMarkdown) || videoTitle;
       await this.persistTitle(id, noteTitle);
 
-      this.update(id, 'publishing', 88, '笔记已生成，正在写入飞书文档…');
+      this.update(id, 'publishing', 88, '笔记已生成，正在写入连接器文档…');
       const publishResult = await this.createLarkDocument(
         noteTitle,
         finalMarkdown,
@@ -1627,7 +1627,7 @@ export class NoteJobsService implements OnModuleInit {
       this.extractMarkdownTitle(reviewedMarkdown) || title;
     await this.persistTitle(id, noteTitle);
 
-    this.update(id, 'publishing', 92, '学习笔记已完成，正在写入飞书文档…');
+    this.update(id, 'publishing', 92, '学习笔记已完成，正在写入连接器文档…');
     const documentUrl: string = (
       await this.createLarkDocument(noteTitle, finalMarkdown)
     ).url;
@@ -4066,7 +4066,7 @@ export class NoteJobsService implements OnModuleInit {
       try {
         const task = await this.dingTalkTaskService.create({ title, executorUserId: config.userId });
         await this.noteHistoryService.updateReviewTask(jobId, { guid: task.guid, url: task.url });
-        this.patch(jobId, { message: '完成！钉钉笔记和待办任务已创建。' });
+        this.patch(jobId, { message: '完成！钉钉文档和待办任务已创建。' });
       } catch (error) {
         const message: string = error instanceof Error ? error.message : '未知错误';
         this.logger.warn(`创建任务 ${jobId} 的钉钉待办任务失败: ${message}`);

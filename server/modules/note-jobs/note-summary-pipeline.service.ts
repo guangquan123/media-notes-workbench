@@ -37,6 +37,11 @@ interface PipelineModelResult {
   text: string;
 }
 
+interface ExternalModelGenerationResult {
+  errorMessage?: string;
+  text?: string;
+}
+
 interface EvaluatedNoteCandidate {
   markdown: string;
   model: PipelineModelResult;
@@ -415,23 +420,32 @@ export class NoteSummaryPipelineService {
   ): Promise<PipelineModelResult> {
     const credentials: ExternalModelCredentials | undefined =
       await this.externalModelSettingsService.getCredentials();
+    let externalFailureMessage: string | undefined;
     if (credentials) {
-      const externalResult: string | undefined =
+      const externalResult: ExternalModelGenerationResult =
         await this.generateWithExternalModel(
           credentials,
           instruction,
           maxTokens,
         );
-      if (externalResult) {
+      if (externalResult.text) {
         return {
           modelName: credentials.model,
           provider: 'external_model',
-          text: externalResult,
+          text: externalResult.text,
         };
       }
+      externalFailureMessage = externalResult.errorMessage;
     }
     if (this.runtimeRegistryService && (await this.runtimeRegistryService.isLocal())) {
-      throw new Error('本地模式未配置外部 AI 模型，请先在「模型设置」中配置并启用外部模型。');
+      if (credentials && externalFailureMessage) {
+        throw new Error(
+          `本地模式的外部 AI 模型调用失败（${credentials.model}）：${externalFailureMessage}。请在「模型设置」中检查 API 地址、模型名和 API Key，并执行“测试连接”。`,
+        );
+      }
+      throw new Error(
+        '本地模式未配置或未启用外部 AI 模型，请先在「模型设置」中完成配置并启用外部模型。',
+      );
     }
     return {
       modelName: '妙搭内置 AI',
@@ -447,7 +461,7 @@ export class NoteSummaryPipelineService {
     credentials: ExternalModelCredentials,
     instruction: string,
     maxTokens: number,
-  ): Promise<string | undefined> {
+  ): Promise<ExternalModelGenerationResult> {
     const controller: AbortController = new AbortController();
     const timeout: NodeJS.Timeout = setTimeout(
       (): void => controller.abort(),
@@ -487,12 +501,13 @@ export class NoteSummaryPipelineService {
       if (typeof content !== 'string' || !content.trim()) {
         throw new Error('服务未返回文本内容');
       }
-      return content.trim();
+      return { text: content.trim() };
     } catch (error) {
+      const errorMessage: string = this.getErrorMessage(error);
       this.logger.warn(
-        `外部模型 ${credentials.model} 执行笔记流水线失败，回退内置模型：${this.getErrorMessage(error)}`,
+        `外部模型 ${credentials.model} 执行笔记流水线失败：${errorMessage}`,
       );
-      return undefined;
+      return { errorMessage };
     } finally {
       clearTimeout(timeout);
     }

@@ -28,6 +28,74 @@ function createTextStream(
 }
 
 describe('NoteSummaryPipelineService', () => {
+  it('keeps the missing-config guidance in local mode when credentials are absent', async () => {
+    const capabilityService = {
+      load: jest.fn(),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async (): Promise<undefined> => undefined,
+    } as unknown as ExternalModelSettingsService;
+    const runtimeRegistryService = {
+      isLocal: async (): Promise<boolean> => true,
+    };
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+      runtimeRegistryService as never,
+    );
+    const generateModelText = (
+      service as unknown as {
+        generateModelText: (
+          instruction: string,
+          maxTokens: number,
+          pluginInstanceId: string,
+        ) => Promise<unknown>;
+      }
+    ).generateModelText.bind(service);
+
+    await expect(generateModelText('生成笔记', 64, 'writer')).rejects.toThrow(
+      '本地模式未配置或未启用外部 AI 模型',
+    );
+  });
+
+  it('reports the real external-model failure in local mode instead of claiming it is unconfigured', async () => {
+    const capabilityService = {
+      load: jest.fn(),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async () => ({
+        apiKey: 'test-key',
+        baseUrl: 'https://model.example.com/v1',
+        enabled: true,
+        model: 'test-model',
+      }),
+    } as unknown as ExternalModelSettingsService;
+    const runtimeRegistryService = {
+      isLocal: async (): Promise<boolean> => true,
+    };
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+      runtimeRegistryService as never,
+    );
+    const generateModelText = (
+      service as unknown as {
+        generateModelText: (
+          instruction: string,
+          maxTokens: number,
+          pluginInstanceId: string,
+        ) => Promise<unknown>;
+      }
+    ).generateModelText.bind(service);
+
+    await expect(generateModelText('生成笔记', 64, 'writer')).rejects.toThrow(
+      '本地模式的外部 AI 模型调用失败（test-model）：connect ECONNREFUSED',
+    );
+    fetchSpy.mockRestore();
+  });
   it('writes every structured evidence item in one pass when quality passes', async () => {
     const completeNote: string = `# 完整培训笔记
 

@@ -5,10 +5,12 @@ import {
 } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import {
+  buildDingTalkSign,
   buildFeishuSign,
   buildTaskText,
   isFeishuFailure,
   TaskNotificationService,
+  validateDingTalkWebhookUrl,
   validateFeishuWebhookUrl,
 } from '../../server/modules/task-notifications/task-notification.service';
 
@@ -116,7 +118,133 @@ describe('task notification helpers', () => {
     expect(body.msg_type).toBe('text');
     expect(body.content.text).toContain('连通性测试成功');
     expect(body.timestamp).toEqual(expect.any(String));
-    expect(body.sign).toBe(buildFeishuSign(body.timestamp ?? '', 'test-secret'));
+    expect(body.sign).toBe(
+      buildFeishuSign(body.timestamp ?? '', 'test-secret'),
+    );
   });
 
+  it('validates DingTalk robot webhook addresses and recognizes DingTalk business errors', () => {
+    expect(
+      validateDingTalkWebhookUrl(
+        'https://oapi.dingtalk.com/robot/send?access_token=test',
+      ),
+    ).toContain('oapi.dingtalk.com');
+    expect(() =>
+      validateDingTalkWebhookUrl(
+        'https://example.com/robot/send?access_token=test',
+      ),
+    ).toThrow('dingtalk');
+    expect(isFeishuFailure({ errcode: 310000 })).toBe(true);
+    expect(isFeishuFailure({ errcode: 0 })).toBe(false);
+  });
+
+  it('sends a DingTalk notification configured on the active connector page', async () => {
+    const httpService: HttpService = new HttpService();
+    const config: InternalAxiosRequestConfig = {
+      headers: new AxiosHeaders(),
+      method: 'post',
+      url: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+    };
+    const response: AxiosResponse<{ errcode: number }> = {
+      config,
+      data: { errcode: 0 },
+      headers: new AxiosHeaders(),
+      status: 200,
+      statusText: 'OK',
+    };
+    const post = jest
+      .spyOn(httpService.axiosRef, 'post')
+      .mockResolvedValue(response);
+    post.mockClear();
+    const connectorRegistryService = {
+      getActiveConfig: async () => ({
+        webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+      }),
+      getActiveConnector: async () => 'dingtalk' as const,
+    };
+    const service: TaskNotificationService = new TaskNotificationService(
+      httpService,
+      connectorRegistryService as never,
+    );
+    (service as unknown as { current: { items: unknown[] } }).current = {
+      items: [],
+    };
+
+    await service.notifyTaskResult({
+      event: 'completed',
+      id: 'note-123',
+      message: '钉钉文档和待办已创建。',
+      type: 'note',
+    });
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][0]).toContain('oapi.dingtalk.com/robot/send');
+    expect(post.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        msgtype: 'text',
+        text: expect.objectContaining({
+          content: expect.stringContaining('钉钉文档和待办已创建。'),
+        }),
+      }),
+    );
+  });
+
+  it('does not send the same DingTalk webhook twice when it is also in notification settings', async () => {
+    const httpService: HttpService = new HttpService();
+    const config: InternalAxiosRequestConfig = {
+      headers: new AxiosHeaders(),
+      method: 'post',
+      url: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+    };
+    const response: AxiosResponse<{ errcode: number }> = {
+      config,
+      data: { errcode: 0 },
+      headers: new AxiosHeaders(),
+      status: 200,
+      statusText: 'OK',
+    };
+    const post = jest
+      .spyOn(httpService.axiosRef, 'post')
+      .mockResolvedValue(response);
+    post.mockClear();
+    const connectorRegistryService = {
+      getActiveConfig: async () => ({
+        webhookUrl: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+      }),
+      getActiveConnector: async () => 'dingtalk' as const,
+    };
+    const service: TaskNotificationService = new TaskNotificationService(
+      httpService,
+      connectorRegistryService as never,
+    );
+    (service as unknown as { current: { items: unknown[] } }).current = {
+      items: [
+        {
+          connectorType: 'dingtalk',
+          enabled: true,
+          id: 'saved-dingtalk-webhook',
+          name: '钉钉机器人',
+          secret: '',
+          url: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+        },
+      ],
+    };
+
+    await service.notifyTaskResult({
+      event: 'completed',
+      id: 'note-456',
+      message: '钉钉文档已创建。',
+      type: 'note',
+    });
+
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs DingTalk robot requests when a notification secret is provided', async () => {
+    const timestamp: string = '1700000000';
+    const secret: string = 'notification-secret';
+    expect(buildDingTalkSign(timestamp, secret)).toBe(
+      '+r7lauFLFFkeu1m2mek6/Wgq8oItasy3LU3SM3rJgmE=',
+    );
+  });
 });

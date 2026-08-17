@@ -175,9 +175,9 @@ export class TaskNotificationService {
     const activeConnector = this.connectorRegistryService
       ? await this.connectorRegistryService.getActiveConnector()
       : 'feishu';
-    const webhooks: StoredWebhook[] = config.items.filter(
-      (item: StoredWebhook): boolean =>
-        item.enabled && item.connectorType === activeConnector,
+    const webhooks: StoredWebhook[] = await this.resolveActiveWebhooks(
+      config,
+      activeConnector,
     );
     if (activeConnector === 'local' && webhooks.length === 0) {
       this.logger.log(`本地连接器任务通知: ${buildTaskText(input)}`);
@@ -190,11 +190,51 @@ export class TaskNotificationService {
         } catch (error) {
           const message: string = error instanceof Error ? error.message : '未知错误';
           this.logger.warn(
-            `任务 ${input.id} 的飞书通知失败（配置 ${webhook.name}）：${message}`,
+            `任务 ${input.id} 的${getConnectorLabel(webhook.connectorType)}通知失败（配置 ${webhook.name}）：${message}`,
           );
         }
       }),
     );
+  }
+
+  private async resolveActiveWebhooks(
+    config: StoredConfig,
+    activeConnector: ConnectorType,
+  ): Promise<StoredWebhook[]> {
+    const configuredWebhooks: StoredWebhook[] = config.items.filter(
+      (item: StoredWebhook): boolean =>
+        item.enabled && item.connectorType === activeConnector,
+    );
+    if (!this.connectorRegistryService || activeConnector === 'local') {
+      return configuredWebhooks;
+    }
+
+    try {
+      const activeConfig = await this.connectorRegistryService.getActiveConfig();
+      const rawUrl: string = activeConfig.webhookUrl.trim();
+      if (!rawUrl) return configuredWebhooks;
+      const url: string = validateWebhookUrl(rawUrl, activeConnector);
+      if (configuredWebhooks.some((item: StoredWebhook): boolean => item.url === url)) {
+        return configuredWebhooks;
+      }
+      return [
+        ...configuredWebhooks,
+        {
+          connectorType: activeConnector,
+          enabled: true,
+          id: `connector-${activeConnector}-webhook`,
+          name: `${getConnectorLabel(activeConnector)}连接器通知`,
+          secret: '',
+          url,
+        },
+      ];
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : '未知错误';
+      this.logger.warn(
+        `${getConnectorLabel(activeConnector)}连接器中的通知 Webhook 无法使用：${message}`,
+      );
+      return configuredWebhooks;
+    }
   }
 
   private async testWebhook(
@@ -203,13 +243,17 @@ export class TaskNotificationService {
   ): Promise<TaskNotificationConnectionStatus> {
     const checkedAt: string = new Date().toISOString();
     try {
-      await this.sendWithRetry(webhook, '内容工作台飞书机器人连通性测试成功。');
+      const webhookLabel: string = getWebhookLabel(webhook.connectorType);
+      await this.sendWithRetry(
+        webhook,
+        `内容工作台${webhookLabel}连通性测试成功。`,
+      );
       await this.saveTestResult(config, webhook.id, {
         lastTestAt: checkedAt,
-        lastTestMessage: '飞书机器人已连通。',
+        lastTestMessage: `${webhookLabel}已连通。`,
         lastTestStatus: 'success',
       });
-      return { checkedAt, message: '飞书机器人已连通。' };
+      return { checkedAt, message: `${webhookLabel}已连通。` };
     } catch (error) {
       const message: string = error instanceof Error ? error.message : '未知错误';
       await this.saveTestResult(config, webhook.id, {
@@ -217,7 +261,7 @@ export class TaskNotificationService {
         lastTestMessage: message,
         lastTestStatus: 'failed',
       });
-      throw new BadRequestException(`飞书机器人连通性校验失败：${message}`);
+      throw new BadRequestException(`${getWebhookLabel(webhook.connectorType)}连通性校验失败：${message}`);
     }
   }
 
@@ -226,11 +270,15 @@ export class TaskNotificationService {
   ): Promise<TaskNotificationConnectionStatus> {
     const checkedAt: string = new Date().toISOString();
     try {
-      await this.sendWithRetry(webhook, '内容工作台飞书机器人连通性测试成功。');
-      return { checkedAt, message: '飞书机器人已连通。' };
+      const webhookLabel: string = getWebhookLabel(webhook.connectorType);
+      await this.sendWithRetry(
+        webhook,
+        `内容工作台${webhookLabel}连通性测试成功。`,
+      );
+      return { checkedAt, message: `${webhookLabel}已连通。` };
     } catch (error) {
       const message: string = error instanceof Error ? error.message : '未知错误';
-      throw new BadRequestException(`飞书机器人连通性校验失败：${message}`);
+      throw new BadRequestException(`${getWebhookLabel(webhook.connectorType)}连通性校验失败：${message}`);
     }
   }
 
@@ -238,7 +286,7 @@ export class TaskNotificationService {
     webhook: StoredWebhook,
     text: string,
   ): Promise<void> {
-    let lastError: Error = new Error('飞书机器人请求失败');
+    let lastError: Error = new Error(`${getWebhookLabel(webhook.connectorType)}请求失败`);
     for (let attempt = 0; attempt <= WEBHOOK_RETRY_DELAYS_MS.length; attempt += 1) {
       try {
         await this.sendOnce(webhook, text);
@@ -281,7 +329,9 @@ export class TaskNotificationService {
     }
     const responseBody: unknown = response.data;
     if (isConnectorFailure(responseBody)) {
-      throw new Error(`${webhook.connectorType} 返回错误 ${responseBody.code ?? responseBody.StatusCode}`);
+      throw new Error(
+        `${webhook.connectorType} 返回错误 ${responseBody.errcode ?? responseBody.code ?? responseBody.StatusCode}`,
+      );
     }
   }
 
@@ -341,6 +391,22 @@ export function validateFeishuWebhookUrl(value: string): string {
   return validateWebhookUrl(value, 'feishu');
 }
 
+export function validateDingTalkWebhookUrl(value: string): string {
+  return validateWebhookUrl(value, 'dingtalk');
+}
+
+function getConnectorLabel(connectorType: ConnectorType): string {
+  return connectorType === 'dingtalk'
+    ? '钉钉'
+    : connectorType === 'local'
+      ? '本地'
+      : '飞书';
+}
+
+function getWebhookLabel(connectorType: ConnectorType): string {
+  return `${getConnectorLabel(connectorType)}机器人`;
+}
+
 function validateWebhookUrl(value: string, connectorType: ConnectorType): string {
   const url: string = value.trim();
   let parsed: URL;
@@ -350,7 +416,7 @@ function validateWebhookUrl(value: string, connectorType: ConnectorType): string
     throw new BadRequestException('Webhook 地址必须是有效的 URL。');
   }
   if (parsed.protocol !== 'https:') {
-    throw new BadRequestException('飞书机器人地址必须使用 https 协议。');
+    throw new BadRequestException('机器人地址必须使用 https 协议。');
   }
   if (parsed.username || parsed.password || url.length > 2048) {
     throw new BadRequestException('Webhook 地址格式不安全或过长。');
@@ -431,7 +497,7 @@ export function buildTaskText(input: TaskNotificationInput): string {
     failed: '失败',
   };
   const taskLabel: { 'article-export': string; note: string } = {
-    'article-export': '飞书文章导出',
+    'article-export': '文章导出',
     note: '多媒体笔记',
   };
   const lines: string[] = [
@@ -449,10 +515,11 @@ export function buildTaskText(input: TaskNotificationInput): string {
 
 export function isConnectorFailure(
   value: unknown,
-): value is { code?: number; StatusCode?: number } {
+): value is { code?: number; errcode?: number; StatusCode?: number } {
   if (!isObject(value)) return false;
   return (
     (typeof value.code === 'number' && value.code !== 0) ||
+    (typeof value.errcode === 'number' && value.errcode !== 0) ||
     (typeof value.StatusCode === 'number' && value.StatusCode !== 0)
   );
 }
