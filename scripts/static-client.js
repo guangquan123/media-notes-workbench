@@ -75,10 +75,17 @@ function isPlatformRuntimePath(pathname) {
   );
 }
 
-function resolveBackendProxyPath(requestUrl) {
-  // 本地后端由应用宿主挂载在 /app/app_xxx 下。浏览器客户端也会保留
-  // 这个前缀；静态兜底服务必须原样转发，不能重写成 /api/...。
-  return requestUrl;
+function resolveBackendProxyPath(requestUrl, configuredBasePath = basePath) {
+  // Vite 的本地代理会移除浏览器使用的 /app/app_xxx 前缀，后端路由从
+  // /api/... 开始。静态兜底服务必须使用相同规则，否则 /api/runtime 会落到
+  // 后端的前端页面路由并返回 500，导致启动器一直等待页面渲染确认。
+  const normalizedBasePath =
+    `${configuredBasePath || '/'}`.replace(/\/+$/, '') || '/';
+  if (normalizedBasePath === '/') return requestUrl;
+  const apiPrefix = `${normalizedBasePath}/api/`;
+  return requestUrl.startsWith(apiPrefix)
+    ? requestUrl.slice(normalizedBasePath.length)
+    : requestUrl;
 }
 
 function buildFallbackIndex() {

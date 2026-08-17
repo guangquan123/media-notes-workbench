@@ -8,13 +8,13 @@ const { resolveBackendProxyPath }: {
 } = require('../../scripts/static-client.js');
 
 describe('static client backend proxy path', () => {
-  it('preserves the application base path when forwarding to the local host', () => {
+  it('removes the application base path before forwarding API requests to the local backend', () => {
     expect(
       resolveBackendProxyPath(
         '/app/app_abc/api/runtime?refresh=1',
         '/app/app_abc',
       ),
-    ).toBe('/app/app_abc/api/runtime?refresh=1');
+    ).toBe('/api/runtime?refresh=1');
   });
 
   it('keeps root deployments and unrelated paths unchanged', () => {

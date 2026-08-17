@@ -92,6 +92,7 @@ const clientIndexPath = path.join(rootDir, 'dist', 'client', 'index.html');
 const staticClientPath = path.join(rootDir, 'scripts', 'static-client.js');
 const { isApplicationReady } = require('./application-readiness.js');
 const { ensureLocalRuntimeConfig } = require('./local-runtime-config.js');
+const { inspectWindowsLauncherProcess } = require('./launcher-process.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -115,16 +116,21 @@ function runFileOperationWithRetry(operation, attempts = 8, delayMs = 100) {
   throw lastError;
 }
 
+function clearStalePidFile() {
+  runFileOperationWithRetry(() => fs.unlinkSync(pidPath));
+}
+
 function ensureNoExistingLauncher() {
-  if (!fs.existsSync(pidPath)) return;
+  if (!fs.existsSync(pidPath)) return null;
   const existingPid = Number.parseInt(
     fs.readFileSync(pidPath, 'utf8').trim(),
     10,
   );
   if (!Number.isInteger(existingPid) || existingPid <= 0) {
-    fs.unlinkSync(pidPath);
-    return;
+    clearStalePidFile();
+    return null;
   }
+
   let alive = false;
   try {
     process.kill(existingPid, 0);
@@ -134,11 +140,32 @@ function ensureNoExistingLauncher() {
     // 此时进程实际存在（只是无探测权限），不能当"不存在"处理。
     alive = Boolean(error && error.code === 'EPERM');
   }
-  if (alive) {
-    return existingPid;
+
+  if (!alive) {
+    clearStalePidFile();
+    return null;
   }
-  fs.unlinkSync(pidPath);
-  return null;
+
+  if (process.platform === 'win32') {
+    const inspection = inspectWindowsLauncherProcess(existingPid, {
+      rootDir,
+      spawnSync,
+    });
+    if (inspection.ownership === 'stale') {
+      clearStalePidFile();
+      process.stdout.write(
+        `[dev-windows] PID 文件指向非本项目启动器进程 ${existingPid}，已清理过期状态并继续启动。\n`,
+      );
+      return null;
+    }
+    if (inspection.ownership === 'unknown') {
+      process.stdout.write(
+        `[dev-windows] 无法确认 PID ${existingPid} 是否属于本项目启动器，为避免重复实例将暂不覆盖。\n`,
+      );
+    }
+  }
+
+  return existingPid;
 }
 
 const existingLauncherPid = ensureNoExistingLauncher();

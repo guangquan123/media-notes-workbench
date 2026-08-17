@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { inspectWindowsLauncherProcess } = require('./launcher-process.js');
 
 const pidPath = path.resolve(process.cwd(), 'pids/dev-local.pid');
 
@@ -35,54 +36,18 @@ try {
 }
 
 if (process.platform === 'win32') {
-  const powershellPath = process.env.SystemRoot
-    ? path.join(
-        process.env.SystemRoot,
-        'System32',
-        'WindowsPowerShell',
-        'v1.0',
-        'powershell.exe',
-      )
-    : 'powershell.exe';
-  const inspection = spawnSync(
-    powershellPath,
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      `$process = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; [Console]::Out.Write($process.CommandLine)`,
-    ],
-    { encoding: 'utf8', windowsHide: true },
-  );
-  const commandLine = (inspection.stdout || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\\/g, '/');
-  const inspectionMessage = [
-    inspection.stderr || '',
-    inspection.error?.message || '',
-  ]
-    .join('\n')
-    .toLowerCase();
-  const inspectionBlocked =
-    inspection.error?.code === 'EPERM' ||
-    inspectionMessage.includes('access is denied') ||
-    inspectionMessage.includes('拒绝访问');
-  if (
-    !inspectionBlocked &&
-    (inspection.status !== 0 || !commandLine.includes('scripts/dev-windows.js'))
-  ) {
-    const reason = (
-      inspection.stderr ||
-      inspection.error?.message ||
-      ''
-    ).trim();
-    console.error(
-      `[stop] 拒绝停止 PID ${pid}：无法确认它属于本项目 Windows 启动器。${reason ? ` ${reason}` : ''}`,
+  const inspection = inspectWindowsLauncherProcess(pid, {
+    rootDir: process.cwd(),
+    spawnSync,
+  });
+  if (inspection.ownership === 'stale') {
+    fs.unlinkSync(pidPath);
+    console.log(
+      `[stop] PID 文件指向非本项目启动器进程 ${pid}，已清理过期状态，未停止该进程。`,
     );
-    process.exit(1);
+    process.exit(0);
   }
-  if (inspectionBlocked) {
+  if (inspection.ownership === 'unknown') {
     console.warn(
       '[stop] 无法读取 Windows 进程命令行，改用项目 PID 文件执行定向停止。',
     );

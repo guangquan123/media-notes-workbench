@@ -98,7 +98,10 @@ describe('Windows launcher entry', () => {
     expect(restart).toContain('writeLauncherFailure({');
     expect(stop).toContain("error?.code === 'ESRCH'");
     expect(stop).toContain("error?.code !== 'EPERM'");
-    expect(stop).toContain("inspectionMessage.includes('access is denied')");
+    expect(stop).toContain('inspectWindowsLauncherProcess');
+    expect(stop).toContain("inspection.ownership === 'stale'");
+    expect(stop).toContain("inspection.ownership === 'unknown'");
+    expect(stop).toContain('未停止该进程');
     expect(launch).toContain("child.once('error'");
   });
 
