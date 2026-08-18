@@ -88,7 +88,7 @@ export class ExternalModelSettingsService {
         `${credentials.baseUrl}/chat/completions`,
         {
           body: JSON.stringify({
-            max_tokens: 8,
+            max_tokens: 128,
             messages: [{ content: '请只回复：连接成功', role: 'user' }],
             model: credentials.model,
             stream: false,

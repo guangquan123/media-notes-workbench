@@ -77,6 +77,9 @@ describe('external model settings', () => {
       await expect(service.testConnection()).resolves.toEqual(
         expect.objectContaining({ message: '已连通 test-model。' }),
       );
+      const requestInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+      const requestBody = JSON.parse(String(requestInit.body)) as { max_tokens?: number };
+      expect(requestBody.max_tokens).toBe(128);
     } finally {
       fetchSpy.mockRestore();
       await rm(baseDir, { force: true, recursive: true });
