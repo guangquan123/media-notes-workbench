@@ -28,6 +28,78 @@ function createTextStream(
 }
 
 describe('NoteSummaryPipelineService', () => {
+  it('retries a reasoning-only completion with a larger output budget', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        async (
+          _input: RequestInfo | URL,
+          init?: RequestInit,
+        ): Promise<Response> => {
+          const body = JSON.parse(String(init?.body)) as {
+            max_tokens?: number;
+          };
+          if (body.max_tokens === 64) {
+            return {
+              json: async (): Promise<unknown> => ({
+                choices: [
+                  {
+                    finish_reason: 'length',
+                    message: {
+                      content: '',
+                      reasoning_content: '需要更多输出预算才能完成结构化笔记。',
+                      role: 'assistant',
+                    },
+                  },
+                ],
+              }),
+              ok: true,
+              status: 200,
+            } as Response;
+          }
+          return {
+            json: async (): Promise<unknown> => ({
+              choices: [{ message: { content: '结构化笔记正文' } }],
+            }),
+            ok: true,
+            status: 200,
+          } as Response;
+        },
+      );
+    try {
+      const service = new NoteSummaryPipelineService(
+        { load: jest.fn() } as unknown as CapabilityService,
+        {
+          getCredentials: async () => ({
+            apiKey: 'test-key',
+            baseUrl: 'https://model.example.com/v1',
+            enabled: true,
+            model: 'test-model',
+          }),
+        } as unknown as ExternalModelSettingsService,
+      );
+      const generateModelText = (
+        service as unknown as {
+          generateModelText: (
+            instruction: string,
+            maxTokens: number,
+            pluginInstanceId: string,
+          ) => Promise<{ text: string }>;
+        }
+      ).generateModelText.bind(service);
+
+      await expect(
+        generateModelText('生成笔记', 64, 'writer'),
+      ).resolves.toEqual(expect.objectContaining({ text: '结构化笔记正文' }));
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const retryBody = JSON.parse(
+        String(fetchSpy.mock.calls[1]?.[1]?.body),
+      ) as { max_tokens?: number };
+      expect(retryBody.max_tokens).toBe(32_768);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
   it('keeps the missing-config guidance in local mode when credentials are absent', async () => {
     const capabilityService = {
       load: jest.fn(),

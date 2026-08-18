@@ -11,6 +11,7 @@ import type {
   ExternalModelSettings,
   UpdateExternalModelSettingsRequest,
 } from '@shared/api.interface';
+import { extractExternalModelText } from './external-model-response.utils';
 
 export interface ExternalModelCredentials {
   apiKey: string;
@@ -103,11 +104,8 @@ export class ExternalModelSettingsService {
         },
       );
       if (!response.ok) throw new Error(`服务返回 HTTP ${response.status}`);
-      const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: unknown } }>;
-      };
-      const content: unknown = payload.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) {
+      const payload: unknown = await response.json();
+      if (!extractExternalModelText(payload)) {
         throw new Error('服务未返回可用文本内容');
       }
       return {

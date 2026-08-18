@@ -147,6 +147,10 @@ import {
   type GenerateHighQualityNoteResult,
   type NoteSummaryPipelineProgress,
 } from './note-summary-pipeline.service';
+import {
+  describeExternalModelResponse,
+  extractExternalModelText,
+} from './external-model-response.utils';
 
 type CommandResult = { stdout: string; stderr: string };
 
@@ -2749,43 +2753,52 @@ export class NoteJobsService implements OnModuleInit {
     const controller = new AbortController();
     const timeout = setTimeout((): void => controller.abort(), 180_000);
     try {
-      const response: Response = await fetch(
-        `${credentials.baseUrl}/chat/completions`,
-        {
-          body: JSON.stringify({
-            max_tokens: 8192,
-            messages: [
-              {
-                content:
-                  '你是严谨的中文知识管理编辑。只根据给定原文写 Markdown 笔记，不得编造。专有名词、数字或结论无法确认时标记“待核对”。严格服从用户提示词，不要输出解释或致歉。',
-                role: 'system',
-              },
-              {
-                content: `标题：${input.title}\n\n用户提示词：\n${input.styleRequirements}\n\n${input.sourceKind}：\n${input.sourceText}`,
-                role: 'user',
-              },
-            ],
-            model: credentials.model,
-            stream: false,
-            temperature: 0.3,
-          }),
-          headers: {
-            Authorization: `Bearer ${credentials.apiKey}`,
-            'Content-Type': 'application/json',
+      const request = async (maxTokens: number): Promise<unknown> => {
+        const response: Response = await fetch(
+          `${credentials.baseUrl}/chat/completions`,
+          {
+            body: JSON.stringify({
+              max_tokens: maxTokens,
+              messages: [
+                {
+                  content:
+                    '你是严谨的中文知识管理编辑。只根据给定原文写 Markdown 笔记，不得编造。专有名词、数字或结论无法确认时标记“待核对”。严格服从用户提示词，不要输出解释或致歉。',
+                  role: 'system',
+                },
+                {
+                  content: `标题：${input.title}\n\n用户提示词：\n${input.styleRequirements}\n\n${input.sourceKind}：\n${input.sourceText}`,
+                  role: 'user',
+                },
+              ],
+              model: credentials.model,
+              stream: false,
+              temperature: 0.3,
+            }),
+            headers: {
+              Authorization: `Bearer ${credentials.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            method: 'POST',
+            signal: controller.signal,
           },
-          method: 'POST',
-          signal: controller.signal,
-        },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: unknown } }>;
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
       };
-      const content = payload.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) {
-        throw new Error('服务未返回文本内容');
+
+      let payload: unknown = await request(8192);
+      let content: string | undefined = extractExternalModelText(payload);
+      if (!content && hasReasoningOnlyResponse(payload)) {
+        payload = await request(32_768);
+        content = extractExternalModelText(payload);
       }
-      return content.trim();
+      if (!content) {
+        const metadata = describeExternalModelResponse(payload);
+        throw new Error(
+          `服务未返回文本内容（choices=${metadata.choicesCount}，message字段=${metadata.messageKeys.join(',') || '无'}${metadata.finishReason ? `，finish_reason=${metadata.finishReason}` : ''}）`,
+        );
+      }
+      return content;
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.warn(
@@ -4284,4 +4297,18 @@ export class NoteJobsService implements OnModuleInit {
       );
     }
   }
+}
+
+function hasReasoningOnlyResponse(payload: unknown): boolean {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const choices: unknown = (payload as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return false;
+  const message: unknown = (choices[0] as { message?: unknown })?.message;
+  if (typeof message !== 'object' || message === null) return false;
+  const record = message as { content?: unknown; reasoning_content?: unknown };
+  return (
+    !extractExternalModelText({ choices: [{ message }] }) &&
+    typeof record.reasoning_content === 'string' &&
+    Boolean(record.reasoning_content.trim())
+  );
 }

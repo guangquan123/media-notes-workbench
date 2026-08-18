@@ -25,6 +25,10 @@ import {
 } from './external-model-settings.service';
 import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
 import { extractHighValueSourceAnchors } from './note-summary-source-anchors.utils';
+import {
+  describeExternalModelResponse,
+  extractExternalModelText,
+} from './external-model-response.utils';
 
 interface EvidenceCacheEntry {
   evidenceLedger: string;
@@ -468,40 +472,49 @@ export class NoteSummaryPipelineService {
       EXTERNAL_MODEL_TIMEOUT_MS,
     );
     try {
-      const response: Response = await fetch(
-        `${credentials.baseUrl}/chat/completions`,
-        {
-          body: JSON.stringify({
-            max_tokens: maxTokens,
-            messages: [
-              {
-                content:
-                  '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造，不输出内部推理。',
-                role: 'system',
-              },
-              { content: instruction, role: 'user' },
-            ],
-            model: credentials.model,
-            stream: false,
-            temperature: 0.2,
-          }),
-          headers: {
-            Authorization: `Bearer ${credentials.apiKey}`,
-            'Content-Type': 'application/json',
+      const request = async (requestedMaxTokens: number): Promise<unknown> => {
+        const response: Response = await fetch(
+          `${credentials.baseUrl}/chat/completions`,
+          {
+            body: JSON.stringify({
+              max_tokens: requestedMaxTokens,
+              messages: [
+                {
+                  content:
+                    '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造，不输出内部推理。',
+                  role: 'system',
+                },
+                { content: instruction, role: 'user' },
+              ],
+              model: credentials.model,
+              stream: false,
+              temperature: 0.2,
+            }),
+            headers: {
+              Authorization: `Bearer ${credentials.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            method: 'POST',
+            signal: controller.signal,
           },
-          method: 'POST',
-          signal: controller.signal,
-        },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: unknown } }>;
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
       };
-      const content: unknown = payload.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) {
-        throw new Error('服务未返回文本内容');
+
+      let payload: unknown = await request(maxTokens);
+      let content: string | undefined = extractExternalModelText(payload);
+      if (!content && this.hasReasoningOnlyResponse(payload)) {
+        payload = await request(Math.max(maxTokens * 2, 32_768));
+        content = extractExternalModelText(payload);
       }
-      return { text: content.trim() };
+      if (!content) {
+        const metadata = describeExternalModelResponse(payload);
+        throw new Error(
+          `服务未返回文本内容（choices=${metadata.choicesCount}，message字段=${metadata.messageKeys.join(',') || '无'}${metadata.finishReason ? `，finish_reason=${metadata.finishReason}` : ''}）`,
+        );
+      }
+      return { text: content };
     } catch (error) {
       const errorMessage: string = this.getErrorMessage(error);
       this.logger.warn(
@@ -511,6 +524,20 @@ export class NoteSummaryPipelineService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private hasReasoningOnlyResponse(payload: unknown): boolean {
+    if (typeof payload !== 'object' || payload === null) return false;
+    const choices: unknown = (payload as { choices?: unknown }).choices;
+    if (!Array.isArray(choices) || choices.length === 0) return false;
+    const message: unknown = (choices[0] as { message?: unknown })?.message;
+    if (typeof message !== 'object' || message === null) return false;
+    const record = message as { content?: unknown; reasoning_content?: unknown };
+    return (
+      !extractExternalModelText({ choices: [{ message }] }) &&
+      typeof record.reasoning_content === 'string' &&
+      Boolean(record.reasoning_content.trim())
+    );
   }
 
   private async generateWithBuiltinModel(
