@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
@@ -19,8 +24,15 @@ const DEFAULT_MODEL = 'deepseek-chat';
 
 @Injectable()
 export class ExternalModelSettingsService {
-  private readonly configPath = join(process.cwd(), '.external-model-config.json');
+  private readonly configPath = join(
+    process.cwd(),
+    '.external-model-config.json',
+  );
   private current: ExternalModelCredentials | undefined;
+
+  constructor(@Optional() configPath?: string) {
+    if (configPath) this.configPath = configPath;
+  }
 
   async getPublicSettings(): Promise<ExternalModelSettings> {
     const current: ExternalModelCredentials = await this.load();
@@ -38,7 +50,9 @@ export class ExternalModelSettingsService {
     return current.enabled && this.isConfigured(current) ? current : undefined;
   }
 
-  async update(input: UpdateExternalModelSettingsRequest): Promise<ExternalModelSettings> {
+  async update(
+    input: UpdateExternalModelSettingsRequest,
+  ): Promise<ExternalModelSettings> {
     const current: ExternalModelCredentials = await this.load();
     const next: ExternalModelCredentials = {
       apiKey: input.apiKey?.trim() || current.apiKey,
@@ -47,7 +61,9 @@ export class ExternalModelSettingsService {
       model: input.model.trim(),
     };
     if (next.enabled && !this.isConfigured(next)) {
-      throw new BadRequestException('启用前请填写 API 地址、模型名和 API Key。');
+      throw new BadRequestException(
+        '启用前请填写 API 地址、模型名和 API Key。',
+      );
     }
     const tempPath = `${this.configPath}.tmp`;
     await writeFile(tempPath, `${JSON.stringify(next, null, 2)}\n`, {
@@ -60,30 +76,44 @@ export class ExternalModelSettingsService {
   }
 
   async testConnection(): Promise<ExternalModelConnectionStatus> {
-    const credentials: ExternalModelCredentials | undefined = await this.getCredentials();
+    const credentials: ExternalModelCredentials | undefined =
+      await this.getCredentials();
     if (!credentials) {
       throw new BadRequestException('请先保存并启用外部大模型配置。');
     }
     const controller = new AbortController();
     const timeout = setTimeout((): void => controller.abort(), 20_000);
     try {
-      const response: Response = await fetch(`${credentials.baseUrl}/chat/completions`, {
-        body: JSON.stringify({
-          max_tokens: 8,
-          messages: [{ content: '请只回复：连接成功', role: 'user' }],
-          model: credentials.model,
-          stream: false,
-          temperature: 0,
-        }),
-        headers: {
-          Authorization: `Bearer ${credentials.apiKey}`,
-          'Content-Type': 'application/json',
+      const response: Response = await fetch(
+        `${credentials.baseUrl}/chat/completions`,
+        {
+          body: JSON.stringify({
+            max_tokens: 8,
+            messages: [{ content: '请只回复：连接成功', role: 'user' }],
+            model: credentials.model,
+            stream: false,
+            temperature: 0,
+          }),
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          method: 'POST',
+          signal: controller.signal,
         },
-        method: 'POST',
-        signal: controller.signal,
-      });
+      );
       if (!response.ok) throw new Error(`服务返回 HTTP ${response.status}`);
-      return { checkedAt: new Date().toISOString(), message: `已连通 ${credentials.model}。` };
+      const payload = (await response.json()) as {
+        choices?: Array<{ message?: { content?: unknown } }>;
+      };
+      const content: unknown = payload.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        throw new Error('服务未返回可用文本内容');
+      }
+      return {
+        checkedAt: new Date().toISOString(),
+        message: `已连通 ${credentials.model}。`,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       throw new BadRequestException(`模型连通性校验失败：${message}`);
@@ -94,17 +124,34 @@ export class ExternalModelSettingsService {
 
   private async load(): Promise<ExternalModelCredentials> {
     if (this.current) return this.current;
+
+    let raw: string;
     try {
-      const raw: string = await readFile(this.configPath, 'utf8');
-      this.current = normalize(JSON.parse(raw) as Partial<ExternalModelCredentials>);
-    } catch {
+      raw = await readFile(this.configPath, 'utf8');
+    } catch (error) {
+      if (!hasErrorCode(error, 'ENOENT')) {
+        throw new ServiceUnavailableException(
+          '外部 AI 模型配置文件无法读取，请重新打开「模型设置」并保存配置后重试。',
+        );
+      }
       this.current = normalize({
         apiKey: process.env.EXTERNAL_MODEL_API_KEY,
         baseUrl: process.env.EXTERNAL_MODEL_BASE_URL,
         enabled: process.env.EXTERNAL_MODEL_ENABLED === 'true',
         model: process.env.EXTERNAL_MODEL_NAME,
       });
+      return this.current;
     }
+
+    let parsed: Partial<ExternalModelCredentials>;
+    try {
+      parsed = JSON.parse(raw) as Partial<ExternalModelCredentials>;
+    } catch {
+      throw new ServiceUnavailableException(
+        '外部 AI 模型配置文件格式无效，请重新打开「模型设置」并保存配置后重试。',
+      );
+    }
+    this.current = normalize(parsed);
     return this.current;
   }
 
@@ -113,7 +160,18 @@ export class ExternalModelSettingsService {
   }
 }
 
-function normalize(input: Partial<ExternalModelCredentials>): ExternalModelCredentials {
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
+
+function normalize(
+  input: Partial<ExternalModelCredentials>,
+): ExternalModelCredentials {
   return {
     apiKey: input.apiKey?.trim() || '',
     baseUrl: normalizeBaseUrl(input.baseUrl || DEFAULT_BASE_URL),
