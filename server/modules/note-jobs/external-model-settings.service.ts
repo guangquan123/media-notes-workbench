@@ -11,6 +11,7 @@ import type {
   ExternalModelSettings,
   UpdateExternalModelSettingsRequest,
 } from '@shared/api.interface';
+import { fetchExternalModelJson } from './external-model-request.utils';
 import { extractExternalModelText } from './external-model-response.utils';
 
 export interface ExternalModelCredentials {
@@ -82,10 +83,8 @@ export class ExternalModelSettingsService {
     if (!credentials) {
       throw new BadRequestException('请先保存并启用外部大模型配置。');
     }
-    const controller = new AbortController();
-    const timeout = setTimeout((): void => controller.abort(), 20_000);
     try {
-      const response: Response = await fetch(
+      const payload: unknown = await fetchExternalModelJson(
         `${credentials.baseUrl}/chat/completions`,
         {
           body: JSON.stringify({
@@ -100,11 +99,9 @@ export class ExternalModelSettingsService {
             'Content-Type': 'application/json',
           },
           method: 'POST',
-          signal: controller.signal,
         },
+        20_000,
       );
-      if (!response.ok) throw new Error(`服务返回 HTTP ${response.status}`);
-      const payload: unknown = await response.json();
       if (!extractExternalModelText(payload)) {
         throw new Error('服务未返回可用文本内容');
       }
@@ -115,8 +112,6 @@ export class ExternalModelSettingsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       throw new BadRequestException(`模型连通性校验失败：${message}`);
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

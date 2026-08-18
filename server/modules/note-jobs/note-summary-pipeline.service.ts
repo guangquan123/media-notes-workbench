@@ -24,6 +24,7 @@ import {
   type ExternalModelCredentials,
 } from './external-model-settings.service';
 import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
+import { fetchExternalModelJson } from './external-model-request.utils';
 import { extractHighValueSourceAnchors } from './note-summary-source-anchors.utils';
 import {
   describeExternalModelResponse,
@@ -80,7 +81,6 @@ const PIPELINE_ENGINE_VERSION = 'note-summary-v3-compact-source-anchors-20260730
 const EVIDENCE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const EVIDENCE_CACHE_LIMIT = 20;
 const MAX_REPAIR_ATTEMPTS = 2;
-const EXTERNAL_MODEL_TIMEOUT_MS = 5 * 60 * 1_000;
 const BUILTIN_MODEL_MAX_ATTEMPTS = 3;
 const BUILTIN_MODEL_RETRY_BASE_DELAY_MS = 1_000;
 const PIPELINE_WRITER_PLUGIN_INSTANCE_ID = 'note-summary-pipeline-writer';
@@ -466,41 +466,29 @@ export class NoteSummaryPipelineService {
     instruction: string,
     maxTokens: number,
   ): Promise<ExternalModelGenerationResult> {
-    const controller: AbortController = new AbortController();
-    const timeout: NodeJS.Timeout = setTimeout(
-      (): void => controller.abort(),
-      EXTERNAL_MODEL_TIMEOUT_MS,
-    );
     try {
-      const request = async (requestedMaxTokens: number): Promise<unknown> => {
-        const response: Response = await fetch(
-          `${credentials.baseUrl}/chat/completions`,
-          {
-            body: JSON.stringify({
-              max_tokens: requestedMaxTokens,
-              messages: [
-                {
-                  content:
-                    '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造，不输出内部推理。',
-                  role: 'system',
-                },
-                { content: instruction, role: 'user' },
-              ],
-              model: credentials.model,
-              stream: false,
-              temperature: 0.2,
-            }),
-            headers: {
-              Authorization: `Bearer ${credentials.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            method: 'POST',
-            signal: controller.signal,
+      const request = (requestedMaxTokens: number): Promise<unknown> =>
+        fetchExternalModelJson(`${credentials.baseUrl}/chat/completions`, {
+          body: JSON.stringify({
+            max_tokens: requestedMaxTokens,
+            messages: [
+              {
+                content:
+                  '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造，不输出内部推理。',
+                role: 'system',
+              },
+              { content: instruction, role: 'user' },
+            ],
+            model: credentials.model,
+            stream: false,
+            temperature: 0.2,
+          }),
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            'Content-Type': 'application/json',
           },
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      };
+          method: 'POST',
+        });
 
       let payload: unknown = await request(maxTokens);
       let content: string | undefined = extractExternalModelText(payload);
@@ -521,8 +509,6 @@ export class NoteSummaryPipelineService {
         `外部模型 ${credentials.model} 执行笔记流水线失败：${errorMessage}`,
       );
       return { errorMessage };
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

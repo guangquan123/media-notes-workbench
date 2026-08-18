@@ -142,6 +142,7 @@ import {
   type TencentAsrTranscriptResult,
 } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
+import { fetchExternalModelJson } from './external-model-request.utils';
 import {
   NoteSummaryPipelineService,
   type GenerateHighQualityNoteResult,
@@ -2750,41 +2751,32 @@ export class NoteJobsService implements OnModuleInit {
       },
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout((): void => controller.abort(), 180_000);
     try {
-      const request = async (maxTokens: number): Promise<unknown> => {
-        const response: Response = await fetch(
-          `${credentials.baseUrl}/chat/completions`,
-          {
-            body: JSON.stringify({
-              max_tokens: maxTokens,
-              messages: [
-                {
-                  content:
-                    '你是严谨的中文知识管理编辑。只根据给定原文写 Markdown 笔记，不得编造。专有名词、数字或结论无法确认时标记“待核对”。严格服从用户提示词，不要输出解释或致歉。',
-                  role: 'system',
-                },
-                {
-                  content: `标题：${input.title}\n\n用户提示词：\n${input.styleRequirements}\n\n${input.sourceKind}：\n${input.sourceText}`,
-                  role: 'user',
-                },
-              ],
-              model: credentials.model,
-              stream: false,
-              temperature: 0.3,
-            }),
-            headers: {
-              Authorization: `Bearer ${credentials.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            method: 'POST',
-            signal: controller.signal,
+      const request = (maxTokens: number): Promise<unknown> =>
+        fetchExternalModelJson(`${credentials.baseUrl}/chat/completions`, {
+          body: JSON.stringify({
+            max_tokens: maxTokens,
+            messages: [
+              {
+                content:
+                  '你是严谨的中文知识管理编辑。只根据给定原文写 Markdown 笔记，不得编造。专有名词、数字或结论无法确认时标记“待核对”。严格服从用户提示词，不要输出解释或致歉。',
+                role: 'system',
+              },
+              {
+                content: `标题：${input.title}\n\n用户提示词：\n${input.styleRequirements}\n\n${input.sourceKind}：\n${input.sourceText}`,
+                role: 'user',
+              },
+            ],
+            model: credentials.model,
+            stream: false,
+            temperature: 0.3,
+          }),
+          headers: {
+            Authorization: `Bearer ${credentials.apiKey}`,
+            'Content-Type': 'application/json',
           },
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      };
+          method: 'POST',
+        });
 
       let payload: unknown = await request(8192);
       let content: string | undefined = extractExternalModelText(payload);
@@ -2805,11 +2797,8 @@ export class NoteJobsService implements OnModuleInit {
         `外部模型 ${credentials.model} 生成失败，将回退内置模型：${message}`,
       );
       return undefined;
-    } finally {
-      clearTimeout(timeout);
     }
   }
-
   private async parseDocument(input: {
     downloadUrl: string;
     fileName: string;

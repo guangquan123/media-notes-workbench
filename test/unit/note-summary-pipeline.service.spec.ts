@@ -96,6 +96,11 @@ describe('NoteSummaryPipelineService', () => {
         String(fetchSpy.mock.calls[1]?.[1]?.body),
       ) as { max_tokens?: number };
       expect(retryBody.max_tokens).toBe(32_768);
+      const firstSignal = fetchSpy.mock.calls[0]?.[1]?.signal;
+      const retrySignal = fetchSpy.mock.calls[1]?.[1]?.signal;
+      expect(firstSignal).toBeDefined();
+      expect(retrySignal).toBeDefined();
+      expect(retrySignal).not.toBe(firstSignal);
     } finally {
       fetchSpy.mockRestore();
     }
@@ -167,6 +172,54 @@ describe('NoteSummaryPipelineService', () => {
       '本地模式的外部 AI 模型调用失败（test-model）：connect ECONNREFUSED',
     );
     fetchSpy.mockRestore();
+  });
+  it('normalizes an aborted external-model request in local mode', async () => {
+    const capabilityService = {
+      load: jest.fn(),
+    } as unknown as CapabilityService;
+    const externalModelSettingsService = {
+      getCredentials: async () => ({
+        apiKey: 'test-key',
+        baseUrl: 'https://model.example.com/v1',
+        enabled: true,
+        model: 'test-model',
+      }),
+    } as unknown as ExternalModelSettingsService;
+    const runtimeRegistryService = {
+      isLocal: async (): Promise<boolean> => true,
+    };
+    const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(
+      Object.assign(new Error('This operation was aborted'), {
+        name: 'AbortError',
+      }),
+    );
+    const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
+      capabilityService,
+      externalModelSettingsService,
+      runtimeRegistryService as never,
+    );
+    const generateModelText = (
+      service as unknown as {
+        generateModelText: (
+          instruction: string,
+          maxTokens: number,
+          pluginInstanceId: string,
+        ) => Promise<unknown>;
+      }
+    ).generateModelText.bind(service);
+
+    try {
+      await generateModelText('生成笔记', 64, 'writer');
+      throw new Error('expected generateModelText to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain('外部模型请求超时或被中止');
+      expect(message).toContain('单次请求上限 15 分钟');
+      expect(message).not.toContain('This operation was aborted');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
   it('writes every structured evidence item in one pass when quality passes', async () => {
     const completeNote: string = `# 完整培训笔记
