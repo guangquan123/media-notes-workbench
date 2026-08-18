@@ -2,18 +2,15 @@
 setlocal
 cd /d "%~dp0"
 
-set "LAUNCHER=%~dp0scripts\workbench-launcher.hta"
-set "MSHTA=%SystemRoot%\System32\mshta.exe"
+echo Restarting Media Notes Workbench...
+call wscript.exe "%~dp0scripts\run-hidden.vbs" npm.cmd run restart:windows
+if errorlevel 1 goto failed
 
-if not exist "%LAUNCHER%" goto missing_launcher
+echo Media Notes Workbench is ready.
+exit /b 0
 
-echo Opening the restart window...
-start "" /wait "%MSHTA%" "%LAUNCHER%" restart
-set "LAUNCHER_EXIT_CODE=%ERRORLEVEL%"
-endlocal & exit /b %LAUNCHER_EXIT_CODE%
-
-:missing_launcher
+:failed
 echo.
-echo Control window was not found: %LAUNCHER%
+echo Restart failed. Check logs\dev-windows-console.log and logs\dev.std.log.
 pause
 exit /b 1

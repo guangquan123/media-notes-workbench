@@ -255,20 +255,19 @@ export default function HomePage() {
 
   if (!readiness) {
     return (
-      <main className="grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-6 text-[#161616]">
-        <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-black/7 bg-white/90 px-8 py-12 text-center shadow-[0_30px_90px_rgba(38,30,32,0.1)]">
-          <div className="absolute -right-16 -top-20 size-48 rounded-full bg-[#fb7299]/12 blur-3xl" />
-          <div className="relative mx-auto grid size-14 place-items-center rounded-2xl bg-[#fb7299] text-white shadow-lg shadow-[#fb7299]/20">
+      <main className="video-page grid min-h-screen place-items-center px-6 text-[#111827]">
+        <div className="startup-panel w-full max-w-md text-center">
+          <div className="startup-panel__mark relative mx-auto grid size-14 place-items-center rounded-xl text-white">
             <LoaderCircle className="size-6 animate-spin" />
           </div>
           <h1 className="relative mt-6 text-2xl font-semibold tracking-tight">
             正在启动学习笔记助手
           </h1>
-          <p className="relative mt-3 text-sm leading-6 text-black/48">
+          <p className="relative mt-3 text-sm leading-6 text-black/52">
             正在准备本机服务和视频处理环境，准备好后会自动进入。
           </p>
           {startupDelayed && (
-            <div className="relative mt-7 rounded-2xl bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-900">
+            <div className="relative mt-7 rounded-lg bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-900">
               启动时间比平时稍长，请保持启动终端开启。
               <button
                 className="ml-1 font-semibold underline underline-offset-4"
@@ -288,16 +287,16 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-7 md:px-10 md:py-10">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
+    <main className="video-page min-h-screen overflow-auto text-[#111827]">
+      <div className="video-shell mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-5 md:px-10 md:py-7">
+        <header className="video-header flex flex-col gap-4 border-b border-black/8 pb-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-2xl bg-[#fb7299] text-white shadow-sm">
+            <div className="video-brand__mark grid size-10 place-items-center rounded-lg text-white shadow-sm">
               <Waypoints className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">多媒体笔记工作台</p>
-              <p className="text-xs text-black/45">从资料到可追溯知识</p>
+              <p className="text-sm font-semibold">视频学习笔记</p>
+              <p className="text-xs text-black/45">从视频到可复习的知识结构</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -309,7 +308,7 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <Link
-                className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-4 py-2 text-black/68 shadow-sm transition hover:border-black/15 hover:text-black"
+                className="video-back-link inline-flex items-center gap-2 rounded-md border border-black/8 bg-white px-3 py-2 text-black/68 shadow-sm transition hover:border-black/15 hover:text-black"
                 to="/"
               >
                 <ArrowLeft className="size-4" />
@@ -319,24 +318,22 @@ export default function HomePage() {
           </div>
         </header>
 
-        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1.05fr_.95fr]">
-          <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/8 bg-white px-3 py-1.5 text-xs font-medium text-black/55 shadow-sm">
-              <Sparkles className="size-3.5 text-[#fb7299]" />
-              把收藏真正变成学会
+        <section className="video-layout grid flex-1 items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(410px,0.82fr)] lg:gap-16 lg:py-14">
+          <div className="video-hero max-w-xl">
+            <div className="video-kicker mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm">
+              <Sparkles className="size-3.5" />
+              三步生成一份可复习笔记
             </div>
-            <h1 className="text-balance text-4xl font-semibold leading-[1.12] tracking-[-0.035em] md:text-6xl">
-              粘贴一个视频链接，
+            <h1 className="text-balance text-4xl font-semibold leading-[1.08] tracking-[-0.04em] md:text-6xl">
+              把视频变成
               <br />
-              收获一篇好笔记。
+              可以复习的知识。
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-black/52 md:text-lg">
-              支持
-              B站和抖音，自动提取音频、准确转录、整理重点，并写入你的飞书文档。
-              你只需要负责检查和学习。
+            <p className="mt-5 max-w-lg text-base leading-7 text-black/52 md:text-[1.05rem]">
+              支持 B站和抖音。系统会提取音频、整理重点、保留可追溯证据，并写入你的飞书文档。
             </p>
 
-            <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="video-stage-grid mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
               {(shouldShowVisualProcessingStage(
                 job?.sourceType || 'platform',
                 job?.visualOptions || visualOptions,
@@ -381,23 +378,23 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="task-panel">
+          <div className="task-panel video-panel">
             {!job ? (
               <>
                 <div>
                   <p className="text-lg font-semibold tracking-tight">
-                    创建学习笔记
+                      开始一个视频任务
                   </p>
                   <p className="mt-1 text-sm text-black/45">
-                    支持 B站和抖音视频地址
+                      先输入链接，再选择输出方式
                   </p>
                 </div>
 
-                <div className="mt-7 space-y-5">
+                <div className="mt-6 space-y-5">
                   <label className="block">
                     <span className="field-label">视频平台</span>
                     <select
-                      className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
+                      className="video-field mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-4 text-sm text-black/75 outline-none transition focus:border-[#1d4ed8]/50 focus:ring-4 focus:ring-[#1d4ed8]/10"
                       value={sourcePlatform}
                       onChange={(event) => {
                         const platform = event.target.value as SourcePlatform;
@@ -416,7 +413,7 @@ export default function HomePage() {
                     </span>
                     <div className="relative mt-2">
                       <Input
-                        className="h-12 rounded-xl border-black/10 bg-[#fafaf8] pr-12 text-sm shadow-none focus-visible:ring-[#fb7299]/20"
+                        className="video-field h-11 rounded-md border-black/10 bg-white pr-12 text-sm shadow-none focus-visible:ring-[#1d4ed8]/20"
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
                         onPaste={handleUrlPaste}
@@ -437,7 +434,7 @@ export default function HomePage() {
                   <label className="block">
                     <span className="field-label">登录状态来源</span>
                     <select
-                      className="mt-2 h-12 w-full rounded-xl border border-black/10 bg-[#fafaf8] px-4 text-sm text-black/75 outline-none transition focus:border-[#fb7299]/50 focus:ring-4 focus:ring-[#fb7299]/10"
+                      className="video-field mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-4 text-sm text-black/75 outline-none transition focus:border-[#1d4ed8]/50 focus:ring-4 focus:ring-[#1d4ed8]/10"
                       value={cookieBrowser}
                       onChange={(event) =>
                         setCookieBrowser(
@@ -479,7 +476,7 @@ export default function HomePage() {
                   />
 
                   <Button
-                    className="h-12 w-full rounded-xl bg-[#161616] text-sm font-medium text-white shadow-lg shadow-black/10 hover:bg-black/80"
+                    className="video-submit h-11 w-full rounded-md text-sm font-semibold text-white shadow-lg hover:bg-[#1743b8]"
                     onClick={start}
                     disabled={submitting || !readiness?.platformReady}
                   >

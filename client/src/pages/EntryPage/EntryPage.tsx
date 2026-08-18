@@ -12,15 +12,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-
 interface FeatureCard {
   badge: string;
   bullets: readonly string[];
@@ -36,7 +27,7 @@ const FEATURE_CARDS: readonly FeatureCard[] = [
     href: '/paired-media-notes',
     icon: ScanSearch,
     title: '双源会议 / 培训笔记',
-    description: '同时上传视频和录音，对齐后用画面与语音交叉验证。',
+    description: '同时上传视频和录音，用画面与语音交叉验证内容。',
     badge: '视频 + 录音',
     bullets: ['时间对齐', '关键画面', '冲突标记'],
     cta: '上传双文件',
@@ -45,16 +36,16 @@ const FEATURE_CARDS: readonly FeatureCard[] = [
     href: '/video-notes',
     icon: BookOpenText,
     title: '视频学习笔记',
-    description: '将 B站和抖音视频整理为结构化学习笔记。',
-    badge: '平台视频',
-    bullets: ['视频地址', '自动转录', '飞书笔记'],
-    cta: '开始处理',
+    description: '粘贴 B站或抖音链接，自动提炼重点并写成可复习的笔记。',
+    badge: '最常用',
+    bullets: ['自动转录', '结构化总结', '飞书归档'],
+    cta: '开始处理视频',
   },
   {
     href: '/local-video-notes',
     icon: FileVideo,
-    title: '本地视频学习笔记',
-    description: '上传课程、讲座或屏幕录制，提取内容并生成笔记。',
+    title: '本地视频',
+    description: '课程、讲座或屏幕录制，都可以直接上传处理。',
     badge: '视频文件',
     bullets: ['文件上传', '音轨提取', '处理进度'],
     cta: '上传视频',
@@ -62,17 +53,17 @@ const FEATURE_CARDS: readonly FeatureCard[] = [
   {
     href: '/audio-notes',
     icon: FileAudio,
-    title: '录音学习笔记',
-    description: '上传课堂录音、访谈或语音备忘，提炼重点与行动项。',
+    title: '录音笔记',
+    description: '把课堂录音、访谈和语音备忘变成行动清单。',
     badge: '录音文件',
-    bullets: ['多种格式', '自动切片', '学习笔记'],
+    bullets: ['多种格式', '自动切片', '行动项'],
     cta: '上传录音',
   },
   {
     href: '/document-notes',
     icon: FileText,
-    title: '文档学习笔记',
-    description: '上传书籍、报告、课件或课程资料，融合沉淀知识结构。',
+    title: '文档笔记',
+    description: '上传书籍、报告或课件，融合沉淀知识结构。',
     badge: '文档文件',
     bullets: ['多文件融合', '原文解析', '飞书归档'],
     cta: '上传文档',
@@ -90,167 +81,105 @@ function FeatureCardItem({
 }: FeatureCardItemProps) {
   const Icon: LucideIcon = item.icon;
   return (
-    <Card
-      className={`entry-card group relative flex flex-col overflow-hidden rounded-lg bg-white shadow-[0_12px_36px_rgba(18,24,40,0.055)] transition duration-300 motion-reduce:transition-none hover:-translate-y-1 hover:border-[#2563eb]/40 hover:shadow-[0_20px_48px_rgba(37,99,235,0.14)] focus-within:-translate-y-1 focus-within:border-[#2563eb]/40 focus-within:shadow-[0_20px_48px_rgba(37,99,235,0.14)] ${
-        featured
-          ? 'min-h-[300px] border-[#2563eb]/25 bg-[#f8fbff] lg:min-h-[492px]'
-          : 'min-h-[238px] border-black/8'
-      }`}
+    <Link
+      aria-label={`${item.title}：${item.cta}`}
+      className={`entry-card ${featured ? 'entry-card--featured' : ''}`}
+      to={item.href}
     >
-      <div
-        className={`pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left bg-[#2563eb] transition-transform duration-300 motion-reduce:transition-none ${
-          featured
-            ? 'scale-x-100'
-            : 'scale-x-0 group-hover:scale-x-100 group-focus-within:scale-x-100'
-        }`}
-      />
-      <CardHeader
-        className={`relative space-y-3 ${
-          featured ? 'p-6 pb-3 lg:p-7 lg:pb-3' : 'p-5 pb-2'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#2563eb]/20 bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#1e40af] transition duration-300 motion-reduce:transition-none group-hover:border-[#2563eb]/40 group-hover:bg-[#dbeafe] group-hover:text-[#1d4ed8] group-focus-within:border-[#2563eb]/40 group-focus-within:bg-[#dbeafe] group-focus-within:text-[#1d4ed8]">
-            <Icon
-              aria-hidden="true"
-              className="size-3.5 transition-transform duration-300 motion-reduce:transition-none group-hover:scale-110 group-focus-within:scale-110"
-            />
-            {item.badge}
-          </div>
-          {featured && (
-            <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#2563eb] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]">
-              <Icon aria-hidden="true" className="size-5" />
-            </div>
-          )}
-        </div>
-        <CardTitle
-          className={`tracking-normal text-[#111315] ${
-            featured ? 'text-2xl lg:text-[26px]' : 'text-lg'
-          }`}
-        >
-          {item.title}
-        </CardTitle>
-        <CardDescription
-          className={`text-black/48 ${
-            featured
-              ? 'max-w-lg text-sm leading-6'
-              : 'min-h-10 text-sm leading-5'
-          }`}
-        >
-          {item.description}
-        </CardDescription>
-      </CardHeader>
-      <CardContent
-        className={`relative flex flex-1 flex-col gap-4 ${
-          featured ? 'p-6 pt-3 lg:p-7 lg:pt-4' : 'p-5 pt-3'
-        }`}
-      >
-        <div className={featured ? 'grid gap-2' : 'grid grid-cols-3 gap-2'}>
-          {item.bullets.map((bullet: string, index: number) => (
-            <div
-              className={`rounded-lg border border-black/7 bg-[#f7f8f8] text-xs text-black/52 transition-colors duration-300 group-hover:border-[#2563eb]/20 group-hover:bg-[#f5f8ff] group-hover:text-black/65 group-focus-within:border-[#2563eb]/20 group-focus-within:bg-[#f5f8ff] group-focus-within:text-black/65 ${
-                featured
-                  ? 'flex items-center gap-3 px-3 py-3 text-left leading-5'
-                  : 'px-2 py-2 text-center leading-5'
-              }`}
-              key={bullet}
-            >
-              {featured && (
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#dbeafe] text-[11px] font-semibold text-[#1d4ed8]">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-              )}
-              {bullet}
-            </div>
+      <div className="entry-card__topline">
+        <span className="entry-card__badge">
+          <Icon aria-hidden="true" className="size-3.5" />
+          {item.badge}
+        </span>
+        <span className="entry-card__icon" aria-hidden="true">
+          <Icon className="size-5" />
+        </span>
+      </div>
+      <div className="entry-card__body">
+        <h2>{item.title}</h2>
+        <p>{item.description}</p>
+        <div className="entry-card__bullets">
+          {item.bullets.map((bullet: string) => (
+            <span key={bullet}>{bullet}</span>
           ))}
         </div>
-        <Button
-          asChild
-          className={`mt-auto w-full rounded-lg text-white shadow-sm transition duration-300 motion-reduce:transition-none group-hover:bg-[#2563eb] group-hover:shadow-[0_10px_24px_rgba(37,99,235,0.24)] group-focus-within:bg-[#2563eb] group-focus-within:shadow-[0_10px_24px_rgba(37,99,235,0.24)] hover:bg-[#2563eb] ${
-            featured ? 'bg-[#2563eb]' : 'bg-[#111315]'
-          }`}
-        >
-          <Link to={item.href}>
-            {item.cta}
-            <ArrowRight
-              aria-hidden="true"
-              className="size-4 transition-transform duration-300 motion-reduce:transition-none group-hover:translate-x-1 group-focus-within:translate-x-1"
-            />
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
+      </div>
+      <span className="entry-card__cta">
+        {item.cta}
+        <ArrowRight aria-hidden="true" className="size-4" />
+      </span>
+    </Link>
   );
 }
 
 export default function EntryPage() {
+  const primaryCard: FeatureCard = FEATURE_CARDS[1];
+  const secondaryCards: readonly FeatureCard[] = [
+    FEATURE_CARDS[0],
+    FEATURE_CARDS[2],
+    FEATURE_CARDS[3],
+    FEATURE_CARDS[4],
+  ];
+
   return (
-    <main className="min-h-screen overflow-auto bg-[#f4f6f8] text-[#111315]">
-      <div className="mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-4 md:flex-row md:items-center md:justify-between md:gap-6">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
-              <Waypoints aria-hidden="true" className="size-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">多媒体笔记工作台</p>
-              <p className="mt-0.5 text-xs text-black/42">
-                让每份资料都留下可追溯的知识轨迹
-              </p>
-            </div>
-          </div>
-          <nav
-            aria-label="工作台辅助导航"
-            className="flex flex-wrap gap-2 md:justify-end"
-          >
-            <Button
-              asChild
-              className="rounded-full bg-[#111315] text-white transition-colors hover:bg-[#2563eb]"
-              size="sm"
-            >
-              <Link to="/settings">
-                <Settings2 className="size-3.5" />
-                参数配置
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
-              size="sm"
-              variant="outline"
-            >
-              <Link to="/conversion-history">
-                <History className="size-3.5" />
-                转化记录
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="rounded-full bg-white text-black/65 transition-colors hover:bg-white hover:text-[#1d4ed8]"
-              size="sm"
-              variant="outline"
-            >
-              <Link to="/operation-manual">
-                <BookOpenText className="size-3.5" />
-                操作手册
-              </Link>
-            </Button>
+    <main className="entry-page">
+      <div className="entry-page__inner">
+        <header className="entry-header">
+          <Link className="entry-brand" to="/">
+            <span className="entry-brand__mark" aria-hidden="true">
+              <Waypoints className="size-5" />
+            </span>
+            <span>
+              <strong>多媒体笔记工作台</strong>
+              <small>把资料整理成可复用的知识</small>
+            </span>
+          </Link>
+          <nav aria-label="工作台辅助导航" className="entry-nav">
+            <Link to="/conversion-history">
+              <History className="size-4" />
+              转化记录
+            </Link>
+            <Link to="/operation-manual">
+              <BookOpenText className="size-4" />
+              操作手册
+            </Link>
+            <Link className="entry-nav__primary" to="/settings">
+              <Settings2 className="size-4" />
+              参数配置
+            </Link>
           </nav>
         </header>
 
-        <section className="flex flex-1 items-center py-4 lg:py-3">
-          <div
-            className="grid w-full gap-3 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.4fr)]"
-            data-ai-section-type="card-menu"
-          >
-            <FeatureCardItem featured item={FEATURE_CARDS[0]} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {FEATURE_CARDS.slice(1).map((item: FeatureCard) => (
-                <FeatureCardItem item={item} key={item.href} />
-              ))}
-            </div>
+        <section className="entry-intro">
+          <div>
+            <p className="entry-eyebrow">从素材开始，留下知识轨迹</p>
+            <h1>你想先整理哪一种内容？</h1>
+            <p className="entry-intro__copy">
+              选择一个入口，系统会负责转录、提炼、结构化和归档。处理过程都在本机完成，结果可回到原文核对。
+            </p>
+          </div>
+          <div className="entry-status" aria-label="工作台状态">
+            <span className="entry-status__dot" />
+            <span>
+              <strong>本机工作台</strong>
+              <small>支持 5 种素材入口</small>
+            </span>
           </div>
         </section>
+
+        <section className="entry-workspace" aria-label="素材入口">
+          <FeatureCardItem featured item={primaryCard} />
+          <div className="entry-secondary-grid">
+            {secondaryCards.map((item: FeatureCard) => (
+              <FeatureCardItem item={item} key={item.href} />
+            ))}
+          </div>
+        </section>
+
+        <footer className="entry-footer">
+          <span>本机处理 · 完成后自动清理临时文件</span>
+          <span>所有结果都支持回看原文</span>
+        </footer>
       </div>
     </main>
   );
