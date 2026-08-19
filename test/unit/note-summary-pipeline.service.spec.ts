@@ -135,7 +135,7 @@ describe('NoteSummaryPipelineService', () => {
     );
   });
 
-  it('reports the real external-model failure in local mode instead of claiming it is unconfigured', async () => {
+  it('explains an exhausted terminated retry as a long-generation connection failure instead of a configuration failure', async () => {
     const capabilityService = {
       load: jest.fn(),
     } as unknown as CapabilityService;
@@ -152,7 +152,7 @@ describe('NoteSummaryPipelineService', () => {
     };
     const fetchSpy = jest
       .spyOn(global, 'fetch')
-      .mockRejectedValue(new Error('connect ECONNREFUSED'));
+      .mockRejectedValue(new Error('terminated'));
     const service: NoteSummaryPipelineService = new NoteSummaryPipelineService(
       capabilityService,
       externalModelSettingsService,
@@ -168,10 +168,22 @@ describe('NoteSummaryPipelineService', () => {
       }
     ).generateModelText.bind(service);
 
-    await expect(generateModelText('生成笔记', 64, 'writer')).rejects.toThrow(
-      '本地模式的外部 AI 模型调用失败（test-model）：connect ECONNREFUSED',
-    );
-    fetchSpy.mockRestore();
+    try {
+      await generateModelText('生成笔记', 64, 'writer');
+      throw new Error('expected generateModelText to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain(
+        '本地模式的外部 AI 模型长文本生成连接中断（test-model）：terminated。系统已完成 3 次尝试（其中自动重试 2 次）仍未完成。',
+      );
+      expect(message).not.toContain(
+        '请在「模型设置」中检查 API 地址、模型名和 API Key',
+      );
+    } finally {
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      fetchSpy.mockRestore();
+    }
   });
   it('normalizes an aborted external-model request in local mode', async () => {
     const capabilityService = {
@@ -214,9 +226,9 @@ describe('NoteSummaryPipelineService', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
       const message = (error as Error).message;
-      expect(message).toContain('外部模型请求超时或被中止');
-      expect(message).toContain('单次请求上限 15 分钟');
+      expect(message).toContain('本地模式的外部 AI 模型生成被取消或中止');
       expect(message).not.toContain('This operation was aborted');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     } finally {
       fetchSpy.mockRestore();
     }

@@ -107,7 +107,7 @@ export class ExternalModelSettingsService {
       }
       return {
         checkedAt: new Date().toISOString(),
-        message: `已连通 ${credentials.model}。`,
+        message: `已验证 ${credentials.model} 的基础连通性（短请求）；长文本生成遇到瞬时断连时，系统会自动重试。`,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';

@@ -24,7 +24,11 @@ import {
   type ExternalModelCredentials,
 } from './external-model-settings.service';
 import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
-import { fetchExternalModelJson } from './external-model-request.utils';
+import {
+  fetchExternalModelJson,
+  isExternalModelRequestError,
+  type ExternalModelRequestError,
+} from './external-model-request.utils';
 import { extractHighValueSourceAnchors } from './note-summary-source-anchors.utils';
 import {
   describeExternalModelResponse,
@@ -43,6 +47,7 @@ interface PipelineModelResult {
 }
 
 interface ExternalModelGenerationResult {
+  error?: ExternalModelRequestError;
   errorMessage?: string;
   text?: string;
 }
@@ -441,12 +446,16 @@ export class NoteSummaryPipelineService {
         };
       }
       externalFailureMessage = externalResult.errorMessage;
+      if (externalResult.error) {
+        externalFailureMessage = this.formatExternalModelFailureForLocalMode(
+          credentials.model,
+          externalResult.error,
+        );
+      }
     }
     if (this.runtimeRegistryService && (await this.runtimeRegistryService.isLocal())) {
       if (credentials && externalFailureMessage) {
-        throw new Error(
-          `本地模式的外部 AI 模型调用失败（${credentials.model}）：${externalFailureMessage}。请在「模型设置」中检查 API 地址、模型名和 API Key，并执行“测试连接”。`,
-        );
+        throw new Error(externalFailureMessage);
       }
       throw new Error(
         '本地模式未配置或未启用外部 AI 模型，请先在「模型设置」中完成配置并启用外部模型。',
@@ -506,11 +515,40 @@ export class NoteSummaryPipelineService {
       return { text: content };
     } catch (error) {
       const errorMessage: string = this.getErrorMessage(error);
+      const requestError: ExternalModelRequestError | undefined =
+        isExternalModelRequestError(error) ? error : undefined;
       this.logger.warn(
-        `外部模型 ${credentials.model} 执行笔记流水线失败：${errorMessage}`,
+        JSON.stringify({
+          event: 'external_model_note_generation_failed',
+          failureKind: requestError?.kind ?? 'unknown',
+          httpStatus: requestError?.status,
+          model: credentials.model,
+          attempts: requestError?.attempts ?? 1,
+          message: errorMessage,
+        }),
       );
-      return { errorMessage };
+      return { error: requestError, errorMessage };
     }
+  }
+
+  private formatExternalModelFailureForLocalMode(
+    model: string,
+    error: ExternalModelRequestError,
+  ): string {
+    if (error.kind === 'http_client') {
+      return `本地模式的外部 AI 模型调用被服务拒绝（${model}）：${error.message}。请在「模型设置」中检查 API 地址、模型名、API Key 及账户权限，然后执行“测试连接”。`;
+    }
+    if (error.kind === 'transport' || error.kind === 'http_retryable') {
+      const retries: number = Math.max(0, error.attempts - 1);
+      return `本地模式的外部 AI 模型长文本生成连接中断（${model}）：${error.message}。系统已完成 ${error.attempts} 次尝试（其中自动重试 ${retries} 次）仍未完成。基础“测试连接”只验证短请求，不代表长文本链路稳定；请稍后重试，并检查网络、代理或模型服务状态。`;
+    }
+    if (error.kind === 'timeout') {
+      return `本地模式的外部 AI 模型生成超时（${model}）：${error.message}。这不是 API Key 校验失败；请缩短本次材料或稍后重试。`;
+    }
+    if (error.kind === 'aborted') {
+      return `本地模式的外部 AI 模型生成被取消或中止（${model}）。请确认任务未被停止后重试。`;
+    }
+    return `本地模式的外部 AI 模型调用失败（${model}）：${error.message}。请查看服务端诊断日志后重试。`;
   }
 
   private hasReasoningOnlyResponse(payload: unknown): boolean {

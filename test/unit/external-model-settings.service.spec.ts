@@ -75,7 +75,7 @@ describe('external model settings', () => {
       } as Response);
 
       await expect(service.testConnection()).resolves.toEqual(
-        expect.objectContaining({ message: '已连通 test-model。' }),
+        expect.objectContaining({ message: '已验证 test-model 的基础连通性（短请求）；长文本生成遇到瞬时断连时，系统会自动重试。' }),
       );
       const requestInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
       const requestBody = JSON.parse(String(requestInit.body)) as { max_tokens?: number };
