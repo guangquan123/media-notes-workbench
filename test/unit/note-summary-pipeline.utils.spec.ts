@@ -287,6 +287,18 @@ describe('note summary pipeline utilities', () => {
     expect(published).not.toContain('[S01][S01]');
   });
 
+  it('removes internal source markers from published meeting notes', () => {
+    const published: string = normalizeEvidenceCitationsForPublication(
+      '会议结论已确认。[E-S01-001]\n风险仍待评估。[S02]',
+      structuredEvidenceLedger,
+      'meeting',
+    );
+
+    expect(published).toContain('会议结论已确认。');
+    expect(published).toContain('风险仍待评估。');
+    expect(published).not.toMatch(/\[(?:E-)?S\d+(?:-\d+)?\]/u);
+  });
+
   it('restores source Markdown images beside semantically matching sections', () => {
     const sourceText: string = [
       '知识图谱演示',

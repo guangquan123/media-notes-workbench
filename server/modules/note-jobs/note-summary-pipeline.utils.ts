@@ -1490,6 +1490,7 @@ export function formatFactAuditFailures(audit: NoteFactAudit): string[] {
 export function normalizeEvidenceCitationsForPublication(
   note: string,
   evidenceLedger: string,
+  noteStyle: NoteStyle = 'learning',
 ): string {
   let published: string = note;
   const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
@@ -1505,6 +1506,9 @@ export function normalizeEvidenceCitationsForPublication(
     previous = published;
     published = published.replace(/(\[S\d+\])\1/gu, '$1');
   } while (published !== previous);
+  if (noteStyle === 'meeting') {
+    published = published.replace(/\[(?:E-)?S\d+(?:-\d+)?\]/gu, '');
+  }
   return published;
 }
 

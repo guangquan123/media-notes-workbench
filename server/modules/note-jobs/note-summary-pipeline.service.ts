@@ -201,6 +201,7 @@ export class NoteSummaryPipelineService {
       markdown: normalizeEvidenceCitationsForPublication(
         enrichedMarkdown,
         evidenceLedger,
+        input.noteStyle,
       ),
       modelName: bestCandidate.model.modelName,
       provider: bestCandidate.model.provider,
