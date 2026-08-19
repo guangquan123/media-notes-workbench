@@ -33,6 +33,8 @@ import { extractHighValueSourceAnchors } from './note-summary-source-anchors.uti
 import {
   describeExternalModelResponse,
   extractExternalModelText,
+  getExternalModelOutputTokenBudgets,
+  isReasoningOnlyLengthLimitedResponse,
 } from './external-model-response.utils';
 
 interface EvidenceCacheEntry {
@@ -484,7 +486,7 @@ export class NoteSummaryPipelineService {
             messages: [
               {
                 content:
-                  '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造，不输出内部推理。',
+                  '你是高可靠中文笔记处理引擎。严格执行阶段指令，只根据输入材料工作，不得编造；不输出内部推理，并优先直接输出最终 Markdown 正文。',
                 role: 'system',
               },
               { content: instruction, role: 'user' },
@@ -500,19 +502,24 @@ export class NoteSummaryPipelineService {
           method: 'POST',
         });
 
-      let payload: unknown = await request(maxTokens);
-      let content: string | undefined = extractExternalModelText(payload);
-      if (!content && this.hasReasoningOnlyResponse(payload)) {
-        payload = await request(Math.max(maxTokens * 2, 32_768));
-        content = extractExternalModelText(payload);
+      let payload: unknown;
+      let lastOutputBudget: number = maxTokens;
+      for (const outputBudget of getExternalModelOutputTokenBudgets(maxTokens)) {
+        lastOutputBudget = outputBudget;
+        payload = await request(outputBudget);
+        const content: string | undefined = extractExternalModelText(payload);
+        if (content) return { text: content };
+        if (!isReasoningOnlyLengthLimitedResponse(payload)) break;
       }
-      if (!content) {
-        const metadata = describeExternalModelResponse(payload);
+      if (isReasoningOnlyLengthLimitedResponse(payload)) {
         throw new Error(
-          `服务未返回文本内容（choices=${metadata.choicesCount}，message字段=${metadata.messageKeys.join(',') || '无'}${metadata.finishReason ? `，finish_reason=${metadata.finishReason}` : ''}）`,
+          `模型仅返回推理内容且输出长度已耗尽；系统已将输出预算提升至 ${lastOutputBudget}，仍未获得正文。`,
         );
       }
-      return { text: content };
+      const metadata = describeExternalModelResponse(payload);
+      throw new Error(
+        `服务未返回文本内容（choices=${metadata.choicesCount}，message字段=${metadata.messageKeys.join(',') || '无'}${metadata.finishReason ? `，finish_reason=${metadata.finishReason}` : ''}）`,
+      );
     } catch (error) {
       const errorMessage: string = this.getErrorMessage(error);
       const requestError: ExternalModelRequestError | undefined =
@@ -551,19 +558,6 @@ export class NoteSummaryPipelineService {
     return `本地模式的外部 AI 模型调用失败（${model}）：${error.message}。请查看服务端诊断日志后重试。`;
   }
 
-  private hasReasoningOnlyResponse(payload: unknown): boolean {
-    if (typeof payload !== 'object' || payload === null) return false;
-    const choices: unknown = (payload as { choices?: unknown }).choices;
-    if (!Array.isArray(choices) || choices.length === 0) return false;
-    const message: unknown = (choices[0] as { message?: unknown })?.message;
-    if (typeof message !== 'object' || message === null) return false;
-    const record = message as { content?: unknown; reasoning_content?: unknown };
-    return (
-      !extractExternalModelText({ choices: [{ message }] }) &&
-      typeof record.reasoning_content === 'string' &&
-      Boolean(record.reasoning_content.trim())
-    );
-  }
 
   private async generateWithBuiltinModel(
     instruction: string,

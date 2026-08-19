@@ -28,6 +28,43 @@ export function extractExternalModelText(payload: unknown): string | undefined {
   return extractTextValue(payload.output_text);
 }
 
+export const MAX_EXTERNAL_MODEL_OUTPUT_TOKENS = 65_536;
+
+export function getExternalModelOutputTokenBudgets(
+  initialMaxTokens: number,
+): number[] {
+  const budgets: number[] = [initialMaxTokens];
+  for (const candidate of [
+    Math.max(initialMaxTokens * 2, 32_768),
+    MAX_EXTERNAL_MODEL_OUTPUT_TOKENS,
+  ]) {
+    if (
+      candidate > initialMaxTokens &&
+      candidate <= MAX_EXTERNAL_MODEL_OUTPUT_TOKENS &&
+      !budgets.includes(candidate)
+    ) {
+      budgets.push(candidate);
+    }
+  }
+  return budgets;
+}
+
+export function isReasoningOnlyLengthLimitedResponse(payload: unknown): boolean {
+  if (!isRecord(payload)) return false;
+  const choices: unknown = payload.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return false;
+  const firstChoice: unknown = choices[0];
+  if (!isRecord(firstChoice) || firstChoice.finish_reason !== 'length') {
+    return false;
+  }
+  const message: unknown = firstChoice.message;
+  if (!isRecord(message)) return false;
+  return (
+    !extractExternalModelText(payload) &&
+    typeof message.reasoning_content === 'string' &&
+    Boolean(message.reasoning_content.trim())
+  );
+}
 export function describeExternalModelResponse(
   payload: unknown,
 ): ExternalModelResponseMetadata {

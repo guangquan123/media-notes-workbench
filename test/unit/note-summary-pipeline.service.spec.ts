@@ -105,6 +105,141 @@ describe('NoteSummaryPipelineService', () => {
       fetchSpy.mockRestore();
     }
   });
+  it('keeps escalating a length-limited reasoning-only response through 65,536 tokens', async () => {
+    const requestedBudgets: number[] = [];
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        async (
+          _input: RequestInfo | URL,
+          init?: RequestInit,
+        ): Promise<Response> => {
+          const body = JSON.parse(String(init?.body)) as {
+            max_tokens?: number;
+          };
+          requestedBudgets.push(body.max_tokens ?? 0);
+          if (body.max_tokens !== 65_536) {
+            return {
+              json: async (): Promise<unknown> => ({
+                choices: [
+                  {
+                    finish_reason: 'length',
+                    message: {
+                      content: '',
+                      reasoning_content: '先完成推理，再生成正文。',
+                      role: 'assistant',
+                    },
+                  },
+                ],
+              }),
+              ok: true,
+              status: 200,
+            } as Response;
+          }
+          return {
+            json: async (): Promise<unknown> => ({
+              choices: [{ message: { content: '65K 预算下的结构化笔记正文' } }],
+            }),
+            ok: true,
+            status: 200,
+          } as Response;
+        },
+      );
+    try {
+      const service = new NoteSummaryPipelineService(
+        { load: jest.fn() } as unknown as CapabilityService,
+        {
+          getCredentials: async () => ({
+            apiKey: 'test-key',
+            baseUrl: 'https://model.example.com/v1',
+            enabled: true,
+            model: 'test-model',
+          }),
+        } as unknown as ExternalModelSettingsService,
+      );
+      const generateModelText = (
+        service as unknown as {
+          generateModelText: (
+            instruction: string,
+            maxTokens: number,
+            pluginInstanceId: string,
+          ) => Promise<{ text: string }>;
+        }
+      ).generateModelText.bind(service);
+
+      await expect(
+        generateModelText('生成笔记', 64, 'writer'),
+      ).resolves.toEqual(
+        expect.objectContaining({ text: '65K 预算下的结构化笔记正文' }),
+      );
+      expect(requestedBudgets).toEqual([64, 32_768, 65_536]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('reports exhausted reasoning output precisely after the bounded retries', async () => {
+    const requestedBudgets: number[] = [];
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        async (
+          _input: RequestInfo | URL,
+          init?: RequestInit,
+        ): Promise<Response> => {
+          const body = JSON.parse(String(init?.body)) as {
+            max_tokens?: number;
+          };
+          requestedBudgets.push(body.max_tokens ?? 0);
+          return {
+            json: async (): Promise<unknown> => ({
+              choices: [
+                {
+                  finish_reason: 'length',
+                  message: {
+                    content: '',
+                    reasoning_content: '模型尚未开始输出正文。',
+                    role: 'assistant',
+                  },
+                },
+              ],
+            }),
+            ok: true,
+            status: 200,
+          } as Response;
+        },
+      );
+    try {
+      const service = new NoteSummaryPipelineService(
+        { load: jest.fn() } as unknown as CapabilityService,
+        {
+          getCredentials: async () => ({
+            apiKey: 'test-key',
+            baseUrl: 'https://model.example.com/v1',
+            enabled: true,
+            model: 'test-model',
+          }),
+        } as unknown as ExternalModelSettingsService,
+        { isLocal: async (): Promise<boolean> => true } as never,
+      );
+      const generateModelText = (
+        service as unknown as {
+          generateModelText: (
+            instruction: string,
+            maxTokens: number,
+            pluginInstanceId: string,
+          ) => Promise<unknown>;
+        }
+      ).generateModelText.bind(service);
+
+      await expect(generateModelText('生成笔记', 64, 'writer')).rejects.toThrow(
+        '模型仅返回推理内容且输出长度已耗尽；系统已将输出预算提升至 65536，仍未获得正文。',
+      );
+      expect(requestedBudgets).toEqual([64, 32_768, 65_536]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
   it('keeps the missing-config guidance in local mode when credentials are absent', async () => {
     const capabilityService = {
       load: jest.fn(),
