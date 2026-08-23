@@ -149,6 +149,20 @@ export function isFreshPlatformCookieError(message: string): boolean {
   return /fresh cookies.*needed/iu.test(message);
 }
 
+export function isDouyinPublicAudioUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    return (
+      url.protocol === 'https:' &&
+      (url.hostname === 'douyinvod.com' ||
+        url.hostname.endsWith('.douyinvod.com')) &&
+      url.pathname.includes('/media-audio-')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function validateNoteStyle(value?: string): NoteStyle {
   if (!value) return 'learning';
   if (NOTE_STYLES.includes(value as NoteStyle)) {

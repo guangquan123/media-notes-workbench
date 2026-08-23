@@ -12,6 +12,7 @@ import {
   isInterruptedProcessingStage,
   isDouyinTransientMediaError,
   isAudioRematrixError,
+  isDouyinPublicAudioUrl,
   isFreshPlatformCookieError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
 import { DEFAULT_NOTE_TEMPLATES } from '../../server/modules/note-jobs/note-template.defaults';
@@ -376,6 +377,24 @@ describe('note job request validation', () => {
       ),
     ).toBe(true);
     expect(isFreshPlatformCookieError('HTTP Error 412')).toBe(false);
+  });
+});
+
+describe('Douyin public media validation', () => {
+  it('accepts an anonymous Douyin audio stream URL', () => {
+    expect(
+      isDouyinPublicAudioUrl(
+        'https://v11-weba.douyinvod.com/path/media-audio-und-mp4a/?a=6383',
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    'https://example.com/path/media-audio-und-mp4a/',
+    'https://v11-weba.douyinvod.com/path/media-video-avc1/',
+    'http://v11-weba.douyinvod.com/path/media-audio-und-mp4a/',
+  ])('rejects a non-audio or untrusted stream URL', (url) => {
+    expect(isDouyinPublicAudioUrl(url)).toBe(false);
   });
 });
 

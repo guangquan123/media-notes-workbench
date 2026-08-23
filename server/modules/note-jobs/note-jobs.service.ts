@@ -25,7 +25,10 @@ import { basename, dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
+import {
+  getCliEnvironment,
+  resolveCliInvocation,
+} from '../../common/utils/cli-command';
 import type {
   ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
@@ -54,6 +57,7 @@ import {
   getDouyinAudioFallbackArgs,
   getMediaDownloadConcurrency,
   isAudioRematrixError,
+  isDouyinPublicAudioUrl,
   buildCancelledNoteJob,
   isDouyinTransientMediaError,
   isFreshPlatformCookieError,
@@ -177,6 +181,18 @@ interface VideoMetadata {
   mediaUrl?: string;
 }
 
+interface ChromeDebugTarget {
+  readonly type?: string;
+  readonly url?: string;
+  readonly webSocketDebuggerUrl?: string;
+}
+
+interface DouyinBrowserPageData {
+  readonly duration?: unknown;
+  readonly resources?: unknown;
+  readonly title?: unknown;
+}
+
 interface PreparedPairedMedia {
   auxiliaryAudioPath: string;
   metadata: VideoMetadata;
@@ -298,8 +314,8 @@ export class NoteJobsService implements OnModuleInit {
     try {
       const interruptedJobIds: string[] =
         await this.noteHistoryService.failAllInterrupted(
-        '服务重启后任务执行上下文已丢失，请重新提交。',
-      );
+          '服务重启后任务执行上下文已丢失，请重新提交。',
+        );
       if (interruptedJobIds.length > 0) {
         this.logger.warn(
           `服务启动时已结束 ${interruptedJobIds.length} 个因上次重启中断的转换任务`,
@@ -322,17 +338,25 @@ export class NoteJobsService implements OnModuleInit {
   }
 
   async getReadiness(): Promise<SystemReadiness> {
-    const [ytDlp, ffmpeg, whisperCli, whisperModel, larkCli, tencentAsr, connectorReady, connectorType] =
-      await Promise.all([
-        this.commandExists('yt-dlp'),
-        this.commandExists('ffmpeg'),
-        this.commandExists('whisper-cli'),
-        this.fileExists(this.whisperModelPath),
-        this.commandExists('lark-cli'),
-        this.tencentAsrTranscriptionService.isEnabled(),
-        this.connectorRegistryService.isActiveConnectorReady(),
-        this.connectorRegistryService.getActiveConnector(),
-      ]);
+    const [
+      ytDlp,
+      ffmpeg,
+      whisperCli,
+      whisperModel,
+      larkCli,
+      tencentAsr,
+      connectorReady,
+      connectorType,
+    ] = await Promise.all([
+      this.commandExists('yt-dlp'),
+      this.commandExists('ffmpeg'),
+      this.commandExists('whisper-cli'),
+      this.fileExists(this.whisperModelPath),
+      this.commandExists('lark-cli'),
+      this.tencentAsrTranscriptionService.isEnabled(),
+      this.connectorRegistryService.isActiveConnectorReady(),
+      this.connectorRegistryService.getActiveConnector(),
+    ]);
     return {
       ytDlp,
       ffmpeg,
@@ -341,14 +365,19 @@ export class NoteJobsService implements OnModuleInit {
       larkCli,
       tencentAsr,
       tencentAsrEnabled: tencentAsr,
-      ready: ffmpeg && connectorReady && (tencentAsr || (whisperCli && whisperModel)),
+      ready:
+        ffmpeg &&
+        connectorReady &&
+        (tencentAsr || (whisperCli && whisperModel)),
       platformReady:
         ytDlp &&
         ffmpeg &&
         connectorReady &&
         (tencentAsr || (whisperCli && whisperModel)),
       mediaReady:
-        ffmpeg && connectorReady && (tencentAsr || (whisperCli && whisperModel)),
+        ffmpeg &&
+        connectorReady &&
+        (tencentAsr || (whisperCli && whisperModel)),
       documentReady: connectorReady,
       pdfReady: connectorReady,
       connectorReady,
@@ -1050,7 +1079,9 @@ export class NoteJobsService implements OnModuleInit {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
       if (!readiness.connectorReady) {
-        throw new Error('当前连接器未配置或不可用，请先在连接器设置中完成配置。');
+        throw new Error(
+          '当前连接器未配置或不可用，请先在连接器设置中完成配置。',
+        );
       }
       if (input.sourceType === 'pdf' || input.sourceType === 'document') {
         await this.runDocument(id, workDir, input, ownerId, larkUserId);
@@ -1676,13 +1707,13 @@ export class NoteJobsService implements OnModuleInit {
   ): Promise<PreparedMedia> {
     this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
     const url = normalizePlatformSourceUrl(rawUrl, sourcePlatform);
-    const sourceArgs: string[] = await this.buildSourceArgs(
-      sourcePlatform,
-      cookieBrowser,
-    );
+    const sourceArgs: string[] =
+      sourcePlatform === 'bilibili'
+        ? await this.buildSourceArgs(sourcePlatform, cookieBrowser)
+        : [];
     const metadata: VideoMetadata =
       sourcePlatform === 'douyin'
-        ? await this.getDouyinMetadata(url, sourceArgs)
+        ? await this.getDouyinMetadata(url)
         : await this.getYtDlpMetadata(url, sourceArgs);
     const audioPath: string = join(workDir, 'audio.mp3');
     if (sourcePlatform === 'douyin' && metadata.mediaUrl) {
@@ -2448,83 +2479,245 @@ export class NoteJobsService implements OnModuleInit {
     return JSON.parse(result.stdout) as VideoMetadata;
   }
 
-  private async getDouyinMetadata(
-    url: string,
-    sourceArgs: string[],
+  private async getDouyinMetadata(url: string): Promise<VideoMetadata> {
+    const videoId = await this.resolveDouyinVideoId(url);
+    return this.getDouyinBrowserMetadata(videoId);
+  }
+
+  private async getDouyinBrowserMetadata(
+    videoId: string,
   ): Promise<VideoMetadata> {
+    const browserPath = await this.resolveDouyinBrowserPath();
+    if (!browserPath) {
+      throw new Error('未找到可用的 Chrome 浏览器，无法匿名解析抖音公开视频');
+    }
+    const browserDir = await mkdtemp(join(tmpdir(), 'douyin-public-browser-'));
+    const browser = spawn(
+      browserPath,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--autoplay-policy=no-user-gesture-required',
+        '--remote-debugging-address=127.0.0.1',
+        '--remote-debugging-port=0',
+        `--user-data-dir=${browserDir}`,
+        `https://www.douyin.com/video/${videoId}`,
+      ],
+      { stdio: 'pipe', windowsHide: process.platform === 'win32' },
+    );
     try {
-      return await this.getYtDlpMetadata(url, sourceArgs);
-    } catch (error) {
-      const message: string =
-        error instanceof Error ? error.message : '未知错误';
-      if (isFreshPlatformCookieError(message)) throw error;
-      this.logger.warn(
-        `yt-dlp 未能解析抖音元数据，改用分享页兼容解析: ${message}`,
+      const port = await this.waitForDouyinDebugPort(browserDir, browser);
+      const target = await this.waitForDouyinDebugTarget(port, videoId);
+      return await this.waitForDouyinBrowserMedia(
+        target.webSocketDebuggerUrl!,
+        videoId,
       );
-      return this.getDouyinSharePageMetadata(url);
+    } finally {
+      browser.kill();
+      await this.waitForBrowserExit(browser);
+      await rm(browserDir, {
+        force: true,
+        maxRetries: 3,
+        recursive: true,
+        retryDelay: 200,
+      }).catch((error: unknown) => {
+        this.logger.warn(
+          `无法清理抖音匿名浏览器临时目录: ${
+            error instanceof Error ? error.message : '未知错误'
+          }`,
+        );
+      });
     }
   }
 
-  private async getDouyinSharePageMetadata(
-    url: string,
-  ): Promise<VideoMetadata> {
-    const videoId = await this.resolveDouyinVideoId(url);
-    const shareUrl = `https://m.douyin.com/share/video/${videoId}/`;
-    const response = await fetch(shareUrl, {
-      headers: { 'User-Agent': this.getDouyinMobileUserAgent() },
-      redirect: 'follow',
-    });
-    if (!response.ok) {
-      throw new Error(`抖音分享页解析失败（HTTP ${response.status}）`);
+  private async resolveDouyinBrowserPath(): Promise<string | undefined> {
+    const candidates =
+      process.platform === 'win32'
+        ? [
+            join(
+              process.env.LOCALAPPDATA || '',
+              'Google',
+              'Chrome',
+              'Application',
+              'chrome.exe',
+            ),
+            join(
+              process.env.PROGRAMFILES || '',
+              'Google',
+              'Chrome',
+              'Application',
+              'chrome.exe',
+            ),
+            join(
+              process.env['PROGRAMFILES(X86)'] || '',
+              'Google',
+              'Chrome',
+              'Application',
+              'chrome.exe',
+            ),
+          ]
+        : process.platform === 'darwin'
+          ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+          : [
+              '/usr/bin/google-chrome',
+              '/usr/bin/chromium-browser',
+              '/usr/bin/chromium',
+            ];
+    for (const candidate of candidates) {
+      if (candidate && (await this.fileExists(candidate))) return candidate;
     }
-    const html = await response.text();
-    const marker = 'window._ROUTER_DATA = ';
-    const start = html.indexOf(marker);
-    const end = start >= 0 ? html.indexOf('</script>', start) : -1;
-    if (start < 0 || end < 0) {
-      throw new Error('抖音分享页缺少视频数据');
+    return undefined;
+  }
+
+  private async waitForDouyinDebugPort(
+    browserDir: string,
+    browser: ChildProcessWithoutNullStreams,
+  ): Promise<string> {
+    const portFile = join(browserDir, 'DevToolsActivePort');
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      if (browser.exitCode !== null) {
+        throw new Error('抖音匿名浏览器启动失败');
+      }
+      try {
+        const [port] = (await readFile(portFile, 'utf8')).split(/\r?\n/u);
+        if (/^\d+$/u.test(port)) return port;
+      } catch {
+        // Chrome 正在创建调试端口文件。
+      }
+      await this.delay(500);
     }
-    const routerData = JSON.parse(
-      html.slice(start + marker.length, end).trim(),
-    ) as {
-      loaderData?: Record<
-        string,
-        {
-          videoInfoRes?: {
-            item_list?: Array<{
-              aweme_id?: string;
-              desc?: string;
-              author?: { nickname?: string };
-              music?: { duration?: number };
-              video?: {
-                duration?: number;
-                play_addr?: { url_list?: string[] };
-              };
-            }>;
+    throw new Error('抖音匿名浏览器启动超时');
+  }
+
+  private async waitForDouyinDebugTarget(
+    port: string,
+    videoId: string,
+  ): Promise<Required<ChromeDebugTarget>> {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        const targets = (await response.json()) as ChromeDebugTarget[];
+        const target = targets.find(
+          (item) =>
+            item.type === 'page' &&
+            item.url?.includes(`/video/${videoId}`) &&
+            item.webSocketDebuggerUrl,
+        );
+        if (target?.url && target.webSocketDebuggerUrl) {
+          return {
+            type: target.type || 'page',
+            url: target.url,
+            webSocketDebuggerUrl: target.webSocketDebuggerUrl,
           };
-        } | null
-      >;
-    };
-    const pageData = Object.values(routerData.loaderData || {}).find(
-      (item) => item?.videoInfoRes?.item_list?.length,
-    );
-    const video = pageData?.videoInfoRes?.item_list?.[0];
-    const mediaUrl = video?.video?.play_addr?.url_list?.[0];
-    if (!video || video.aweme_id !== videoId || !mediaUrl) {
-      throw new Error('抖音分享页未返回可播放的视频');
+        }
+      } catch {
+        // 页面仍在重定向或调试端口尚未完全就绪。
+      }
+      await this.delay(500);
     }
-    const durationSeconds =
-      video.music?.duration ||
-      (video.video?.duration
-        ? Math.round(video.video.duration / 1000)
-        : undefined);
-    return {
-      title: video.desc,
-      uploader: video.author?.nickname,
-      duration_string: this.formatDuration(durationSeconds),
-      webpage_url: `https://www.douyin.com/video/${videoId}`,
-      mediaUrl,
-    };
+    throw new Error('抖音匿名浏览器未打开目标视频页面');
+  }
+
+  private async waitForDouyinBrowserMedia(
+    debuggerUrl: string,
+    videoId: string,
+  ): Promise<VideoMetadata> {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        const pageData = await this.runChromeDebugCommand(
+          debuggerUrl,
+          "JSON.stringify({ title: document.title, duration: document.querySelector('video')?.duration, resources: performance.getEntriesByType('resource').map((entry) => entry.name) })",
+        );
+        const data = JSON.parse(pageData) as DouyinBrowserPageData;
+        const resources = Array.isArray(data.resources)
+          ? data.resources.filter(
+              (resource): resource is string => typeof resource === 'string',
+            )
+          : [];
+        const mediaUrl = resources.find(isDouyinPublicAudioUrl);
+        if (mediaUrl) {
+          const durationSeconds =
+            typeof data.duration === 'number' && Number.isFinite(data.duration)
+              ? Math.round(data.duration)
+              : undefined;
+          const title =
+            typeof data.title === 'string'
+              ? data.title.replace(/\s*-\s*抖音\s*$/u, '').trim()
+              : undefined;
+          return {
+            title,
+            duration_string: this.formatDuration(durationSeconds),
+            webpage_url: `https://www.douyin.com/video/${videoId}`,
+            mediaUrl,
+          };
+        }
+      } catch (error) {
+        if (attempt === 29) throw error;
+      }
+      await this.delay(1_000);
+    }
+    throw new Error('抖音公开页面未加载可下载的音频流');
+  }
+
+  private runChromeDebugCommand(
+    debuggerUrl: string,
+    expression: string,
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(debuggerUrl);
+      const timeout = setTimeout(() => {
+        socket.close();
+        reject(new Error('抖音公开页面资源读取超时'));
+      }, 15_000);
+      socket.addEventListener('open', () => {
+        socket.send(
+          JSON.stringify({
+            id: 1,
+            method: 'Runtime.evaluate',
+            params: { expression, returnByValue: true },
+          }),
+        );
+      });
+      socket.addEventListener('error', () => {
+        clearTimeout(timeout);
+        reject(new Error('无法连接抖音匿名浏览器调试端口'));
+      });
+      socket.addEventListener('message', (event) => {
+        if (typeof event.data !== 'string') return;
+        const message = JSON.parse(event.data) as {
+          id?: number;
+          error?: { message?: string };
+          result?: { result?: { value?: unknown } };
+        };
+        if (message.id !== 1) return;
+        clearTimeout(timeout);
+        socket.close();
+        if (message.error?.message) {
+          reject(new Error(message.error.message));
+          return;
+        }
+        if (typeof message.result?.result?.value !== 'string') {
+          reject(new Error('抖音公开页面未返回资源数据'));
+          return;
+        }
+        resolve(message.result.result.value);
+      });
+    });
+  }
+
+  private waitForBrowserExit(
+    browser: ChildProcessWithoutNullStreams,
+  ): Promise<void> {
+    if (browser.exitCode !== null) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timeout = setTimeout(resolve, 2_000);
+      browser.once('close', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
   }
 
   private async resolveDouyinVideoId(url: string): Promise<string> {
@@ -2841,9 +3034,13 @@ export class NoteJobsService implements OnModuleInit {
         return this.localDocumentParserService.parsePdf(input.sourcePath);
       }
       if (['docx', 'doc', 'pptx', 'ppt', 'rtf', 'odt', 'odp'].includes(ext)) {
-        return this.localDocumentParserService.parseOfficeDocument(input.sourcePath);
+        return this.localDocumentParserService.parseOfficeDocument(
+          input.sourcePath,
+        );
       }
-      throw new Error(`本地模式暂不支持 ${ext.toUpperCase() || '该'} 文档解析，请使用 PDF、Word、PPT 或文本文件。`);
+      throw new Error(
+        `本地模式暂不支持 ${ext.toUpperCase() || '该'} 文档解析，请使用 PDF、Word、PPT 或文本文件。`,
+      );
     }
     const pluginInstanceId = 'pdf-document-parser';
     const actionKey = 'parseDocToMarkdown';
@@ -3322,8 +3519,13 @@ export class NoteJobsService implements OnModuleInit {
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
   ): Promise<LarkDocumentPublishResult> {
-    if ((await this.connectorRegistryService.getActiveConnector()) === 'dingtalk') {
-      const dingtalkDocument = await this.dingTalkDocumentService.create(title, markdown);
+    if (
+      (await this.connectorRegistryService.getActiveConnector()) === 'dingtalk'
+    ) {
+      const dingtalkDocument = await this.dingTalkDocumentService.create(
+        title,
+        markdown,
+      );
       return {
         publishedCount: 0,
         skippedOptional: media.map((asset) => ({
@@ -3334,7 +3536,8 @@ export class NoteJobsService implements OnModuleInit {
       };
     }
     const safeTitle = title.slice(0, 120);
-    const [initialMarkdown, ...remainingMarkdown] = splitMarkdownForLark(markdown);
+    const [initialMarkdown, ...remainingMarkdown] =
+      splitMarkdownForLark(markdown);
     const result = await this.runCommand(
       'lark-cli',
       [
@@ -3919,14 +4122,23 @@ export class NoteJobsService implements OnModuleInit {
     browser: NonNullable<CreateNoteJobRequest['cookieBrowser']>,
   ): Promise<string> {
     if (browser !== 'chrome') return browser;
-    const localStatePath = join(
-      homedir(),
-      'Library',
-      'Application Support',
-      'Google',
-      'Chrome',
-      'Local State',
-    );
+    const localStatePath =
+      process.platform === 'win32'
+        ? join(
+            process.env.LOCALAPPDATA || homedir(),
+            'Google',
+            'Chrome',
+            'User Data',
+            'Local State',
+          )
+        : join(
+            homedir(),
+            'Library',
+            'Application Support',
+            'Google',
+            'Chrome',
+            'Local State',
+          );
     try {
       const localState = JSON.parse(await readFile(localStatePath, 'utf8')) as {
         profile?: { last_used?: string };
@@ -4073,17 +4285,28 @@ export class NoteJobsService implements OnModuleInit {
     if (connectorType === 'dingtalk') {
       const config = await this.connectorRegistryService.getActiveConfig();
       if (!config.userId) {
-        this.patch(jobId, { message: '笔记已创建，但未配置钉钉待办执行人，未创建待办。' });
+        this.patch(jobId, {
+          message: '笔记已创建，但未配置钉钉待办执行人，未创建待办。',
+        });
         return;
       }
       try {
-        const task = await this.dingTalkTaskService.create({ title, executorUserId: config.userId });
-        await this.noteHistoryService.updateReviewTask(jobId, { guid: task.guid, url: task.url });
+        const task = await this.dingTalkTaskService.create({
+          title,
+          executorUserId: config.userId,
+        });
+        await this.noteHistoryService.updateReviewTask(jobId, {
+          guid: task.guid,
+          url: task.url,
+        });
         this.patch(jobId, { message: '完成！钉钉文档和待办任务已创建。' });
       } catch (error) {
-        const message: string = error instanceof Error ? error.message : '未知错误';
+        const message: string =
+          error instanceof Error ? error.message : '未知错误';
         this.logger.warn(`创建任务 ${jobId} 的钉钉待办任务失败: ${message}`);
-        await this.noteHistoryService.updateReviewTaskFailure(jobId, message).catch(() => undefined);
+        await this.noteHistoryService
+          .updateReviewTaskFailure(jobId, message)
+          .catch(() => undefined);
         this.patch(jobId, { message: '笔记已创建，但待办任务未创建。' });
       }
       return;
@@ -4169,12 +4392,13 @@ export class NoteJobsService implements OnModuleInit {
   }
 
   private notifyResult(input: TaskNotificationInput): void {
-    void this.taskNotificationService.notifyTaskResult(input).catch(
-      (error: unknown): void => {
-        const message: string = error instanceof Error ? error.message : '未知错误';
+    void this.taskNotificationService
+      .notifyTaskResult(input)
+      .catch((error: unknown): void => {
+        const message: string =
+          error instanceof Error ? error.message : '未知错误';
         this.logger.warn(`任务 ${input.id} 的通知处理失败：${message}`);
-      },
-    );
+      });
   }
 
   private async persistFinish(

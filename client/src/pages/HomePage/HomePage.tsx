@@ -47,7 +47,11 @@ const STAGE_LABELS = [
 ] as const;
 
 const getLogicalStage = (stage?: string) => {
-  if (['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(stage || '')) {
+  if (
+    ['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(
+      stage || '',
+    )
+  ) {
     return 'extracting-frames';
   }
   return stage;
@@ -330,7 +334,8 @@ export default function HomePage() {
               可以复习的知识。
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-black/52 md:text-[1.05rem]">
-              支持 B站和抖音。系统会提取音频、整理重点、保留可追溯证据，并写入你的飞书文档。
+              支持
+              B站和抖音。系统会提取音频、整理重点、保留可追溯证据，并写入你的飞书文档。
             </p>
 
             <div className="video-stage-grid mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -383,10 +388,10 @@ export default function HomePage() {
               <>
                 <div>
                   <p className="text-lg font-semibold tracking-tight">
-                      开始一个视频任务
+                    开始一个视频任务
                   </p>
                   <p className="mt-1 text-sm text-black/45">
-                      先输入链接，再选择输出方式
+                    先输入链接，再选择输出方式
                   </p>
                 </div>
 
@@ -456,7 +461,7 @@ export default function HomePage() {
                     </select>
                     <span className="mt-2 block text-xs leading-5 text-black/38">
                       {sourcePlatform === 'douyin'
-                        ? '抖音通过公开分享页解析，一般不需要浏览器登录状态。'
+                        ? '抖音使用隔离的匿名浏览器解析公开页面，不读取你的浏览器登录状态。'
                         : `请选择已登录 ${sourcePlatformLabels[sourcePlatform]} 的浏览器。`}
                       登录信息由 yt-dlp
                       在本机读取，只用于当前请求，不会保存到应用。
