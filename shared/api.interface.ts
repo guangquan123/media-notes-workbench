@@ -10,7 +10,7 @@ export type NoteSourceType =
 
 export type NoteStyle = 'learning' | 'meeting';
 
-export type ConnectorType = 'local' | 'feishu' | 'dingtalk';
+export type ConnectorType = 'feishu' | 'dingtalk';
 
 export type RuntimeMode = 'miaoda' | 'local';
 
@@ -46,6 +46,8 @@ export interface ConnectorDescriptor {
   status: ConnectorStatus;
   taskExecutorUserId?: string;
   type: ConnectorType;
+  webhookConfigured: boolean;
+  webhookSecretConfigured: boolean;
 }
 
 export interface ConnectorSettingsResponse {
@@ -54,10 +56,14 @@ export interface ConnectorSettingsResponse {
 }
 
 export interface UpdateConnectorRequest {
+  /** 清除该连接器唯一的任务完成通知 Webhook 及其签名密钥。 */
+  clearWebhook?: boolean;
   clientId?: string;
   clientSecret?: string;
   enabled?: boolean;
   userId?: string;
+  /** 留空表示保留已保存的机器人签名密钥。 */
+  webhookSecret?: string;
   webhookUrl?: string;
 }
 
@@ -441,41 +447,6 @@ export interface ExternalModelConnectionStatus {
 }
 
 export type TaskNotificationEvent = 'completed' | 'failed' | 'cancelled';
-export type TaskNotificationTestStatus = 'success' | 'failed';
-
-export interface TaskNotificationWebhook {
-  connectorType?: ConnectorType;
-  enabled: boolean;
-  id: string;
-  lastTestAt?: string;
-  lastTestMessage?: string;
-  lastTestStatus?: TaskNotificationTestStatus;
-  name: string;
-  secretConfigured: boolean;
-  url: string;
-}
-
-export interface TaskNotificationSettings {
-  configured: boolean;
-  items: TaskNotificationWebhook[];
-}
-
-export interface CreateTaskNotificationWebhookRequest {
-  connectorType?: ConnectorType;
-  enabled: boolean;
-  name: string;
-  secret?: string;
-  url: string;
-}
-
-export interface UpdateTaskNotificationWebhookRequest {
-  connectorType?: ConnectorType;
-  enabled: boolean;
-  name: string;
-  /** 留空表示保留已保存的签名密钥。 */
-  secret?: string;
-  url: string;
-}
 
 export interface TaskNotificationConnectionStatus {
   checkedAt: string;

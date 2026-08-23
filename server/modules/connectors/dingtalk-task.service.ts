@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult {
   stdout: string;
@@ -56,7 +56,7 @@ export class DingTalkTaskService {
   private runCommand(command: string, args: string[]): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: getCliEnvironment(), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
       child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));

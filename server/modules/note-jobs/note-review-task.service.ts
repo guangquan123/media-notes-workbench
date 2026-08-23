@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
 import { buildReviewTaskPayload } from './note-review-task.utils';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult {
   stderr: string;
@@ -11,7 +11,7 @@ interface CommandResult {
 interface CreateReviewTaskInput {
   documentUrl: string;
   jobId: string;
-  larkUserId: string;
+  larkOpenId: string;
   title: string;
 }
 
@@ -40,7 +40,7 @@ export class NoteReviewTaskService {
       '--as',
       'user',
       '--user-id-type',
-      'user_id',
+      'open_id',
       '--data',
       JSON.stringify(payload),
       '--json',
@@ -81,7 +81,7 @@ export class NoteReviewTaskService {
       const invocation = resolveCliInvocation(command, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: getCliEnvironment(),
         windowsHide: process.platform === 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
       });

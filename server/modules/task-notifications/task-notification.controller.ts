@@ -1,67 +1,26 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Param, Post } from '@nestjs/common';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type {
-  CreateTaskNotificationWebhookRequest,
+  ConnectorType,
   TaskNotificationConnectionStatus,
-  TaskNotificationSettings,
-  UpdateTaskNotificationWebhookRequest,
 } from '@shared/api.interface';
+import { isConnectorType } from '../connectors/connector.utils';
 import { TaskNotificationService } from './task-notification.service';
 
-@Controller('api/task-notifications')
+@Controller('api/connectors')
 export class TaskNotificationController {
   constructor(
     private readonly taskNotificationService: TaskNotificationService,
   ) {}
 
   @NeedLogin()
-  @Get()
-  getSettings(): Promise<TaskNotificationSettings> {
-    return this.taskNotificationService.getSettings();
-  }
-
-  @NeedLogin()
-  @Post('webhooks')
-  create(
-    @Body() body: CreateTaskNotificationWebhookRequest,
-  ): Promise<TaskNotificationSettings> {
-    return this.taskNotificationService.create(body);
-  }
-
-  @NeedLogin()
-  @Put('webhooks/:id')
-  update(
-    @Param('id') id: string,
-    @Body() body: UpdateTaskNotificationWebhookRequest,
-  ): Promise<TaskNotificationSettings> {
-    return this.taskNotificationService.update(id, body);
-  }
-
-  @NeedLogin()
-  @Delete('webhooks/:id')
-  remove(@Param('id') id: string): Promise<TaskNotificationSettings> {
-    return this.taskNotificationService.remove(id);
-  }
-
-  @NeedLogin()
-  @Post('webhooks/test')
-  testInput(
-    @Body() body: CreateTaskNotificationWebhookRequest,
+  @Post(':type/webhook/test')
+  test(
+    @Param('type') type: string,
   ): Promise<TaskNotificationConnectionStatus> {
-    return this.taskNotificationService.testInput(body);
-  }
-
-  @NeedLogin()
-  @Post('webhooks/:id/test')
-  test(@Param('id') id: string): Promise<TaskNotificationConnectionStatus> {
-    return this.taskNotificationService.test(id);
+    if (!isConnectorType(type)) {
+      throw new BadRequestException('不支持的连接器类型。');
+    }
+    return this.taskNotificationService.testConnectorWebhook(type);
   }
 }

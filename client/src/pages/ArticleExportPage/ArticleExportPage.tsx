@@ -189,7 +189,7 @@ export default function ArticleExportPage() {
 
   const readinessText = useMemo(() => {
     if (!readiness) return '正在检查本机环境…';
-    const missing = readiness.connectorType === 'local'
+    const missing = readiness.connectorType === 'dingtalk'
       ? []
       : [
           !readiness.larkCli && 'lark-cli',

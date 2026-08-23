@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 import {
   splitMarkdownForDocument,
   MAX_DOCUMENT_MARKDOWN_CHUNK_LENGTH,
@@ -133,7 +133,7 @@ export class DingTalkDocumentService {
       const invocation = resolveCliInvocation(command, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: getCliEnvironment(),
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });

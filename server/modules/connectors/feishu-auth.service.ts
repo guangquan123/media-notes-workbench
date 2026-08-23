@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult { stdout: string; stderr: string; }
 
@@ -30,6 +30,16 @@ export interface FeishuAppInfo {
   usingDefault: boolean;
 }
 
+interface FeishuAuthStatus {
+  identities?: {
+    user?: {
+      available?: boolean;
+      openId?: string;
+      tokenStatus?: string;
+    };
+  };
+}
+
 const DEFAULT_APP_ID = 'cli_aaee090eb8f85bda';
 
 @Injectable()
@@ -40,11 +50,21 @@ export class FeishuAuthService {
   async isAuthenticated(): Promise<boolean> {
     try {
       const result = await this.run(this.cli(), ['auth', 'status', '--json']);
-      const parsed = this.parseJson<{ identities?: { user?: { available?: boolean; tokenStatus?: string } } }>(result.stdout);
+      const parsed = this.parseJson<FeishuAuthStatus>(result.stdout);
       return parsed.identities?.user?.available === true && parsed.identities.user.tokenStatus !== 'missing';
     } catch {
       return false;
     }
+  }
+
+  async getAuthorizedOpenId(): Promise<string> {
+    const result = await this.run(this.cli(), ['auth', 'status', '--json']);
+    const parsed = this.parseJson<FeishuAuthStatus>(result.stdout);
+    const openId = parsed.identities?.user?.openId?.trim();
+    if (!openId) {
+      throw new Error('飞书授权未返回当前用户 open_id，请重新授权后重试。');
+    }
+    return openId;
   }
 
   async getAppInfo(): Promise<FeishuAppInfo> {
@@ -164,7 +184,7 @@ export class FeishuAuthService {
   private run(command: string, args: string[], timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: getCliEnvironment(), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
@@ -181,7 +201,7 @@ export class FeishuAuthService {
   private runWithStdin(command: string, args: string[], stdin: string, timeoutMs = 30000): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const invocation = resolveCliInvocation(command, args);
-      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: process.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+      const child = spawn(invocation.command, invocation.args, { cwd: process.cwd(), env: getCliEnvironment(), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
       let stdout = ''; let stderr = '';
       const timer = setTimeout(() => this.killTree(child), timeoutMs);
       child.stdin.on('error', () => { /* ignore */ });

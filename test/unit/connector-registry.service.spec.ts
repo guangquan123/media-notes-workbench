@@ -14,15 +14,14 @@ describe('connector registry service', () => {
     await rm(baseDir, { recursive: true, force: true });
   });
 
-  it('defaults to an active, ready local connector without any config', async () => {
+  it('defaults to Feishu and requires an external connector configuration', async () => {
     const service = new ConnectorRegistryService(baseDir);
     const settings = await service.getSettings();
-    expect(settings.activeConnector).toBe('local');
-    const local = settings.items.find((item) => item.type === 'local');
-    expect(local?.status).toBe('ready');
-    expect(local?.configured).toBe(true);
-    await expect(service.getActiveConnector()).resolves.toBe('local');
-    await expect(service.isActiveConnectorReady()).resolves.toBe(true);
+    expect(settings.activeConnector).toBe('feishu');
+    expect(settings.items.map((item) => item.type)).toEqual(['feishu', 'dingtalk']);
+    expect(settings.items.find((item) => item.type === 'feishu')?.status).toBe('unconfigured');
+    await expect(service.getActiveConnector()).resolves.toBe('feishu');
+    await expect(service.isActiveConnectorReady()).resolves.toBe(false);
   });
 
   it('rejects switching to an unconfigured Feishu connector', async () => {
@@ -42,9 +41,7 @@ describe('connector registry service', () => {
     const enabledOutputs = settings.items
       .filter((item) => item.enabled)
       .map((item) => item.type);
-    const local = settings.items.find((item) => item.type === 'local');
     expect(enabledOutputs).toEqual(['dingtalk']);
-    expect(local?.status).toBe('ready');
   });
 
   it('stores the authorized DingTalk user as the task executor and returns it to the settings page', async () => {
@@ -53,12 +50,33 @@ describe('connector registry service', () => {
     await service.setDingTalkTaskExecutorUserId('ding-user-123');
 
     await expect(service.getActiveConfig()).resolves.toMatchObject({
-      type: 'local',
+      type: 'feishu',
     });
     const settings = await service.getSettings();
     expect(
       settings.items.find((item) => item.type === 'dingtalk')
         ?.taskExecutorUserId,
     ).toBe('ding-user-123');
+  });
+
+  it('stores at most one webhook per connector and clears it explicitly', async () => {
+    const service = new ConnectorRegistryService(baseDir);
+    await service.update('feishu', {
+      webhookSecret: 'secret-1',
+      webhookUrl: 'https://open.feishu.cn/open-apis/bot/v2/hook/first',
+    });
+    await service.update('feishu', {
+      webhookUrl: 'https://open.feishu.cn/open-apis/bot/v2/hook/replaced',
+    });
+    await expect(service.getConfig('feishu')).resolves.toMatchObject({
+      webhookSecret: 'secret-1',
+      webhookUrl: 'https://open.feishu.cn/open-apis/bot/v2/hook/replaced',
+    });
+
+    await service.update('feishu', { clearWebhook: true });
+    await expect(service.getConfig('feishu')).resolves.toMatchObject({
+      webhookSecret: '',
+      webhookUrl: '',
+    });
   });
 });

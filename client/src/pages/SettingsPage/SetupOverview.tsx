@@ -15,7 +15,6 @@ import type {
   ExternalModelSettings,
   RuntimeStatus,
   SystemReadiness,
-  TaskNotificationSettings,
   TencentAsrSettings,
 } from '@shared/api.interface';
 import {
@@ -23,7 +22,6 @@ import {
   getExternalModelSettings,
   getReadiness,
   getRuntimeStatus,
-  getTaskNotificationSettings,
   getTencentAsrSettings,
 } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -42,7 +40,6 @@ interface SetupOverviewProps {
 interface SetupSnapshot {
   connectors: ConnectorSettingsResponse | null;
   externalModel: ExternalModelSettings | null;
-  notifications: TaskNotificationSettings | null;
   readiness: SystemReadiness;
   runtime: RuntimeStatus | null;
   tencentAsr: TencentAsrSettings | null;
@@ -92,14 +89,12 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
       asrResult,
       modelResult,
       runtimeResult,
-      notificationResult,
     ] = await Promise.allSettled([
       getReadiness(),
       getConnectorSettings(),
       getTencentAsrSettings(),
       getExternalModelSettings(),
       getRuntimeStatus(),
-      getTaskNotificationSettings(),
     ]);
     const readiness = settledValue(readinessResult);
     if (!readiness) {
@@ -111,7 +106,6 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
     setSnapshot({
       connectors: settledValue(connectorResult),
       externalModel: settledValue(modelResult),
-      notifications: settledValue(notificationResult),
       readiness,
       runtime: settledValue(runtimeResult),
       tencentAsr: settledValue(asrResult),
@@ -226,7 +220,7 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
           </div>
           <div className="hidden items-center gap-1.5 text-xs text-black/45 sm:flex">
             <Sparkles className="size-3.5" />
-            推荐默认：本地输出
+            推荐：先连接飞书或钉钉
           </div>
         </div>
         <div className="grid gap-3" data-ai-section-type="card-list">

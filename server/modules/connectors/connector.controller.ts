@@ -7,9 +7,7 @@ import {
   Param,
   Post,
   Put,
-  Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type {
   ConnectorSettingsResponse,
@@ -17,7 +15,6 @@ import type {
   UpdateConnectorRequest,
 } from '@shared/api.interface';
 import { ConnectorRegistryService } from './connector-registry.service';
-import { LocalDocumentService } from './local-document.service';
 import { FeishuAuthService } from './feishu-auth.service';
 import { DingTalkAuthService } from './dingtalk-auth.service';
 
@@ -27,7 +24,6 @@ export class ConnectorController {
 
   constructor(
     private readonly registry: ConnectorRegistryService,
-    private readonly localDocumentService: LocalDocumentService,
     private readonly feishuAuthService: FeishuAuthService,
     private readonly dingTalkAuthService: DingTalkAuthService,
   ) {}
@@ -59,13 +55,6 @@ export class ConnectorController {
   @Post(':type/test')
   async test(@Param('type') type: string): Promise<ConnectorTestResponse> {
     const checkedAt = new Date().toISOString();
-    if (type === 'local')
-      return {
-        checkedAt,
-        connector: 'local',
-        message: '本地连接器始终可用',
-        status: 'success',
-      };
     if (type === 'feishu') {
       const r = await this.feishuAuthService.testConnection();
       return {
@@ -145,15 +134,5 @@ export class ConnectorController {
   @Post('feishu/auth/complete')
   completeFeishuAuth(@Body('sessionId') sessionId: string) {
     return this.feishuAuthService.complete(sessionId);
-  }
-
-  @Get('local/documents/:id')
-  @NeedLogin()
-  async getLocalDocument(
-    @Param('id') id: string,
-    @Res() response: Response,
-  ): Promise<void> {
-    const markdown = await this.localDocumentService.read(id);
-    response.type('text/markdown').send(markdown);
   }
 }

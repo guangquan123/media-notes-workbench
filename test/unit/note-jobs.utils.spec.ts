@@ -239,10 +239,10 @@ describe('note job request validation', () => {
     ).toThrow('文件不能超过 10 GB');
   });
 
-  it('rejects non-HTTPS and private download URLs', () => {
+  it('rejects private download URLs in every runtime mode', () => {
     expect(() =>
       validateMediaInput(
-        { ...video, downloadUrl: 'http://127.0.0.1/private.mp4' },
+        { ...video, downloadUrl: 'https://127.0.0.1/private.mp4' },
         'video',
       ),
     ).toThrow('文件下载地址不安全');

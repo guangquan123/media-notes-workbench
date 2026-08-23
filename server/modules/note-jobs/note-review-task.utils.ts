@@ -1,7 +1,7 @@
 interface ReviewTaskPayloadInput {
   documentUrl: string;
   jobId: string;
-  larkUserId: string;
+  larkOpenId: string;
   now: Date;
   title: string;
 }
@@ -51,7 +51,7 @@ export function buildReviewTaskPayload(
       is_all_day: true,
       timestamp: getShanghaiAllDayTimestamp(input.now),
     },
-    members: [{ id: input.larkUserId, role: 'assignee' }],
+    members: [{ id: input.larkOpenId, role: 'assignee' }],
     summary: `处理学习笔记：${title}`,
   };
 }

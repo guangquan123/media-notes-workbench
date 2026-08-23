@@ -7,6 +7,7 @@ export interface ConnectorDraft {
   clientId: string;
   clientSecret: string;
   userId: string;
+  webhookSecret: string;
   webhookUrl: string;
 }
 
@@ -19,7 +20,6 @@ export interface ConnectorDraftErrors {
 export type ConnectorAction =
   | 'active'
   | 'configure'
-  | 'enable-local'
   | 'set-active'
   | 'repair';
 
@@ -29,7 +29,6 @@ export function getConnectorAction(
   active: boolean,
 ): ConnectorAction {
   if (active) return 'active';
-  if (type === 'local') return 'enable-local';
   if (status === 'ready') return 'set-active';
   if (status === 'error') return 'repair';
   return 'configure';
@@ -76,6 +75,7 @@ export function hasConnectorDraftChanges(draft: ConnectorDraft): boolean {
     draft.clientId.trim() ||
       draft.clientSecret.trim() ||
       draft.userId.trim() ||
+      draft.webhookSecret.trim() ||
       draft.webhookUrl.trim(),
   );
 }

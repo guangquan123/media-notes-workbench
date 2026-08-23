@@ -3,14 +3,12 @@ import type {
   ExternalModelSettings,
   RuntimeStatus,
   SystemReadiness,
-  TaskNotificationSettings,
   TencentAsrSettings,
 } from '@shared/api.interface';
 
 export type SetupActionSection =
   | 'connectors'
   | 'model'
-  | 'notifications'
   | 'transcription';
 
 export type SetupCapabilityStatus = 'action' | 'optional' | 'ready';
@@ -26,7 +24,6 @@ export interface SetupCapabilityItem {
     | 'documents'
     | 'local-media'
     | 'model'
-    | 'notifications'
     | 'platform-media';
   label: string;
   required: boolean;
@@ -36,7 +33,6 @@ export interface SetupCapabilityItem {
 export interface SetupReadinessInput {
   connectors: ConnectorSettingsResponse | null;
   externalModel: ExternalModelSettings | null;
-  notifications: TaskNotificationSettings | null;
   readiness: SystemReadiness;
   runtime: RuntimeStatus | null;
   tencentAsr: TencentAsrSettings | null;
@@ -53,7 +49,6 @@ export interface SetupReadinessResult {
 const CONNECTOR_LABELS: Record<string, string> = {
   dingtalk: '钉钉',
   feishu: '飞书',
-  local: '本地',
 };
 
 function getConnectorLabel(input: SetupReadinessInput): string {
@@ -194,12 +189,8 @@ export function buildSetupReadiness(
         ? `${connectorLabel}连接器已就绪，生成结果有明确保存位置。`
         : '当前输出连接器未就绪，任务无法可靠保存结果。',
       details: connectorReady
-        ? [
-            connectorLabel === '本地'
-              ? '本地连接器无需外部账号，可直接使用。'
-              : `当前结果将同步到${connectorLabel}。`,
-          ]
-        : ['推荐先使用本地连接器；需要协作同步时再连接飞书或钉钉。'],
+        ? [`当前结果将同步到${connectorLabel}。`]
+        : ['请先完成飞书或钉钉连接器授权。'],
       required: true,
       status: connectorReady ? 'ready' : 'action',
       actionLabel: connectorReady ? undefined : '选择输出位置',
@@ -268,26 +259,6 @@ export function buildSetupReadiness(
       required: false,
       status: platformMediaSourceReady ? 'ready' : 'optional',
     },
-    {
-      id: 'notifications',
-      label: '任务完成通知',
-      description: input.notifications?.configured
-        ? '任务完成、失败或取消后可发送机器人通知。'
-        : '通知属于可选能力；不配置也可以在任务历史中查看结果。',
-      details: input.notifications
-        ? [
-            input.notifications.configured
-              ? `已配置 ${input.notifications.items.length} 个通知目标。`
-              : '需要时再添加飞书或钉钉机器人 Webhook。',
-          ]
-        : ['通知设置读取失败，不影响笔记生成。'],
-      required: false,
-      status: input.notifications?.configured ? 'ready' : 'optional',
-      actionLabel: input.notifications?.configured ? undefined : '按需配置',
-      actionSection: input.notifications?.configured
-        ? undefined
-        : 'notifications',
-    },
   ];
 
   const coreReady = Boolean(
@@ -299,7 +270,7 @@ export function buildSetupReadiness(
       headline: '核心能力已就绪',
       items,
       status: 'ready',
-      summary: '可以直接处理本地音视频和文档；平台链接与通知按需启用。',
+      summary: '可以直接处理本地音视频和文档；平台链接按需启用。',
     };
   }
   if (availableSourceLabels.length > 0) {

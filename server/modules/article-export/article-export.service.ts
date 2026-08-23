@@ -9,7 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 import type {
   ArticleArtifact,
   ArticleExportJob,
@@ -31,7 +31,6 @@ import {
 } from './article-export.utils';
 import { TaskNotificationService } from '../task-notifications/task-notification.service';
 import { ConnectorRegistryService } from '../connectors/connector-registry.service';
-import { LocalDocumentService } from '../connectors/local-document.service';
 import { DingTalkDocumentService } from '../connectors/dingtalk-document.service';
 
 type CommandResult = {
@@ -66,7 +65,6 @@ export class ArticleExportService {
   constructor(
     private readonly taskNotificationService: TaskNotificationService,
     private readonly connectorRegistryService: ConnectorRegistryService,
-    private readonly localDocumentService: LocalDocumentService,
     private readonly dingTalkDocumentService: DingTalkDocumentService,
   ) {}
 
@@ -78,7 +76,10 @@ export class ArticleExportService {
     return {
       larkCli,
       larkAuth,
-      ready: connectorType === 'local' || connectorType === 'dingtalk' ? connectorReady : connectorType === 'feishu' && connectorReady && larkCli && larkAuth,
+      ready:
+        connectorType === 'dingtalk'
+          ? connectorReady
+          : connectorReady && larkCli && larkAuth,
       connectorType,
       connectorReady,
     };
@@ -349,11 +350,6 @@ export class ArticleExportService {
     title?: string;
   }> {
     const connectorType = await this.connectorRegistryService.getActiveConnector();
-    if (connectorType === 'local') {
-      const match = sourceDocUrl.match(/\/api\/connectors\/local\/documents\/([0-9a-f-]{36})$/iu);
-      if (!match?.[1]) throw new BadRequestException('本地文档地址无效。');
-      return { markdown: await this.localDocumentService.read(match[1]) };
-    }
     if (connectorType === 'dingtalk') {
       return await this.dingTalkDocumentService.read(sourceDocUrl);
     }
@@ -477,7 +473,7 @@ export class ArticleExportService {
       const invocation = resolveCliInvocation(command, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: getCliEnvironment(),
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
       });

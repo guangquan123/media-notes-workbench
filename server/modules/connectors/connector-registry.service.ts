@@ -22,11 +22,19 @@ interface StoredConnectorConfig {
     lastError?: string;
     type: ConnectorType;
     userId: string;
+    webhookSecret: string;
     webhookUrl: string;
   }>;
 }
 
-const CONNECTOR_TYPES: ConnectorType[] = ['local', 'feishu', 'dingtalk'];
+const CONNECTOR_TYPES: ConnectorType[] = ['feishu', 'dingtalk'];
+
+interface LegacyNotificationItem {
+  connectorType?: string;
+  enabled?: boolean;
+  secret?: string;
+  url?: string;
+}
 
 @Injectable()
 export class ConnectorRegistryService {
@@ -69,10 +77,12 @@ export class ConnectorRegistryService {
         return buildDescriptor(
           type,
           type === config.activeConnector,
-          type === 'local' || hasCustomConfig || authed,
+          hasCustomConfig || authed,
           item?.lastCheckedAt,
           item?.lastError,
           type === 'dingtalk' ? item?.userId || undefined : undefined,
+          Boolean(item?.webhookUrl),
+          Boolean(item?.webhookSecret),
         );
       }),
     };
@@ -119,6 +129,14 @@ export class ConnectorRegistryService {
     return this.getStoredItem(config, config.activeConnector);
   }
 
+  async getConfig(
+    typeValue: string,
+  ): Promise<StoredConnectorConfig['items'][number] & { type: ConnectorType }> {
+    const type = this.parseType(typeValue);
+    const config = await this.load();
+    return this.getStoredItem(config, type);
+  }
+
   async update(
     typeValue: string,
     input: UpdateConnectorRequest,
@@ -126,6 +144,7 @@ export class ConnectorRegistryService {
     const type = this.parseType(typeValue);
     const config = await this.load();
     const existing = this.getStoredItem(config, type);
+    const clearWebhook = input.clearWebhook === true;
     const next = {
       ...existing,
       clientId: input.clientId?.trim() || existing.clientId,
@@ -133,7 +152,14 @@ export class ConnectorRegistryService {
       enabled: type === config.activeConnector,
       type,
       userId: input.userId?.trim() || existing.userId,
-      webhookUrl: input.webhookUrl?.trim() || existing.webhookUrl,
+      webhookSecret: clearWebhook
+        ? ''
+        : input.webhookSecret?.trim() || existing.webhookSecret,
+      webhookUrl: clearWebhook
+        ? ''
+        : typeof input.webhookUrl === 'string'
+          ? input.webhookUrl.trim()
+          : existing.webhookUrl,
     };
     const items = config.items.filter((item) => item.type !== type);
     items.push(next);
@@ -179,7 +205,7 @@ export class ConnectorRegistryService {
     const checkedAt = new Date().toISOString();
     const settings = await this.getSettings();
     const selected = settings.items.find((item) => item.type === type);
-    if (type !== 'local' && !selected?.configured) {
+    if (!selected?.configured) {
       return {
         checkedAt,
         connector: type,
@@ -217,9 +243,10 @@ export class ConnectorRegistryService {
       config.items.find((item) => item.type === type) || {
         clientId: '',
         clientSecret: '',
-        enabled: type === 'local',
+        enabled: false,
         type,
         userId: '',
+        webhookSecret: '',
         webhookUrl: '',
       }
     );
@@ -234,12 +261,14 @@ export class ConnectorRegistryService {
       );
     } catch {
       this.current = {
-        activeConnector: 'local',
-        items: [
-          this.getStoredItem({ activeConnector: 'local', items: [] }, 'local'),
-        ],
+        activeConnector: 'feishu',
+        items: CONNECTOR_TYPES.map((type: ConnectorType) =>
+          this.getStoredItem({ activeConnector: 'feishu', items: [] }, type),
+        ),
       };
     }
+    const migrated = await this.migrateLegacyNotificationSecret(this.current);
+    if (migrated !== this.current) await this.save(migrated);
     return this.current;
   }
 
@@ -262,15 +291,52 @@ export class ConnectorRegistryService {
           typeof raw?.lastError === 'string' ? raw.lastError : undefined,
         type,
         userId: typeof raw?.userId === 'string' ? raw.userId : '',
+        webhookSecret:
+          typeof raw?.webhookSecret === 'string' ? raw.webhookSecret : '',
         webhookUrl: typeof raw?.webhookUrl === 'string' ? raw.webhookUrl : '',
       };
     });
     return {
       activeConnector: isConnectorType(input.activeConnector || '')
         ? input.activeConnector!
-        : 'local',
+        : 'feishu',
       items,
     };
+  }
+
+  private async migrateLegacyNotificationSecret(
+    config: StoredConnectorConfig,
+  ): Promise<StoredConnectorConfig> {
+    const legacyPath = join(process.cwd(), '.task-notification-config.json');
+    let legacyItems: LegacyNotificationItem[] = [];
+    try {
+      const raw: unknown = JSON.parse(await readFile(legacyPath, 'utf8'));
+      if (
+        typeof raw === 'object' &&
+        raw !== null &&
+        Array.isArray((raw as { items?: unknown }).items)
+      ) {
+        legacyItems = (raw as { items: LegacyNotificationItem[] }).items;
+      }
+    } catch {
+      return config;
+    }
+
+    let changed = false;
+    const items = config.items.map((item) => {
+      if (!item.webhookUrl || item.webhookSecret) return item;
+      const legacy = legacyItems.find((candidate) =>
+        candidate.enabled === true &&
+        (candidate.connectorType || 'feishu') === item.type &&
+        candidate.url === item.webhookUrl &&
+        typeof candidate.secret === 'string' &&
+        candidate.secret.trim(),
+      );
+      if (!legacy?.secret) return item;
+      changed = true;
+      return { ...item, webhookSecret: legacy.secret.trim() };
+    });
+    return changed ? { ...config, items } : config;
   }
 
   private async save(config: StoredConnectorConfig): Promise<void> {

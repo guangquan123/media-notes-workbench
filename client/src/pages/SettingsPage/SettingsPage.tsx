@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   BotMessageSquare,
-  Bell,
   FilePenLine,
   ListChecks,
   Settings2,
@@ -15,14 +14,12 @@ import { Button } from '@/components/ui/button';
 import ModelSettingsPage from '@/pages/ModelSettingsPage/ModelSettingsPage';
 import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
-import TaskNotificationSettingsPage from '@/pages/TaskNotificationSettingsPage/TaskNotificationSettingsPage';
 import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
 import SetupOverview from './SetupOverview';
 
 type SettingsSection =
   | 'connectors'
   | 'model'
-  | 'notifications'
   | 'prompts'
   | 'setup'
   | 'transcription';
@@ -44,7 +41,7 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
   {
     value: 'connectors',
     label: '连接器',
-    description: '选择本地、飞书或钉钉协作能力。',
+    description: '选择飞书或钉钉协作能力，并配置该连接器的通知。',
     icon: Cable,
   },
   {
@@ -65,18 +62,11 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
     description: '设置外部大模型的连接与启用状态。',
     icon: BotMessageSquare,
   },
-  {
-    value: 'notifications',
-    label: '任务通知',
-    description: '配置飞书机器人接收任务最终结果。',
-    icon: Bell,
-  },
 ];
 
 function getSelectedSection(section: string | null): SettingsSection {
   if (
     section === 'model' ||
-    section === 'notifications' ||
     section === 'prompts' ||
     section === 'setup' ||
     section === 'transcription' ||
@@ -182,9 +172,6 @@ export default function SettingsPage() {
                 <TranscriptionSettingsPage embedded />
               )}
               {selectedSection === 'model' && <ModelSettingsPage embedded />}
-              {selectedSection === 'notifications' && (
-                <TaskNotificationSettingsPage embedded />
-              )}
               {selectedSection === 'connectors' && <ConnectorSettingsPage />}
             </section>
           </div>

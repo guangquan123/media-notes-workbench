@@ -3,14 +3,13 @@ import type {
   ExternalModelSettings,
   RuntimeStatus,
   SystemReadiness,
-  TaskNotificationSettings,
   TencentAsrSettings,
 } from '../../shared/api.interface';
 import { buildSetupReadiness } from '../../client/src/pages/SettingsPage/setup-readiness.utils';
 
 const BASE_READINESS: SystemReadiness = {
   connectorReady: true,
-  connectorType: 'local',
+  connectorType: 'feishu',
   documentReady: true,
   ffmpeg: true,
   larkCli: true,
@@ -46,15 +45,17 @@ const PLATFORM_RUNTIME: RuntimeStatus = {
 };
 
 const CONNECTORS: ConnectorSettingsResponse = {
-  activeConnector: 'local',
+  activeConnector: 'feishu',
   items: [
     {
       capabilities: ['document.write'],
       configured: true,
       enabled: true,
-      label: '本地',
+      label: '飞书',
       status: 'ready',
-      type: 'local',
+      type: 'feishu',
+      webhookConfigured: false,
+      webhookSecretConfigured: false,
     },
   ],
 };
@@ -79,11 +80,6 @@ const MODEL_READY: ExternalModelSettings = {
   model: 'test-model',
 };
 
-const NOTIFICATIONS_DISABLED: TaskNotificationSettings = {
-  configured: false,
-  items: [],
-};
-
 function build(
   overrides: {
     externalModel?: ExternalModelSettings | null;
@@ -98,7 +94,6 @@ function build(
       overrides.externalModel === undefined
         ? MODEL_READY
         : overrides.externalModel,
-    notifications: NOTIFICATIONS_DISABLED,
     readiness: { ...BASE_READINESS, ...overrides.readiness },
     runtime:
       overrides.runtime === undefined ? LOCAL_RUNTIME : overrides.runtime,
@@ -108,7 +103,7 @@ function build(
 }
 
 describe('setup readiness', () => {
-  it('marks core capabilities ready with local connector, ffmpeg, Whisper and external model', () => {
+  it('marks core capabilities ready with Feishu, ffmpeg, Whisper and external model', () => {
     const result = build();
 
     expect(result.status).toBe('ready');
@@ -131,9 +126,8 @@ describe('setup readiness', () => {
 
   it('supports connector responses without the optional descriptor list', () => {
     const result = buildSetupReadiness({
-      connectors: { activeConnector: 'local' } as ConnectorSettingsResponse,
+      connectors: { activeConnector: 'feishu' } as ConnectorSettingsResponse,
       externalModel: MODEL_READY,
-      notifications: NOTIFICATIONS_DISABLED,
       readiness: BASE_READINESS,
       runtime: LOCAL_RUNTIME,
       tencentAsr: ASR_DISABLED,
@@ -143,7 +137,7 @@ describe('setup readiness', () => {
       label: '笔记输出位置',
       status: 'ready',
     });
-    expect(result.summary).toContain('本地');
+    expect(result.summary).toContain('本地音视频');
   });
 
   it('accepts Tencent ASR as the Whisper alternative while still requiring ffmpeg', () => {

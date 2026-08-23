@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 
 interface CommandResult {
   stdout: string;
@@ -75,7 +75,7 @@ export class DingTalkAuthService {
       ]);
       const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: getCliEnvironment(),
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });
@@ -245,7 +245,7 @@ export class DingTalkAuthService {
       const invocation = resolveCliInvocation(command, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: getCliEnvironment(),
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });

@@ -9,6 +9,7 @@ const emptyDraft: ConnectorDraft = {
   clientId: '',
   clientSecret: '',
   userId: '',
+  webhookSecret: '',
   webhookUrl: '',
 };
 
@@ -16,10 +17,6 @@ describe('connector settings interaction rules', () => {
   it('treats a ready inactive connector as available to activate', () => {
     expect(getConnectorAction('feishu', 'ready', false)).toBe('set-active');
     expect(getConnectorAction('feishu', 'ready', true)).toBe('active');
-  });
-
-  it('keeps local activation as a direct action', () => {
-    expect(getConnectorAction('local', 'ready', false)).toBe('enable-local');
   });
 
   it('requires both credentials for a Feishu custom app', () => {

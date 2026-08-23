@@ -25,7 +25,7 @@ import { basename, dirname, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { resolveCliInvocation } from '../../common/utils/cli-command';
+import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 import type {
   ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
@@ -120,7 +120,7 @@ import {
 } from '../task-notifications/task-notification.service';
 import { supportsVisualProcessing } from '@shared/note-visual-source.utils';
 import { ConnectorRegistryService } from '../connectors/connector-registry.service';
-import { LocalDocumentService } from '../connectors/local-document.service';
+import { FeishuAuthService } from '../connectors/feishu-auth.service';
 import { RuntimeRegistryService } from '../runtime/runtime.registry.service';
 import { LocalDocumentParserService } from './local-document-parser.service';
 import { DingTalkDocumentService } from '../connectors/dingtalk-document.service';
@@ -288,7 +288,7 @@ export class NoteJobsService implements OnModuleInit {
     private readonly runtimeRegistryService: RuntimeRegistryService,
     private readonly localDocumentParserService: LocalDocumentParserService,
     private readonly connectorRegistryService: ConnectorRegistryService,
-    private readonly localDocumentService: LocalDocumentService,
+    private readonly feishuAuthService: FeishuAuthService,
     private readonly dingTalkDocumentService: DingTalkDocumentService,
     private readonly dingTalkTaskService: DingTalkTaskService,
   ) {}
@@ -337,7 +337,7 @@ export class NoteJobsService implements OnModuleInit {
       ffmpeg,
       whisperCli,
       whisperModel,
-      larkCli: connectorType === 'local' || larkCli,
+      larkCli,
       tencentAsr,
       tencentAsrEnabled: tencentAsr,
       ready: ffmpeg && connectorReady && (tencentAsr || (whisperCli && whisperModel)),
@@ -993,7 +993,7 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         status: 'completed',
       });
-      await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+      await this.createReviewTask(id, noteTitle, documentUrl);
       this.notifyResult({
         event: 'completed',
         id,
@@ -1420,7 +1420,7 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl,
         documentUrl,
       });
-      await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+      await this.createReviewTask(id, noteTitle, documentUrl);
       this.notifyResult({
         event: 'completed',
         id,
@@ -1654,7 +1654,7 @@ export class NoteJobsService implements OnModuleInit {
       rawDocumentUrl,
       documentUrl,
     });
-    await this.createReviewTask(id, noteTitle, documentUrl, larkUserId);
+    await this.createReviewTask(id, noteTitle, documentUrl);
     this.notifyResult({
       event: 'completed',
       id,
@@ -3302,17 +3302,6 @@ export class NoteJobsService implements OnModuleInit {
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
   ): Promise<LarkDocumentPublishResult> {
-    if ((await this.connectorRegistryService.getActiveConnector()) === 'local') {
-      const localDocument = await this.localDocumentService.create(title, markdown);
-      return {
-        publishedCount: 0,
-        skippedOptional: media.map((asset) => ({
-          anchor: asset.anchor,
-          message: '本地文档暂不嵌入外部图片，已保留原始图片引用。',
-        })),
-        url: localDocument.url,
-      };
-    }
     if ((await this.connectorRegistryService.getActiveConnector()) === 'dingtalk') {
       const dingtalkDocument = await this.dingTalkDocumentService.create(title, markdown);
       return {
@@ -4058,14 +4047,9 @@ export class NoteJobsService implements OnModuleInit {
     jobId: string,
     title: string,
     documentUrl: string,
-    larkUserId?: string | null,
   ): Promise<void> {
     const connectorType =
       await this.connectorRegistryService.getActiveConnector();
-    if (connectorType === 'local') {
-      this.patch(jobId, { message: '笔记已创建（本地模式不创建外部待办）。' });
-      return;
-    }
     if (connectorType === 'dingtalk') {
       const config = await this.connectorRegistryService.getActiveConfig();
       if (!config.userId) {
@@ -4084,10 +4068,14 @@ export class NoteJobsService implements OnModuleInit {
       }
       return;
     }
-    if (!larkUserId) {
+    let larkOpenId: string;
+    try {
+      larkOpenId = await this.feishuAuthService.getAuthorizedOpenId();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
       await this.noteHistoryService.updateReviewTaskFailure(
         jobId,
-        '无法识别当前用户的飞书账号，未创建待处理任务',
+        `无法识别飞书 CLI 已授权账号，未创建待处理任务：${message}`,
       );
       this.patch(jobId, { message: '笔记已创建，但待处理任务未创建' });
       return;
@@ -4096,7 +4084,7 @@ export class NoteJobsService implements OnModuleInit {
       const task = await this.noteReviewTaskService.create({
         documentUrl,
         jobId,
-        larkUserId,
+        larkOpenId,
         title,
       });
       await this.noteHistoryService.updateReviewTask(jobId, task);
@@ -4229,7 +4217,7 @@ export class NoteJobsService implements OnModuleInit {
       const invocation = resolveCliInvocation(command, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd,
-        env: process.env,
+        env: getCliEnvironment(),
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: process.platform === 'win32',
       });

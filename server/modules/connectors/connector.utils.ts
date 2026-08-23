@@ -26,26 +26,15 @@ export const CONNECTOR_CAPABILITIES: Record<
     'notification.send',
     'identity.read',
   ],
-  local: [
-    'document.read',
-    'document.write',
-    'document.media',
-    'task.read',
-    'task.write',
-    'inbox.read',
-    'notification.send',
-    'identity.read',
-  ],
 };
 
 export const CONNECTOR_LABELS: Record<ConnectorType, string> = {
   dingtalk: '钉钉',
   feishu: '飞书',
-  local: '本地',
 };
 
 export function isConnectorType(value: string): value is ConnectorType {
-  return value === 'local' || value === 'feishu' || value === 'dingtalk';
+  return value === 'feishu' || value === 'dingtalk';
 }
 
 export function buildDescriptor(
@@ -55,6 +44,8 @@ export function buildDescriptor(
   lastCheckedAt?: string,
   lastError?: string,
   taskExecutorUserId?: string,
+  webhookConfigured = false,
+  webhookSecretConfigured = false,
 ): ConnectorDescriptor {
   const status = !configured ? 'unconfigured' : lastError ? 'error' : 'ready';
   return {
@@ -67,5 +58,7 @@ export function buildDescriptor(
     status,
     taskExecutorUserId,
     type,
+    webhookConfigured,
+    webhookSecretConfigured,
   };
 }

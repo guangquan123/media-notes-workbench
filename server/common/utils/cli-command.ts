@@ -7,6 +7,34 @@ export interface CliInvocation {
 }
 
 const windowsCliCache = new Map<string, CliInvocation>();
+const PROXY_ENV_NAMES = [
+  'ALL_PROXY',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'all_proxy',
+  'http_proxy',
+  'https_proxy',
+] as const;
+
+/**
+ * Keep connector CLIs usable when the parent process inherited a known-dead
+ * loopback proxy. Other proxy values remain untouched for managed networks.
+ */
+export function getCliEnvironment(): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of PROXY_ENV_NAMES) {
+    if (hasKnownDeadLoopbackProxy(environment)) delete environment[name];
+  }
+  return environment;
+}
+
+export function hasKnownDeadLoopbackProxy(
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return PROXY_ENV_NAMES.some((name) =>
+    isKnownDeadLoopbackProxy(environment[name]),
+  );
+}
 
 /** Resolve npm-style Windows CLI shims to their Node entrypoints. */
 export function resolveCliInvocation(
@@ -53,4 +81,17 @@ function findWindowsShim(name: string): string | null {
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+function isKnownDeadLoopbackProxy(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value.includes('://') ? value : `http://${value}`);
+    return (
+      (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') &&
+      parsed.port === '9'
+    );
+  } catch {
+    return false;
+  }
 }

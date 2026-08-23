@@ -9,13 +9,6 @@ export interface MediaNoteConnectorCopy {
 }
 
 const CONNECTOR_COPY: Record<ConnectorType, MediaNoteConnectorCopy> = {
-  local: {
-    completionDescription: '请选择本地保存位置，导出 Markdown 学习笔记。',
-    completionTitle: 'Markdown 文件已生成',
-    documentActionLabel: '保存 Markdown 文件',
-    publishingLabel: '保存 Markdown 文件',
-    successToast: 'Markdown 学习笔记已生成',
-  },
   feishu: {
     completionDescription: '现在可以打开并检查学习笔记。',
     completionTitle: '飞书文档创建成功',
@@ -36,12 +29,4 @@ export function getMediaNoteConnectorCopy(
   connector: ConnectorType | undefined,
 ): MediaNoteConnectorCopy {
   return CONNECTOR_COPY[connector || 'feishu'];
-}
-
-export function toMarkdownFileName(sourceFileName?: string): string {
-  const baseName = (sourceFileName || '学习笔记')
-    .replace(/[\\/:*?"<>|]/gu, '-')
-    .replace(/\.[^.]+$/u, '')
-    .trim();
-  return `${baseName || '学习笔记'}-学习笔记.md`;
 }

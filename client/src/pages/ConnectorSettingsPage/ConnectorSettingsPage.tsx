@@ -33,6 +33,7 @@ import {
   logoutConnector,
   setActiveConnector,
   testConnector,
+  testConnectorWebhook,
   updateConnectorConfig,
 } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -52,11 +53,6 @@ const CONNECTOR_OPTIONS: Array<{
   type: ConnectorType;
 }> = [
   {
-    type: 'local',
-    label: '本地',
-    description: '数据保存在这台电脑，无需外部账号。',
-  },
-  {
     type: 'feishu',
     label: '飞书',
     description: '笔记和待办同步到飞书。',
@@ -72,6 +68,7 @@ const EMPTY_DRAFT: ConnectorDraft = {
   clientId: '',
   clientSecret: '',
   userId: '',
+  webhookSecret: '',
   webhookUrl: '',
 };
 
@@ -89,7 +86,6 @@ type Drafts = Record<ConnectorType, ConnectorDraft>;
 
 function createDrafts(): Drafts {
   return {
-    local: { ...EMPTY_DRAFT },
     feishu: { ...EMPTY_DRAFT },
     dingtalk: { ...EMPTY_DRAFT },
   };
@@ -161,7 +157,7 @@ export default function ConnectorSettingsPage(): ReactElement {
   const [settings, setSettings] = useState<ConnectorSettingsResponse | null>(
     null,
   );
-  const [selected, setSelected] = useState<ConnectorType>('local');
+  const [selected, setSelected] = useState<ConnectorType>('feishu');
   const [drafts, setDrafts] = useState<Drafts>(createDrafts);
   const [useCustomFeishuApp, setUseCustomFeishuApp] = useState(false);
   const [authState, setAuthState] = useState<AuthState>('idle');
@@ -383,7 +379,7 @@ export default function ConnectorSettingsPage(): ReactElement {
 
   const activateSelected = async (): Promise<void> => {
     if (!settings || action === 'active') return;
-    if (selected !== 'local' && !hasReadyConnection) {
+    if (!hasReadyConnection) {
       setAuthMessage(`请先完成${getLabel(selected)}授权并通过连接验证。`);
       setAuthState('failed');
       return;
@@ -407,21 +403,55 @@ export default function ConnectorSettingsPage(): ReactElement {
     );
     setDraftErrors(errors);
     if (Object.keys(errors).length > 0) return;
-    if (selected === 'local') {
-      await activateSelected();
-      return;
-    }
     setSaving(true);
     try {
       await updateConnectorConfig(selected, {
         clientId: draft.clientId || undefined,
         clientSecret: draft.clientSecret || undefined,
         userId: draft.userId || undefined,
+        webhookSecret: draft.webhookSecret || undefined,
         webhookUrl: draft.webhookUrl || undefined,
       });
       await refreshAfterAction();
       if (hasReadyConnection) await verifyConnection();
       toast.success('可选设置已保存');
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const verifyWebhook = async (): Promise<void> => {
+    if (!selectedDescriptor?.webhookConfigured) {
+      toast.error('请先保存任务完成通知 Webhook。');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await testConnectorWebhook(selected);
+      toast.success(result.message);
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearWebhook = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      await updateConnectorConfig(selected, { clearWebhook: true });
+      await refreshAfterAction();
+      setDrafts((previous) => ({
+        ...previous,
+        [selected]: {
+          ...previous[selected],
+          webhookSecret: '',
+          webhookUrl: '',
+        },
+      }));
+      toast.success('任务完成通知 Webhook 已移除');
     } catch (error) {
       toast.error(friendlyError(error));
     } finally {
@@ -629,9 +659,7 @@ export default function ConnectorSettingsPage(): ReactElement {
                   />
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-                  {selected === 'local'
-                    ? '笔记会保存为本机 Markdown 文件，不需要外部账号，也不会创建外部待办。'
-                    : `连接${getLabel(selected)}后，生成的笔记和待办会同步到当前唯一输出位置。`}
+                  {`连接${getLabel(selected)}后，生成的笔记和待办会同步到当前唯一输出位置。`}
                 </p>
               </div>
               {selectedDescriptor?.lastError ? (
@@ -650,35 +678,7 @@ export default function ConnectorSettingsPage(): ReactElement {
               </div>
             ) : null}
 
-            {selected === 'local' ? (
-              <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-                    <div>
-                      <p className="font-semibold">本地模式随时可用</p>
-                      <p className="mt-1 text-sm leading-6 text-emerald-900/75">
-                        文档以 UTF-8 Markdown 保存到
-                        data/local-documents。无需飞书或钉钉授权；本地模式不会创建外部待办。
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  className="h-11 min-w-44"
-                  disabled={saving || active}
-                  onClick={() => void activateSelected()}
-                >
-                  {saving ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="size-4" />
-                  )}
-                  {active ? '当前输出位置' : '设为输出位置'}
-                </Button>
-              </div>
-            ) : (
-              <>
+            <>
                 {selected === 'feishu' ? (
                   <section
                     className="space-y-4"
@@ -1011,6 +1011,25 @@ export default function ConnectorSettingsPage(): ReactElement {
                           value={draft.webhookUrl}
                         />
                         <FieldError message={draftErrors.webhookUrl} />
+                        <p className="mt-2 text-xs font-normal leading-5 text-black/55">
+                          每个连接器只保留这一个通知入口；任务完成、失败或取消均使用此地址。
+                        </p>
+                      </label>
+                      <label className="text-sm font-medium md:col-span-2">
+                        Webhook 签名密钥
+                        <Input
+                          className="mt-2 bg-white"
+                          onChange={(event) =>
+                            updateDraft('webhookSecret', event.target.value)
+                          }
+                          placeholder={
+                            selectedDescriptor?.webhookSecretConfigured
+                              ? '已保存；留空则保持不变'
+                              : '机器人未启用签名可留空'
+                          }
+                          type="password"
+                          value={draft.webhookSecret}
+                        />
                       </label>
                     </div>
                   ) : null}
@@ -1032,6 +1051,25 @@ export default function ConnectorSettingsPage(): ReactElement {
                         保存可选设置
                       </Button>
                     ) : null}
+                    {selectedDescriptor?.webhookConfigured ? (
+                      <Button
+                        disabled={saving}
+                        onClick={() => void verifyWebhook()}
+                        variant="outline"
+                      >
+                        <ShieldCheck className="size-4" />
+                        测试通知 Webhook
+                      </Button>
+                    ) : null}
+                    {selectedDescriptor?.webhookConfigured ? (
+                      <Button
+                        disabled={saving}
+                        onClick={() => void clearWebhook()}
+                        variant="outline"
+                      >
+                        移除通知 Webhook
+                      </Button>
+                    ) : null}
                     <Button
                       disabled={
                         saving || action === 'active' || !hasReadyConnection
@@ -1049,8 +1087,7 @@ export default function ConnectorSettingsPage(): ReactElement {
                     </Button>
                   </div>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </section>
       </div>

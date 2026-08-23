@@ -18,7 +18,6 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import {
-  axiosForBackend,
   cancelNoteJob,
   createNoteJob,
   getConnectorSettings,
@@ -50,12 +49,8 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
-import { downloadBlob } from '@/utils/download';
 import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
-import {
-  getMediaNoteConnectorCopy,
-  toMarkdownFileName,
-} from './media-note-connector.utils';
+import { getMediaNoteConnectorCopy } from './media-note-connector.utils';
 import type {
   NoteJob,
   NoteStyle,
@@ -86,25 +81,6 @@ const MAX_AUDIO_FILES = 10;
 const MAX_DOCUMENT_FILES = 10;
 const READINESS_MAX_ATTEMPTS = 3;
 const READINESS_RETRY_DELAY_MS = 1200;
-
-interface LocalMarkdownWritable {
-  close(): Promise<void>;
-  write(data: Blob): Promise<void>;
-}
-
-interface LocalMarkdownFileHandle {
-  createWritable(): Promise<LocalMarkdownWritable>;
-}
-
-interface SaveFilePickerWindow extends Window {
-  showSaveFilePicker?: (options: {
-    suggestedName: string;
-    types: Array<{
-      accept: Record<string, string[]>;
-      description: string;
-    }>;
-  }) => Promise<LocalMarkdownFileHandle>;
-}
 
 const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
   video: {
@@ -392,52 +368,6 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       if (timer) window.clearTimeout(timer);
     };
   }, [connectorCopy.successToast, job?.id, running]);
-
-  const saveLocalMarkdown = async (): Promise<void> => {
-    if (!job?.documentUrl) return;
-    try {
-      const response = await axiosForBackend({
-        method: 'GET',
-        responseType: 'blob',
-        timeout: 15_000,
-        url: job.documentUrl,
-      });
-      const markdown =
-        response.data instanceof Blob
-          ? response.data
-          : new Blob([response.data], { type: 'text/markdown;charset=utf-8' });
-      const fileName = toMarkdownFileName(
-        job.mediaFileName || files[0]?.name,
-      );
-      const picker = (window as SaveFilePickerWindow).showSaveFilePicker;
-      if (!picker) {
-        downloadBlob(markdown, fileName);
-        toast.success('Markdown 文件已开始下载');
-        return;
-      }
-
-      try {
-        const fileHandle = await picker({
-          suggestedName: fileName,
-          types: [
-            {
-              accept: { 'text/markdown': ['.md', '.markdown'] },
-              description: 'Markdown 文件',
-            },
-          ],
-        });
-        const writable = await fileHandle.createWritable();
-        await writable.write(markdown);
-        await writable.close();
-        toast.success('Markdown 文件已保存');
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        throw error;
-      }
-    } catch {
-      toast.error('保存 Markdown 文件失败，请重试');
-    }
-  };
 
   const start = async () => {
     if (files.length === 0) {
@@ -894,14 +824,10 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">
-                            {job.documentUrl?.includes('/api/connectors/local/documents/')
-                              ? getMediaNoteConnectorCopy('local').completionTitle
-                              : connectorCopy.completionTitle}
+                            {connectorCopy.completionTitle}
                           </p>
                           <p className="mt-0.5 text-xs text-emerald-800/60">
-                            {job.documentUrl?.includes('/api/connectors/local/documents/')
-                              ? getMediaNoteConnectorCopy('local').completionDescription
-                              : connectorCopy.completionDescription}
+                            {connectorCopy.completionDescription}
                           </p>
                         </div>
                       </div>
@@ -912,21 +838,15 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                   {job?.documentUrl && (
                     <Button
                       className="h-12 w-full rounded-xl bg-[#3370ff] hover:bg-[#2864ea]"
-                      onClick={() => {
-                        if (job.documentUrl?.includes('/api/connectors/local/documents/')) {
-                          void saveLocalMarkdown();
-                          return;
-                        }
+                      onClick={() =>
                         window.open(
                           job.documentUrl,
                           '_blank',
                           'noopener,noreferrer',
-                        );
-                      }}
+                        )
+                      }
                     >
-                      {job.documentUrl.includes('/api/connectors/local/documents/')
-                        ? getMediaNoteConnectorCopy('local').documentActionLabel
-                        : connectorCopy.documentActionLabel}
+                      {connectorCopy.documentActionLabel}
                       <ArrowUpRight className="ml-2 size-4" />
                     </Button>
                   )}
