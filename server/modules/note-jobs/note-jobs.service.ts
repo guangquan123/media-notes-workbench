@@ -56,6 +56,7 @@ import {
   isAudioRematrixError,
   buildCancelledNoteJob,
   isDouyinTransientMediaError,
+  isFreshPlatformCookieError,
   isInterruptedProcessingStage,
   MAX_MEDIA_SIZE_BYTES,
   normalizePlatformSourceUrl,
@@ -1675,13 +1676,13 @@ export class NoteJobsService implements OnModuleInit {
   ): Promise<PreparedMedia> {
     this.update(id, 'downloading', 14, '正在解析视频并提取音频…');
     const url = normalizePlatformSourceUrl(rawUrl, sourcePlatform);
-    const sourceArgs: string[] =
-      sourcePlatform === 'bilibili'
-        ? await this.buildSourceArgs(sourcePlatform, cookieBrowser)
-        : [];
+    const sourceArgs: string[] = await this.buildSourceArgs(
+      sourcePlatform,
+      cookieBrowser,
+    );
     const metadata: VideoMetadata =
       sourcePlatform === 'douyin'
-        ? await this.getDouyinMetadata(url)
+        ? await this.getDouyinMetadata(url, sourceArgs)
         : await this.getYtDlpMetadata(url, sourceArgs);
     const audioPath: string = join(workDir, 'audio.mp3');
     if (sourcePlatform === 'douyin' && metadata.mediaUrl) {
@@ -2447,7 +2448,26 @@ export class NoteJobsService implements OnModuleInit {
     return JSON.parse(result.stdout) as VideoMetadata;
   }
 
-  private async getDouyinMetadata(url: string): Promise<VideoMetadata> {
+  private async getDouyinMetadata(
+    url: string,
+    sourceArgs: string[],
+  ): Promise<VideoMetadata> {
+    try {
+      return await this.getYtDlpMetadata(url, sourceArgs);
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '未知错误';
+      if (isFreshPlatformCookieError(message)) throw error;
+      this.logger.warn(
+        `yt-dlp 未能解析抖音元数据，改用分享页兼容解析: ${message}`,
+      );
+      return this.getDouyinSharePageMetadata(url);
+    }
+  }
+
+  private async getDouyinSharePageMetadata(
+    url: string,
+  ): Promise<VideoMetadata> {
     const videoId = await this.resolveDouyinVideoId(url);
     const shareUrl = `https://m.douyin.com/share/video/${videoId}/`;
     const response = await fetch(shareUrl, {
@@ -3934,7 +3954,7 @@ export class NoteJobsService implements OnModuleInit {
         ? `${profile.label}仍拒绝了请求（HTTP 412）。请先在 ${cookieBrowser} 中打开 ${profile.label} 并确认已登录，然后关闭无痕窗口后重试。`
         : `${profile.label}拒绝了匿名请求（HTTP 412）。请在页面选择一个已经登录 ${profile.label} 的浏览器后重试。`;
     }
-    if (/fresh cookies.*needed/iu.test(message)) {
+    if (isFreshPlatformCookieError(message)) {
       return cookieBrowser
         ? `抖音 Cookie 已失效。请在 ${cookieBrowser} 普通窗口打开 douyin.com 并刷新一次页面，再回到这里重试。无需登录，但不能使用无痕窗口。`
         : '抖音需要近期浏览器 Cookie。请先在普通浏览器窗口打开 douyin.com，再选择该浏览器并重试。';

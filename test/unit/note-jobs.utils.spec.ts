@@ -12,6 +12,7 @@ import {
   isInterruptedProcessingStage,
   isDouyinTransientMediaError,
   isAudioRematrixError,
+  isFreshPlatformCookieError,
 } from '../../server/modules/note-jobs/note-jobs.utils';
 import { DEFAULT_NOTE_TEMPLATES } from '../../server/modules/note-jobs/note-template.defaults';
 
@@ -366,6 +367,15 @@ describe('note job request validation', () => {
       ),
     ).toBe(true);
     expect(isDouyinTransientMediaError('HTTP 403 Forbidden')).toBe(false);
+  });
+
+  it('keeps a fresh-cookie requirement visible to the platform parser', () => {
+    expect(
+      isFreshPlatformCookieError(
+        'ERROR: [Douyin] 123: Fresh cookies (not necessarily logged in) are needed',
+      ),
+    ).toBe(true);
+    expect(isFreshPlatformCookieError('HTTP Error 412')).toBe(false);
   });
 });
 

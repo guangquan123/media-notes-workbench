@@ -145,6 +145,10 @@ export function isDouyinTransientMediaError(message: string): boolean {
   );
 }
 
+export function isFreshPlatformCookieError(message: string): boolean {
+  return /fresh cookies.*needed/iu.test(message);
+}
+
 export function validateNoteStyle(value?: string): NoteStyle {
   if (!value) return 'learning';
   if (NOTE_STYLES.includes(value as NoteStyle)) {
