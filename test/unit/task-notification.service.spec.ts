@@ -96,6 +96,38 @@ describe('task notification helpers', () => {
     );
   });
 
+  it('uses a millisecond timestamp when signing a DingTalk webhook request', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_123);
+    const httpService = new HttpService();
+    const post = jest
+      .spyOn(httpService.axiosRef, 'post')
+      .mockResolvedValue(createResponse({ errcode: 0 }));
+    post.mockClear();
+    const registry = {
+      getConfig: async () => ({
+        type: 'dingtalk' as const,
+        webhookSecret: 'notification-secret',
+        webhookUrl: DINGTALK_URL,
+      }),
+    };
+    const service = new TaskNotificationService(httpService, registry as never);
+
+    try {
+      await expect(service.testConnectorWebhook('dingtalk')).resolves.toMatchObject({
+        message: '钉钉机器人已连通。',
+      });
+      const requestUrl = String(post.mock.calls[0][0]);
+      expect(requestUrl).toContain('timestamp=1700000000123');
+      expect(requestUrl).toContain(
+        `sign=${encodeURIComponent(
+          buildDingTalkSign('1700000000123', 'notification-secret'),
+        )}`,
+      );
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('does not fall back to a Feishu webhook when the active DingTalk connector has none', async () => {
     const httpService = new HttpService();
     const post = jest.spyOn(httpService.axiosRef, 'post');

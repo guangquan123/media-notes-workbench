@@ -139,8 +139,10 @@ export class TaskNotificationService {
   }
 
   private async sendOnce(webhook: ConnectorWebhook, text: string): Promise<void> {
-    const timestamp = String(Math.floor(Date.now() / 1000));
     const isDingTalk = webhook.connectorType === 'dingtalk';
+    const timestamp = isDingTalk
+      ? String(Date.now())
+      : String(Math.floor(Date.now() / 1000));
     const body = isDingTalk
       ? { msgtype: 'text', text: { content: text } }
       : {
