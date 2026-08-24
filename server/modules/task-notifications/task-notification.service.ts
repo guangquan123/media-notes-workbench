@@ -27,6 +27,7 @@ export interface TaskNotificationInput {
   resultUrl?: string;
   sourceType?: string;
   title?: string;
+  todoTitles?: readonly string[];
   type: 'article-export' | 'note';
 }
 
@@ -246,14 +247,38 @@ export function buildTaskText(input: TaskNotificationInput): string {
   const taskLabel = { 'article-export': '文章导出', note: '多媒体笔记' };
   return [
     `【内容工作台】${taskLabel[input.type]}${statusLabel[input.event]}`,
-    `任务 ID：${input.id}`,
     ...(input.title ? [`标题：${input.title}`] : []),
-    ...(input.sourceType ? [`资料类型：${input.sourceType}`] : []),
+    ...(input.sourceType
+      ? [
+          `${input.type === 'note' ? '资料类型' : '目标平台'}：${formatTaskSourceType(input)}`,
+        ]
+      : []),
+    ...(input.todoTitles
+      ? [
+          `待办：${input.todoTitles.length} 项`,
+          ...(input.todoTitles.length > 0
+            ? [`待办标题：${input.todoTitles.join('；')}`]
+            : []),
+        ]
+      : []),
     `状态：${statusLabel[input.event]}`,
     `说明：${input.message}`,
     ...(input.error ? [`错误：${input.error}`] : []),
     ...(input.resultUrl ? [`结果链接：${input.resultUrl}`] : []),
   ].join('\n');
+}
+
+function formatTaskSourceType(input: TaskNotificationInput): string {
+  if (input.type !== 'note') return input.sourceType || '';
+  const labels: Readonly<Record<string, string>> = {
+    audio: '录音',
+    document: '文档',
+    paired: '双源会议/培训',
+    pdf: 'PDF 文档',
+    platform: '平台视频',
+    video: '视频',
+  };
+  return labels[input.sourceType || ''] || input.sourceType || '';
 }
 
 export function isConnectorFailure(

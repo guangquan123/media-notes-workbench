@@ -923,6 +923,7 @@ export class NoteJobsService implements OnModuleInit {
         resultUrl: documentUrl,
         sourceType: completedJob.sourceType,
         title: noteTitle,
+        todoTitles: [],
         type: 'note',
       });
       return completedJob;
@@ -1023,7 +1024,11 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         status: 'completed',
       });
-      await this.createReviewTask(id, noteTitle, documentUrl);
+      const todoTitles: readonly string[] = await this.createReviewTask(
+        id,
+        noteTitle,
+        documentUrl,
+      );
       this.notifyResult({
         event: 'completed',
         id,
@@ -1031,6 +1036,7 @@ export class NoteJobsService implements OnModuleInit {
         resultUrl: documentUrl,
         sourceType: this.get(id, ownerId).sourceType,
         title: noteTitle,
+        todoTitles,
         type: 'note',
       });
     } catch (error) {
@@ -1452,7 +1458,11 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl,
         documentUrl,
       });
-      await this.createReviewTask(id, noteTitle, documentUrl);
+      const todoTitles: readonly string[] = await this.createReviewTask(
+        id,
+        noteTitle,
+        documentUrl,
+      );
       this.notifyResult({
         event: 'completed',
         id,
@@ -1460,6 +1470,7 @@ export class NoteJobsService implements OnModuleInit {
         resultUrl: documentUrl,
         sourceType: this.get(id, ownerId).sourceType,
         title: noteTitle,
+        todoTitles,
         type: 'note',
       });
     } catch (error) {
@@ -1686,7 +1697,11 @@ export class NoteJobsService implements OnModuleInit {
       rawDocumentUrl,
       documentUrl,
     });
-    await this.createReviewTask(id, noteTitle, documentUrl);
+    const todoTitles: readonly string[] = await this.createReviewTask(
+      id,
+      noteTitle,
+      documentUrl,
+    );
     this.notifyResult({
       event: 'completed',
       id,
@@ -1694,6 +1709,7 @@ export class NoteJobsService implements OnModuleInit {
       resultUrl: documentUrl,
       sourceType: this.get(id, ownerId).sourceType,
       title: noteTitle,
+      todoTitles,
       type: 'note',
     });
   }
@@ -4279,7 +4295,7 @@ export class NoteJobsService implements OnModuleInit {
     jobId: string,
     title: string,
     documentUrl: string,
-  ): Promise<void> {
+  ): Promise<readonly string[]> {
     const connectorType =
       await this.connectorRegistryService.getActiveConnector();
     if (connectorType === 'dingtalk') {
@@ -4288,7 +4304,7 @@ export class NoteJobsService implements OnModuleInit {
         this.patch(jobId, {
           message: '笔记已创建，但未配置钉钉待办执行人，未创建待办。',
         });
-        return;
+        return [];
       }
       try {
         const task = await this.dingTalkTaskService.create({
@@ -4300,6 +4316,7 @@ export class NoteJobsService implements OnModuleInit {
           url: task.url,
         });
         this.patch(jobId, { message: '完成！钉钉文档和待办任务已创建。' });
+        return [title];
       } catch (error) {
         const message: string =
           error instanceof Error ? error.message : '未知错误';
@@ -4308,8 +4325,8 @@ export class NoteJobsService implements OnModuleInit {
           .updateReviewTaskFailure(jobId, message)
           .catch(() => undefined);
         this.patch(jobId, { message: '笔记已创建，但待办任务未创建。' });
+        return [];
       }
-      return;
     }
     let larkOpenId: string;
     try {
@@ -4321,7 +4338,7 @@ export class NoteJobsService implements OnModuleInit {
         `无法识别飞书 CLI 已授权账号，未创建待处理任务：${message}`,
       );
       this.patch(jobId, { message: '笔记已创建，但待处理任务未创建' });
-      return;
+      return [];
     }
     try {
       const task = await this.noteReviewTaskService.create({
@@ -4332,6 +4349,7 @@ export class NoteJobsService implements OnModuleInit {
       });
       await this.noteHistoryService.updateReviewTask(jobId, task);
       this.patch(jobId, { message: '完成！飞书笔记和待处理任务已创建。' });
+      return [title];
     } catch (error) {
       const message: string =
         error instanceof Error ? error.message : '未知错误';
@@ -4346,6 +4364,7 @@ export class NoteJobsService implements OnModuleInit {
           );
         });
       this.patch(jobId, { message: '笔记已创建，但待处理任务未创建' });
+      return [];
     }
   }
 

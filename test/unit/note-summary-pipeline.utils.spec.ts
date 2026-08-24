@@ -289,7 +289,7 @@ describe('note summary pipeline utilities', () => {
 
   it('removes internal source markers from published meeting notes', () => {
     const published: string = normalizeEvidenceCitationsForPublication(
-      '会议结论已确认。[E-S01-001]\n风险仍待评估。[S02]',
+      '会议结论已确认。[E-S01-001][数字]\n风险仍待评估。[S02][风险]\n\n## 纪要状态：已形成结论。\n\n不应发布的状态说明。',
       structuredEvidenceLedger,
       'meeting',
     );
@@ -297,6 +297,9 @@ describe('note summary pipeline utilities', () => {
     expect(published).toContain('会议结论已确认。');
     expect(published).toContain('风险仍待评估。');
     expect(published).not.toMatch(/\[(?:E-)?S\d+(?:-\d+)?\]/u);
+    expect(published).not.toContain('[数字]');
+    expect(published).not.toContain('[风险]');
+    expect(published).not.toContain('纪要状态');
   });
 
   it('restores source Markdown images beside semantically matching sections', () => {
@@ -967,7 +970,7 @@ ${longList}
     expect(result.score).toBeGreaterThanOrEqual(80);
   });
 
-  it('enforces exactly the three meeting sections and a status declaration', () => {
+  it('enforces exactly the three meeting sections without a status declaration', () => {
     const sourceText: string =
       '项目周会讨论了接口延期。会议决定张三在 7 月 31 日前提交评估报告。';
     const note: string = `# 项目周会纪要
@@ -978,15 +981,13 @@ ${longList}
 
 ## 二、会议内容
 
-会议确认接口存在延期风险，并决定补充评估。
+会议确认接口存在延期风险，并决定补充评估。[S01]
 
 ## 三、会后待办
 
 | 待办事项 | 负责人 | 截止时间 |
 |-|-|-|
 | 提交评估报告 | 张三 | 7 月 31 日 |
-
-纪要状态：所有议题均已形成明确结论，所有待办均已明确负责人和截止时间。
 `;
     const result = assessNoteQuality({
       note,
@@ -1010,9 +1011,7 @@ ${longList}
 ## 四、额外总结
 补充总结。
 ## 三、会后待办
-暂无明确待办。
-
-纪要状态：1 个议题暂未形成明确结论，0 项待办信息待确认。`,
+暂无明确待办。`,
       sourceText: '会议讨论接口进度，暂未形成明确结论。',
     });
 
@@ -1035,9 +1034,7 @@ ${longList}
 ## 二、会议内容
 会议讨论了上线安排。[S01]
 ## 三、会后待办
-暂无明确待办。
-
-纪要状态：会议已完成讨论。`,
+暂无明确待办。`,
       sourceText: '项目会议原文。',
     });
 
@@ -1069,9 +1066,7 @@ ${longList}
 ## 三、会后待办
 | 待办事项 | 负责人 | 截止时间 | 输出结果 | 依赖 |
 |-|-|-|-|-|
-| 完成回归测试并确认端口 | 待确认 | 待确认 | 测试结果 | 客户开放端口 |
-
-纪要状态：1 个议题未形成明确结论，1 项待办信息待确认。`,
+| 完成回归测试并确认端口 | 待确认 | 待确认 | 测试结果 | 客户开放端口 |`,
       sourceText: '项目会议原文。',
     });
 

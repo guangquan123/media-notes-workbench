@@ -43,10 +43,15 @@ describe('task notification helpers', () => {
       event: 'completed',
       id: 'task-123',
       message: '任务状态消息',
+      sourceType: 'audio',
+      todoTitles: ['核对会议结论', '确认上线时间'],
       type: 'note',
     });
     expect(text).toContain('已完成');
-    expect(text).toContain('task-123');
+    expect(text).not.toContain('任务 ID');
+    expect(text).toContain('资料类型：录音');
+    expect(text).toContain('待办：2 项');
+    expect(text).toContain('待办标题：核对会议结论；确认上线时间');
   });
 
   it('validates allowed robot hosts and recognizes business errors', () => {

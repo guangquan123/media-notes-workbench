@@ -1048,8 +1048,7 @@ function getMinimumNoteLength(
     : clamp(Math.floor(sourceLength * 0.12), 300, 8_000);
 }
 
-function hasTraceabilitySignal(note: string, noteStyle: NoteStyle): boolean {
-  if (noteStyle === 'meeting') return note.includes('纪要状态：');
+function hasTraceabilitySignal(note: string): boolean {
   return (
     /\[S\d+\]/u.test(note) ||
     /\[E-S\d+-\d+\]/u.test(note) ||
@@ -1262,7 +1261,6 @@ export function buildNoteStructurePrompt(
 
 “会议内容”按议题组织背景、事实、观点、建议、分歧和会议结论；不得抬高确定性。
 “会后待办”使用表格，至少包含待办事项、负责人、截止时间、输出结果、依赖。未明确的信息写“待确认”。
-正文末尾增加“纪要状态：”，如实统计未形成结论的议题和信息不完整的待办。
 证据中出现的每个议题、事实、数字、观点、建议、分歧、风险、限制、结论和待办都必须在固定三段内找到对应位置，不得以“纪要应简洁”为由省略。`
       : `学习笔记不强制固定十章，但必须延续平台已发布的学习/培训笔记结构，不得改用其他笔记类型的结构：
 # 标题
@@ -1508,8 +1506,47 @@ export function normalizeEvidenceCitationsForPublication(
   } while (published !== previous);
   if (noteStyle === 'meeting') {
     published = published.replace(/\[(?:E-)?S\d+(?:-\d+)?\]/gu, '');
+    published = published.replace(
+      /\[(?:事实|数字|原话|案例|步骤|风险|限制|术语|关系|对比|观点|结论|建议|待办|分歧|待研究)\]/gu,
+      '',
+    );
+    published = removeMeetingStatusForPublication(published);
   }
   return published;
+}
+
+function removeMeetingStatusForPublication(markdown: string): string {
+  const lines: string[] = markdown.split('\n');
+  const result: string[] = [];
+  let statusHeadingLevel: number | undefined;
+  for (const line of lines) {
+    const heading: RegExpMatchArray | null = line.match(/^(#{1,6})\s+(.+)$/u);
+    if (statusHeadingLevel !== undefined) {
+      if (heading && heading[1].length <= statusHeadingLevel) {
+        statusHeadingLevel = undefined;
+      } else {
+        continue;
+      }
+    }
+    if (
+      heading &&
+      /^(?:\*\*)?纪要状态(?:\*\*)?\s*[：:]?.*$/u.test(
+        heading[2].trim(),
+      )
+    ) {
+      statusHeadingLevel = heading[1].length;
+      continue;
+    }
+    if (
+      /^\s*(?:[-*+]\s*)?(?:\*\*)?纪要状态(?:\*\*)?\s*[：:].*$/u.test(
+        line,
+      )
+    ) {
+      continue;
+    }
+    result.push(line);
+  }
+  return result.join('\n').replace(/\n{3,}/gu, '\n\n').trimEnd();
 }
 
 interface SourceMarkdownImage {
@@ -1724,7 +1761,7 @@ export function assessNoteQuality(
     evidenceLedger,
   );
   const noteLength: number = input.note.trim().length;
-  const traceable: boolean = hasTraceabilitySignal(input.note, input.noteStyle);
+  const traceable: boolean = hasTraceabilitySignal(input.note);
   const overlongParagraph: boolean = hasOverlongParagraph(input.note);
   const requiredSectionCount: number =
     input.noteStyle === 'meeting'
@@ -1807,11 +1844,7 @@ export function assessNoteQuality(
     );
   }
   if (!traceable) {
-    failedChecks.push(
-      input.noteStyle === 'meeting'
-        ? '缺少“纪要状态”声明'
-        : '缺少转写原话、证据引用或待确认标记，内容可追溯性不足',
-    );
+    failedChecks.push('缺少转写原话、证据引用或待确认标记，内容可追溯性不足');
   }
   if (overlongParagraph) {
     failedChecks.push('存在超过 600 字的长段落，需要按观点或步骤拆分');
