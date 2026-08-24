@@ -99,6 +99,12 @@ export class TaskNotificationService {
     connectorType: ConnectorType,
   ): Promise<ConnectorWebhook | undefined> {
     const config = await this.connectorRegistryService.getConfig(connectorType);
+    if (config.type !== connectorType) {
+      this.logger.warn(
+        `拒绝使用不匹配的通知配置：请求 ${getConnectorLabel(connectorType)}，实际为 ${getConnectorLabel(config.type)}`,
+      );
+      return undefined;
+    }
     const rawUrl = config.webhookUrl.trim();
     if (!rawUrl) return undefined;
     return {

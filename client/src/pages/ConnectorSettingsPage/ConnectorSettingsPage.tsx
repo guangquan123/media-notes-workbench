@@ -120,6 +120,18 @@ function getLabel(type: ConnectorType): string {
   );
 }
 
+function getWebhookSecretLabel(type: ConnectorType): string {
+  return type === 'dingtalk'
+    ? 'Webhook 签名密钥（仅启用加签时需要）'
+    : 'Webhook 签名密钥（可选）';
+}
+
+function getWebhookSecretHint(type: ConnectorType): string {
+  return type === 'dingtalk'
+    ? 'Webhook 地址中的 access_token 不等于加签密钥；开启“加签”后，请把机器人提供的密钥填写在此处，系统会自动生成 timestamp 和 sign。'
+    : '未启用飞书机器人的签名校验时可以留空。';
+}
+
 function getStatusTone(status: ConnectorStatus, active: boolean): string {
   if (active || status === 'ready')
     return 'border-emerald-200 bg-emerald-50 text-emerald-800';
@@ -1016,7 +1028,7 @@ export default function ConnectorSettingsPage(): ReactElement {
                         </p>
                       </label>
                       <label className="text-sm font-medium md:col-span-2">
-                        Webhook 签名密钥
+                        {getWebhookSecretLabel(selected)}
                         <Input
                           className="mt-2 bg-white"
                           onChange={(event) =>
@@ -1030,6 +1042,9 @@ export default function ConnectorSettingsPage(): ReactElement {
                           type="password"
                           value={draft.webhookSecret}
                         />
+                        <p className="mt-2 text-xs font-normal leading-5 text-black/55">
+                          {getWebhookSecretHint(selected)}
+                        </p>
                       </label>
                     </div>
                   ) : null}
@@ -1037,39 +1052,33 @@ export default function ConnectorSettingsPage(): ReactElement {
 
                 <div className="flex flex-col gap-3 border-t border-black/8 pt-6 sm:flex-row sm:items-center sm:justify-end">
                   <div className="flex flex-wrap gap-2 sm:justify-end">
-                    {hasConnectorDraftChanges(draft) ? (
-                      <Button
-                        disabled={saving}
-                        onClick={() => void saveOptionalSettings()}
-                        variant="outline"
-                      >
-                        {saving ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="size-4" />
-                        )}
-                        保存可选设置
-                      </Button>
-                    ) : null}
-                    {selectedDescriptor?.webhookConfigured ? (
-                      <Button
-                        disabled={saving}
-                        onClick={() => void verifyWebhook()}
-                        variant="outline"
-                      >
-                        <ShieldCheck className="size-4" />
-                        测试通知 Webhook
-                      </Button>
-                    ) : null}
-                    {selectedDescriptor?.webhookConfigured ? (
-                      <Button
-                        disabled={saving}
-                        onClick={() => void clearWebhook()}
-                        variant="outline"
-                      >
-                        移除通知 Webhook
-                      </Button>
-                    ) : null}
+                    <Button
+                      disabled={saving || !hasConnectorDraftChanges(draft)}
+                      onClick={() => void saveOptionalSettings()}
+                      variant="outline"
+                    >
+                      {saving ? (
+                        <LoaderCircle className="size-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="size-4" />
+                      )}
+                      保存可选设置
+                    </Button>
+                    <Button
+                      disabled={saving || !selectedDescriptor?.webhookConfigured}
+                      onClick={() => void verifyWebhook()}
+                      variant="outline"
+                    >
+                      <ShieldCheck className="size-4" />
+                      测试通知 Webhook
+                    </Button>
+                    <Button
+                      disabled={saving || !selectedDescriptor?.webhookConfigured}
+                      onClick={() => void clearWebhook()}
+                      variant="outline"
+                    >
+                      移除通知 Webhook
+                    </Button>
                     <Button
                       disabled={
                         saving || action === 'active' || !hasReadyConnection

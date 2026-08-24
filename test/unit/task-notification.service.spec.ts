@@ -96,6 +96,54 @@ describe('task notification helpers', () => {
     );
   });
 
+  it('does not fall back to a Feishu webhook when the active DingTalk connector has none', async () => {
+    const httpService = new HttpService();
+    const post = jest.spyOn(httpService.axiosRef, 'post');
+    post.mockClear();
+    const registry = {
+      getActiveConnector: async () => 'dingtalk' as const,
+      getConfig: async () => ({
+        type: 'dingtalk' as const,
+        webhookSecret: '',
+        webhookUrl: '',
+      }),
+    };
+    const service = new TaskNotificationService(httpService, registry as never);
+
+    await service.notifyTaskResult({
+      event: 'completed',
+      id: 'note-without-dingtalk-webhook',
+      message: '钉钉任务完成。',
+      type: 'note',
+    });
+
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mismatched connector configuration instead of sending it', async () => {
+    const httpService = new HttpService();
+    const post = jest.spyOn(httpService.axiosRef, 'post');
+    post.mockClear();
+    const registry = {
+      getActiveConnector: async () => 'dingtalk' as const,
+      getConfig: async () => ({
+        type: 'feishu' as const,
+        webhookSecret: 'secret',
+        webhookUrl: 'https://open.feishu.cn/open-apis/bot/v2/hook/test',
+      }),
+    };
+    const service = new TaskNotificationService(httpService, registry as never);
+
+    await service.notifyTaskResult({
+      event: 'completed',
+      id: 'note-with-mismatched-webhook',
+      message: '钉钉任务完成。',
+      type: 'note',
+    });
+
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('tests the configured connector webhook without a second settings source', async () => {
     const httpService = new HttpService();
     const post = jest
