@@ -7,90 +7,107 @@
 <hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" maximizebutton="no" minimizebutton="no" showintaskbar="yes" singleinstance="no" sysmenu="yes" />
 <style>
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #172a40; background: #eaf4fe; }
-  body { display: block; background: #eaf4fe; }
-  .shell { width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 1px solid #cfe2f3; border-radius: 0; background: #f7fbff; box-shadow: 0 18px 40px rgba(39, 120, 246, .12); }
-  .header { position: relative; overflow: hidden; padding: 24px 30px 26px; color: #172a40; background: #eaf4fe; }
-  .header:before { position: absolute; top: -145px; right: -80px; width: 350px; height: 350px; border: 1px solid rgba(39, 120, 246, .16); border-radius: 50%; box-shadow: 0 0 0 46px rgba(39, 120, 246, .06), 0 0 0 92px rgba(39, 120, 246, .03); content: ""; }
-  .header:after { position: absolute; right: 94px; bottom: -75px; width: 160px; height: 160px; border-radius: 50%; background: #54c8e8; filter: alpha(opacity=18); opacity: .18; content: ""; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #0f2743; background: #f3f8fe; }
+  body { min-width: 0; background: #f3f8fe; }
+  .shell { width: 100%; min-height: 100%; overflow: hidden; background: #f3f8fe; }
+  .header { position: relative; height: 148px; overflow: hidden; padding: 25px 30px 20px; color: #102a48; background: #e8f3ff; }
+  .header:before, .header:after { position: absolute; border: 1px solid rgba(39, 120, 246, .14); border-radius: 50%; content: ""; pointer-events: none; }
+  .header:before { top: -115px; right: -18px; width: 255px; height: 255px; box-shadow: 0 0 0 34px rgba(39, 120, 246, .045), 0 0 0 70px rgba(39, 120, 246, .025); }
+  .header:after { top: -80px; right: 18px; width: 190px; height: 190px; background: rgba(84, 200, 232, .12); border-color: rgba(84, 200, 232, .11); }
   .header-row, .hero { position: relative; z-index: 1; display: flex; align-items: center; }
-  .header-row { justify-content: space-between; gap: 18px; }
-  .brand { display: flex; align-items: center; min-width: 0; gap: 11px; }
-  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border: 1px solid rgba(39, 120, 246, .25); border-radius: 13px; color: #fff; background: #2778f6; box-shadow: 0 8px 20px rgba(39, 120, 246, .22); font-size: 16px; font-weight: 800; letter-spacing: -.04em; }
-  .title { overflow: hidden; font-size: 16px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
-  .subtitle { margin-top: 4px; color: #71869b; font-size: 12px; }
-  .operation { display: inline-block; padding: 7px 11px; border: 1px solid #c8def2; border-radius: 999px; color: #2778f6; background: rgba(255,255,255,.72); font-size: 12px; white-space: nowrap; }
-  .operation.is-error { border-color: #f0a5aa; color: #d94551; background: #fff0f1; }
-  .operation.is-success { border-color: #a9ded6; color: #0d9f8e; background: #e7faf6; }
-  .operation:before { display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: #2778f6; box-shadow: 0 0 0 4px rgba(39, 120, 246, .12); content: ""; }
-  .operation.is-error:before { background: #e4515b; box-shadow: 0 0 0 4px rgba(228, 81, 91, .12); }
-  .operation.is-success:before { background: #13b8a6; box-shadow: 0 0 0 4px rgba(19, 184, 166, .12); }
-  .hero { margin-top: 28px; gap: 17px; }
-  .state-icon { position: relative; display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; flex: none; border: 1px solid #a8cafa; border-radius: 50%; color: #2778f6; background: #e7f1ff; box-shadow: 0 0 0 10px rgba(39, 120, 246, .08), 0 14px 28px rgba(39, 120, 246, .12); font-size: 15px; font-weight: 800; }
-  .state-icon:before { position: absolute; width: 86px; height: 86px; border: 1px solid rgba(39, 120, 246, .22); border-radius: 50%; content: ""; }
-  .state-icon.busy:after { position: absolute; width: 82px; height: 82px; border: 2px solid transparent; border-top-color: #2778f6; border-right-color: rgba(39, 120, 246, .26); border-radius: 50%; content: ""; animation: pulse-ring 1.8s ease-in-out infinite; }
-  .state-icon.busy { color: #2778f6; background: #e7f1ff; animation: state-breathe 1.8s ease-in-out infinite; }
-  .state-icon.success { border-color: #8ddbd0; color: #0e8f80; background: #e7faf6; animation: success-pop .28s ease-out both; }
-  .state-icon.error { border-color: #f0a5aa; color: #fff; background: #e4515b; box-shadow: 0 0 0 10px rgba(228, 81, 91, .08), 0 14px 28px rgba(228, 81, 91, .14); }
-  .hero-copy { min-width: 0; flex: 1; }
+  .header-row { justify-content: space-between; gap: 20px; }
+  .brand { display: flex; align-items: center; min-width: 0; gap: 12px; }
+  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border-radius: 11px; color: #fff; background: #2778f6; box-shadow: 0 8px 18px rgba(39, 120, 246, .22); font-size: 16px; font-weight: 800; letter-spacing: -.04em; }
+  .title { overflow: hidden; color: #102a48; font-size: 16px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+  .subtitle { margin-top: 4px; color: #6e87a3; font-size: 11px; }
+  .header-meta { min-width: 180px; margin-right: 154px; color: #2778f6; font-size: 10px; letter-spacing: .08em; line-height: 1.8; text-align: left; text-transform: uppercase; }
+  .header-meta span { color: #627e9d; letter-spacing: .02em; }
+  .operation { display: none; }
+  .hero { align-items: flex-end; margin-top: 21px; gap: 26px; }
+  .state-icon { display: none; }
+  .hero-copy { min-width: 0; }
   .eyebrow { color: #2778f6; font-size: 10px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; }
-  .stage { margin-top: 6px; color: #162a40; font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
-  .detail { max-width: 430px; margin-top: 6px; color: #71869b; font-size: 13px; line-height: 1.5; }
-  .hero-meta { margin-top: 10px; color: #8298ad; font-size: 11px; }
-  .hero-meta strong { color: #40617e; font-weight: 600; }
-  .elapsed-card { min-width: 88px; padding: 10px 12px; border: 1px solid #c8def2; border-radius: 12px; text-align: right; background: rgba(255,255,255,.7); }
-  .elapsed-card span { display: block; color: #71869b; font-size: 10px; }
-  .elapsed-card strong { display: block; margin-top: 3px; color: #162a40; font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
-  .content { padding: 22px 30px 18px; background: #f7fbff; }
-  .progress-wrap { padding: 15px 16px 14px; border: 1px solid #d6e5f1; border-radius: 14px; background: #fff; box-shadow: 0 8px 20px rgba(39, 120, 246, .05); }
-  .progress-label { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; color: #71869b; font-size: 12px; }
-  .progress-label strong { margin-left: 7px; color: #2778f6; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
-  .progress-step { color: #91a5b8; font-size: 11px; }
-  .progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: #e7eff6; }
-  .progress-bar { width: 0; height: 100%; border-radius: 999px; background: #2778f6; box-shadow: 8px 0 18px rgba(39, 120, 246, .3); transition: width .35s ease; }
-  .progress-bar.is-success { background: #13b8a6; box-shadow: 8px 0 18px rgba(19, 184, 166, .25); }
-  .progress-bar.is-error { background: #e4515b; box-shadow: 8px 0 18px rgba(228, 81, 91, .25); }
-  .progress-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; color: #71869b; font-size: 11px; }
-  .next-step { color: #71869b; }
-  .next-step strong { margin-left: 4px; color: #38536e; font-weight: 600; }
-  .timeline-title { margin: 19px 0 9px; color: #405d78; font-size: 12px; font-weight: 650; }
-  .timeline { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .step { display: flex; align-items: center; width: 31.9%; min-height: 42px; gap: 8px; padding: 8px 9px; border: 1px solid #d6e5f1; border-radius: 10px; color: #91a5b8; background: #fff; font-size: 11px; }
-  .step-indicator { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; border: 1px solid #c6d8e8; border-radius: 50%; color: #91a5b8; background: #f7fbff; font-size: 10px; }
-  .step-copy { min-width: 0; line-height: 1.35; }
-  .step.active { border-color: #9cc4fb; color: #2778f6; background: #f2f7ff; box-shadow: 0 4px 11px rgba(39, 120, 246, .1); }
-  .step.active .step-indicator { border-color: #2778f6; color: #fff; background: #2778f6; box-shadow: 0 0 0 0 rgba(39, 120, 246, .3); animation: step-pulse 1.8s ease-in-out infinite; }
-  .step.done { border-color: #cdebe6; color: #405d78; }
+  .stage { margin-top: 2px; color: #102a48; font-size: 24px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  .detail { max-width: 390px; margin: 0 0 2px; color: #6e87a3; font-size: 13px; line-height: 1.45; }
+  .hero-meta { display: none; }
+  .elapsed-card { position: absolute; right: 0; bottom: -1px; min-width: 91px; padding: 8px 11px; border: 1px solid #c6dcf2; border-radius: 11px; text-align: right; background: rgba(255,255,255,.56); }
+  .elapsed-card span { display: block; color: #6e87a3; font-size: 10px; }
+  .elapsed-card strong { display: block; margin-top: 1px; color: #102a48; font-size: 17px; font-weight: 700; }
+  .workspace { min-height: 0; padding: 21px 24px 24px; background-color: #f3f8fe; background-image: linear-gradient(rgba(120, 167, 211, .12) 1px, transparent 1px), linear-gradient(90deg, rgba(120, 167, 211, .12) 1px, transparent 1px); background-position: -1px -1px; background-size: 16px 16px; }
+  .overview-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, .92fr); gap: 22px; }
+  .panel { border: 1px solid #cfe0f1; border-radius: 13px; background: rgba(255,255,255,.94); box-shadow: 0 8px 18px rgba(49, 103, 158, .045); }
+  .status-panel { min-height: 263px; padding: 21px 24px 16px; }
+  .panel-kicker { color: #6e87a3; font-size: 11px; }
+  .status-heading { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+  .status-heading strong { color: #102a48; font-size: 20px; font-weight: 700; }
+  .status-dot { width: 11px; height: 11px; flex: none; border-radius: 50%; background: #2778f6; box-shadow: 0 0 0 5px rgba(39, 120, 246, .12); animation: state-breathe 1.8s ease-in-out infinite; }
+  .status-dot.success { background: #13b8a6; box-shadow: 0 0 0 5px rgba(19, 184, 166, .12); animation: success-pop .28s ease-out both; }
+  .status-dot.error { background: #e4515b; box-shadow: 0 0 0 5px rgba(228, 81, 91, .12); animation: none; }
+  .status-copy { min-height: 20px; margin-top: 8px; color: #6e87a3; font-size: 12px; }
+  .field-label { margin-top: 15px; color: #6e87a3; font-size: 11px; }
+  .address { overflow: hidden; margin-top: 4px; color: #0f4676; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+  .progress-track { height: 7px; margin-top: 19px; overflow: hidden; border-radius: 999px; background: #e4edf6; }
+  .progress-bar { width: 0; height: 100%; border-radius: 999px; background: #2778f6; box-shadow: 7px 0 16px rgba(39, 120, 246, .28); transition: width .35s ease; }
+  .progress-bar.is-success { background: #13b8a6; box-shadow: 7px 0 16px rgba(19, 184, 166, .25); }
+  .progress-bar.is-error { background: #e4515b; box-shadow: 7px 0 16px rgba(228, 81, 91, .25); }
+  .card-progress-meta { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; color: #6e87a3; font-size: 11px; }
+  .card-progress-meta strong { color: #2778f6; font-size: 18px; }
+  .card-progress-meta strong.success { color: #13b8a6; }
+  .card-progress-meta strong.error { color: #e4515b; }
+  .status-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 7px; color: #6e87a3; font-size: 11px; }
+  .status-panel-footer .next-step { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .progress-panel { min-height: 263px; padding: 21px 24px 16px; }
+  .progress-panel-title { display: flex; align-items: baseline; justify-content: space-between; color: #102a48; }
+  .progress-panel-title strong { font-size: 16px; }
+  .progress-panel-title span { color: #6e87a3; font-size: 11px; }
+  .timeline { position: relative; margin: 17px 0 0; padding: 0; list-style: none; }
+  .timeline:before { position: absolute; top: 12px; bottom: 12px; left: 7px; width: 1px; background: #dbe8f3; content: ""; }
+  .step { position: relative; display: flex; align-items: center; min-height: 29px; gap: 10px; color: #9bb0c4; font-size: 11px; }
+  .step-indicator { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 15px; height: 15px; flex: none; border: 2px solid #d5e3ef; border-radius: 50%; color: transparent; background: #fff; font-size: 9px; }
+  .step-copy { min-width: 0; line-height: 1.3; }
+  .step.active { color: #2778f6; font-weight: 650; }
+  .step.active .step-indicator { border-color: #2778f6; box-shadow: 0 0 0 3px rgba(39, 120, 246, .12); animation: step-pulse 1.8s ease-in-out infinite; }
+  .step.done { color: #123c62; font-weight: 650; }
   .step.done .step-indicator { border-color: #13b8a6; color: #fff; background: #13b8a6; animation: step-complete .28s ease-out both; }
-  .step.error { border-color: #fecaca; color: #b4233a; background: #fff7f7; }
-  .step.error .step-indicator { border-color: #d95762; color: #fff; background: #d95762; }
-  .spinner { display: inline-block; width: 9px; height: 9px; border: 2px solid rgba(255,255,255,.55); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes pulse-ring { 0%, 100% { transform: scale(.94); opacity: .55; } 50% { transform: scale(1.08); opacity: 1; } }
-  @keyframes state-breathe { 0%, 100% { box-shadow: 0 0 0 10px rgba(39, 120, 246, .08), 0 14px 28px rgba(39, 120, 246, .12); } 50% { box-shadow: 0 0 0 16px rgba(39, 120, 246, .03), 0 14px 28px rgba(39, 120, 246, .16); } }
-  @keyframes step-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(39, 120, 246, .28); } 50% { box-shadow: 0 0 0 5px rgba(39, 120, 246, .08); } }
-  @keyframes step-complete { 0% { transform: scale(.78); opacity: .45; } 65% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-  @keyframes success-pop { 0% { transform: scale(.86); opacity: .6; } 70% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-  .diagnostics { display: flex; gap: 8px; margin-top: 14px; }
-  .diagnostic { width: 33.333%; padding: 10px 11px; border: 1px solid #d6e5f1; border-radius: 10px; background: #fff; }
-  .diagnostic-label { color: #91a5b8; font-size: 10px; }
-  .diagnostic-value { margin-top: 5px; color: #71869b; font-size: 12px; font-weight: 650; }
+  .step.error { color: #e4515b; font-weight: 650; }
+  .step.error .step-indicator { border-color: #e4515b; background: #e4515b; }
+  .remaining { margin-top: 5px; color: #6e87a3; font-size: 11px; }
+  .service-section { margin-top: 20px; }
+  .section-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .section-heading strong { color: #102a48; font-size: 15px; }
+  .section-heading span { color: #2778f6; font-size: 10px; }
+  .service-panel { padding: 14px 24px 10px; }
+  .service-row { display: grid; grid-template-columns: 1.05fr .8fr 1.65fr; align-items: center; min-height: 39px; border-top: 1px solid #dbe8f3; color: #6e87a3; font-size: 11px; }
+  .service-row:first-child { min-height: 25px; border-top: 0; color: #7790aa; }
+  .service-row > span:first-child { color: #0f2743; }
+  .service-row:first-child > span:first-child { color: #7790aa; }
+  .diagnostic-value { color: #6e87a3; font-weight: 600; }
   .diagnostic-value.ok { color: #0d9f8e; }
-  .diagnostic-value.bad { color: #d94551; }
-  .notice { display: none; max-height: 84px; overflow: auto; margin-top: 14px; padding: 11px 12px; border: 1px solid #f0b4b8; border-radius: 10px; color: #a61b31; background: #fff0f1; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-  .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 30px; border-top: 1px solid #dce9f4; background: #fff; }
-  .elapsed { color: #71869b; font-size: 12px; }
-  .elapsed:before { display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; border-radius: 50%; background: #2778f6; content: ""; }
+  .diagnostic-value.bad { color: #e4515b; }
+  .diagnostic-detail { overflow: hidden; color: #8aa1b7; white-space: nowrap; text-overflow: ellipsis; }
+  .notice { display: none; max-height: 84px; overflow: auto; margin-top: 12px; padding: 10px 12px; border: 1px solid #f0b4b8; border-radius: 10px; color: #a61b31; background: #fff0f1; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .footer { display: flex; align-items: center; justify-content: space-between; min-height: 58px; gap: 12px; padding: 13px 30px; border-top: 1px solid #d5e5f3; background: rgba(255,255,255,.96); }
+  .elapsed { color: #6e87a3; font-size: 12px; }
+  .elapsed:before { display: inline-block; width: 7px; height: 7px; margin: 0 8px 1px 0; border-radius: 50%; background: #2778f6; content: ""; }
   .elapsed.is-success:before { background: #13b8a6; }
   .elapsed.is-error:before { background: #e4515b; }
   .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-  button { min-height: 33px; padding: 0 13px; border: 1px solid #d7e1ea; border-radius: 8px; color: #475569; background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-  button:hover { border-color: #b9c9d8; background: #f8fafc; }
+  button { min-height: 32px; padding: 0 13px; border: 1px solid #c9ddec; border-radius: 8px; color: #355875; background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button:hover { border-color: #9fc6ea; background: #f4f9ff; }
   button.primary { border-color: #2778f6; color: #fff; background: #2778f6; box-shadow: 0 5px 12px rgba(39, 120, 246, .18); }
   button.primary:hover { border-color: #155dcc; background: #155dcc; }
   button[disabled] { cursor: default; opacity: .55; }
-  @media (prefers-reduced-motion: reduce) {
-    .state-icon.busy, .state-icon.busy:after, .step.active .step-indicator, .step.done .step-indicator, .state-icon.success { animation: none; }
+  @keyframes step-pulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(39, 120, 246, .1); } 50% { box-shadow: 0 0 0 6px rgba(39, 120, 246, .04); } }
+  @keyframes state-breathe { 0%, 100% { box-shadow: 0 0 0 5px rgba(39, 120, 246, .1); } 50% { box-shadow: 0 0 0 8px rgba(39, 120, 246, .04); } }
+  @keyframes step-complete { 0% { transform: scale(.78); opacity: .45; } 65% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes success-pop { 0% { transform: scale(.86); opacity: .6; } 70% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  @media (max-width: 680px) {
+    .header { padding-left: 20px; padding-right: 20px; }
+    .header-meta { margin-right: 105px; }
+    .workspace { padding-left: 16px; padding-right: 16px; }
+    .overview-grid { grid-template-columns: 1fr; gap: 14px; }
+    .progress-panel { min-height: auto; }
+    .service-panel { padding-left: 15px; padding-right: 15px; }
   }
 </style>
 </head>
@@ -99,23 +116,42 @@
     <header class="header">
       <div class="header-row">
         <div class="brand"><div class="brand-mark">MN</div><div><div class="title">多媒体笔记工作台</div><div class="subtitle" id="subtitle">正在准备运行环境</div></div></div>
+        <div class="header-meta">LOCAL NODE / <span id="nodeAddress">127.0.0.1</span><br />SESSION <span id="sessionState">SECURE</span></div>
         <div class="operation" id="operation">启动服务</div>
       </div>
       <div class="hero">
         <div class="state-icon busy" id="stateIcon">MN</div>
-        <div class="hero-copy"><div class="eyebrow" id="eyebrow">LOCAL SERVICE CONTROL</div><div class="stage" id="stage">准备中</div><div class="detail" id="detail">正在读取本地配置并检查服务状态</div><div class="hero-meta">本地工作区 · <strong id="serviceAddress">正在识别服务地址</strong></div></div>
+        <div class="hero-copy"><div class="eyebrow" id="eyebrow">LOCAL SERVICE CONTROL</div><div class="stage" id="stage">准备中</div><div class="detail" id="detail">正在读取本地配置并检查服务状态</div></div>
         <div class="elapsed-card"><span>已用时间</span><strong id="elapsed">0s</strong></div>
       </div>
     </header>
-    <section class="content">
-      <div class="progress-wrap">
-        <div class="progress-label"><span>启动进度 <strong id="progressText">0%</strong></span><span class="progress-step" id="progressStep">第 1 / 1 步</span></div>
-        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
-        <div class="progress-meta"><span class="next-step">接下来<strong id="nextStep">正在获取服务状态</strong></span><span>可以随时切到后台继续</span></div>
+    <section class="workspace">
+      <div class="overview-grid">
+        <section class="panel status-panel">
+          <div class="panel-kicker">当前状态</div>
+          <div class="status-heading"><span class="status-dot" id="statusDot"></span><strong id="statusTitle">准备中</strong></div>
+          <div class="status-copy" id="statusCopy">正在读取本地配置并检查服务状态</div>
+          <div class="field-label">服务地址</div>
+          <div class="address" id="serviceAddress">正在识别服务地址</div>
+          <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+          <div class="card-progress-meta"><span>启动进度</span><strong id="progressText">0%</strong></div>
+          <div class="status-panel-footer"><span class="next-step" id="cardNextStep">正在获取服务状态</span></div>
+        </section>
+        <aside class="panel progress-panel">
+          <div class="progress-panel-title"><strong>启动进度</strong><span id="progressStep">1 / 1</span></div>
+          <ol class="timeline" id="timeline"></ol>
+          <div class="remaining" id="nextStep">正在获取服务状态</div>
+        </aside>
       </div>
-      <div class="timeline-title">启动路径</div>
-      <ol class="timeline" id="timeline"></ol>
-      <div class="diagnostics"><div class="diagnostic"><div class="diagnostic-label">后端服务</div><div class="diagnostic-value" id="backendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">前端页面</div><div class="diagnostic-value" id="frontendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">启动进程</div><div class="diagnostic-value" id="pidState">待检查</div></div></div>
+      <section class="service-section">
+        <div class="section-heading"><strong>服务状态</strong><span>LIVE TELEMETRY</span></div>
+        <div class="panel service-panel">
+          <div class="service-row"><span>服务</span><span>状态</span><span>详情</span></div>
+          <div class="service-row"><span>后端服务</span><span class="diagnostic-value" id="backendState">待检查</span><span class="diagnostic-detail" id="backendDetail">正在探测本地端口</span></div>
+          <div class="service-row"><span>前端页面</span><span class="diagnostic-value" id="frontendState">待检查</span><span class="diagnostic-detail" id="frontendDetail">后端就绪后自动打开</span></div>
+          <div class="service-row"><span>启动进程</span><span class="diagnostic-value" id="pidState">待检查</span><span class="diagnostic-detail" id="pidDetail">等待启动进程确认</span></div>
+        </div>
+      </section>
       <div class="notice" id="notice"></div>
     </section>
     <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">打开工作台</button><button id="logButton" style="display:none" onclick="openLog()">查看日志</button><button id="retryButton" class="primary" style="display:none" onclick="retry()">重试</button><button id="closeButton" onclick="closeLauncher()">后台继续</button></div></footer>
@@ -196,6 +232,7 @@
     if (config.basePath === "/") config.basePath = "";
     if (config.basePath.charAt(0) !== "/" && config.basePath) config.basePath = "/" + config.basePath;
     config.basePath = config.basePath.replace(/\/+$/, "");
+    setText("nodeAddress", config.clientHost);
     setText("serviceAddress", "http://" + config.clientHost + ":" + config.clientPort + config.basePath);
   }
 
@@ -249,8 +286,24 @@
     } catch (e) { return false; }
   }
 
-  function setText(id, value) { document.getElementById(id).innerText = value; }
-  function setDiagnostic(id, label, good) { var element = document.getElementById(id); element.innerText = label; element.className = "diagnostic-value" + (good === true ? " ok" : good === false ? " bad" : ""); }
+  function setText(id, value) {
+    var element = document.getElementById(id);
+    if (!element) return;
+    element.innerText = value;
+    if (id === "stage") document.getElementById("statusTitle").innerText = value;
+    if (id === "detail") document.getElementById("statusCopy").innerText = value;
+  }
+  function setVisualState(mode) {
+    var dot = document.getElementById("statusDot");
+    var progressText = document.getElementById("progressText");
+    dot.className = "status-dot" + (mode === "success" ? " success" : mode === "error" ? " error" : "");
+    progressText.className = mode === "success" ? "success" : mode === "error" ? "error" : "";
+  }
+  function setDiagnostic(id, label, good) {
+    var element = document.getElementById(id);
+    element.innerText = label;
+    element.className = "diagnostic-value" + (good === true ? " ok" : good === false ? " bad" : "");
+  }
   function updateDiagnostics(backend, frontend, active) { var stopping = action === "stop"; setDiagnostic("backendState", backend ? "已响应" : stopping ? "已停止" : failed ? "未响应" : "检查中", stopping ? !backend : backend ? true : failed ? false : undefined); setDiagnostic("frontendState", frontend ? "可访问" : stopping ? "已停止" : failed ? "未访问" : "等待中", stopping ? !frontend : frontend ? true : failed ? undefined : undefined); setDiagnostic("pidState", active ? "运行中" : stopping ? "已释放" : failed ? "已暂停" : "启动中", stopping ? !active : active ? true : failed ? undefined : undefined); }
   function setProgress(value) { var percent = Math.max(0, Math.min(100, value)); document.getElementById("progressBar").style.width = percent + "%"; setText("progressText", Math.round(percent) + "%"); }
   function renderSteps() {
@@ -260,17 +313,19 @@
       var cls = "step"; var icon = "";
       if (failed && i === currentStep) { cls += " error"; icon = "!"; }
       else if (i < currentStep || (finished && i === currentStep)) { cls += " done"; icon = "&#10003;"; }
-      else if (i === currentStep) { cls += " active"; icon = '<span class="spinner"></span>'; }
+      else if (i === currentStep) { cls += " active"; icon = ""; }
       else { icon = String(i + 1); }
       html += '<li class="' + cls + '"><span class="step-indicator">' + icon + '</span><span class="step-copy">' + steps[i] + '</span></li>';
     }
     document.getElementById("timeline").innerHTML = html;
-    setText("progressStep", "第 " + Math.min(currentStep + 1, steps.length) + " / " + steps.length + " 步");
-    setText("nextStep", failed ? "查看诊断信息后重新尝试" : finished ? "已可以开始使用工作台" : steps[Math.min(currentStep + 1, steps.length - 1)]);
+    setText("progressStep", Math.min(currentStep + 1, steps.length) + " / " + steps.length);
+    var next = failed ? "请处理失败后重试" : finished ? "检查完成，可以开始使用工作台" : "下一步：" + steps[Math.min(currentStep + 1, steps.length - 1)];
+    setText("nextStep", next);
+    setText("cardNextStep", next);
   }
   function moveTo(index, stage, detail) { currentStep = index; setText("stage", stage); setText("detail", detail); setProgress(Math.round((index / Math.max(1, steps.length - 1)) * 100)); renderSteps(); }
   function setFailure(stage, detail) {
-    failed = true; detail = String(detail || ""); var summary = detail.indexOf("\n") >= 0 ? detail.substring(0, detail.indexOf("\n")) : detail; setText("stage", stage); setText("detail", summary || "启动未能完成。请查看诊断信息后重新尝试。"); setText("eyebrow", "ACTION REQUIRED"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon error"; icon.innerText = "!"; document.getElementById("operation").className = "operation is-error"; document.getElementById("progressBar").className = "progress-bar is-error"; document.getElementById("footerMessage").className = "elapsed is-error"; document.getElementById("openButton").style.display = "none"; if (action !== "stop" && /后端|端口|启动/.test(String(stage) + detail)) { setDiagnostic("backendState", "未响应", false); setDiagnostic("frontendState", "未访问", undefined); setDiagnostic("pidState", "已暂停", undefined); } setText("footerMessage", "需要你的处理：服务尚未就绪"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
+    failed = true; detail = String(detail || ""); var summary = detail.indexOf("\n") >= 0 ? detail.substring(0, detail.indexOf("\n")) : detail; setText("stage", stage); setText("detail", summary || "启动未能完成。请查看诊断信息后重新尝试。"); setText("eyebrow", "ACTION REQUIRED"); setVisualState("error"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon error"; icon.innerText = "!"; document.getElementById("operation").className = "operation is-error"; document.getElementById("progressBar").className = "progress-bar is-error"; document.getElementById("footerMessage").className = "elapsed is-error"; document.getElementById("openButton").style.display = "none"; if (action !== "stop" && /后端|端口|启动/.test(String(stage) + detail)) { setDiagnostic("backendState", "未响应", false); setDiagnostic("frontendState", "未访问", undefined); setDiagnostic("pidState", "已暂停", undefined); } setText("footerMessage", "需要处理启动失败"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
   }
   function readLogTail() {
     if (!fso) return "";
@@ -327,7 +382,7 @@
   function openWorkbench() { if (shell) { try { var separator = workbenchUrl().indexOf("?") >= 0 ? "&" : "?"; var target = workbenchUrl() + separator + "launcherReadyToken=" + encodeURIComponent(operationToken); browserOpenedAt = new Date().getTime(); shell.Run("explorer.exe " + quote(target), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
   function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
-  function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "✓"; document.getElementById("operation").className = "operation is-success"; document.getElementById("progressBar").className = "progress-bar is-success"; document.getElementById("footerMessage").className = "elapsed is-success"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
+  function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); setVisualState("success"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "✓"; document.getElementById("operation").className = "operation is-success"; document.getElementById("progressBar").className = "progress-bar is-success"; document.getElementById("footerMessage").className = "elapsed is-success"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
   function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function poll() {
     if (finished || failed) return;
@@ -357,7 +412,7 @@
     pollTimer = window.setTimeout(poll, 700);
   }
   function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); browserOpenedAt = 0; document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台继续"; begin(); }
-  function begin() { if (!action) { setFailure("无法识别操作", "启动器未收到有效操作参数。请从“启动多媒体笔记工作台”“停止多媒体笔记工作台”或“重启多媒体笔记工作台”命令文件启动。"); return; } loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; browserLaunchObserved = false; browserOpenedAt = 0; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); document.getElementById("operation").className = "operation"; setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; document.getElementById("progressBar").className = "progress-bar"; document.getElementById("footerMessage").className = "elapsed"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  function begin() { if (!action) { setFailure("无法识别操作", "启动器未收到有效操作参数。请从“启动多媒体笔记工作台”“停止多媒体笔记工作台”或“重启多媒体笔记工作台”命令文件启动。"); return; } loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; browserLaunchObserved = false; browserOpenedAt = 0; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); document.getElementById("operation").className = "operation"; setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); setVisualState("busy"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; document.getElementById("progressBar").className = "progress-bar"; document.getElementById("footerMessage").className = "elapsed"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
   document.getElementById("openButton").style.display = "none";
   window.resizeTo(760, 820);
   tickElapsed();
