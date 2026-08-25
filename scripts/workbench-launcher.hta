@@ -7,75 +7,91 @@
 <hta:application id="oHTA" applicationname="WorkbenchLauncher" border="thin" caption="yes" maximizebutton="no" minimizebutton="no" showintaskbar="yes" singleinstance="no" sysmenu="yes" />
 <style>
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 100%; height: 100%; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #1e293b; background: #0e172a; }
-  body { display: flex; align-items: center; justify-content: center; background: #0e172a; }
-  .shell { width: 720px; min-height: 570px; overflow: hidden; border: 1px solid #243653; border-radius: 20px; background: #f8fafc; box-shadow: 0 28px 80px rgba(0, 0, 0, .38); }
-  .header { position: relative; overflow: hidden; padding: 24px 30px 26px; color: #fff; background: #101c33; }
-  .header:before { position: absolute; top: -145px; right: -80px; width: 350px; height: 350px; border: 1px solid rgba(98, 224, 190, .18); border-radius: 50%; box-shadow: 0 0 0 46px rgba(98, 224, 190, .04), 0 0 0 92px rgba(98, 224, 190, .025); content: ""; }
-  .header:after { position: absolute; right: 94px; bottom: -75px; width: 160px; height: 160px; border-radius: 50%; background: #1aa98c; filter: alpha(opacity=12); opacity: .12; content: ""; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #172a40; background: #eaf4fe; }
+  body { display: block; background: #eaf4fe; }
+  .shell { width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 1px solid #cfe2f3; border-radius: 0; background: #f7fbff; box-shadow: 0 18px 40px rgba(39, 120, 246, .12); }
+  .header { position: relative; overflow: hidden; padding: 24px 30px 26px; color: #172a40; background: #eaf4fe; }
+  .header:before { position: absolute; top: -145px; right: -80px; width: 350px; height: 350px; border: 1px solid rgba(39, 120, 246, .16); border-radius: 50%; box-shadow: 0 0 0 46px rgba(39, 120, 246, .06), 0 0 0 92px rgba(39, 120, 246, .03); content: ""; }
+  .header:after { position: absolute; right: 94px; bottom: -75px; width: 160px; height: 160px; border-radius: 50%; background: #54c8e8; filter: alpha(opacity=18); opacity: .18; content: ""; }
   .header-row, .hero { position: relative; z-index: 1; display: flex; align-items: center; }
   .header-row { justify-content: space-between; gap: 18px; }
   .brand { display: flex; align-items: center; min-width: 0; gap: 11px; }
-  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border: 1px solid rgba(179, 255, 235, .44); border-radius: 13px; color: #0a2c2c; background: #83ecd2; box-shadow: 0 8px 20px rgba(31, 183, 153, .28); font-size: 16px; font-weight: 800; letter-spacing: -.04em; }
+  .brand-mark { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; border: 1px solid rgba(39, 120, 246, .25); border-radius: 13px; color: #fff; background: #2778f6; box-shadow: 0 8px 20px rgba(39, 120, 246, .22); font-size: 16px; font-weight: 800; letter-spacing: -.04em; }
   .title { overflow: hidden; font-size: 16px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
-  .subtitle { margin-top: 4px; color: #aabbd4; font-size: 12px; }
-  .operation { display: inline-block; padding: 7px 11px; border: 1px solid rgba(181, 208, 236, .26); border-radius: 999px; color: #d6e4f6; background: rgba(255,255,255,.055); font-size: 12px; white-space: nowrap; }
-  .operation:before { display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: #70e0c5; box-shadow: 0 0 0 4px rgba(112, 224, 197, .12); content: ""; }
+  .subtitle { margin-top: 4px; color: #71869b; font-size: 12px; }
+  .operation { display: inline-block; padding: 7px 11px; border: 1px solid #c8def2; border-radius: 999px; color: #2778f6; background: rgba(255,255,255,.72); font-size: 12px; white-space: nowrap; }
+  .operation.is-error { border-color: #f0a5aa; color: #d94551; background: #fff0f1; }
+  .operation.is-success { border-color: #a9ded6; color: #0d9f8e; background: #e7faf6; }
+  .operation:before { display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: #2778f6; box-shadow: 0 0 0 4px rgba(39, 120, 246, .12); content: ""; }
+  .operation.is-error:before { background: #e4515b; box-shadow: 0 0 0 4px rgba(228, 81, 91, .12); }
+  .operation.is-success:before { background: #13b8a6; box-shadow: 0 0 0 4px rgba(19, 184, 166, .12); }
   .hero { margin-top: 28px; gap: 17px; }
-  .state-icon { position: relative; display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; flex: none; border: 1px solid rgba(149, 239, 218, .52); border-radius: 50%; color: #0e352f; background: #83ecd2; box-shadow: 0 0 0 10px rgba(131, 236, 210, .08), 0 14px 28px rgba(0, 0, 0, .2); font-size: 15px; font-weight: 800; }
-  .state-icon:before { position: absolute; width: 86px; height: 86px; border: 1px solid rgba(131, 236, 210, .24); border-radius: 50%; content: ""; }
-  .state-icon.busy:after { position: absolute; width: 82px; height: 82px; border: 2px solid transparent; border-top-color: #83ecd2; border-right-color: rgba(131, 236, 210, .28); border-radius: 50%; content: ""; animation: spin 1.15s linear infinite; }
-  .state-icon.busy { color: transparent; background: #1b665b; }
-  .state-icon.success { color: #0a4138; background: #83ecd2; }
-  .state-icon.error { border-color: #fecaca; color: #fff; background: #ca4e59; }
+  .state-icon { position: relative; display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; flex: none; border: 1px solid #a8cafa; border-radius: 50%; color: #2778f6; background: #e7f1ff; box-shadow: 0 0 0 10px rgba(39, 120, 246, .08), 0 14px 28px rgba(39, 120, 246, .12); font-size: 15px; font-weight: 800; }
+  .state-icon:before { position: absolute; width: 86px; height: 86px; border: 1px solid rgba(39, 120, 246, .22); border-radius: 50%; content: ""; }
+  .state-icon.busy:after { position: absolute; width: 82px; height: 82px; border: 2px solid transparent; border-top-color: #2778f6; border-right-color: rgba(39, 120, 246, .26); border-radius: 50%; content: ""; animation: pulse-ring 1.8s ease-in-out infinite; }
+  .state-icon.busy { color: #2778f6; background: #e7f1ff; animation: state-breathe 1.8s ease-in-out infinite; }
+  .state-icon.success { border-color: #8ddbd0; color: #0e8f80; background: #e7faf6; animation: success-pop .28s ease-out both; }
+  .state-icon.error { border-color: #f0a5aa; color: #fff; background: #e4515b; box-shadow: 0 0 0 10px rgba(228, 81, 91, .08), 0 14px 28px rgba(228, 81, 91, .14); }
   .hero-copy { min-width: 0; flex: 1; }
-  .eyebrow { color: #8ee1cf; font-size: 10px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; }
-  .stage { margin-top: 6px; color: #fff; font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
-  .detail { max-width: 430px; margin-top: 6px; color: #afc0d8; font-size: 13px; line-height: 1.5; }
-  .hero-meta { margin-top: 10px; color: #7c92b1; font-size: 11px; }
-  .hero-meta strong { color: #cbd8e8; font-weight: 600; }
-  .elapsed-card { min-width: 88px; padding: 10px 12px; border: 1px solid rgba(174, 203, 232, .17); border-radius: 12px; text-align: right; background: rgba(255,255,255,.055); }
-  .elapsed-card span { display: block; color: #91a5c1; font-size: 10px; }
-  .elapsed-card strong { display: block; margin-top: 3px; color: #fff; font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
-  .content { padding: 22px 30px 18px; }
-  .progress-wrap { padding: 15px 16px 14px; border: 1px solid #e3eaf2; border-radius: 14px; background: #fff; box-shadow: 0 8px 20px rgba(15, 23, 42, .035); }
-  .progress-label { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; color: #64748b; font-size: 12px; }
-  .progress-label strong { margin-left: 7px; color: #0f766e; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
-  .progress-step { color: #94a3b8; font-size: 11px; }
-  .progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: #eaf0f5; }
-  .progress-bar { width: 0; height: 100%; border-radius: 999px; background: #14a98a; box-shadow: 8px 0 18px rgba(20, 169, 138, .3); transition: width .35s ease; }
-  .progress-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; color: #64748b; font-size: 11px; }
-  .next-step { color: #64748b; }
-  .next-step strong { margin-left: 4px; color: #334155; font-weight: 600; }
-  .timeline-title { margin: 19px 0 9px; color: #475569; font-size: 12px; font-weight: 650; }
+  .eyebrow { color: #2778f6; font-size: 10px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; }
+  .stage { margin-top: 6px; color: #162a40; font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
+  .detail { max-width: 430px; margin-top: 6px; color: #71869b; font-size: 13px; line-height: 1.5; }
+  .hero-meta { margin-top: 10px; color: #8298ad; font-size: 11px; }
+  .hero-meta strong { color: #40617e; font-weight: 600; }
+  .elapsed-card { min-width: 88px; padding: 10px 12px; border: 1px solid #c8def2; border-radius: 12px; text-align: right; background: rgba(255,255,255,.7); }
+  .elapsed-card span { display: block; color: #71869b; font-size: 10px; }
+  .elapsed-card strong { display: block; margin-top: 3px; color: #162a40; font-size: 19px; font-weight: 650; letter-spacing: -.02em; }
+  .content { padding: 22px 30px 18px; background: #f7fbff; }
+  .progress-wrap { padding: 15px 16px 14px; border: 1px solid #d6e5f1; border-radius: 14px; background: #fff; box-shadow: 0 8px 20px rgba(39, 120, 246, .05); }
+  .progress-label { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; color: #71869b; font-size: 12px; }
+  .progress-label strong { margin-left: 7px; color: #2778f6; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+  .progress-step { color: #91a5b8; font-size: 11px; }
+  .progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: #e7eff6; }
+  .progress-bar { width: 0; height: 100%; border-radius: 999px; background: #2778f6; box-shadow: 8px 0 18px rgba(39, 120, 246, .3); transition: width .35s ease; }
+  .progress-bar.is-success { background: #13b8a6; box-shadow: 8px 0 18px rgba(19, 184, 166, .25); }
+  .progress-bar.is-error { background: #e4515b; box-shadow: 8px 0 18px rgba(228, 81, 91, .25); }
+  .progress-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; color: #71869b; font-size: 11px; }
+  .next-step { color: #71869b; }
+  .next-step strong { margin-left: 4px; color: #38536e; font-weight: 600; }
+  .timeline-title { margin: 19px 0 9px; color: #405d78; font-size: 12px; font-weight: 650; }
   .timeline { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .step { display: flex; align-items: center; width: 31.9%; min-height: 42px; gap: 8px; padding: 8px 9px; border: 1px solid #e3eaf2; border-radius: 10px; color: #94a3b8; background: #fff; font-size: 11px; }
-  .step-indicator { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; border: 1px solid #d4dee8; border-radius: 50%; color: #94a3b8; background: #f8fafc; font-size: 10px; }
+  .step { display: flex; align-items: center; width: 31.9%; min-height: 42px; gap: 8px; padding: 8px 9px; border: 1px solid #d6e5f1; border-radius: 10px; color: #91a5b8; background: #fff; font-size: 11px; }
+  .step-indicator { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; border: 1px solid #c6d8e8; border-radius: 50%; color: #91a5b8; background: #f7fbff; font-size: 10px; }
   .step-copy { min-width: 0; line-height: 1.35; }
-  .step.active { border-color: #91dacb; color: #0f766e; background: #f2fcf9; box-shadow: 0 4px 11px rgba(20, 169, 138, .08); }
-  .step.active .step-indicator { border-color: #14a98a; color: #fff; background: #14a98a; }
-  .step.done { border-color: #d6eee9; color: #475569; }
-  .step.done .step-indicator { border-color: #14a98a; color: #fff; background: #14a98a; }
+  .step.active { border-color: #9cc4fb; color: #2778f6; background: #f2f7ff; box-shadow: 0 4px 11px rgba(39, 120, 246, .1); }
+  .step.active .step-indicator { border-color: #2778f6; color: #fff; background: #2778f6; box-shadow: 0 0 0 0 rgba(39, 120, 246, .3); animation: step-pulse 1.8s ease-in-out infinite; }
+  .step.done { border-color: #cdebe6; color: #405d78; }
+  .step.done .step-indicator { border-color: #13b8a6; color: #fff; background: #13b8a6; animation: step-complete .28s ease-out both; }
   .step.error { border-color: #fecaca; color: #b4233a; background: #fff7f7; }
   .step.error .step-indicator { border-color: #d95762; color: #fff; background: #d95762; }
-  .spinner { display: inline-block; width: 9px; height: 9px; border: 2px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+  .spinner { display: inline-block; width: 9px; height: 9px; border: 2px solid rgba(255,255,255,.55); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse-ring { 0%, 100% { transform: scale(.94); opacity: .55; } 50% { transform: scale(1.08); opacity: 1; } }
+  @keyframes state-breathe { 0%, 100% { box-shadow: 0 0 0 10px rgba(39, 120, 246, .08), 0 14px 28px rgba(39, 120, 246, .12); } 50% { box-shadow: 0 0 0 16px rgba(39, 120, 246, .03), 0 14px 28px rgba(39, 120, 246, .16); } }
+  @keyframes step-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(39, 120, 246, .28); } 50% { box-shadow: 0 0 0 5px rgba(39, 120, 246, .08); } }
+  @keyframes step-complete { 0% { transform: scale(.78); opacity: .45; } 65% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes success-pop { 0% { transform: scale(.86); opacity: .6; } 70% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
   .diagnostics { display: flex; gap: 8px; margin-top: 14px; }
-  .diagnostic { width: 33.333%; padding: 10px 11px; border: 1px solid #e3eaf2; border-radius: 10px; background: #fff; }
-  .diagnostic-label { color: #94a3b8; font-size: 10px; }
-  .diagnostic-value { margin-top: 5px; color: #64748b; font-size: 12px; font-weight: 650; }
-  .diagnostic-value.ok { color: #09816c; }
-  .diagnostic-value.bad { color: #c2414b; }
-  .notice { display: none; margin-top: 14px; padding: 11px 12px; border: 1px solid #fecaca; border-radius: 10px; color: #a61b31; background: #fff7f7; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-  .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 30px; border-top: 1px solid #e7edf3; background: #fff; }
-  .elapsed { color: #64748b; font-size: 12px; }
-  .elapsed:before { display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; border-radius: 50%; background: #14a98a; content: ""; }
+  .diagnostic { width: 33.333%; padding: 10px 11px; border: 1px solid #d6e5f1; border-radius: 10px; background: #fff; }
+  .diagnostic-label { color: #91a5b8; font-size: 10px; }
+  .diagnostic-value { margin-top: 5px; color: #71869b; font-size: 12px; font-weight: 650; }
+  .diagnostic-value.ok { color: #0d9f8e; }
+  .diagnostic-value.bad { color: #d94551; }
+  .notice { display: none; max-height: 84px; overflow: auto; margin-top: 14px; padding: 11px 12px; border: 1px solid #f0b4b8; border-radius: 10px; color: #a61b31; background: #fff0f1; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 30px; border-top: 1px solid #dce9f4; background: #fff; }
+  .elapsed { color: #71869b; font-size: 12px; }
+  .elapsed:before { display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; border-radius: 50%; background: #2778f6; content: ""; }
+  .elapsed.is-success:before { background: #13b8a6; }
+  .elapsed.is-error:before { background: #e4515b; }
   .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
   button { min-height: 33px; padding: 0 13px; border: 1px solid #d7e1ea; border-radius: 8px; color: #475569; background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   button:hover { border-color: #b9c9d8; background: #f8fafc; }
-  button.primary { border-color: #10947a; color: #fff; background: #10947a; box-shadow: 0 5px 12px rgba(16, 148, 122, .16); }
-  button.primary:hover { border-color: #087963; background: #087963; }
+  button.primary { border-color: #2778f6; color: #fff; background: #2778f6; box-shadow: 0 5px 12px rgba(39, 120, 246, .18); }
+  button.primary:hover { border-color: #155dcc; background: #155dcc; }
   button[disabled] { cursor: default; opacity: .55; }
+  @media (prefers-reduced-motion: reduce) {
+    .state-icon.busy, .state-icon.busy:after, .step.active .step-indicator, .step.done .step-indicator, .state-icon.success { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -102,7 +118,7 @@
       <div class="diagnostics"><div class="diagnostic"><div class="diagnostic-label">后端服务</div><div class="diagnostic-value" id="backendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">前端页面</div><div class="diagnostic-value" id="frontendState">待检查</div></div><div class="diagnostic"><div class="diagnostic-label">启动进程</div><div class="diagnostic-value" id="pidState">待检查</div></div></div>
       <div class="notice" id="notice"></div>
     </section>
-    <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">打开工作台</button><button id="logButton" style="display:none" onclick="openLog()">查看诊断日志</button><button id="retryButton" class="primary" style="display:none" onclick="retry()">重新尝试</button><button id="closeButton" onclick="closeLauncher()">后台继续</button></div></footer>
+    <footer class="footer"><div class="elapsed" id="footerMessage">请稍候，正在执行操作</div><div class="actions"><button id="openButton" class="primary" style="display:none" onclick="openWorkbench()">打开工作台</button><button id="logButton" style="display:none" onclick="openLog()">查看日志</button><button id="retryButton" class="primary" style="display:none" onclick="retry()">重试</button><button id="closeButton" onclick="closeLauncher()">后台继续</button></div></footer>
   </main>
 <script>
   var action = "";
@@ -235,7 +251,7 @@
 
   function setText(id, value) { document.getElementById(id).innerText = value; }
   function setDiagnostic(id, label, good) { var element = document.getElementById(id); element.innerText = label; element.className = "diagnostic-value" + (good === true ? " ok" : good === false ? " bad" : ""); }
-  function updateDiagnostics(backend, frontend, active) { var stopping = action === "stop"; setDiagnostic("backendState", backend ? "已响应" : stopping ? "已停止" : "未响应", stopping ? !backend : backend); setDiagnostic("frontendState", frontend ? "可访问" : stopping ? "已停止" : "未访问", stopping ? !frontend : frontend); setDiagnostic("pidState", active ? "运行中" : "已释放", stopping ? !active : active); }
+  function updateDiagnostics(backend, frontend, active) { var stopping = action === "stop"; setDiagnostic("backendState", backend ? "已响应" : stopping ? "已停止" : failed ? "未响应" : "检查中", stopping ? !backend : backend ? true : failed ? false : undefined); setDiagnostic("frontendState", frontend ? "可访问" : stopping ? "已停止" : failed ? "未访问" : "等待中", stopping ? !frontend : frontend ? true : failed ? undefined : undefined); setDiagnostic("pidState", active ? "运行中" : stopping ? "已释放" : failed ? "已暂停" : "启动中", stopping ? !active : active ? true : failed ? undefined : undefined); }
   function setProgress(value) { var percent = Math.max(0, Math.min(100, value)); document.getElementById("progressBar").style.width = percent + "%"; setText("progressText", Math.round(percent) + "%"); }
   function renderSteps() {
     var html = "";
@@ -254,7 +270,7 @@
   }
   function moveTo(index, stage, detail) { currentStep = index; setText("stage", stage); setText("detail", detail); setProgress(Math.round((index / Math.max(1, steps.length - 1)) * 100)); renderSteps(); }
   function setFailure(stage, detail) {
-    failed = true; var summary = detail.indexOf("\n") >= 0 ? detail.substring(0, detail.indexOf("\n")) : detail; setText("stage", stage); setText("detail", summary || "启动未能完成。请查看诊断信息后重新尝试。"); setText("eyebrow", "ACTION REQUIRED"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon error"; icon.innerText = "!"; setText("footerMessage", "需要你的处理：服务尚未就绪"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
+    failed = true; detail = String(detail || ""); var summary = detail.indexOf("\n") >= 0 ? detail.substring(0, detail.indexOf("\n")) : detail; setText("stage", stage); setText("detail", summary || "启动未能完成。请查看诊断信息后重新尝试。"); setText("eyebrow", "ACTION REQUIRED"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon error"; icon.innerText = "!"; document.getElementById("operation").className = "operation is-error"; document.getElementById("progressBar").className = "progress-bar is-error"; document.getElementById("footerMessage").className = "elapsed is-error"; document.getElementById("openButton").style.display = "none"; if (action !== "stop" && /后端|端口|启动/.test(String(stage) + detail)) { setDiagnostic("backendState", "未响应", false); setDiagnostic("frontendState", "未访问", undefined); setDiagnostic("pidState", "已暂停", undefined); } setText("footerMessage", "需要你的处理：服务尚未就绪"); document.getElementById("notice").style.display = "block"; document.getElementById("notice").innerText = detail; document.getElementById("logButton").style.display = "inline-block"; document.getElementById("retryButton").style.display = "inline-block"; document.getElementById("closeButton").innerText = "关闭"; renderSteps();
   }
   function readLogTail() {
     if (!fso) return "";
@@ -303,15 +319,15 @@
     if (failure.message) sections.push(String(failure.message));
     if (failure.detail) sections.push(String(failure.detail));
     if (failure.suggestion) sections.push(String(failure.suggestion));
-    sections.push("可点击“打开日志”查看完整信息。");
+    sections.push("可点击“查看日志”查看完整信息。");
     return sections.join("\n\n");
   }
   function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(root, "logs\\dev.std.log")), 1, false); } catch (e) {} } }
   function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
   function openWorkbench() { if (shell) { try { var separator = workbenchUrl().indexOf("?") >= 0 ? "&" : "?"; var target = workbenchUrl() + separator + "launcherReadyToken=" + encodeURIComponent(operationToken); browserOpenedAt = new Date().getTime(); shell.Run("explorer.exe " + quote(target), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
-  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“打开日志”查看详情。\n" + e.message); return false; } }
-  function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "OK"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
+  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
+  function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); setText("stage", "已完成"); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "✓"; document.getElementById("operation").className = "operation is-success"; document.getElementById("progressBar").className = "progress-bar is-success"; document.getElementById("footerMessage").className = "elapsed is-success"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
   function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function poll() {
     if (finished || failed) return;
@@ -336,12 +352,12 @@
     }
     if (finished || failed) return;
     if (action === "stop" && elapsed > stopDeadline) { setFailure("停止超时", "服务在 120 秒内未能完全停止。\n\n" + readLogTail()); return; }
-    if (action !== "stop" && !browserLaunchObserved && elapsed > startupDeadline) { setFailure("启动超时", "服务在 300 秒内仍未完成启动。请点击“打开日志”查看当前启动阶段。\n\n" + readLogTail()); return; }
+    if (action !== "stop" && !browserLaunchObserved && elapsed > startupDeadline) { setFailure("启动超时", "服务在 300 秒内仍未完成启动。请点击“查看日志”查看当前启动阶段。\n\n" + readLogTail()); return; }
     if (action !== "stop" && browserLaunchObserved && !uiReady && browserOpenedAt > 0 && now - browserOpenedAt > pageReadyDeadline) { var readyMessage = "本地服务已经启动并验证可访问，但浏览器页面确认较慢。工作台可能已经打开；可点击“打开工作台”再次打开，不需要重复启动服务。"; complete(readyMessage, false, true); setText("eyebrow", "SERVICE READY"); document.getElementById("openButton").style.display = "inline-block"; return; }
     pollTimer = window.setTimeout(poll, 700);
   }
   function retry() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); failed = false; finished = false; startedAt = new Date().getTime(); browserOpenedAt = 0; document.getElementById("notice").style.display = "none"; document.getElementById("logButton").style.display = "none"; document.getElementById("retryButton").style.display = "none"; document.getElementById("openButton").style.display = "none"; document.getElementById("closeButton").innerText = action === "stop" ? "关闭" : "后台继续"; begin(); }
-  function begin() { if (!action) { setFailure("无法识别操作", "启动器未收到有效操作参数。请从“启动多媒体笔记工作台”“停止多媒体笔记工作台”或“重启多媒体笔记工作台”命令文件启动。"); return; } loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; browserLaunchObserved = false; browserOpenedAt = 0; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
+  function begin() { if (!action) { setFailure("无法识别操作", "启动器未收到有效操作参数。请从“启动多媒体笔记工作台”“停止多媒体笔记工作台”或“重启多媒体笔记工作台”命令文件启动。"); return; } loadConfig(); initialPid = readPid(); operationToken = action === "stop" ? "" : createOperationToken(); restartLaunchObserved = false; browserLaunchObserved = false; browserOpenedAt = 0; steps = action === "stop" ? ["检查运行状态", "停止服务", "确认进程退出", "确认端口释放"] : action === "restart" ? ["检查旧服务", "停止旧服务", "确认旧服务已停止", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"] : ["检查环境", "启动后端", "确认后端就绪", "启动前端", "确认页面可访问", "打开工作台"]; currentStep = 0; setText("operation", operationNames[action]); document.getElementById("operation").className = "operation"; setText("subtitle", action === "stop" ? "正在安全停止本地服务" : action === "restart" ? "正在平滑重启本地服务" : "正在启动本地开发服务"); setText("eyebrow", "LOCAL SERVICE CONTROL"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon busy"; icon.innerText = "M"; document.getElementById("progressBar").className = "progress-bar"; document.getElementById("footerMessage").className = "elapsed"; setText("stage", steps[0]); setText("detail", "正在检查本地服务状态"); setText("footerMessage", "请稍候，正在执行操作"); setProgress(8); renderSteps(); if (action !== "stop" && !invokeScript()) return; if (action === "stop") invokeScript(); poll(); }
   document.getElementById("openButton").style.display = "none";
   window.resizeTo(760, 820);
   tickElapsed();
