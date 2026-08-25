@@ -1485,34 +1485,65 @@ export function formatFactAuditFailures(audit: NoteFactAudit): string[] {
   return failures;
 }
 
+export function normalizeEvidenceCitationsForQuality(
+  note: string,
+  evidenceLedger: string,
+): string {
+  let normalized: string = note;
+  const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
+  for (const record of records) {
+    if (!record.id.startsWith('E-')) continue;
+    normalized = normalized
+      .split(`[${record.id}]`)
+      .join(`[${record.sourceId}]`);
+  }
+  if (
+    !records.some((record: EvidenceRecord): boolean =>
+      record.id.startsWith('E-'),
+    )
+  ) {
+    normalized = normalized.replace(/\[E-(S\d+)-\d+\]/gu, '[$1]');
+  }
+  let previous: string;
+  do {
+    previous = normalized;
+    normalized = normalized.replace(/(\[S\d+\])\1/gu, '$1');
+  } while (normalized !== previous);
+  return normalized;
+}
+
 export function normalizeEvidenceCitationsForPublication(
   note: string,
   evidenceLedger: string,
   noteStyle: NoteStyle = 'learning',
 ): string {
-  let published: string = note;
-  const records: EvidenceRecord[] = parseEvidenceLedger(evidenceLedger);
-  for (const record of records) {
-    if (!record.id.startsWith('E-')) continue;
-    published = published.split(`[${record.id}]`).join(`[${record.sourceId}]`);
-  }
-  if (!records.some((record: EvidenceRecord): boolean => record.id.startsWith('E-'))) {
-    published = published.replace(/\[E-(S\d+)-\d+\]/gu, '[$1]');
-  }
+  void evidenceLedger;
+  let published: string = note
+    .replace(/\[(?:E-)?S\d+(?:-\d+)?\]/gu, '')
+    .replace(
+      /\[(?:事实|数字|原话|案例|步骤|风险|限制|术语|关系|对比|观点|结论|建议|待办|分歧|待研究)\]/gu,
+      '',
+    )
+    .replace(
+      /[（(]\s*(?:(?:原文)?(?:出处|来源)|证据(?:来源)?|source)\s*[:：]?\s*[^\n）)]{0,120}[）)]/giu,
+      '',
+    )
+    .replace(
+      /[【\[{]\s*(?:(?:E-)?S\d+(?:-\d+)?|(?:原文)?(?:出处|来源)|证据(?:来源)?|source)\s*[:：]?\s*[^\n】\]}]{0,120}[】\]}]/giu,
+      '',
+    );
   let previous: string;
   do {
     previous = published;
-    published = published.replace(/(\[S\d+\])\1/gu, '$1');
+    published = published
+      .replace(/[（(]\s*[）)]/gu, '')
+      .replace(/【\s*】/gu, '')
+      .replace(/\{\s*\}/gu, '');
   } while (published !== previous);
   if (noteStyle === 'meeting') {
-    published = published.replace(/\[(?:E-)?S\d+(?:-\d+)?\]/gu, '');
-    published = published.replace(
-      /\[(?:事实|数字|原话|案例|步骤|风险|限制|术语|关系|对比|观点|结论|建议|待办|分歧|待研究)\]/gu,
-      '',
-    );
     published = removeMeetingStatusForPublication(published);
   }
-  return published;
+  return published.replace(/[ \t]+\n/gu, '\n').trimEnd();
 }
 
 function removeMeetingStatusForPublication(markdown: string): string {

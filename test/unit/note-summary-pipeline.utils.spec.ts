@@ -275,28 +275,28 @@ describe('note summary pipeline utilities', () => {
     expect(prompt).toContain('unsupportedClaims');
   });
 
-  it('replaces internal evidence IDs with source anchors for publication', () => {
+  it('removes reader-visible source markers and empty delimiters from learning notes', () => {
     const published: string = normalizeEvidenceCitationsForPublication(
-      '知识图谱存在版本边界。[E-S01-001][E-S01-001]\n用户规模需要核对。[E-S02-001]',
+      '知识图谱存在版本边界。[E-S01-001]（原文出处：S01）{source: S01}（）【】\n用户规模需要核对。[S02][数字]【待人工确认】',
       structuredEvidenceLedger,
     );
 
-    expect(published).toContain('[S01]');
-    expect(published).toContain('[S02]');
-    expect(published).not.toContain('E-S');
-    expect(published).not.toContain('[S01][S01]');
+    expect(published).toContain('知识图谱存在版本边界。');
+    expect(published).toContain('用户规模需要核对。【待人工确认】');
+    expect(published).not.toMatch(/(?:E-)?S\d+(?:-\d+)?/u);
+    expect(published).not.toMatch(/[（(]\s*[）)]|【\s*】|\{\s*\}/u);
   });
 
-  it('removes internal source markers from published meeting notes', () => {
+  it('removes reader-visible source markers from published meeting notes', () => {
     const published: string = normalizeEvidenceCitationsForPublication(
-      '会议结论已确认。[E-S01-001][数字]\n风险仍待评估。[S02][风险]\n\n## 纪要状态：已形成结论。\n\n不应发布的状态说明。',
+      '会议结论已确认。[E-S01-001][数字]（来源：S01）\n风险仍待评估。[S02][风险]{S02}【待人工确认】\n\n## 纪要状态：已形成结论。\n\n不应发布的状态说明。',
       structuredEvidenceLedger,
       'meeting',
     );
 
     expect(published).toContain('会议结论已确认。');
-    expect(published).toContain('风险仍待评估。');
-    expect(published).not.toMatch(/\[(?:E-)?S\d+(?:-\d+)?\]/u);
+    expect(published).toContain('风险仍待评估。【待人工确认】');
+    expect(published).not.toMatch(/(?:E-)?S\d+(?:-\d+)?/u);
     expect(published).not.toContain('[数字]');
     expect(published).not.toContain('[风险]');
     expect(published).not.toContain('纪要状态');

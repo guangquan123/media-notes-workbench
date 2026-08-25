@@ -420,7 +420,8 @@ describe('NoteSummaryPipelineService', () => {
       styleRequirements: '输出详细笔记。',
     });
 
-    expect(result.markdown).toContain('[S01]');
+    expect(result.markdown).toContain('完整事实依据不能丢失。');
+    expect(result.markdown).not.toContain('[S01]');
     expect(result.markdown).not.toContain('E-S01-001');
     expect(result.quality.passed).toBe(true);
     expect(callStream).toHaveBeenCalledTimes(1);
@@ -747,7 +748,9 @@ ${detailedBody}
 
     expect(result.evidenceLedger.split('\n')).toHaveLength(800);
     expect(result.evidenceLedger).toContain('[S04][数字]');
-    expect(result.markdown).toContain(completeNote);
+    expect(result.markdown).toContain('# 长培训笔记');
+    expect(result.markdown).toContain('详细事实 240');
+    expect(result.markdown).not.toMatch(/\[(?:E-)?S\d+(?:-\d+)?\]/u);
     expect(result.markdown).toContain('原文高价值细节补全');
   });
 

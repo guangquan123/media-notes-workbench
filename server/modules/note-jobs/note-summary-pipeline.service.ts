@@ -12,6 +12,7 @@ import {
   buildNoteRepairPrompt,
   buildNoteStructurePrompt,
   normalizeEvidenceCitationsForPublication,
+  normalizeEvidenceCitationsForQuality,
   parseEvidenceLedger,
   preserveSourceMarkdownImages,
   splitSourceText,
@@ -222,7 +223,7 @@ export class NoteSummaryPipelineService {
     input: GenerateHighQualityNoteInput,
   ): EvaluatedNoteCandidate {
     const markdown: string = preserveSourceMarkdownImages(
-      normalizeEvidenceCitationsForPublication(model.text, evidenceLedger),
+      normalizeEvidenceCitationsForQuality(model.text, evidenceLedger),
       input.sourceText,
     );
     const evaluatedModel: PipelineModelResult = { ...model, text: markdown };
