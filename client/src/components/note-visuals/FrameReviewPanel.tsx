@@ -33,6 +33,7 @@ import type {
 interface FrameReviewPanelProps {
   job: NoteJob;
   onPublished: (job: NoteJob) => void;
+  publicationLabel?: string;
 }
 
 function formatTimestamp(milliseconds: number): string {
@@ -142,6 +143,7 @@ function SortableFrame({
 export function FrameReviewPanel({
   job,
   onPublished,
+  publicationLabel = '飞书',
 }: FrameReviewPanelProps) {
   const [response, setResponse] = useState<NoteJobFrameListResponse | null>(null);
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
@@ -204,7 +206,7 @@ export function FrameReviewPanel({
         selectionRevision: selection.revision,
       });
       onPublished(published);
-      toast.success('关键画面已确认，飞书笔记已创建');
+      toast.success(`关键画面已确认，${publicationLabel}笔记已创建`);
     } catch {
       toast.error('保存或发布失败，请刷新关键画面后重试');
       await load();

@@ -158,13 +158,6 @@ export default function EntryPage() {
               选择一个入口，系统会负责转录、提炼、结构化和归档。处理过程都在本机完成，结果可回到原文核对。
             </p>
           </div>
-          <div className="entry-status" aria-label="工作台状态">
-            <span className="entry-status__dot" />
-            <span>
-              <strong>本机工作台</strong>
-              <small>支持 5 种素材入口</small>
-            </span>
-          </div>
         </section>
 
         <section className="entry-workspace" aria-label="素材入口">
@@ -175,11 +168,6 @@ export default function EntryPage() {
             ))}
           </div>
         </section>
-
-        <footer className="entry-footer">
-          <span>本机处理 · 完成后自动清理临时文件</span>
-          <span>所有结果都支持回看原文</span>
-        </footer>
       </div>
     </main>
   );

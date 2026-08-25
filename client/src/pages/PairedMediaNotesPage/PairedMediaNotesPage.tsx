@@ -40,9 +40,10 @@ import type {
 import { PairedMediaUploadSlot } from './PairedMediaUploadSlot';
 import {
   AUDIO_ACCEPT,
+  getConnectorLabel,
   getPairedLogicalStage,
+  getPairedProcessStages,
   MAX_PAIRED_MEDIA_SIZE,
-  PAIRED_PROCESS_STAGES,
   toUploadedMediaInput,
   VIDEO_ACCEPT,
 } from './paired-media-page.utils';
@@ -231,7 +232,12 @@ export default function PairedMediaNotesPage() {
   const logicalStage: string | undefined = uploading
     ? 'uploading'
     : getPairedLogicalStage(job?.stage);
-  const processStages = PAIRED_PROCESS_STAGES.filter(
+  const connectorLabel: string = getConnectorLabel(readiness?.connectorType);
+  const displayMessage: string | undefined =
+    readiness?.connectorType === 'dingtalk'
+      ? job?.message?.replaceAll('飞书', connectorLabel)
+      : job?.message;
+  const processStages = getPairedProcessStages(connectorLabel).filter(
     ([stage]) =>
       stage !== 'extracting-frames' ||
       shouldShowVisualProcessingStage(
@@ -436,7 +442,7 @@ export default function PairedMediaNotesPage() {
                   </div>
                   <div className="mt-9">
                     <div className="mb-3 flex justify-between gap-4 text-sm">
-                      <span>{uploading ? uploadLabel : job?.message}</span>
+                      <span>{uploading ? uploadLabel : displayMessage}</span>
                       <span className="tabular-nums text-black/38">
                         {displayProgress}%
                       </span>
@@ -472,7 +478,8 @@ export default function PairedMediaNotesPage() {
                   ))}
                   {job?.stage === 'completed' && (
                     <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-                      双路转写、关键画面和冲突清单已经写入飞书文档。
+                      双路转写、关键画面和冲突清单已经写入{connectorLabel}
+                      文档。
                     </div>
                   )}
                 </div>
@@ -488,7 +495,7 @@ export default function PairedMediaNotesPage() {
                         )
                       }
                     >
-                      打开飞书笔记
+                      打开{connectorLabel}笔记
                       <ArrowUpRight className="size-4" />
                     </Button>
                   )}
@@ -508,7 +515,11 @@ export default function PairedMediaNotesPage() {
           </div>
         </section>
         {job?.stage === 'awaiting-frame-review' && (
-          <FrameReviewPanel job={job} onPublished={setJob} />
+          <FrameReviewPanel
+            job={job}
+            onPublished={setJob}
+            publicationLabel={connectorLabel}
+          />
         )}
       </div>
     </main>

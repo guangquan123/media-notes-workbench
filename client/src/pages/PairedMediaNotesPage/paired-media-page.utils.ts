@@ -2,7 +2,10 @@ import {
   toStoredSourceObject,
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
-import type { UploadedMediaInput } from '@shared/api.interface';
+import type {
+  ConnectorType,
+  UploadedMediaInput,
+} from '@shared/api.interface';
 
 export const MAX_PAIRED_MEDIA_SIZE = 10 * 1024 * 1024 * 1024;
 export const VIDEO_ACCEPT: Record<string, string[]> = {
@@ -20,15 +23,21 @@ export const AUDIO_ACCEPT: Record<string, string[]> = {
   'audio/flac': ['.flac'],
   'audio/ogg': ['.ogg'],
 };
-export const PAIRED_PROCESS_STAGES = [
-  ['uploading', '安全上传'],
-  ['preparing', '提取音轨'],
-  ['aligning', '时间对齐'],
-  ['extracting-frames', '处理画面'],
-  ['transcribing', '双路转写'],
-  ['summarizing', '交叉验证'],
-  ['publishing', '写入飞书'],
-] as const;
+export function getConnectorLabel(connectorType?: ConnectorType): string {
+  return connectorType === 'dingtalk' ? '钉钉' : '飞书';
+}
+
+export function getPairedProcessStages(connectorLabel: string) {
+  return [
+    ['uploading', '安全上传'],
+    ['preparing', '提取音轨'],
+    ['aligning', '时间对齐'],
+    ['extracting-frames', '处理画面'],
+    ['transcribing', '双路转写'],
+    ['summarizing', '交叉验证'],
+    ['publishing', `写入${connectorLabel}`],
+  ] as const;
+}
 
 export function toUploadedMediaInput(
   file: File,
