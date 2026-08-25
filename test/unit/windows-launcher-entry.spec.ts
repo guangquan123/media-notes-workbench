@@ -33,6 +33,8 @@ describe('Windows launcher entry', () => {
     expect(launcher).toContain('var pageReadyDeadline = 30000;');
     expect(launcher).toContain('本地服务已经启动并验证可访问');
     expect(launcher).toContain('不需要重复启动服务');
+    expect(launcher).toContain('complete(readyMessage, false, true)');
+    expect(launcher).toContain('setText("eyebrow", "SERVICE READY")');
     expect(launcher).toContain('explorer.exe ');
     expect(launcher).not.toContain(
       'complete("启动完成，正在打开工作台", true)',
