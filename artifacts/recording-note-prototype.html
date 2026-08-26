@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>录音直转笔记 · UI 原型</title>
+    <script src="https://unpkg.com/lucide@0.468.0"></script>
+    <style>
+      :root {
+        --ink: #17211f;
+        --muted: #74817d;
+        --line: #dce6e2;
+        --canvas: #f2f6f4;
+        --panel: #ffffff;
+        --teal: #168b75;
+        --teal-dark: #106955;
+        --teal-soft: #e8f6f1;
+        --amber: #b7791f;
+        --amber-soft: #fff6e3;
+        --red: #bd554d;
+        --shadow: 0 22px 55px rgba(41, 66, 59, 0.11);
+        --radius-lg: 24px;
+        --radius-md: 14px;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, input:focus-visible, select:focus-visible {
+        outline: 3px solid rgba(22, 139, 117, .22);
+        outline-offset: 2px;
+      }
+      .app-shell { min-height: 100vh; display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+      .sidebar {
+        padding: 24px 18px;
+        border-right: 1px solid var(--line);
+        background: rgba(255, 255, 255, .7);
+      }
+      .brand { display: flex; gap: 10px; align-items: center; padding: 2px 8px 28px; }
+      .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: #102522; color: #fff; }
+      .brand strong, .brand small { display: block; }
+      .brand strong { font-size: 13px; letter-spacing: .01em; }
+      .brand small { margin-top: 4px; color: var(--muted); font-size: 10px; }
+      .nav-label { padding: 0 10px 9px; color: #9aa7a3; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+      .nav { display: grid; gap: 4px; }
+      .nav button { border: 0; display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border-radius: 10px; background: transparent; color: #70807b; font-size: 12px; text-align: left; }
+      .nav button:hover { background: #eef5f2; color: var(--ink); }
+      .nav button.active { background: var(--teal-soft); color: var(--teal-dark); font-weight: 700; }
+      .sidebar-foot { margin-top: auto; padding: 18px 10px 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+      .main { min-width: 0; padding: 28px 42px 40px; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 1260px; margin: 0 auto; }
+      .crumb { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+      .crumb strong { color: var(--ink); font-weight: 700; }
+      .top-actions { display: flex; align-items: center; gap: 10px; }
+      .ghost-btn, .avatar-btn { border: 1px solid var(--line); background: rgba(255,255,255,.75); color: #5e6d68; }
+      .ghost-btn { height: 34px; padding: 0 12px; border-radius: 9px; font-size: 11px; display: inline-flex; align-items: center; gap: 7px; }
+      .avatar-btn { width: 34px; height: 34px; border-radius: 50%; background: #d8eee7; color: var(--teal-dark); font-weight: 800; }
+      .page-head { max-width: 1260px; margin: 44px auto 24px; display: flex; justify-content: space-between; gap: 20px; align-items: end; }
+      .eyebrow { margin: 0 0 11px; color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+      h1 { margin: 0; max-width: 720px; font-size: clamp(30px, 4vw, 52px); line-height: 1.04; letter-spacing: -.045em; }
+      .lead { margin: 16px 0 0; max-width: 600px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+      .readiness { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #cae8df; border-radius: 10px; background: #f5fcf9; color: var(--teal-dark); font-size: 11px; white-space: nowrap; }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: #2eae82; box-shadow: 0 0 0 4px rgba(46,174,130,.13); }
+      .workspace { max-width: 1260px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.42fr) minmax(300px, .78fr); gap: 18px; align-items: start; }
+      .panel { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow); }
+      .main-panel { min-height: 560px; padding: 28px; }
+      .side-panel { padding: 21px; box-shadow: 0 13px 30px rgba(41, 66, 59, .06); }
+      .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .panel-title { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+      .panel-subtitle { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+      .state-chip { border: 1px solid #cae8df; border-radius: 999px; padding: 6px 9px; background: var(--teal-soft); color: var(--teal-dark); font-size: 10px; font-weight: 800; white-space: nowrap; }
+      .state-chip.amber { border-color: #f2ddb1; background: var(--amber-soft); color: var(--amber); }
+      .state-chip.gray { border-color: var(--line); background: #f7faf9; color: var(--muted); }
+      .form-grid { display: grid; gap: 17px; margin-top: 29px; }
+      label { display: grid; gap: 8px; color: #596863; font-size: 11px; font-weight: 700; }
+      input, select { width: 100%; height: 43px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfc; color: var(--ink); padding: 0 12px; font-size: 13px; }
+      select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #70807b 50%), linear-gradient(135deg, #70807b 50%, transparent 50%); background-position: calc(100% - 16px) 18px, calc(100% - 12px) 18px; background-size: 4px 4px, 4px 4px; background-repeat: no-repeat; }
+      .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: #f7faf9; }
+      .segmented button { min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; }
+      .segmented button.active { background: #fff; color: var(--teal-dark); box-shadow: 0 3px 10px rgba(31,64,55,.08); font-weight: 800; }
+      .info-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #edf2f0; color: var(--muted); font-size: 11px; }
+      .info-row:last-child { border-bottom: 0; }
+      .info-row strong { color: var(--ink); font-size: 11px; }
+      .privacy { display: flex; gap: 9px; align-items: flex-start; margin-top: 22px; padding: 13px; border-radius: 11px; background: #f4f8f6; color: #65746f; font-size: 11px; line-height: 1.6; }
+      .privacy i { color: var(--teal); flex: none; margin-top: 1px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 27px; }
+      .primary, .secondary, .danger { min-height: 44px; border-radius: 10px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 800; }
+      .primary { border: 1px solid var(--teal); background: var(--teal); color: #fff; box-shadow: 0 9px 18px rgba(22,139,117,.18); }
+      .primary:hover { background: var(--teal-dark); }
+      .secondary { border: 1px solid var(--line); background: #fff; color: #5e6d68; }
+      .secondary:hover { border-color: #a9c7be; background: #f8fbfa; }
+      .danger { border: 1px solid #efd1cd; background: #fff8f7; color: var(--red); }
+      .recording-wrap { display: grid; place-items: center; padding: 45px 16px 20px; text-align: center; }
+      .recording-orb { width: 164px; height: 164px; display: grid; place-items: center; border: 1px solid #b8e3d7; border-radius: 50%; background: radial-gradient(circle, #f4fcf9 0 49%, #e3f5ef 50% 65%, #d4efe7 66% 100%); box-shadow: 0 0 0 18px rgba(22,139,117,.045); }
+      .recording-orb i { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 18px; background: var(--teal); color: #fff; box-shadow: 0 12px 24px rgba(22,139,117,.25); }
+      .timer { margin-top: 24px; font-variant-numeric: tabular-nums; font-size: 42px; font-weight: 800; letter-spacing: -.05em; }
+      .recording-label { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 7px; color: var(--teal-dark); font-size: 12px; font-weight: 800; }
+      .pulse { width: 8px; height: 8px; border-radius: 50%; background: #e2685f; box-shadow: 0 0 0 0 rgba(226,104,95,.38); animation: pulse 1.45s infinite; }
+      @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(226,104,95,0); } 100% { box-shadow: 0 0 0 0 rgba(226,104,95,0); } }
+      .wave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 49px; margin: 25px auto 8px; }
+      .wave span { width: 4px; height: 18px; border-radius: 8px; background: #91d2c2; animation: wave 1.05s ease-in-out infinite; }
+      .wave span:nth-child(2n) { animation-delay: -.7s; } .wave span:nth-child(3n) { animation-delay: -.35s; }
+      .wave span:nth-child(2) { height: 31px; } .wave span:nth-child(4) { height: 42px; } .wave span:nth-child(6) { height: 27px; } .wave span:nth-child(8) { height: 36px; }
+      @keyframes wave { 0%,100% { transform: scaleY(.55); opacity: .55; } 50% { transform: scaleY(1); opacity: 1; } }
+      .recording-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 17px; }
+      .recording-meta { width: min(100%, 470px); margin: 27px auto 0; padding: 13px 15px; border: 1px solid #e2efeb; border-radius: 12px; background: #fbfefd; text-align: left; }
+      .review-card { margin-top: 27px; border: 1px solid #e2efeb; border-radius: 16px; padding: 16px; background: #fbfefd; }
+      .audio-player { display: flex; align-items: center; gap: 12px; }
+      .play-btn { width: 38px; height: 38px; border: 0; display: grid; place-items: center; border-radius: 50%; background: var(--teal); color: #fff; }
+      .track { min-width: 0; flex: 1; }
+      .track-bar { height: 6px; border-radius: 99px; background: #d9eee8; overflow: hidden; }
+      .track-bar span { display: block; width: 31%; height: 100%; border-radius: inherit; background: var(--teal); }
+      .track-label { display: flex; justify-content: space-between; margin-top: 6px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+      .marker-list { display: grid; gap: 7px; margin-top: 18px; }
+      .marker { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 9px; background: #f3f8f6; color: #5f716b; font-size: 11px; }
+      .marker strong { color: var(--teal-dark); font-variant-numeric: tabular-nums; }
+      .progress-wrap { margin-top: 46px; }
+      .progress-top { display: flex; justify-content: space-between; gap: 15px; color: var(--muted); font-size: 11px; }
+      .progress-top strong { color: var(--ink); }
+      .progress-bar { height: 9px; margin-top: 12px; border-radius: 99px; background: #e8efec; overflow: hidden; }
+      .progress-bar span { display: block; width: 64%; height: 100%; border-radius: inherit; background: var(--teal); transition: width .3s ease; }
+      .stage-list { display: grid; gap: 9px; margin-top: 21px; }
+      .stage { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 10px; color: #94a09c; font-size: 11px; }
+      .stage i { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; background: #f0f4f2; }
+      .stage.done { color: #4d6f64; } .stage.done i { background: var(--teal-soft); color: var(--teal); } .stage.active { background: #f5fbf9; color: var(--ink); font-weight: 800; } .stage.active i { background: var(--teal); color: #fff; }
+      .success { display: grid; place-items: center; padding: 44px 20px 14px; text-align: center; }
+      .success-icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: var(--teal-soft); color: var(--teal); }
+      .success h2 { margin: 20px 0 7px; font-size: 25px; letter-spacing: -.04em; }
+      .success p { margin: 0; color: var(--muted); font-size: 12px; }
+      .result-links { display: grid; gap: 10px; width: min(100%, 380px); margin-top: 27px; }
+      .result-links button { justify-content: space-between; }
+      .preview-control { display: flex; flex-wrap: wrap; gap: 6px; max-width: 1260px; margin: 24px auto 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.6); }
+      .preview-control span { display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 10px; font-weight: 700; }
+      .preview-control button { min-height: 28px; border: 0; border-radius: 7px; padding: 0 9px; background: transparent; color: #77847f; font-size: 10px; }
+      .preview-control button.active { background: #102522; color: #fff; }
+      .hidden { display: none !important; }
+      .side-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .side-heading h3 { margin: 0; font-size: 14px; }
+      .side-copy { margin: 7px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+      .side-section + .side-section { margin-top: 23px; padding-top: 21px; border-top: 1px solid #edf2f0; }
+      .tip { padding: 12px; border-radius: 11px; background: #f7faf9; color: #697872; font-size: 11px; line-height: 1.7; }
+      .tip strong { color: var(--ink); }
+      .footer-note { max-width: 1260px; margin: 18px auto 0; color: #98a39f; font-size: 10px; }
+      @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .sidebar { display: none; } .main { padding: 20px; } .page-head { margin-top: 35px; } .workspace { grid-template-columns: 1fr; } .side-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 21px; } .side-section + .side-section { margin-top: 0; padding-top: 0; border-top: 0; } }
+      @media (max-width: 640px) { .main { padding: 16px; } .topbar, .page-head { align-items: flex-start; flex-direction: column; } .top-actions { align-self: stretch; justify-content: space-between; } .page-head { margin-top: 29px; } h1 { font-size: 35px; } .readiness { width: 100%; } .main-panel { padding: 20px; min-height: 535px; } .side-panel { display: block; } .side-section + .side-section { margin-top: 23px; padding-top: 21px; border-top: 1px solid #edf2f0; } .actions > * { flex: 1; } .recording-orb { width: 138px; height: 138px; } .timer { font-size: 36px; } }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark"><i data-lucide="waypoints"></i></span><span><strong>多媒体笔记工作台</strong><small>把资料整理成可复用的知识</small></span></div>
+        <div class="nav-label">工作台</div>
+        <nav class="nav">
+          <button class="active" type="button"><i data-lucide="mic-2"></i> 录音笔记</button>
+          <button type="button"><i data-lucide="file-video-2"></i> 本地视频</button>
+          <button type="button"><i data-lucide="files"></i> 文档笔记</button>
+          <button type="button"><i data-lucide="history"></i> 转化记录</button>
+        </nav>
+        <div class="sidebar-foot">本机处理 · 完成后自动清理临时文件<br />音频仅用于生成个人笔记</div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="crumb"><span>工作台</span><i data-lucide="chevron-right"></i><strong>录音笔记</strong></div>
+          <div class="top-actions"><button class="ghost-btn" type="button"><i data-lucide="settings-2"></i> 参数配置</button><button class="avatar-btn" type="button" aria-label="当前用户">Y</button></div>
+        </div>
+
+        <header class="page-head">
+          <div><p class="eyebrow">录音整理工作台</p><h1>让一段录音，沉淀成真正可复习的笔记。</h1><p class="lead">直接用麦克风记录，结束后自动转写、提炼重点并写入当前笔记连接器。你可以先试听确认，再开始转化。</p></div>
+          <div class="readiness"><span class="dot"></span>本机音频处理环境已就绪</div>
+        </header>
+
+        <div class="preview-control" aria-label="原型状态预览"><span>快速查看状态</span><button class="active" data-state="ready">入口</button><button data-state="prepare">准备</button><button data-state="recording">录音中</button><button data-state="paused">暂停</button><button data-state="review">试听</button><button data-state="processing">处理中</button><button data-state="complete">完成</button></div>
+
+        <section class="workspace">
+          <article class="panel main-panel">
+            <div id="ready" class="state-view">
+              <div class="panel-head"><div><h2 class="panel-title">开始一段新的录音</h2><p class="panel-subtitle">选择直接录音，或上传已有录音文件。</p></div><span class="state-chip">麦克风录音</span></div>
+              <div class="form-grid"><label>录音标题（可选）<input id="titleInput" value="产品周会 2026-08-25" /></label><div><label>笔记类型</label><div class="segmented" id="styleSegment"><button class="active" data-style="meeting" type="button">会议纪要</button><button data-style="learning" type="button">学习笔记</button></div></div></div>
+              <div class="privacy"><i data-lucide="shield-check"></i><span>麦克风权限只在你点击开始后请求。录音完成前，音频只保存在当前浏览器会话，不会上传。</span></div>
+              <div class="actions"><button class="primary" id="startBtn" type="button"><i data-lucide="mic"></i> 开始录音</button><button class="secondary" id="uploadBtn" type="button"><i data-lucide="upload-cloud"></i> 上传录音文件</button></div>
+              <div class="info-row" style="margin-top:25px"><span>当前转录引擎</span><strong>本地 Whisper · 说话人分离已开启</strong></div><div class="info-row"><span>支持格式</span><strong>MP3 · M4A · WAV · FLAC</strong></div>
+            </div>
+
+            <div id="prepare" class="state-view hidden">
+              <div class="panel-head"><div><h2 class="panel-title">准备录音</h2><p class="panel-subtitle">先确认标题和笔记类型，下一步才会请求麦克风权限。</p></div><span class="state-chip gray">录音准备</span></div>
+              <div class="form-grid"><label>录音标题<input id="prepareTitle" value="产品周会 2026-08-25" /></label><div><label>笔记类型</label><div class="segmented"><button class="active" data-style="meeting" type="button">会议纪要</button><button data-style="learning" type="button">学习笔记</button></div></div><div class="info-row"><span>预计录音上限</span><strong>90 分钟</strong></div></div>
+              <div class="privacy"><i data-lucide="lock-keyhole"></i><span>浏览器只会在下一步请求麦克风。录音过程不会自动同步到云端。</span></div><div class="actions"><button class="secondary" data-state="ready" type="button"><i data-lucide="arrow-left"></i> 返回</button><button class="primary" id="permissionBtn" type="button"><i data-lucide="mic"></i> 允许麦克风并开始</button></div>
+            </div>
+
+            <div id="recording" class="state-view hidden"><div class="panel-head"><div><h2 class="panel-title" id="recordingTitle">产品周会 2026-08-25</h2><p class="panel-subtitle">你可以暂停、继续，或随时标记一个重点。</p></div><span class="state-chip"><span class="pulse"></span> 正在录音</span></div><div class="recording-wrap"><div class="recording-orb"><i data-lucide="mic-2"></i></div><div class="timer" id="timer">00:00:00</div><div class="recording-label"><span class="pulse"></span> 麦克风声音正常</div><div class="wave" aria-label="录音音量反馈"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="recording-actions"><button class="secondary" id="markerBtn" type="button"><i data-lucide="pin"></i> 标记重点</button><button class="secondary" id="pauseBtn" type="button"><i data-lucide="pause"></i> 暂停</button><button class="primary" id="finishBtn" type="button"><i data-lucide="square"></i> 完成录音</button></div><div class="recording-meta"><div class="info-row"><span>已标记重点</span><strong id="markerCount">0 个</strong></div><div class="info-row"><span>录音暂存</span><strong>当前浏览器会话</strong></div></div></div></div>
+
+            <div id="paused" class="state-view hidden"><div class="panel-head"><div><h2 class="panel-title">录音已暂停</h2><p class="panel-subtitle">录音内容仍保留在当前会话中。</p></div><span class="state-chip amber">已暂停</span></div><div class="recording-wrap"><div class="recording-orb" style="filter:saturate(.65)"><i data-lucide="pause"></i></div><div class="timer" id="pausedTimer">00:00:18</div><div class="recording-label" style="color:var(--amber)">暂停不会丢失已录内容</div><div class="recording-actions"><button class="secondary" id="resumeBtn" type="button"><i data-lucide="play"></i> 继续录音</button><button class="primary" id="pausedFinishBtn" type="button"><i data-lucide="square"></i> 完成录音</button></div></div></div>
+
+            <div id="review" class="state-view hidden"><div class="panel-head"><div><h2 class="panel-title">录音完成，先试听确认</h2><p class="panel-subtitle">确认声音完整后，再开始转化为笔记。</p></div><span class="state-chip">18 分 42 秒</span></div><div class="review-card"><div class="audio-player"><button class="play-btn" id="playBtn" type="button" aria-label="播放录音"><i data-lucide="play"></i></button><div class="track"><div class="track-bar"><span id="trackProgress"></span></div><div class="track-label"><span id="playTime">00:00</span><span>18:42</span></div></div><i data-lucide="volume-2" style="color:var(--muted)"></i></div><div class="info-row" style="margin-top:13px"><span>录音质量</span><strong style="color:var(--teal-dark)">✓ 已检测到有效声音</strong></div><div class="info-row"><span>提示</span><strong style="color:var(--amber)">约 2 分钟音量偏低</strong></div></div><div class="form-grid"><label>笔记标题<input id="reviewTitle" value="产品周会 2026-08-25" /></label><div class="info-row"><span>重点标记</span><strong id="reviewMarkers">0 个 · 完成录音时添加</strong></div></div><div class="actions"><button class="secondary" id="rerecordBtn" type="button"><i data-lucide="rotate-ccw"></i> 重新录音</button><button class="primary" id="processBtn" type="button"><i data-lucide="sparkles"></i> 开始转化为笔记</button></div></div>
+
+            <div id="processing" class="state-view hidden"><div class="panel-head"><div><h2 class="panel-title">正在把录音变成笔记</h2><p class="panel-subtitle">你可以离开页面，任务会继续处理。</p></div><span class="state-chip">处理中</span></div><div class="progress-wrap"><div class="progress-top"><strong id="processMessage">正在语音转文字…</strong><span id="processPercent">64%</span></div><div class="progress-bar"><span id="progressFill"></span></div></div><div class="stage-list"><div class="stage done"><i data-lucide="check"></i><span>准备录音文件</span></div><div class="stage done"><i data-lucide="check"></i><span>安全上传</span></div><div class="stage active"><i data-lucide="mic-2"></i><span>语音转文字</span></div><div class="stage"><i data-lucide="sparkles"></i><span>生成笔记</span></div><div class="stage"><i data-lucide="send"></i><span>写入当前连接器</span></div></div><div class="privacy" style="margin-top:30px"><i data-lucide="info"></i><span>录音时长 18 分 42 秒 · 本地 Whisper · 3 个重点标记</span></div><div class="actions"><button class="danger" id="cancelProcessBtn" type="button"><i data-lucide="square"></i> 停止处理</button></div></div>
+
+            <div id="complete" class="state-view hidden"><div class="success"><div class="success-icon"><i data-lucide="check-check"></i></div><h2>笔记已经准备好</h2><p>产品周会 2026-08-25 · 麦克风录音 · 18 分 42 秒</p><div class="result-links"><button class="primary" type="button">打开总结笔记 <i data-lucide="arrow-up-right"></i></button><button class="secondary" type="button">查看原始转录 <i data-lucide="file-text"></i></button><button class="secondary" type="button">下载原文 <i data-lucide="download"></i></button></div><div class="review-card" style="width:min(100%,380px);text-align:left"><div class="side-heading"><h3>重点回看</h3><span class="state-chip gray">3 个标记</span></div><div class="marker-list"><div class="marker"><strong>00:04:12</strong><span>需求范围确认</span></div><div class="marker"><strong>00:09:31</strong><span>发布日期待定</span></div><div class="marker"><strong>00:16:05</strong><span>行动项分工</span></div></div></div><div class="actions"><button class="secondary" data-state="ready" type="button"><i data-lucide="plus"></i> 再录一段</button></div></div></div>
+          </article>
+
+          <aside class="panel side-panel">
+            <div class="side-section"><div class="side-heading"><h3>本次录音设置</h3><span class="state-chip gray">默认</span></div><p class="side-copy">这些设置会沿用你最近一次选择，录音结束后仍可调整。</p><div class="info-row"><span>笔记类型</span><strong id="sideStyle">会议纪要</strong></div><div class="info-row"><span>转录引擎</span><strong>本地 Whisper</strong></div><div class="info-row"><span>说话人分离</span><strong style="color:var(--teal-dark)">已开启</strong></div><div class="info-row"><span>输出位置</span><strong>飞书文档</strong></div></div>
+            <div class="side-section"><div class="side-heading"><h3>录音小贴士</h3><i data-lucide="lightbulb" style="color:var(--amber)"></i></div><p class="side-copy">让转写更准确，录音时尽量靠近声源，避免持续敲击桌面或翻动纸张。</p><div class="tip"><strong>重点标记很有用</strong><br />在录音中按下“标记重点”，结果页会自动留下时间点，方便回听原文。</div></div>
+            <div class="side-section"><div class="side-heading"><h3>处理链路</h3><span class="state-chip gray">5 个阶段</span></div><div class="stage-list" style="margin-top:13px"><div class="stage done"><i data-lucide="mic"></i><span>录音</span></div><div class="stage"><i data-lucide="file-audio"></i><span>转写</span></div><div class="stage"><i data-lucide="sparkles"></i><span>结构化笔记</span></div><div class="stage"><i data-lucide="archive"></i><span>原文归档</span></div><div class="stage"><i data-lucide="send"></i><span>连接器输出</span></div></div></div>
+          </aside>
+        </section>
+        <p class="footer-note">原型说明：顶部“快速查看状态”用于评审时快速查看流程，不属于正式产品界面。</p>
+      </main>
+    </div>
+    <script>
+      const views = [...document.querySelectorAll('.state-view')];
+      const stateButtons = [...document.querySelectorAll('[data-state]')];
+      let currentState = 'ready';
+      let timerSeconds = 0;
+      let timerHandle = null;
+      let markerCount = 0;
+      let processingHandle = null;
+      let isPlaying = false;
+      let playHandle = null;
+
+      function icons() { if (window.lucide) lucide.createIcons(); }
+      function formatTime(total) { const h = String(Math.floor(total / 3600)).padStart(2, '0'); const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0'); const s = String(total % 60).padStart(2, '0'); return `${h}:${m}:${s}`; }
+      function setState(next) {
+        currentState = next;
+        views.forEach((view) => view.classList.toggle('hidden', view.id !== next));
+        stateButtons.forEach((button) => button.classList.toggle('active', button.dataset.state === next));
+        if (next === 'recording' && !timerHandle) timerHandle = setInterval(() => { timerSeconds += 1; document.querySelector('#timer').textContent = formatTime(timerSeconds); }, 1000);
+        if (next !== 'recording' && next !== 'paused' && timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+        if (next === 'paused') document.querySelector('#pausedTimer').textContent = formatTime(Math.max(timerSeconds, 18));
+        icons();
+      }
+      function updateMarkers() { document.querySelector('#markerCount').textContent = `${markerCount} 个`; document.querySelector('#reviewMarkers').textContent = `${markerCount} 个 · 完成录音时添加`; }
+      function beginRecording() { const title = document.querySelector('#titleInput').value || '未命名录音'; document.querySelector('#recordingTitle').textContent = title; document.querySelector('#prepareTitle').value = title; document.querySelector('#reviewTitle').value = title; setState('recording'); }
+      function finishRecording() { if (timerHandle) { clearInterval(timerHandle); timerHandle = null; } setState('review'); }
+      function startProcessing() { setState('processing'); let progress = 64; document.querySelector('#progressFill').style.width = `${progress}%`; document.querySelector('#processPercent').textContent = `${progress}%`; clearInterval(processingHandle); processingHandle = setInterval(() => { progress += 9; document.querySelector('#progressFill').style.width = `${Math.min(progress, 100)}%`; document.querySelector('#processPercent').textContent = `${Math.min(progress, 100)}%`; document.querySelector('#processMessage').textContent = progress < 82 ? '正在生成结构化笔记…' : '正在写入飞书文档…'; if (progress >= 100) { clearInterval(processingHandle); setTimeout(() => setState('complete'), 450); } }, 420); }
+      document.querySelector('#startBtn').addEventListener('click', () => setState('prepare'));
+      document.querySelector('#permissionBtn').addEventListener('click', beginRecording);
+      document.querySelector('#pauseBtn').addEventListener('click', () => setState('paused'));
+      document.querySelector('#resumeBtn').addEventListener('click', () => setState('recording'));
+      document.querySelector('#finishBtn').addEventListener('click', finishRecording);
+      document.querySelector('#pausedFinishBtn').addEventListener('click', finishRecording);
+      document.querySelector('#rerecordBtn').addEventListener('click', () => { timerSeconds = 0; markerCount = 0; updateMarkers(); setState('recording'); });
+      document.querySelector('#processBtn').addEventListener('click', startProcessing);
+      document.querySelector('#cancelProcessBtn').addEventListener('click', () => { clearInterval(processingHandle); setState('review'); });
+      document.querySelector('#markerBtn').addEventListener('click', () => { markerCount += 1; updateMarkers(); });
+      document.querySelector('#uploadBtn').addEventListener('click', () => { document.querySelector('#reviewTitle').value = '访谈录音 · 已上传文件'; markerCount = 0; updateMarkers(); setState('review'); });
+      document.querySelector('#playBtn').addEventListener('click', (event) => { isPlaying = !isPlaying; event.currentTarget.innerHTML = `<i data-lucide="${isPlaying ? 'pause' : 'play'}"></i>`; icons(); if (isPlaying) { let p = 31; clearInterval(playHandle); playHandle = setInterval(() => { p += 3; document.querySelector('#trackProgress').style.width = `${Math.min(p, 100)}%`; document.querySelector('#playTime').textContent = `00:${String(Math.min(Math.round(p * 11.4), 1122)).padStart(2, '0')}`; if (p >= 100) { clearInterval(playHandle); isPlaying = false; event.currentTarget.innerHTML = '<i data-lucide="play"></i>'; icons(); } }, 450); } else clearInterval(playHandle); });
+      stateButtons.forEach((button) => button.addEventListener('click', () => setState(button.dataset.state)));
+      document.querySelectorAll('[data-style]').forEach((button) => button.addEventListener('click', () => { button.closest('.segmented').querySelectorAll('[data-style]').forEach((item) => item.classList.toggle('active', item === button)); document.querySelector('#sideStyle').textContent = button.dataset.style === 'learning' ? '学习笔记' : '会议纪要'; }));
+      icons();
+    </script>
+  </body>
+</html>
