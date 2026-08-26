@@ -40,9 +40,7 @@ interface HistoryFilterControlsProps {
   onKeywordSubmit: () => void;
   onProcessingStatusChange: (value: NoteProcessingStatus | undefined) => void;
   onReset: () => void;
-  onSourceChannelChange: (
-    value: ConversionSourceChannel | undefined,
-  ) => void;
+  onSourceChannelChange: (value: ConversionSourceChannel | undefined) => void;
   onSourceTypeChange: (value: NoteSourceType | undefined) => void;
   onStatusChange: (value: ConversionStatus | undefined) => void;
   values: HistoryFilterValues;
@@ -91,7 +89,9 @@ function parseSourceType(value: string): NoteSourceType | undefined {
   return undefined;
 }
 
-function parseSourceChannel(value: string): ConversionSourceChannel | undefined {
+function parseSourceChannel(
+  value: string,
+): ConversionSourceChannel | undefined {
   if (value === 'feishu_inbox' || value === 'manual') return value;
   return undefined;
 }
@@ -149,12 +149,12 @@ export function HistoryFilterControls({
   );
 
   return (
-    <div className="rounded-2xl border border-black/8 bg-white/82 p-3 shadow-[0_10px_30px_rgba(40,35,29,0.04)]">
-      <div className="grid gap-2 xl:grid-cols-[minmax(12rem,1.35fr)_repeat(4,minmax(9rem,1fr))_auto]">
-        <div className="flex min-w-0 gap-2">
+    <div className="rounded-2xl border border-black/8 bg-white/82 p-4 shadow-[0_10px_30px_rgba(40,35,29,0.04)] md:p-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="flex min-w-0 gap-2 md:col-span-2 xl:col-span-3">
           <Input
             aria-label="按笔记标题搜索"
-            className="h-9 min-w-0 border-black/10 bg-white text-sm"
+            className="h-10 min-w-0 border-black/10 bg-white text-sm"
             onChange={(event) => onKeywordChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') onKeywordSubmit();
@@ -164,7 +164,7 @@ export function HistoryFilterControls({
           />
           <Button
             aria-label="搜索"
-            className="shrink-0 rounded-xl bg-[#161616] text-white hover:bg-[#3370ff]"
+            className="size-10 shrink-0 rounded-xl bg-[#161616] text-white hover:bg-[#3370ff]"
             onClick={onKeywordSubmit}
             size="icon"
           >
@@ -177,7 +177,7 @@ export function HistoryFilterControls({
           }
           value={values.sourceChannel || 'all'}
         >
-          <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
             <SelectValue placeholder="来源渠道" />
           </SelectTrigger>
           <SelectContent>
@@ -196,7 +196,7 @@ export function HistoryFilterControls({
           }
           value={values.sourceType || 'all'}
         >
-          <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
             <SelectValue placeholder="资料类型" />
           </SelectTrigger>
           <SelectContent>
@@ -211,7 +211,7 @@ export function HistoryFilterControls({
           onValueChange={(value: string) => onStatusChange(parseStatus(value))}
           value={values.status || 'all'}
         >
-          <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
             <SelectValue placeholder="转化结果" />
           </SelectTrigger>
           <SelectContent>
@@ -228,7 +228,7 @@ export function HistoryFilterControls({
           }
           value={values.processingStatus || 'all'}
         >
-          <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
             <SelectValue placeholder="处理状态" />
           </SelectTrigger>
           <SelectContent>
@@ -241,49 +241,49 @@ export function HistoryFilterControls({
             )}
           </SelectContent>
         </Select>
-        {hasActiveFilters ? (
-          <Button
-            className="rounded-xl border-black/10 bg-white text-black/60 hover:bg-black/5"
-            onClick={onReset}
-            size="sm"
-            variant="outline"
-          >
-            <RotateCcw className="size-3.5" />
-            重置
-          </Button>
-        ) : null}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                className="h-10 min-w-[10rem] flex-1 justify-start rounded-xl border-black/10 bg-white text-black/60 hover:bg-black/5"
+                size="sm"
+                variant="outline"
+              >
+                <CalendarDays className="size-3.5" />
+                <span className="truncate">{getDateRangeLabel(dateRange)}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="range"
+                numberOfMonths={1}
+                onSelect={onDateRangeChange}
+                selected={dateRange}
+              />
+            </PopoverContent>
+          </Popover>
+          {dateRange ? (
             <Button
-              className="rounded-xl border-black/10 bg-white text-black/60 hover:bg-black/5"
+              className="h-10 shrink-0 rounded-xl px-3 text-black/50"
+              onClick={() => onDateRangeChange(undefined)}
+              size="sm"
+              variant="ghost"
+            >
+              清除日期
+            </Button>
+          ) : null}
+          {hasActiveFilters ? (
+            <Button
+              className="h-10 shrink-0 rounded-xl border-black/10 bg-white px-3 text-black/60 hover:bg-black/5"
+              onClick={onReset}
               size="sm"
               variant="outline"
             >
-              <CalendarDays className="size-3.5" />
-              {getDateRangeLabel(dateRange)}
+              <RotateCcw className="size-3.5" />
+              重置
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
-            <Calendar
-              mode="range"
-              numberOfMonths={1}
-              onSelect={onDateRangeChange}
-              selected={dateRange}
-            />
-          </PopoverContent>
-        </Popover>
-        {dateRange ? (
-          <Button
-            className="h-8 rounded-xl text-black/50"
-            onClick={() => onDateRangeChange(undefined)}
-            size="sm"
-            variant="ghost"
-          >
-            清除日期
-          </Button>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );
