@@ -192,6 +192,7 @@
     }
   },
   "name": "media-notes-workbench",
+  "license": "Apache-2.0",
   "overrides": {
     "dayjs": "^1.11.15"
   },
