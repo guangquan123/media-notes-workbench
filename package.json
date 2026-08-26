@@ -192,6 +192,7 @@
     }
   },
   "name": "media-notes-workbench",
+  "license": "MIT",
   "overrides": {
     "dayjs": "^1.11.15"
   },
