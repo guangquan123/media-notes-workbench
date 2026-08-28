@@ -18,7 +18,7 @@ function formatTencentAsrError(
 ): string {
   const rawMessage: string = readTencentErrorMessage(error);
   if (isTencentFinancePermissionError(error)) {
-    return '查询腾讯云账户余额需要 CAM 权限 finance:trade；请给当前 SecretId 绑定包含该只读权限的策略后重试。';
+    return '查询腾讯云账户余额需要 CAM 权限 finance:trade；请给当前 SecretId 绑定包含该权限的策略后重试。';
   }
   if (isTencentAsrQuotaError(error)) {
     return '腾讯云 ASR 额度已耗尽或账号欠费，请充值/购买资源包后重试，或关闭腾讯云 ASR 使用本地转录。';
