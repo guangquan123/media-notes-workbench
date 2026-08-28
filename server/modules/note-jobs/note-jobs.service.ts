@@ -1874,10 +1874,10 @@ export class NoteJobsService implements OnModuleInit {
     ]);
 
     this.update(id, 'preparing', 24, '文件读取完成，正在提取两路音轨…');
-    const videoAudioPath: string = join(workDir, 'paired-video-audio.mp3');
+    const videoAudioPath: string = join(workDir, 'paired-video-audio.wav');
     const auxiliaryAudioPath: string = join(
       workDir,
-      'paired-auxiliary-audio.mp3',
+      'paired-auxiliary-audio.wav',
     );
     await Promise.all([
       this.extractAudioTrack(
@@ -1924,15 +1924,17 @@ export class NoteJobsService implements OnModuleInit {
         '-hide_banner',
         '-loglevel',
         'error',
-        '-i',
-        sourcePath,
-        '-vn',
-        '-codec:a',
-        'libmp3lame',
-        '-q:a',
-        '5',
-        '-y',
-        audioPath,
+      '-i',
+      sourcePath,
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      '-codec:a',
+      'pcm_s16le',
+      '-y',
+      audioPath,
       ]),
     );
   }
