@@ -141,6 +141,12 @@ export class NoteJobsController {
   }
 
   @NeedLogin()
+  @Post('model-providers/:id/test-connection')
+  testModelProviderConnection(@Param('id') id: string) {
+    return this.modelProviderSettingsService.testConnection(id);
+  }
+
+  @NeedLogin()
   @Get('model-providers/:id/models')
   modelProviderModels(
     @Param('id') id: string,

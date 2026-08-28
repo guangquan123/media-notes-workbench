@@ -104,4 +104,42 @@ describe('model provider settings', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('tests provider connectivity through the models endpoint', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await service.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '测试 Provider',
+      });
+      fetchSpy.mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ id: 'model-a' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      await expect(service.testConnection(provider.id)).resolves.toEqual(
+        expect.objectContaining({
+          message: '连接成功，已读取 1 个模型。',
+          providerId: provider.id,
+          status: 'success',
+        }),
+      );
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+        'https://models.example.com/v1/models',
+      );
+      const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+      expect(request.headers).toEqual({ Authorization: 'Bearer secret-key' });
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });

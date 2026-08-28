@@ -540,6 +540,13 @@ export interface ModelProviderModelsResponse {
   providerId: string;
 }
 
+export interface ModelProviderConnectionStatus {
+  checkedAt: string;
+  message: string;
+  providerId: string;
+  status: 'success' | 'failed';
+}
+
 export interface UpdateExternalModelSettingsRequest {
   /** 留空表示保留已保存的 API Key。 */
   apiKey?: string;

@@ -260,6 +260,7 @@ const ALIGNMENT_SAMPLE_RATE = 4_000;
 const ALIGNMENT_BUCKET_MS = 1_000;
 const ALIGNMENT_MAX_OFFSET_MS = 30 * 60 * 1_000;
 const TIMESTAMPED_AUDIO_CHUNK_MS = 20 * 60 * 1_000;
+const CUSTOM_API_AUDIO_THRESHOLD_BYTES = 24 * 1024 * 1024;
 const SOURCE_PROFILES: Record<SourcePlatform, SourceProfile> = {
   bilibili: {
     label: 'B站',
@@ -2083,24 +2084,53 @@ export class NoteJobsService implements OnModuleInit {
       transcriptionProvider ||
       (await this.modelProviderSettingsService.getTranscriptionMode());
     if (selectedProvider === 'custom_api') {
-      const result: CustomApiTranscriptResult =
-        await this.customApiTranscriptionService.transcribe({
-          audioPath,
-          transcriptionOptions,
-          onProgress: (message: string): void =>
-            this.update(
-              id,
-              'transcribing',
-              Math.max(44, this.jobs.get(id)?.job.progress || 44),
-              message,
-            ),
-        });
+      const audioParts: string[] = await this.splitAudioIfNeeded(
+        audioPath,
+        workDir,
+        `${prefix}-api`,
+      );
+      const results: CustomApiTranscriptResult[] = [];
+      for (let index = 0; index < audioParts.length; index += 1) {
+        const part: string = audioParts[index];
+        const result: CustomApiTranscriptResult =
+          await this.customApiTranscriptionService.transcribe({
+            audioPath: part,
+            transcriptionOptions,
+            onProgress: (message: string): void =>
+              this.update(
+                id,
+                'transcribing',
+                Math.max(44, this.jobs.get(id)?.job.progress || 44),
+                audioParts.length > 1
+                  ? `第 ${index + 1}/${audioParts.length} 段：${message}`
+                  : message,
+              ),
+          });
+        results.push(result);
+      }
+      const firstResult: CustomApiTranscriptResult | undefined = results[0];
+      if (!firstResult) throw new Error('自定义 API 转录未返回结果');
+      const segments: TranscriptSegment[] = results.flatMap(
+        (result: CustomApiTranscriptResult, index: number): TranscriptSegment[] => {
+          const offsetMs: number = index * TIMESTAMPED_AUDIO_CHUNK_MS;
+          return result.segments.map(
+            (segment: TranscriptSegment): TranscriptSegment => ({
+              endMs: segment.endMs + offsetMs,
+              startMs: segment.startMs + offsetMs,
+              text: segment.text,
+            }),
+          );
+        },
+      );
       return {
-        model: result.model,
-        provider: result.provider,
-        providerName: result.providerName,
-        segments: result.segments,
-        transcript: result.transcript,
+        model: firstResult.model,
+        provider: firstResult.provider,
+        providerName: firstResult.providerName,
+        segments,
+        transcript: results
+          .map((result: CustomApiTranscriptResult): string => result.transcript)
+          .filter((transcript: string): boolean => Boolean(transcript.trim()))
+          .join('\n'),
       };
     }
     try {
@@ -2971,7 +3001,7 @@ export class NoteJobsService implements OnModuleInit {
     prefix = 'chunk',
   ): Promise<string[]> {
     const audioStat = await stat(audioPath);
-    if (audioStat.size <= 24 * 1024 * 1024) return [audioPath];
+    if (audioStat.size <= CUSTOM_API_AUDIO_THRESHOLD_BYTES) return [audioPath];
 
     const chunkTemplate = join(workDir, `${prefix}-%03d.mp3`);
     await this.runCommand('ffmpeg', [
@@ -2980,12 +3010,21 @@ export class NoteJobsService implements OnModuleInit {
       'error',
       '-i',
       audioPath,
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
       '-f',
       'segment',
       '-segment_time',
-      '1200',
-      '-c',
-      'copy',
+      String(TIMESTAMPED_AUDIO_CHUNK_MS / 1_000),
+      '-reset_timestamps',
+      '1',
+      '-c:a',
+      'libmp3lame',
+      '-b:a',
+      '64k',
+      '-y',
       chunkTemplate,
     ]);
     const chunks = (await readdir(workDir))

@@ -15,6 +15,7 @@ import type {
   ModelReference,
   ModelServiceProvider,
   ModelProviderModelsResponse,
+  ModelProviderConnectionStatus,
   TranscriptionMode,
   UpdateAiModelSettingsRequest,
   UpdateModelServiceProviderRequest,
@@ -208,6 +209,43 @@ export class ModelProviderSettingsService {
         model.capabilities.includes(capability),
     );
     return { items: fallback, providerId };
+  }
+
+  async testConnection(
+    providerId: string,
+  ): Promise<ModelProviderConnectionStatus> {
+    const config: StoredModelProviderConfig = await this.load();
+    const provider: StoredModelProvider = this.findProvider(
+      providerId,
+      config.providers,
+    );
+    if (!this.isProviderConfigured(provider)) {
+      throw new BadRequestException('请先填写 API 地址和 API Key');
+    }
+    try {
+      const payload: unknown = await fetchExternalModelJson(
+        `${provider.baseUrl}/models`,
+        {
+          headers: { Authorization: `Bearer ${provider.apiKey}` },
+          method: 'GET',
+        },
+        20_000,
+        { maxAttempts: 1 },
+      );
+      const modelCount: number = countModelItems(payload);
+      return {
+        checkedAt: new Date().toISOString(),
+        message:
+          modelCount > 0
+            ? `连接成功，已读取 ${modelCount} 个模型。`
+            : '连接成功，但服务未返回可选模型列表。',
+        providerId,
+        status: 'success',
+      };
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : '未知错误';
+      throw new BadRequestException(`提供者连通性测试失败：${message}`);
+    }
   }
 
   async getCredentials(
@@ -494,6 +532,12 @@ function parseModelList(
           : '';
     return id ? [{ capabilities: [capability], id }] : [];
   });
+}
+
+function countModelItems(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') return 0;
+  const data: unknown = (payload as { data?: unknown }).data;
+  return Array.isArray(data) ? data.length : 0;
 }
 
 function mergeProviderModels(

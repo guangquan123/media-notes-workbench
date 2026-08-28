@@ -56,6 +56,7 @@ import type {
   AiModelSettings,
   CreateModelServiceProviderRequest,
   ModelProviderModelsResponse,
+  ModelProviderConnectionStatus,
   ModelServiceProvider,
   UpdateAiModelSettingsRequest,
   UpdateModelServiceProviderRequest,
@@ -240,6 +241,17 @@ export async function getModelProviderModels(
     method: 'GET',
     params: { capability },
     timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function testModelServiceProvider(
+  providerId: string,
+): Promise<ModelProviderConnectionStatus> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/model-providers/${providerId}/test-connection`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }
