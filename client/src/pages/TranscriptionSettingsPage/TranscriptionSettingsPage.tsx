@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, CloudCog, LoaderCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, CloudCog, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import {
   updateTencentAsrSettings,
 } from '@/api';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -52,6 +53,8 @@ export default function TranscriptionSettingsPage({
   const [testing, setTesting] = useState(false);
   const [quota, setQuota] = useState<TencentAsrQuotaStatus | null>(null);
   const [checkingQuota, setCheckingQuota] = useState(false);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect((): void => {
     void getTencentAsrSettings()
@@ -59,6 +62,7 @@ export default function TranscriptionSettingsPage({
         setSettings(next);
         setForm(toFormState(next));
         setEditing(!next.configured);
+        setAdvancedOpen(!next.configured);
       })
       .catch((): void => {
         toast.error('无法读取腾讯云转录配置');
@@ -88,8 +92,31 @@ export default function TranscriptionSettingsPage({
   };
 
   const cancelEdit = (): void => {
+    if (!settings) return;
     setForm(toFormState(settings));
     setEditing(false);
+  };
+
+  const toggleEnabled = async (enabled: boolean): Promise<void> => {
+    if (!form) return;
+    if (editing) {
+      update({ enabled });
+      return;
+    }
+    setTogglingEnabled(true);
+    try {
+      const next: TencentAsrSettings = await updateTencentAsrSettings({
+        ...form,
+        enabled,
+      });
+      setSettings(next);
+      setForm(toFormState(next));
+      toast.success(next.enabled ? '腾讯云 ASR 已启用' : '腾讯云 ASR 已关闭，已保留配置');
+    } catch {
+      toast.error(enabled ? '启用失败，请先补全腾讯云参数' : '关闭腾讯云 ASR 失败，请稍后重试');
+    } finally {
+      setTogglingEnabled(false);
+    }
   };
 
   const testConnection = async (): Promise<void> => {
@@ -134,17 +161,29 @@ export default function TranscriptionSettingsPage({
           <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#3370ff] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">腾讯云高质量转录</p><p className="text-xs text-black/45">私有 COS + ASR 大模型 2.0</p></div></div>
           <Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button>
         </header>}
-        <section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}>
-          <div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，选择腾讯 ASR 的任务会使用此资源包；关闭后请在上方切换到 API 大模型。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div>
+        <section className={`${embedded ? 'pt-0' : 'mt-6'} space-y-4`}>
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-black/8 bg-white p-4"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，选择腾讯 ASR 的任务会使用此资源包；关闭后请在上方切换到 API 大模型。</p></div><div className="flex shrink-0 items-center gap-2"><span className={`text-xs font-medium ${form.enabled ? 'text-emerald-700' : 'text-black/45'}`}>{form.enabled ? '已开启' : '已关闭'}</span><Switch aria-label="启用腾讯云 ASR" checked={form.enabled} disabled={togglingEnabled} onCheckedChange={(enabled: boolean): void => void toggleEnabled(enabled)} /></div></div>
           {settings.configured && !editing && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-semibold">配置已保存并锁定</p><p className="mt-1 text-xs leading-5">SecretId：{settings.secretId}；SecretKey：已保存；地域：{settings.region}；存储桶：{settings.bucket || '未填写'}。</p></div>}
-          <div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5">
-            <div className="grid gap-2"><Label htmlFor="secret-id">SecretId</Label><Input disabled={!editing} id="secret-id" onChange={(event) => update({ secretId: event.target.value })} placeholder={settings.secretId || 'AKID…'} value={form.secretId} /><p className="text-xs text-black/45">{settings.secretId ? `当前：${settings.secretId}` : '尚未保存'}</p></div>
-            <div className="grid gap-2"><Label htmlFor="secret-key">SecretKey</Label><Input disabled={!editing} id="secret-key" onChange={(event) => update({ secretKey: event.target.value })} placeholder={settings.secretKeyConfigured ? '已保存；留空则不变' : '请输入 SecretKey'} type="password" value={form.secretKey} /></div>
-            <div className="grid gap-2 sm:grid-cols-2"><label className="grid gap-2"><Label htmlFor="region">COS 地域</Label><Input disabled={!editing} id="region" onChange={(event) => update({ region: event.target.value })} value={form.region} /></label><label className="grid gap-2"><Label htmlFor="bucket">COS 存储桶</Label><Input disabled={!editing} id="bucket" onChange={(event) => update({ bucket: event.target.value })} placeholder="media-notes-asr-125…" value={form.bucket} /></label></div>
-            <div className="grid gap-2"><Label htmlFor="asr-region">ASR API 地域</Label><Input disabled={!editing} id="asr-region" onChange={(event) => update({ asrRegion: event.target.value })} value={form.asrRegion} /><p className="text-xs text-black/45">腾讯云语音识别 API 当前仅支持 ap-guangzhou；这不改变 COS 桶的上海地域。</p></div>
-            <div className="grid gap-2"><Label htmlFor="engine">识别引擎</Label><Input disabled={!editing} id="engine" onChange={(event) => update({ engineModelType: event.target.value })} value={form.engineModelType} /><p className="text-xs text-black/45">推荐保留 16k_zh_en_2.0；适合中文、英语、方言及嘈杂音频。</p></div>
-            <div className="flex items-center justify-between border-t border-black/8 pt-4"><div><p className="text-sm font-medium">说话人分离</p><p className="text-xs text-black/45">多人录音时标记说话人切换。</p></div><Switch checked={form.speakerDiarization} disabled={!editing} onCheckedChange={(speakerDiarization: boolean): void => update({ speakerDiarization })} /></div>
-          </div>
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <div className="rounded-xl border border-black/8 bg-white">
+              <CollapsibleTrigger asChild>
+                <button className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" type="button">
+                  <span><span className="block text-sm font-medium">腾讯云参数</span><span className="mt-1 block text-xs text-black/45">SecretId、COS、地域、识别引擎与说话人分离</span></span>
+                  <ChevronDown className={`size-4 shrink-0 text-black/45 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid gap-4 border-t border-black/8 px-4 py-4">
+                  <div className="grid gap-2"><Label htmlFor="secret-id">SecretId</Label><Input disabled={!editing} id="secret-id" onChange={(event): void => update({ secretId: event.target.value })} placeholder={settings.secretId || 'AKID…'} value={form.secretId} /><p className="text-xs text-black/45">{settings.secretId ? `当前：${settings.secretId}` : '尚未保存'}</p></div>
+                  <div className="grid gap-2"><Label htmlFor="secret-key">SecretKey</Label><Input disabled={!editing} id="secret-key" onChange={(event): void => update({ secretKey: event.target.value })} placeholder={settings.secretKeyConfigured ? '已保存；留空则不变' : '请输入 SecretKey'} type="password" value={form.secretKey} /></div>
+                  <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2"><Label htmlFor="region">COS 地域</Label><Input disabled={!editing} id="region" onChange={(event): void => update({ region: event.target.value })} value={form.region} /></label><label className="grid gap-2"><Label htmlFor="bucket">COS 存储桶</Label><Input disabled={!editing} id="bucket" onChange={(event): void => update({ bucket: event.target.value })} placeholder="media-notes-asr-125…" value={form.bucket} /></label></div>
+                  <div className="grid gap-2"><Label htmlFor="asr-region">ASR API 地域</Label><Input disabled={!editing} id="asr-region" onChange={(event): void => update({ asrRegion: event.target.value })} value={form.asrRegion} /><p className="text-xs text-black/45">腾讯云语音识别 API 当前仅支持 ap-guangzhou；这不改变 COS 桶的上海地域。</p></div>
+                  <div className="grid gap-2"><Label htmlFor="engine">识别引擎</Label><Input disabled={!editing} id="engine" onChange={(event): void => update({ engineModelType: event.target.value })} value={form.engineModelType} /><p className="text-xs text-black/45">推荐保留 16k_zh_en_2.0；适合中文、英语、方言及嘈杂音频。</p></div>
+                  <div className="flex items-center justify-between border-t border-black/8 pt-4"><div><p className="text-sm font-medium">说话人分离</p><p className="text-xs text-black/45">多人录音时标记说话人切换。</p></div><Switch aria-label="说话人分离" checked={form.speakerDiarization} disabled={!editing} onCheckedChange={(speakerDiarization: boolean): void => update({ speakerDiarization })} /></div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
           <div className="flex flex-wrap items-center gap-3">{editing ? <><Button className="h-11" disabled={saving} onClick={() => void save()}>{saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}{saving ? '正在保存' : '保存配置'}</Button>{settings.configured && <Button className="h-11" disabled={saving} onClick={cancelEdit} variant="outline">取消修改</Button>}</> : <><Button className="h-11" disabled={testing} onClick={() => void testConnection()} variant="outline">{testing ? <LoaderCircle className="size-4 animate-spin" /> : <CloudCog className="size-4" />}测试连通性</Button><Button className="h-11" onClick={() => void checkQuota()} disabled={checkingQuota} variant="outline">{checkingQuota ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}查询额度</Button><Button className="h-11" onClick={() => setEditing(true)}>修改配置</Button></>}<p className="text-xs text-black/45">密钥不会返回页面、不会写入日志；仅保存在本机受限配置文件中。</p></div>
           {quota && <div className={`rounded-xl border p-4 text-sm ${quota.status === 'depleted' ? 'border-red-200 bg-red-50 text-red-950' : quota.status === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}><p className="font-semibold">额度状态：{quota.status === 'available' ? '可用' : quota.status === 'depleted' ? '余额不足/可能已耗尽' : quota.status === 'not_configured' ? '未配置' : '暂不可用'}</p><p className="mt-1 text-xs leading-5">{quota.message}</p>{quota.accountBalanceCny !== undefined && <p className="mt-2 text-xs">腾讯云账户可用余额：<strong>¥{quota.accountBalanceCny.toFixed(2)}</strong></p>}{quota.asrUsage && <p className="mt-2 text-xs">本月录音识别：<strong>{quota.asrUsage.durationSeconds} 秒 / {quota.asrUsage.count} 次</strong></p>}<p className="mt-2 text-[11px] text-black/45">查询时间：{new Date(quota.checkedAt).toLocaleString('zh-CN')}</p></div>}
         </section>

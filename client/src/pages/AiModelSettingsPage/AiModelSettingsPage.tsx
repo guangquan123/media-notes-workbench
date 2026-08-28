@@ -399,7 +399,7 @@ export default function AiModelSettingsPage({
             </Button>
           </header>
         )}
-        <section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}>
+        <section className={`${embedded ? 'pt-0' : 'mt-6'} space-y-4`}>
           <div className="rounded-xl border border-black/8 bg-white p-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
               {steps.map((step, index: number): React.ReactNode => (
@@ -472,7 +472,7 @@ export default function AiModelSettingsPage({
           {tab === 'models' && (
             <div className="space-y-5">
               <div><h2 className="text-xl font-semibold">模型配置</h2><p className="mt-1 text-xs text-black/50">在这里一次性选择转录方式、转录模型和总结模型。</p></div>
-              <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-5">
+              <div className="grid gap-3 rounded-xl border border-black/8 bg-white p-4">
                 <div><p className="font-medium">转录方式</p><p className="mt-1 text-xs text-black/45">保存时会同时记住默认方式和对应模型。</p></div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button aria-pressed={transcriptionMode === 'custom_api'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`} onClick={(): void => setTranscriptionMode('custom_api')} type="button"><p className="font-medium">我的 API 模型</p><p className="mt-1 text-xs leading-5 text-black/50">使用下方提供者和转录模型。</p></button>

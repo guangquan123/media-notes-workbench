@@ -118,7 +118,7 @@ export default function SettingsPage() {
             </div>
           </header>
 
-          <div className="grid gap-7 py-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-9">
+          <div className="grid gap-6 py-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-6">
             <nav
               aria-label="配置模块"
               className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible"
