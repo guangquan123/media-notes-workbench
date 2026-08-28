@@ -11,6 +11,7 @@ import type {
 } from '@shared/api.interface';
 import {
   formatTencentAsrError,
+  isTencentFinancePermissionError,
   isTencentAsrQuotaError,
 } from './tencent-asr-error.utils';
 
@@ -168,7 +169,7 @@ export class TencentAsrSettingsService {
         timeZone: 'Asia/Shanghai',
       }).format(new Date());
       const startDate: string = `${endDate.slice(0, 8)}01`;
-      const [balance, usage] = await Promise.all([
+      const [balanceResult, usageResult] = await Promise.allSettled([
         billing.DescribeAccountBalance({ TempCredit: false }),
         asr.GetUsageByDate({
           BizNameList: ['asr_rec'],
@@ -176,26 +177,53 @@ export class TencentAsrSettingsService {
           StartDate: startDate,
         }),
       ]);
-      const balanceFen: number = Number(balance.RealBalance ?? balance.Balance ?? 0);
-      const usageItem = usage.Data?.UsageByDateInfoList?.find(
+      const usage = usageResult.status === 'fulfilled' ? usageResult.value : undefined;
+      const usageItem = usage?.Data?.UsageByDateInfoList?.find(
         (item: { BizName?: string }) => item.BizName === 'asr_rec',
+      );
+      const asrUsage: TencentAsrQuotaStatus['asrUsage'] = usageItem
+        ? {
+            count: Number(usageItem.Count || 0),
+            durationSeconds: Number(usageItem.Duration || 0),
+            endDate,
+            startDate,
+          }
+        : undefined;
+      if (balanceResult.status === 'rejected') {
+        const balanceError: unknown = balanceResult.reason;
+        const detail: string = formatTencentAsrError(balanceError);
+        return {
+          asrUsage,
+          checkedAt,
+          message: asrUsage
+            ? `${detail} 已成功读取本月 ASR 用量。`
+            : detail,
+          status: isTencentFinancePermissionError(balanceError)
+            ? 'unavailable'
+            : isTencentAsrQuotaError(balanceError)
+              ? 'depleted'
+              : 'unavailable',
+        };
+      }
+      const balance = balanceResult.value;
+      const balanceFen: number = Number(
+        balance.RealBalance ?? balance.Balance ?? 0,
       );
       const accountBalanceCny: number = balanceFen / 100;
       const status = balanceFen <= 0 ? 'depleted' : 'available';
+      const usageMessage: string =
+        usageResult.status === 'rejected'
+          ? `但本月 ASR 用量查询失败：${formatTencentAsrError(usageResult.reason)}`
+          : '';
       return {
         accountBalanceCny,
         accountBalanceFen: balanceFen,
-        asrUsage: {
-          count: Number(usageItem?.Count || 0),
-          durationSeconds: Number(usageItem?.Duration || 0),
-          endDate,
-          startDate,
-        },
+        asrUsage,
         checkedAt,
         message:
           status === 'depleted'
             ? '腾讯云账户可用余额为 0，ASR 可能因欠费或资源包耗尽而停止；请提前充值或购买资源包。'
-            : '已读取腾讯云账户余额和本月录音文件识别用量。',
+            : `已读取腾讯云账户余额和本月录音文件识别用量。${usageMessage}`,
         status,
       };
     } catch (error) {
