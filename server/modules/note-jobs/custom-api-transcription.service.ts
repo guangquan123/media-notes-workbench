@@ -8,6 +8,9 @@ import {
   type ModelProviderCredentials,
 } from './model-provider-settings.service';
 
+const TRANSCRIPTION_TIMEOUT_MS = 15 * 60_000;
+const TRANSCRIPTION_POLL_INTERVAL_MS = 2_000;
+
 export interface CustomApiTranscriptResult {
   model: string;
   provider: 'custom_api';
@@ -54,11 +57,11 @@ export class CustomApiTranscriptionService {
     if (hotwords.length > 0) form.append('prompt', hotwords.join('、'));
     const controller = new AbortController();
     let timedOut = false;
-    const endpoint: string = `${credentials.baseUrl}/audio/transcriptions`;
+    const endpoint: string = `${credentials.baseUrl}/audio/transcriptions/async`;
     const timeout = setTimeout((): void => {
       timedOut = true;
       controller.abort();
-    }, 15 * 60_000);
+    }, TRANSCRIPTION_TIMEOUT_MS);
     try {
       let response: Response;
       try {
@@ -88,9 +91,19 @@ export class CustomApiTranscriptionService {
           `服务返回 HTTP ${response.status}（${credentials.providerName} · ${credentials.model}）：${formatBody(body)}`,
         );
       }
-      const transcript: string = extractTranscript(body);
+      const resultBody: unknown = extractTranscript(body)
+        ? body
+        : await waitForAsyncTranscript(
+            endpoint,
+            credentials.baseUrl,
+            extractTaskId(body, response.headers),
+            credentials.apiKey,
+            controller.signal,
+            (message: string): void => input.onProgress?.(message),
+          );
+      const transcript: string = extractTranscript(resultBody);
       if (!transcript) throw new Error('自定义 API 未返回可用转录文本');
-      const segments: TranscriptSegment[] = extractSegments(body);
+      const segments: TranscriptSegment[] = extractSegments(resultBody);
       this.logger.log(
         JSON.stringify({
           model: credentials.model,
@@ -125,6 +138,109 @@ function formatTransportError(error: unknown): string {
   return `${error.message}${codeMessage}${causeMessage ? `（${causeMessage}）` : ''}`;
 }
 
+async function waitForAsyncTranscript(
+  endpoint: string,
+  baseUrl: string,
+  taskId: string | undefined,
+  apiKey: string,
+  signal: AbortSignal,
+  onProgress: (message: string) => void,
+): Promise<unknown> {
+  if (!taskId) {
+    throw new Error('自定义 API 异步转录未返回任务 ID');
+  }
+  const pollUrls: string[] = [
+    `${endpoint}/${encodeURIComponent(taskId)}`,
+    `${baseUrl}/audio/tasks/${encodeURIComponent(taskId)}`,
+  ];
+  let pollUrl: string | undefined;
+  for (let attempt = 0; attempt < 450; attempt += 1) {
+    if (signal.aborted) throw new Error('自定义 API 异步转录请求已取消');
+    if (!pollUrl) {
+      for (const candidate of pollUrls) {
+        const response: Response = await fetch(candidate, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
+          method: 'GET',
+          signal,
+        });
+        const body: unknown = await readResponseBody(response);
+        if (response.status === 404 || response.status === 405) continue;
+        if (!response.ok) {
+          throw new Error(`查询异步转录任务失败 HTTP ${response.status}：${formatBody(body)}`);
+        }
+        pollUrl = candidate;
+        if (extractTranscript(body)) return body;
+        assertAsyncTaskState(body);
+        onProgress('API 转录任务已提交，正在等待识别结果…');
+        break;
+      }
+      if (!pollUrl) throw new Error('未找到 Deepexi 异步转录任务查询接口');
+    } else {
+      const response: Response = await fetch(pollUrl, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
+        method: 'GET',
+        signal,
+      });
+      const body: unknown = await readResponseBody(response);
+      if (!response.ok) {
+        throw new Error(`查询异步转录任务失败 HTTP ${response.status}：${formatBody(body)}`);
+      }
+      if (extractTranscript(body)) return body;
+      assertAsyncTaskState(body);
+      onProgress(`API 转录任务处理中（第 ${attempt + 1} 次查询）…`);
+    }
+    await delay(TRANSCRIPTION_POLL_INTERVAL_MS, signal);
+  }
+  throw new Error('自定义 API 异步转录等待超时（15 分钟）');
+}
+
+function assertAsyncTaskState(body: unknown): void {
+  const status: string = extractTaskStatus(body);
+  if (/^(failed|error|cancelled|canceled)$/u.test(status)) {
+    throw new Error(`自定义 API 异步转录任务失败：${formatBody(body)}`);
+  }
+}
+
+function extractTaskId(body: unknown, headers: Headers): string | undefined {
+  const headerId: string | null =
+    headers.get('x-task-id') || headers.get('x-job-id') || headers.get('location');
+  if (headerId) return headerId.split('/').pop() || headerId;
+  if (!body || typeof body !== 'object') return undefined;
+  const value = body as Record<string, unknown>;
+  const directKeys: string[] = ['task_id', 'taskId', 'job_id', 'jobId', 'id'];
+  for (const key of directKeys) {
+    if (typeof value[key] === 'string' && value[key]) return value[key];
+  }
+  for (const key of ['data', 'result', 'output']) {
+    const nested: string | undefined = extractTaskId(value[key], new Headers());
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function extractTaskStatus(body: unknown): string {
+  if (!body || typeof body !== 'object') return '';
+  const value = body as Record<string, unknown>;
+  for (const key of ['status', 'state']) {
+    if (typeof value[key] === 'string') return value[key].toLowerCase();
+  }
+  for (const key of ['data', 'result', 'output']) {
+    const nested: string = extractTaskStatus(value[key]);
+    if (nested) return nested;
+  }
+  return '';
+}
+
+function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject): void => {
+    const timer: NodeJS.Timeout = setTimeout(resolve, milliseconds);
+    signal.addEventListener('abort', (): void => {
+      clearTimeout(timer);
+      reject(new Error('自定义 API 异步转录请求已取消'));
+    }, { once: true });
+  });
+}
+
 async function readResponseBody(response: Response): Promise<unknown> {
   const text: string = await response.text();
   if (!text) return {};
@@ -148,28 +264,62 @@ function formatBody(body: unknown): string {
 
 function extractTranscript(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
-  const value = body as { text?: unknown; data?: { text?: unknown } };
-  if (typeof value.text === 'string') return value.text.trim();
-  return typeof value.data?.text === 'string' ? value.data.text.trim() : '';
+  const value = body as Record<string, unknown>;
+  for (const key of ['text', 'transcript']) {
+    if (typeof value[key] === 'string' && value[key].trim()) {
+      return value[key].trim();
+    }
+  }
+  for (const key of ['data', 'result', 'output']) {
+    const nested: string = extractTranscript(value[key]);
+    if (nested) return nested;
+  }
+  const choices: unknown = value.choices;
+  if (Array.isArray(choices)) {
+    for (const choice of choices) {
+      const nested: string = extractTranscript(choice);
+      if (nested) return nested;
+    }
+  }
+  if (typeof value.content === 'string') return value.content.trim();
+  if (value.message && typeof value.message === 'object') {
+    return extractTranscript(value.message);
+  }
+  return '';
 }
 
 function extractSegments(body: unknown): TranscriptSegment[] {
   if (!body || typeof body !== 'object') return [];
-  const segments: unknown = (body as { segments?: unknown }).segments;
+  const value = body as Record<string, unknown>;
+  const segments: unknown = value.segments
+    || (value.data && typeof value.data === 'object'
+      ? (value.data as Record<string, unknown>).segments
+      : undefined)
+    || (value.result && typeof value.result === 'object'
+      ? (value.result as Record<string, unknown>).segments
+      : undefined);
   if (!Array.isArray(segments)) return [];
   return segments.flatMap((item: unknown): TranscriptSegment[] => {
     if (!item || typeof item !== 'object') return [];
-    const segment = item as { end?: unknown; start?: unknown; text?: unknown };
+    const segment = item as Record<string, unknown>;
     if (typeof segment.text !== 'string' || !segment.text.trim()) return [];
-    const startMs: number = toMilliseconds(segment.start);
-    const endMs: number = Math.max(startMs, toMilliseconds(segment.end));
+    const hasMillisecondFields: boolean =
+      segment.start_time_ms !== undefined || segment.end_time_ms !== undefined;
+    const startMs: number = toMilliseconds(
+      segment.start_time_ms ?? segment.start,
+      hasMillisecondFields,
+    );
+    const endMs: number = Math.max(
+      startMs,
+      toMilliseconds(segment.end_time_ms ?? segment.end, hasMillisecondFields),
+    );
     return [{ endMs, startMs, text: segment.text.trim() }];
   });
 }
 
-function toMilliseconds(value: unknown): number {
+function toMilliseconds(value: unknown, alreadyMilliseconds = false): number {
   return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(0, Math.round(value * 1_000))
+    ? Math.max(0, Math.round(alreadyMilliseconds ? value : value * 1_000))
     : 0;
 }
 

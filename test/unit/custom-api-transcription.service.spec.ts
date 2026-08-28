@@ -50,11 +50,77 @@ describe('custom api transcription', () => {
         transcript: '你好，世界。',
       });
       expect(fetchSpy.mock.calls[0]?.[0]).toBe(
-        'https://models.example.com/v1/audio/transcriptions',
+        'https://models.example.com/v1/audio/transcriptions/async',
       );
       const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
       expect(request.headers).toEqual({ Authorization: 'Bearer secret-key' });
       expect(request.body).toBeInstanceOf(FormData);
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
+  it('polls Deepexi async transcription tasks until a transcript is ready', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'custom-api-transcription-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const settings = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await settings.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '测试 Provider',
+      });
+      await settings.updateModelSettings({
+        summaryModel: undefined,
+        transcriptionMode: 'custom_api',
+        transcriptionModel: {
+          model: 'asr-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+      });
+      const audioPath = join(baseDir, 'sample.wav');
+      await writeFile(audioPath, Buffer.from('audio-data'));
+      fetchSpy
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ task_id: 'task-123', status: 'queued' }), {
+            status: 202,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ status: 'processing' }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              result: {
+                segments: [{ end_time_ms: 900, start_time_ms: 100, text: '异步结果' }],
+                text: '异步结果',
+              },
+              status: 'completed',
+            }),
+            { status: 200 },
+          ),
+        );
+
+      await expect(
+        new CustomApiTranscriptionService(settings).transcribe({ audioPath }),
+      ).resolves.toEqual({
+        model: 'asr-model',
+        provider: 'custom_api',
+        providerName: '测试 Provider',
+        segments: [{ endMs: 900, startMs: 100, text: '异步结果' }],
+        transcript: '异步结果',
+      });
+      expect(fetchSpy.mock.calls.map((call: [RequestInfo | URL, RequestInit?]) => call[0])).toEqual([
+        'https://models.example.com/v1/audio/transcriptions/async',
+        'https://models.example.com/v1/audio/transcriptions/async/task-123',
+        'https://models.example.com/v1/audio/transcriptions/async/task-123',
+      ]);
     } finally {
       fetchSpy.mockRestore();
       await rm(baseDir, { force: true, recursive: true });
@@ -95,7 +161,7 @@ describe('custom api transcription', () => {
       await expect(
         new CustomApiTranscriptionService(settings).transcribe({ audioPath }),
       ).rejects.toThrow(
-        '自定义 API 转录请求失败（测试 Provider · asr-model）：fetch failed [ECONNREFUSED]（connect ECONNREFUSED）（请求地址：https://models.example.com/v1/audio/transcriptions）',
+        '自定义 API 转录请求失败（测试 Provider · asr-model）：fetch failed [ECONNREFUSED]（connect ECONNREFUSED）（请求地址：https://models.example.com/v1/audio/transcriptions/async）',
       );
     } finally {
       fetchSpy.mockRestore();
