@@ -109,4 +109,12 @@ describe('recording note integrity helpers', () => {
       noiseSuppression: true,
     });
   });
+
+  it('reduces echo and noise without gain pumping in meeting mode', () => {
+    expect(buildRecordingAudioConstraints('clarity')).toMatchObject({
+      autoGainControl: false,
+      echoCancellation: true,
+      noiseSuppression: true,
+    });
+  });
 });

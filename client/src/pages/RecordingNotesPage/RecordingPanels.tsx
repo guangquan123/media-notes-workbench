@@ -20,6 +20,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { formatFileSize } from '@/utils/file-size';
 import type { NoteJob, NoteStyle } from '@shared/api.interface';
 import type { TranscriptionLanguageMode } from '@shared/api.interface';
@@ -152,24 +159,44 @@ export function SetupPanel({
         <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <label className="grid gap-2 text-xs font-semibold text-black/60">
+        <div className="grid gap-2 text-xs font-semibold text-black/60">
           录音模式
-          <select className="h-11 rounded-md border border-black/10 bg-[#fbfcff] px-3 text-sm font-normal text-black/75" value={audioProfile} onChange={(event) => onAudioProfileChange(event.target.value as RecordingAudioProfile)}>
-            <option value="fidelity">原声保真（方言/安静环境）</option>
-            <option value="clarity">会议清晰（回声/多人环境）</option>
-            <option value="noisy">强噪增强（风扇/街道）</option>
-          </select>
-        </label>
-        <label className="grid gap-2 text-xs font-semibold text-black/60">
+          <Select
+            onValueChange={(value: string) =>
+              onAudioProfileChange(value as RecordingAudioProfile)
+            }
+            value={audioProfile}
+          >
+            <SelectTrigger className="h-11 w-full border-black/10 bg-[#fbfcff] font-normal text-black/75">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
+              <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
+              <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2 text-xs font-semibold text-black/60">
           语言模式
-          <select className="h-11 rounded-md border border-black/10 bg-[#fbfcff] px-3 text-sm font-normal text-black/75" value={languageMode} onChange={(event) => onLanguageModeChange(event.target.value as TranscriptionLanguageMode)}>
-            <option value="auto">自动识别（推荐）</option>
-            <option value="mandarin">普通话</option>
-            <option value="sichuan">四川话增强</option>
-            <option value="cantonese">粤语</option>
-            <option value="mixed">普通话 + 英语/方言混说</option>
-          </select>
-        </label>
+          <Select
+            onValueChange={(value: string) =>
+              onLanguageModeChange(value as TranscriptionLanguageMode)
+            }
+            value={languageMode}
+          >
+            <SelectTrigger className="h-11 w-full border-black/10 bg-[#fbfcff] font-normal text-black/75">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">自动识别（推荐）</SelectItem>
+              <SelectItem value="mandarin">普通话</SelectItem>
+              <SelectItem value="sichuan">四川话增强</SelectItem>
+              <SelectItem value="cantonese">粤语</SelectItem>
+              <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <label className="mt-4 grid gap-2 text-xs font-semibold text-black/60">
         本次词表（可选）

@@ -11,8 +11,8 @@ export function buildRecordingAudioConstraints(
 ): MediaTrackConstraints {
   const processing = profile === 'fidelity'
     ? { autoGainControl: false, echoCancellation: false, noiseSuppression: false }
-    : profile === 'noisy'
-      ? { autoGainControl: true, echoCancellation: true, noiseSuppression: true }
+    : profile === 'clarity'
+      ? { autoGainControl: false, echoCancellation: true, noiseSuppression: true }
       : { autoGainControl: true, echoCancellation: true, noiseSuppression: true };
   return {
     ...processing,
