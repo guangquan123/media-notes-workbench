@@ -21,6 +21,21 @@ export interface TencentAsrTranscriptResult {
 
 const POLL_INTERVAL_MS = 10_000;
 const MAX_POLL_ATTEMPTS = 180;
+const SPEAKER_DIARIZATION_ENGINES: ReadonlySet<string> = new Set([
+  '8k_zh',
+  '8k_zh_large',
+  '16k_zh_en_2.0',
+  '16k_zh_en',
+  '16k_zh',
+  '16k_ms',
+  '16k_en',
+  '16k_id',
+  '16k_zh_dialect',
+  '16k_es',
+  '16k_fr',
+  '16k_ja',
+  '16k_ko',
+]);
 
 @Injectable()
 export class TencentAsrTranscriptionService {
@@ -146,26 +161,17 @@ export function resolveEngineModelType(
 }
 
 function supportsSpeakerDiarization(engineModelType: string): boolean {
-  return new Set([
-    '8k_zh',
-    '8k_zh_large',
-    '16k_zh_en_2.0',
-    '16k_zh_en',
-    '16k_zh',
-    '16k_ms',
-    '16k_en',
-    '16k_id',
-    '16k_zh_dialect',
-    '16k_es',
-    '16k_fr',
-    '16k_ja',
-    '16k_ko',
-  ]).has(engineModelType);
+  return SPEAKER_DIARIZATION_ENGINES.has(engineModelType);
 }
 
 export function buildHotwordList(options?: TranscriptionOptions): string | undefined {
   const hotwords = (options?.hotwords || [])
-    .map((word) => word.trim().replace(/[|,]/gu, ' '))
+    .map((word: string) =>
+      Array.from(String(word).trim().replace(/[|,]/gu, ' '))
+        .slice(0, 30)
+        .join('')
+        .trim(),
+    )
     .filter(Boolean)
     .slice(0, 128);
   return hotwords.length ? hotwords.map((word) => `${word}|5`).join(',') : undefined;

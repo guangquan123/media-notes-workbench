@@ -121,7 +121,9 @@ export function normalizeTranscriptionOptions(
   const hotwords = Array.from(
     new Set(
       (input?.hotwords || [])
-        .map((word: string) => String(word).trim())
+        .map((word: string) =>
+          Array.from(String(word).trim()).slice(0, 30).join(''),
+        )
         .filter(Boolean),
     ),
   ).slice(0, 128);

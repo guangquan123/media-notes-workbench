@@ -101,11 +101,16 @@ export class ReliableRecorder {
     this.events.onDeviceState({ muted: false, state: 'checking' });
     if (this.stream?.active) {
       const track = this.stream.getAudioTracks()[0];
-      try {
-        await track?.applyConstraints(buildRecordingAudioConstraints(profile));
-        this.audioProfile = profile;
-        return this.getPreparation();
-      } catch {
+      if (track) {
+        try {
+          await track.applyConstraints(buildRecordingAudioConstraints(profile));
+          this.audioProfile = profile;
+          return this.getPreparation();
+        } catch {
+          this.stream.getTracks().forEach((current) => current.stop());
+          this.stream = null;
+        }
+      } else {
         this.stream.getTracks().forEach((current) => current.stop());
         this.stream = null;
       }

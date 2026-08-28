@@ -18,6 +18,17 @@ describe('Tencent ASR recording quality options', () => {
     );
   });
 
+  it('drops hotwords that become empty after delimiter sanitization', () => {
+    expect(buildHotwordList({ hotwords: [',,,', '|||'] })).toBeUndefined();
+  });
+
+  it('truncates each serialized hotword to the provider limit', () => {
+    const longHotword: string = '一'.repeat(40);
+    expect(buildHotwordList({ hotwords: [longHotword] })).toBe(
+      `${'一'.repeat(30)}|5`,
+    );
+  });
+
   it('uses the correct content type for normalized WAV audio', () => {
     expect(getAudioContentType('audio-0.wav')).toBe('audio/wav');
   });
@@ -29,4 +40,5 @@ describe('Tencent ASR recording quality options', () => {
     expect(formatTencentAsrError(error)).toContain('额度已耗尽');
     expect(formatTencentAsrError(error)).toContain('本地转录');
   });
+
 });

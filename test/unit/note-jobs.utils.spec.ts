@@ -278,6 +278,13 @@ describe('note job request validation', () => {
     expect(normalizeTranscriptionOptions()).toEqual({ languageMode: 'auto' });
   });
 
+  it('limits each temporary hotword to the provider-safe length', () => {
+    const result = normalizeTranscriptionOptions({
+      hotwords: ['这是一个超过三十个字符的临时热词用于验证请求边界不会溢出长度限制'],
+    });
+    expect(result.hotwords?.[0]).toHaveLength(30);
+  });
+
   it('accepts an uploaded document with safe metadata', () => {
     const result = validateNoteJobRequest({
       sourceType: 'document',
