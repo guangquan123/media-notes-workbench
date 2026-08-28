@@ -168,4 +168,54 @@ describe('custom api transcription', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('explains when async submission succeeds but no task query route is exposed', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'custom-api-transcription-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const settings = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await settings.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '测试 Provider',
+      });
+      await settings.updateModelSettings({
+        summaryModel: undefined,
+        transcriptionMode: 'custom_api',
+        transcriptionModel: {
+          model: 'asr-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+      });
+      const audioPath = join(baseDir, 'sample.wav');
+      await writeFile(audioPath, Buffer.from('audio-data'));
+      fetchSpy
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ task_id: 'task-404', status: 'uploading' }), {
+            status: 200,
+          }),
+        )
+        .mockImplementation(async () => new Response('404 page not found', { status: 404 }));
+
+      await expect(
+        new CustomApiTranscriptionService(settings).transcribe({ audioPath }),
+      ).rejects.toThrow(
+        '自定义 API 已接受异步转录任务（task_id: task-404），但供应商未提供可访问的任务查询接口',
+      );
+      expect(fetchSpy.mock.calls.map((call: [RequestInfo | URL, RequestInit?]) => call[0])).toEqual([
+        'https://models.example.com/v1/audio/transcriptions/async',
+        'https://models.example.com/v1/audio/transcriptions/async/task-404',
+        'https://models.example.com/v1/audio/tasks/task-404',
+        'https://models.example.com/v1/tasks/task-404',
+        'https://models.example.com/v1/audio/transcriptions/async?task_id=task-404',
+      ]);
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });

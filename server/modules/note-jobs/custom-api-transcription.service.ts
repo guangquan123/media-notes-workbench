@@ -97,6 +97,7 @@ export class CustomApiTranscriptionService {
             endpoint,
             credentials.baseUrl,
             extractTaskId(body, response.headers),
+            extractTaskQueryUrls(body, credentials.baseUrl),
             credentials.apiKey,
             controller.signal,
             (message: string): void => input.onProgress?.(message),
@@ -142,6 +143,7 @@ async function waitForAsyncTranscript(
   endpoint: string,
   baseUrl: string,
   taskId: string | undefined,
+  responseQueryUrls: string[],
   apiKey: string,
   signal: AbortSignal,
   onProgress: (message: string) => void,
@@ -150,8 +152,11 @@ async function waitForAsyncTranscript(
     throw new Error('自定义 API 异步转录未返回任务 ID');
   }
   const pollUrls: string[] = [
+    ...responseQueryUrls,
     `${endpoint}/${encodeURIComponent(taskId)}`,
     `${baseUrl}/audio/tasks/${encodeURIComponent(taskId)}`,
+    `${baseUrl}/tasks/${encodeURIComponent(taskId)}`,
+    `${endpoint}?task_id=${encodeURIComponent(taskId)}`,
   ];
   let pollUrl: string | undefined;
   for (let attempt = 0; attempt < 450; attempt += 1) {
@@ -174,7 +179,11 @@ async function waitForAsyncTranscript(
         onProgress('API 转录任务已提交，正在等待识别结果…');
         break;
       }
-      if (!pollUrl) throw new Error('未找到 Deepexi 异步转录任务查询接口');
+      if (!pollUrl) {
+        throw new Error(
+          `自定义 API 已接受异步转录任务（task_id: ${taskId}），但供应商未提供可访问的任务查询接口；请改用同步转录接口或联系供应商确认查询 URL`,
+        );
+      }
     } else {
       const response: Response = await fetch(pollUrl, {
         headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -192,6 +201,40 @@ async function waitForAsyncTranscript(
     await delay(TRANSCRIPTION_POLL_INTERVAL_MS, signal);
   }
   throw new Error('自定义 API 异步转录等待超时（15 分钟）');
+}
+
+function extractTaskQueryUrls(body: unknown, baseUrl: string): string[] {
+  if (!body || typeof body !== 'object') return [];
+  const urls: string[] = [];
+  const keys: string[] = [
+    'status_url',
+    'statusUrl',
+    'query_url',
+    'queryUrl',
+    'poll_url',
+    'pollUrl',
+    'result_url',
+    'resultUrl',
+  ];
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    for (const key of keys) {
+      if (typeof record[key] !== 'string' || !record[key]) continue;
+      try {
+        const url: URL = new URL(record[key], `${baseUrl}/`);
+        const configuredOrigin: string = new URL(baseUrl).origin;
+        if (url.origin === configuredOrigin && !urls.includes(url.toString())) {
+          urls.push(url.toString());
+        }
+      } catch {
+        // Ignore malformed provider metadata and continue with known fallbacks.
+      }
+    }
+    for (const key of ['data', 'result', 'output']) visit(record[key]);
+  };
+  visit(body);
+  return urls;
 }
 
 function assertAsyncTaskState(body: unknown): void {
