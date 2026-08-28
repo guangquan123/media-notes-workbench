@@ -1,10 +1,11 @@
-import { ArrowLeft, CheckCircle2, CloudCog, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, CloudCog, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { ExternalModelSettings } from '@shared/api.interface';
+import type { ExternalModelQuotaStatus, ExternalModelSettings } from '@shared/api.interface';
 import {
   getExternalModelSettings,
+  getExternalModelQuota,
   testExternalModelConnection,
   updateExternalModelSettings,
 } from '@/api';
@@ -36,6 +37,8 @@ export default function ModelSettingsPage({
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [quota, setQuota] = useState<ExternalModelQuotaStatus | null>(null);
+  const [checkingQuota, setCheckingQuota] = useState(false);
 
   useEffect((): void => {
     void getExternalModelSettings().then((next: ExternalModelSettings): void => {
@@ -68,9 +71,25 @@ export default function ModelSettingsPage({
     finally { setTesting(false); }
   };
 
+  const checkQuota = async (): Promise<void> => {
+    setCheckingQuota(true);
+    try {
+      const next: ExternalModelQuotaStatus = await getExternalModelQuota();
+      setQuota(next);
+      if (next.status === 'depleted') toast.warning(next.message);
+      else if (next.status === 'unavailable') toast.error(next.message);
+      else if (next.status === 'unsupported') toast.info(next.message);
+      else toast.success(next.message);
+    } catch {
+      toast.error('额度查询失败，请检查 Provider 配置与权限');
+    } finally {
+      setCheckingQuota(false);
+    }
+  };
+
   if (!settings || !form) {
     return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取模型配置…</main>;
   }
 
-  return <main className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}><div className={embedded ? '' : 'mx-auto max-w-2xl'}>{!embedded && <header className="flex items-center justify-between border-b border-black/8 pb-5"><div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#7c3aed] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">外部大模型总结</p><p className="text-xs text-black/45">DeepSeek 与 OpenAI 兼容接口</p></div></div><Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button></header>}<section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}><div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用外部模型生成笔记</p><p className="mt-1 text-xs leading-5 text-black/50">启用后，转录稿和文档原文会发送给该模型生成初稿；真实性审核仍由现有流程完成。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950">外部模型会接收待总结的原文。不要用于含未经授权的个人信息、机密或受限制资料。API Key 只保存在本机受限配置文件，不会回传页面或写入日志。</div><div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5"><div className="grid gap-2"><Label htmlFor="model-url">API 地址</Label><Input disabled={!editing} id="model-url" onChange={(event) => update({ baseUrl: event.target.value })} placeholder="https://api.deepseek.com/v1" value={form.baseUrl} /><p className="text-xs text-black/45">使用 OpenAI 兼容的 Chat Completions 地址，填写到 /v1 即可。</p></div><div className="grid gap-2"><Label htmlFor="model-name">模型名</Label><Input disabled={!editing} id="model-name" onChange={(event) => update({ model: event.target.value })} placeholder="deepseek-chat" value={form.model} /></div><div className="grid gap-2"><Label htmlFor="model-key">API Key</Label><Input disabled={!editing} id="model-key" onChange={(event) => update({ apiKey: event.target.value })} placeholder={settings.apiKeyConfigured ? '已保存；留空则不变' : '请输入 API Key'} type="password" value={form.apiKey} /></div></div><div className="flex flex-wrap items-center gap-3">{editing ? <><Button className="h-11" disabled={saving} onClick={() => void save()}>{saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}{saving ? '正在保存' : '保存配置'}</Button>{settings.configured && <Button className="h-11" disabled={saving} onClick={() => { setForm(toFormState(settings)); setEditing(false); }} variant="outline">取消修改</Button>}</> : <><Button className="h-11" disabled={testing} onClick={() => void test()} variant="outline">{testing ? <LoaderCircle className="size-4 animate-spin" /> : <CloudCog className="size-4" />}测试连通性</Button><Button className="h-11" onClick={() => setEditing(true)}>修改配置</Button></>}</div></section></div></main>;
+  return <main className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}><div className={embedded ? '' : 'mx-auto max-w-2xl'}>{!embedded && <header className="flex items-center justify-between border-b border-black/8 pb-5"><div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#7c3aed] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">外部大模型总结</p><p className="text-xs text-black/45">DeepSeek 与 OpenAI 兼容接口</p></div></div><Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button></header>}<section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}><div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用外部模型生成笔记</p><p className="mt-1 text-xs leading-5 text-black/50">启用后，转录稿和文档原文会发送给该模型生成初稿；真实性审核仍由现有流程完成。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950">外部模型会接收待总结的原文。不要用于含未经授权的个人信息、机密或受限制资料。API Key 只保存在本机受限配置文件，不会回传页面或写入日志。</div><div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5"><div className="grid gap-2"><Label htmlFor="model-url">API 地址</Label><Input disabled={!editing} id="model-url" onChange={(event) => update({ baseUrl: event.target.value })} placeholder="https://api.deepseek.com/v1" value={form.baseUrl} /><p className="text-xs text-black/45">使用 OpenAI 兼容的 Chat Completions 地址，填写到 /v1 即可。</p></div><div className="grid gap-2"><Label htmlFor="model-name">模型名</Label><Input disabled={!editing} id="model-name" onChange={(event) => update({ model: event.target.value })} placeholder="deepseek-chat" value={form.model} /></div><div className="grid gap-2"><Label htmlFor="model-key">API Key</Label><Input disabled={!editing} id="model-key" onChange={(event) => update({ apiKey: event.target.value })} placeholder={settings.apiKeyConfigured ? '已保存；留空则不变' : '请输入 API Key'} type="password" value={form.apiKey} /></div></div><div className="flex flex-wrap items-center gap-3">{editing ? <><Button className="h-11" disabled={saving} onClick={() => void save()}>{saving ? <LoaderCircle className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}{saving ? '正在保存' : '保存配置'}</Button>{settings.configured && <Button className="h-11" disabled={saving} onClick={() => { setForm(toFormState(settings)); setEditing(false); }} variant="outline">取消修改</Button>}</> : <><Button className="h-11" disabled={testing} onClick={() => void test()} variant="outline">{testing ? <LoaderCircle className="size-4 animate-spin" /> : <CloudCog className="size-4" />}测试连通性</Button><Button className="h-11" disabled={checkingQuota} onClick={() => void checkQuota()} variant="outline">{checkingQuota ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}查询额度</Button><Button className="h-11" onClick={() => setEditing(true)}>修改配置</Button></>}</div>{quota && <div className={`rounded-xl border p-4 text-sm ${quota.status === 'depleted' ? 'border-red-200 bg-red-50 text-red-950' : quota.status === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}><p className="font-semibold">额度状态：{quota.status === 'available' ? '可用' : quota.status === 'depleted' ? '余额不足' : quota.status === 'unsupported' ? '该 Provider 不支持自动查询' : quota.status === 'not_configured' ? '未配置' : '暂不可用'}</p><p className="mt-1 text-xs leading-5">{quota.message}</p>{quota.totalBalance !== undefined && <p className="mt-2 text-xs">当前余额：<strong>{quota.currency || ''} {quota.totalBalance}</strong></p>}<p className="mt-2 text-[11px] text-black/45">Provider：{quota.provider} · 查询时间：{new Date(quota.checkedAt).toLocaleString('zh-CN')}</p></div>}</section></div></main>;
 }

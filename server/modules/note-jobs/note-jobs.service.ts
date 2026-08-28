@@ -147,6 +147,7 @@ import {
   type TencentAsrTranscriptResult,
 } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
+import { isTencentAsrQuotaError } from './tencent-asr-error.utils';
 import { fetchExternalModelJson } from './external-model-request.utils';
 import {
   NoteSummaryPipelineService,
@@ -2040,6 +2041,7 @@ export class NoteJobsService implements OnModuleInit {
     } catch (error) {
       const cloudError: string =
         error instanceof Error ? error.message : '未知错误';
+      const quotaFallback: boolean = isTencentAsrQuotaError(error);
       this.logger.warn(
         `腾讯云 ASR 转录失败，准备检查本地兜底能力: ${cloudError}`,
       );
@@ -2052,8 +2054,15 @@ export class NoteJobsService implements OnModuleInit {
         id,
         'transcribing',
         Math.max(46, this.jobs.get(id)?.job.progress || 46),
-        '腾讯云 ASR 暂时不可用，正在启用本地转录兜底并执行严格质量门禁…',
+        quotaFallback
+          ? '腾讯云 ASR 额度不足，正在启用本地转录兜底并执行严格质量门禁…'
+          : '腾讯云 ASR 暂时不可用，正在启用本地转录兜底并执行严格质量门禁…',
       );
+      this.patch(id, {
+        transcriptionNotice: quotaFallback
+          ? '腾讯云 ASR 额度不足，本次已改用本地 Whisper 转录；请充值/购买资源包后再使用云端 ASR。'
+          : `腾讯云 ASR 未成功，本次已改用本地 Whisper 转录：${cloudError}`,
+      });
       const segments: TranscriptSegment[] = await this.transcribeTimestamped(
         id,
         audioPath,

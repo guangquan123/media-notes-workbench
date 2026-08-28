@@ -561,6 +561,11 @@ export function ProcessingPanel({
           ? '正在安全上传录音文件…'
           : job?.message || '任务已提交，正在处理…'}
       </p>
+      {job?.transcriptionNotice && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+          {job.transcriptionNotice}
+        </p>
+      )}
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
         {RECORDING_PROCESS_STAGES.map(([stage, label], index: number) => (
           <div

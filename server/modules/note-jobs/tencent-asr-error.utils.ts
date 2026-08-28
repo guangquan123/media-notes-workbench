@@ -17,8 +17,8 @@ function formatTencentAsrError(
   service: 'ASR' | 'COS' = 'ASR',
 ): string {
   const rawMessage: string = readTencentErrorMessage(error);
-  if (/arrears|overdue|recharge|account.*balance|欠费/iu.test(rawMessage)) {
-    return '腾讯云账号已欠费，ASR 暂不可用，请充值后重试，或关闭腾讯云 ASR 使用本地转录。';
+  if (isTencentAsrQuotaError(error)) {
+    return '腾讯云 ASR 额度已耗尽或账号欠费，请充值/购买资源包后重试，或关闭腾讯云 ASR 使用本地转录。';
   }
   if (/credential|secret.?id|secret.?key|unauthorized|access.?denied/iu.test(rawMessage)) {
     return `腾讯云 ${service} 凭证或权限无效，请检查 SecretId、SecretKey 和服务授权。`;
@@ -26,4 +26,15 @@ function formatTencentAsrError(
   return `腾讯云 ${service} 调用失败：${rawMessage}`;
 }
 
-export { formatTencentAsrError, readTencentErrorMessage };
+function isTencentAsrQuotaError(error: unknown): boolean {
+  const rawMessage: string = readTencentErrorMessage(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code || '')
+      : '';
+  return /UserHasNoAmount|UserHasNoFreeAmount|ServiceIsolate|ResourceInsufficient/iu.test(
+    `${code} ${rawMessage}`,
+  ) || /arrears|overdue|recharge|account.*balance|欠费/iu.test(rawMessage);
+}
+
+export { formatTencentAsrError, isTencentAsrQuotaError, readTencentErrorMessage };

@@ -33,7 +33,9 @@ import type {
   SystemReadiness,
   TencentAsrSettings,
   TencentAsrConnectionStatus,
+  TencentAsrQuotaStatus,
   ExternalModelConnectionStatus,
+  ExternalModelQuotaStatus,
   ExternalModelSettings,
   TaskNotificationConnectionStatus,
   UpdateTencentAsrSettingsRequest,
@@ -150,6 +152,15 @@ export async function testTencentAsrConnection(): Promise<TencentAsrConnectionSt
   return response.data;
 }
 
+export async function getTencentAsrQuota(): Promise<TencentAsrQuotaStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/transcription-settings/quota',
+    method: 'GET',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getExternalModelSettings(): Promise<ExternalModelSettings> {
   const response = await axiosForBackend({
     url: '/api/note-jobs/model-settings',
@@ -176,6 +187,15 @@ export async function testExternalModelConnection(): Promise<ExternalModelConnec
     url: '/api/note-jobs/model-settings/test-connection',
     method: 'POST',
     timeout: 30_000,
+  });
+  return response.data;
+}
+
+export async function getExternalModelQuota(): Promise<ExternalModelQuotaStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/model-settings/quota',
+    method: 'GET',
+    timeout: JOB_WRITE_TIMEOUT_MS,
   });
   return response.data;
 }

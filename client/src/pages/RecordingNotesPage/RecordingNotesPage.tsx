@@ -60,6 +60,7 @@ import {
   SetupPanel,
   StatusLine,
 } from './RecordingPanels';
+import { getTranscriptionProviderLabel } from './recording-processing.utils';
 
 type RecordingPhase = 'setup' | 'recording' | 'paused' | 'review' | 'processing';
 type QualityLevel = 'good' | 'warning' | 'poor';
@@ -125,6 +126,7 @@ export default function RecordingNotesPage() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [job, setJob] = useState<NoteJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const shownTranscriptionNoticeRef = useRef<string | null>(null);
   const recorderRef = useRef<ReliableRecorder | null>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const latestObjectUrlRef = useRef<string | null>(null);
@@ -239,11 +241,11 @@ export default function RecordingNotesPage() {
       !uploading &&
       !running,
   );
-  const asrLabel: string = readiness
-    ? readiness.tencentAsrEnabled && readiness.tencentAsr
-      ? '腾讯云 ASR 大模型'
-      : '本地 Whisper 兜底'
-    : '检测中';
+  const asrLabel: string = job
+    ? getTranscriptionProviderLabel(job.transcriptionProvider)
+    : readiness
+      ? '等待任务返回实际引擎'
+      : '检测中';
 
   useEffect(() => {
     let cancelled = false;
@@ -330,6 +332,13 @@ export default function RecordingNotesPage() {
       if (timer) window.clearTimeout(timer);
     };
   }, [job?.id, running]);
+
+  useEffect(() => {
+    const notice: string | undefined = job?.transcriptionNotice;
+    if (!notice || shownTranscriptionNoticeRef.current === notice) return;
+    shownTranscriptionNoticeRef.current = notice;
+    toast.warning(notice);
+  }, [job?.transcriptionNotice]);
 
   useEffect(
     () => () => {

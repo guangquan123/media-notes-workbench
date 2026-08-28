@@ -4,11 +4,15 @@ import * as TencentCloud from 'tencentcloud-sdk-nodejs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
+  TencentAsrQuotaStatus,
   TencentAsrSettings,
   TencentAsrConnectionStatus,
   UpdateTencentAsrSettingsRequest,
 } from '@shared/api.interface';
-import { formatTencentAsrError } from './tencent-asr-error.utils';
+import {
+  formatTencentAsrError,
+  isTencentAsrQuotaError,
+} from './tencent-asr-error.utils';
 
 export interface TencentAsrCredentials {
   asrRegion: string;
@@ -134,6 +138,74 @@ export class TencentAsrSettingsService {
       cosConnected: true,
       message: 'COS 存储桶和腾讯云录音文件识别均可访问。',
     };
+  }
+
+  async getQuotaStatus(): Promise<TencentAsrQuotaStatus> {
+    const checkedAt: string = new Date().toISOString();
+    const current: TencentAsrCredentials = await this.load();
+    if (!this.isConfigured(current)) {
+      return {
+        checkedAt,
+        message: '腾讯云 ASR 尚未配置，暂时无法查询余额和用量。',
+        status: 'not_configured',
+      };
+    }
+
+    try {
+      const credential = {
+        secretId: current.secretId,
+        secretKey: current.secretKey,
+      };
+      const billing = new TencentCloud.billing.v20180709.Client({
+        credential,
+        region: '',
+      });
+      const asr = new TencentCloud.asr.v20190614.Client({
+        credential,
+        region: current.asrRegion,
+      });
+      const endDate: string = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+      }).format(new Date());
+      const startDate: string = `${endDate.slice(0, 8)}01`;
+      const [balance, usage] = await Promise.all([
+        billing.DescribeAccountBalance({ TempCredit: false }),
+        asr.GetUsageByDate({
+          BizNameList: ['asr_rec'],
+          EndDate: endDate,
+          StartDate: startDate,
+        }),
+      ]);
+      const balanceFen: number = Number(balance.RealBalance ?? balance.Balance ?? 0);
+      const usageItem = usage.Data?.UsageByDateInfoList?.find(
+        (item: { BizName?: string }) => item.BizName === 'asr_rec',
+      );
+      const accountBalanceCny: number = balanceFen / 100;
+      const status = balanceFen <= 0 ? 'depleted' : 'available';
+      return {
+        accountBalanceCny,
+        accountBalanceFen: balanceFen,
+        asrUsage: {
+          count: Number(usageItem?.Count || 0),
+          durationSeconds: Number(usageItem?.Duration || 0),
+          endDate,
+          startDate,
+        },
+        checkedAt,
+        message:
+          status === 'depleted'
+            ? '腾讯云账户可用余额为 0，ASR 可能因欠费或资源包耗尽而停止；请提前充值或购买资源包。'
+            : '已读取腾讯云账户余额和本月录音文件识别用量。',
+        status,
+      };
+    } catch (error) {
+      const message: string = formatTencentAsrError(error);
+      return {
+        checkedAt,
+        message,
+        status: isTencentAsrQuotaError(error) ? 'depleted' : 'unavailable',
+      };
+    }
   }
 
   private async load(): Promise<TencentAsrCredentials> {

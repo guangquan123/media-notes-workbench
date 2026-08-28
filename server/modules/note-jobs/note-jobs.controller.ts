@@ -101,6 +101,12 @@ export class NoteJobsController {
   }
 
   @NeedLogin()
+  @Get('transcription-settings/quota')
+  transcriptionQuota() {
+    return this.tencentAsrSettingsService.getQuotaStatus();
+  }
+
+  @NeedLogin()
   @Get('model-settings')
   modelSettings() {
     return this.externalModelSettingsService.getPublicSettings();
@@ -116,6 +122,12 @@ export class NoteJobsController {
   @Post('model-settings/test-connection')
   testModelConnection() {
     return this.externalModelSettingsService.testConnection();
+  }
+
+  @NeedLogin()
+  @Get('model-settings/quota')
+  modelQuota() {
+    return this.externalModelSettingsService.getQuotaStatus();
   }
 
   @NeedLogin()

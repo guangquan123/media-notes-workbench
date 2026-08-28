@@ -359,6 +359,7 @@ export interface NoteJob {
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
   transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+  transcriptionNotice?: string;
   transcriptionOptions?: TranscriptionOptions;
   summaryGeneration?: SummaryGenerationInfo;
   visualOptions?: NoteVisualOptions;
@@ -439,6 +440,27 @@ export interface TencentAsrConnectionStatus {
   message: string;
 }
 
+export type ModelQuotaStatus =
+  | 'available'
+  | 'depleted'
+  | 'not_configured'
+  | 'unavailable'
+  | 'unsupported';
+
+export interface TencentAsrQuotaStatus {
+  accountBalanceCny?: number;
+  accountBalanceFen?: number;
+  asrUsage?: {
+    count: number;
+    durationSeconds: number;
+    endDate: string;
+    startDate: string;
+  };
+  checkedAt: string;
+  message: string;
+  status: ModelQuotaStatus;
+}
+
 export interface ExternalModelSettings {
   apiKeyConfigured: boolean;
   baseUrl: string;
@@ -458,6 +480,15 @@ export interface UpdateExternalModelSettingsRequest {
 export interface ExternalModelConnectionStatus {
   checkedAt: string;
   message: string;
+}
+
+export interface ExternalModelQuotaStatus {
+  checkedAt: string;
+  currency?: string;
+  message: string;
+  provider: string;
+  status: ModelQuotaStatus;
+  totalBalance?: string;
 }
 
 export type TaskNotificationEvent = 'completed' | 'failed' | 'cancelled';

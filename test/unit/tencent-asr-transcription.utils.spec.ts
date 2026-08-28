@@ -3,6 +3,7 @@ import {
   getAudioContentType,
   resolveEngineModelType,
 } from '../../server/modules/note-jobs/tencent-asr-transcription.service';
+import { formatTencentAsrError, isTencentAsrQuotaError } from '../../server/modules/note-jobs/tencent-asr-error.utils';
 
 describe('Tencent ASR recording quality options', () => {
   it('upgrades legacy Mandarin engines for Sichuan or mixed speech', () => {
@@ -19,5 +20,13 @@ describe('Tencent ASR recording quality options', () => {
 
   it('uses the correct content type for normalized WAV audio', () => {
     expect(getAudioContentType('audio-0.wav')).toBe('audio/wav');
+  });
+
+  it('recognizes exhausted ASR resources and explains the local fallback', () => {
+    const error = { code: 'FailedOperation.UserHasNoFreeAmount', message: 'resource package exhausted' };
+
+    expect(isTencentAsrQuotaError(error)).toBe(true);
+    expect(formatTencentAsrError(error)).toContain('额度已耗尽');
+    expect(formatTencentAsrError(error)).toContain('本地转录');
   });
 });

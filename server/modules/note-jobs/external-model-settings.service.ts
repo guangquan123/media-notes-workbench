@@ -8,11 +8,17 @@ import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   ExternalModelConnectionStatus,
+  ExternalModelQuotaStatus,
   ExternalModelSettings,
   UpdateExternalModelSettingsRequest,
 } from '@shared/api.interface';
 import { fetchExternalModelJson } from './external-model-request.utils';
 import { extractExternalModelText } from './external-model-response.utils';
+import {
+  getExternalModelBalanceEndpoint,
+  getExternalModelProvider,
+  parseExternalModelBalance,
+} from './external-model-balance.utils';
 
 export interface ExternalModelCredentials {
   apiKey: string;
@@ -112,6 +118,69 @@ export class ExternalModelSettingsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       throw new BadRequestException(`模型连通性校验失败：${message}`);
+    }
+  }
+
+  async getQuotaStatus(): Promise<ExternalModelQuotaStatus> {
+    const checkedAt: string = new Date().toISOString();
+    const credentials: ExternalModelCredentials | undefined =
+      await this.getCredentials();
+    if (!credentials) {
+      return {
+        checkedAt,
+        message: '外部大模型尚未启用或配置不完整，暂时无法查询余额。',
+        provider: credentials?.baseUrl || '未配置',
+        status: 'not_configured',
+      };
+    }
+    const endpoint: string | null = getExternalModelBalanceEndpoint(
+      credentials.baseUrl,
+    );
+    const provider: string = getExternalModelProvider(credentials.baseUrl);
+    if (!endpoint) {
+      return {
+        checkedAt,
+        message: '当前 Provider 未提供已适配的余额查询接口，无法可靠显示剩余量。',
+        provider,
+        status: 'unsupported',
+      };
+    }
+    try {
+      const payload: unknown = await fetchExternalModelJson(
+        endpoint,
+        {
+          headers: { Authorization: `Bearer ${credentials.apiKey}` },
+          method: 'GET',
+        },
+        20_000,
+      );
+      const balance = parseExternalModelBalance(payload);
+      if (!balance.totalBalance) {
+        return {
+          checkedAt,
+          message: 'Provider 未返回可用余额数值，请到控制台核对。',
+          provider,
+          status: 'unavailable',
+        };
+      }
+      return {
+        checkedAt,
+        currency: balance.currency || undefined,
+        message: balance.available
+          ? '已读取外部模型账户余额。'
+          : '外部模型账户余额不足，生成请求可能失败，请及时充值。',
+          provider,
+        status: balance.available ? 'available' : 'depleted',
+        totalBalance: balance.totalBalance,
+      };
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : '未知错误';
+      return {
+        checkedAt,
+        message: `外部模型余额查询失败：${message}`,
+        provider,
+        status: 'unavailable',
+      };
     }
   }
 
