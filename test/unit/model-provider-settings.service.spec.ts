@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ModelProviderSettingsService } from '../../server/modules/note-jobs/model-provider-settings.service';
+import type { ModelServiceProvider } from '../../shared/api.interface';
 
 describe('model provider settings', () => {
   it('stores providers without exposing API keys and validates model references', async () => {
@@ -76,6 +77,25 @@ describe('model provider settings', () => {
         ],
         providerId: provider.id,
       });
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ id: 'model-c' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+      await expect(service.listModels(provider.id, 'llm')).resolves.toEqual({
+        items: [{ capabilities: ['llm'], id: 'model-c' }],
+        providerId: provider.id,
+      });
+      const persisted = await service.getPublicSettings();
+      const persistedProvider = persisted.providers.find(
+        (item: ModelServiceProvider): boolean => item.id === provider.id,
+      );
+      expect(persistedProvider?.models).toEqual([
+        { capabilities: ['transcription'], id: 'model-a' },
+        { capabilities: ['transcription'], id: 'model-b' },
+        { capabilities: ['llm'], id: 'model-c' },
+      ]);
       expect(fetchSpy.mock.calls[0]?.[0]).toBe(
         'https://models.example.com/v1/models',
       );

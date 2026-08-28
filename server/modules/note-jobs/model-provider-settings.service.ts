@@ -196,7 +196,7 @@ export class ModelProviderSettingsService {
       );
       const discovered: ModelProviderModel[] = parseModelList(payload, capability);
       if (discovered.length > 0) {
-        provider.models = discovered;
+        provider.models = mergeProviderModels(provider.models, discovered);
         await this.save(config);
         return { items: discovered, providerId };
       }
@@ -494,4 +494,25 @@ function parseModelList(
           : '';
     return id ? [{ capabilities: [capability], id }] : [];
   });
+}
+
+function mergeProviderModels(
+  existing: ModelProviderModel[],
+  discovered: ModelProviderModel[],
+): ModelProviderModel[] {
+  const models = new Map<string, ModelProviderModel>();
+  for (const model of existing) {
+    models.set(model.id, {
+      ...model,
+      capabilities: [...model.capabilities],
+    });
+  }
+  for (const model of discovered) {
+    const previous: ModelProviderModel | undefined = models.get(model.id);
+    const capabilities: AiModelCapability[] = previous
+      ? Array.from(new Set([...previous.capabilities, ...model.capabilities]))
+      : [...model.capabilities];
+    models.set(model.id, { ...model, capabilities });
+  }
+  return Array.from(models.values());
 }

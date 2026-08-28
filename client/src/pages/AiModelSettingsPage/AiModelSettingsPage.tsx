@@ -70,6 +70,10 @@ function getProvider(
   return providers.find((provider: ModelServiceProvider): boolean => provider.id === id);
 }
 
+function isSelectableProvider(provider: ModelServiceProvider | undefined): boolean {
+  return Boolean(provider?.enabled && provider.configured);
+}
+
 function getModelsForCapability(
   provider: ModelServiceProvider | undefined,
   capability: AiModelCapability,
@@ -130,14 +134,60 @@ export default function AiModelSettingsPage({
     const firstProvider: ModelServiceProvider | undefined = settings.providers.find(
       (provider: ModelServiceProvider): boolean => provider.enabled && provider.configured,
     );
-    const nextAsrProviderId: string = settings.transcriptionModel?.providerId || firstProvider?.id || '';
-    const nextLlmProviderId: string = settings.summaryModel?.providerId || firstProvider?.id || '';
-    setAsrProviderId(nextAsrProviderId);
-    setLlmProviderId(nextLlmProviderId);
-    setAsrModel(settings.transcriptionModel?.model || getModelsForCapability(getProvider(settings.providers, nextAsrProviderId), 'transcription')[0]?.id || '');
-    setLlmModel(settings.summaryModel?.model || getModelsForCapability(getProvider(settings.providers, nextLlmProviderId), 'llm')[0]?.id || '');
+    const persistedAsrProvider: ModelServiceProvider | undefined = getProvider(
+      settings.providers,
+      settings.transcriptionModel?.providerId || '',
+    );
+    const persistedLlmProvider: ModelServiceProvider | undefined = getProvider(
+      settings.providers,
+      settings.summaryModel?.providerId || '',
+    );
+    const nextAsrProviderId: string = isSelectableProvider(persistedAsrProvider)
+      ? persistedAsrProvider?.id || ''
+      : firstProvider?.id || '';
+    const nextLlmProviderId: string = isSelectableProvider(persistedLlmProvider)
+      ? persistedLlmProvider?.id || ''
+      : firstProvider?.id || '';
+    const currentAsrProvider: ModelServiceProvider | undefined = getProvider(
+      settings.providers,
+      asrProviderId,
+    );
+    const currentLlmProvider: ModelServiceProvider | undefined = getProvider(
+      settings.providers,
+      llmProviderId,
+    );
+    const currentAsrProviderId: string = isSelectableProvider(currentAsrProvider)
+      ? currentAsrProvider?.id || ''
+      : nextAsrProviderId;
+    const currentLlmProviderId: string = isSelectableProvider(currentLlmProvider)
+      ? currentLlmProvider?.id || ''
+      : nextLlmProviderId;
+    const availableAsrModels: ModelProviderModel[] = getModelsForCapability(
+      getProvider(settings.providers, currentAsrProviderId),
+      'transcription',
+    );
+    const availableLlmModels: ModelProviderModel[] = getModelsForCapability(
+      getProvider(settings.providers, currentLlmProviderId),
+      'llm',
+    );
+    setAsrProviderId(currentAsrProviderId);
+    setLlmProviderId(currentLlmProviderId);
+    setAsrModel(
+      availableAsrModels.some((model: ModelProviderModel): boolean => model.id === asrModel)
+        ? asrModel
+        : settings.transcriptionModel?.providerId === currentAsrProviderId
+          ? settings.transcriptionModel.model
+          : availableAsrModels[0]?.id || '',
+    );
+    setLlmModel(
+      availableLlmModels.some((model: ModelProviderModel): boolean => model.id === llmModel)
+        ? llmModel
+        : settings.summaryModel?.providerId === currentLlmProviderId
+          ? settings.summaryModel.model
+          : availableLlmModels[0]?.id || '',
+    );
     setTranscriptionMode(settings.transcriptionMode);
-  }, [settings]);
+  }, [asrModel, asrProviderId, llmModel, llmProviderId, settings]);
 
   const asrModels: ModelProviderModel[] = useMemo(
     (): ModelProviderModel[] => getModelsForCapability(getProvider(settings?.providers || [], asrProviderId), 'transcription'),

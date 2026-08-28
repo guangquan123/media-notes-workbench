@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ExternalModelSettingsService } from '../../server/modules/note-jobs/external-model-settings.service';
+import { ModelProviderSettingsService } from '../../server/modules/note-jobs/model-provider-settings.service';
 import {
   getExternalModelBalanceEndpoint,
   getExternalModelProvider,
@@ -9,6 +10,45 @@ import {
 } from '../../server/modules/note-jobs/external-model-balance.utils';
 
 describe('external model settings', () => {
+  it('prefers the unified provider model for LLM credentials', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'external-model-settings-'));
+    try {
+      const providerSettings = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await providerSettings.createProvider({
+        apiKey: 'unified-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '统一模型服务',
+      });
+      await providerSettings.updateModelSettings({
+        summaryModel: {
+          model: 'summary-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+        transcriptionMode: 'tencent_asr',
+      });
+
+      const service = new ExternalModelSettingsService(
+        join(baseDir, '.external-model-config.json'),
+        providerSettings,
+      );
+
+      await expect(service.getCredentials()).resolves.toEqual(
+        expect.objectContaining({
+          apiKey: 'unified-key',
+          baseUrl: 'https://models.example.com/v1',
+          model: 'summary-model',
+          providerName: '统一模型服务',
+        }),
+      );
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
   it('does not treat an unreadable configuration file as an unconfigured model', async () => {
     const baseDir = await mkdtemp(join(tmpdir(), 'external-model-settings-'));
     const configPath = join(baseDir, '.external-model-config.json');
