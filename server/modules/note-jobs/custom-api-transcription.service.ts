@@ -53,20 +53,40 @@ export class CustomApiTranscriptionService {
     const hotwords: string[] = input.transcriptionOptions?.hotwords || [];
     if (hotwords.length > 0) form.append('prompt', hotwords.join('、'));
     const controller = new AbortController();
-    const timeout = setTimeout((): void => controller.abort(), 15 * 60_000);
+    let timedOut = false;
+    const endpoint: string = `${credentials.baseUrl}/audio/transcriptions`;
+    const timeout = setTimeout((): void => {
+      timedOut = true;
+      controller.abort();
+    }, 15 * 60_000);
     try {
-      const response: Response = await fetch(
-        `${credentials.baseUrl}/audio/transcriptions`,
-        {
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
           body: form,
           headers: { Authorization: `Bearer ${credentials.apiKey}` },
           method: 'POST',
           signal: controller.signal,
-        },
-      );
+        });
+      } catch (error) {
+        const detail: string = timedOut
+          ? '请求超时（15 分钟）'
+          : formatTransportError(error);
+        const stack: string | undefined =
+          error instanceof Error ? error.stack : undefined;
+        this.logger.error(
+          `自定义 API 转录请求失败：${credentials.providerName} · ${credentials.model} · ${endpoint} · ${detail}`,
+          stack,
+        );
+        throw new Error(
+          `自定义 API 转录请求失败（${credentials.providerName} · ${credentials.model}）：${detail}（请求地址：${endpoint}）`,
+        );
+      }
       const body: unknown = await readResponseBody(response);
       if (!response.ok) {
-        throw new Error(`服务返回 HTTP ${response.status}：${formatBody(body)}`);
+        throw new Error(
+          `服务返回 HTTP ${response.status}（${credentials.providerName} · ${credentials.model}）：${formatBody(body)}`,
+        );
       }
       const transcript: string = extractTranscript(body);
       if (!transcript) throw new Error('自定义 API 未返回可用转录文本');
@@ -90,6 +110,19 @@ export class CustomApiTranscriptionService {
       clearTimeout(timeout);
     }
   }
+}
+
+function formatTransportError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause: unknown = (error as Error & { cause?: unknown }).cause;
+  const code: unknown = (error as Error & { code?: unknown }).code;
+  const causeMessage: string = cause instanceof Error ? cause.message : '';
+  const causeCode: unknown =
+    cause instanceof Error ? (cause as Error & { code?: unknown }).code : undefined;
+  const codeValue: unknown = typeof code === 'string' ? code : causeCode;
+  const codeMessage: string =
+    typeof codeValue === 'string' ? ` [${codeValue}]` : '';
+  return `${error.message}${codeMessage}${causeMessage ? `（${causeMessage}）` : ''}`;
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {

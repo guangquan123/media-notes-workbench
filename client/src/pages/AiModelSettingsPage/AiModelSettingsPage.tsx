@@ -105,10 +105,9 @@ function modelReference(
 }
 
 function getInitialTab(value: string | null, fallback: AiSettingsTab): AiSettingsTab {
-  if (value === 'providers' || value === 'models' || value === 'transcription') {
-    return value;
-  }
-  return fallback;
+  if (value === 'providers' || value === 'models') return value;
+  if (value === 'transcription') return 'models';
+  return fallback === 'transcription' ? 'models' : fallback;
 }
 
 export default function AiModelSettingsPage({
@@ -131,7 +130,6 @@ export default function AiModelSettingsPage({
   const [llmProviderId, setLlmProviderId] = useState('');
   const [llmModel, setLlmModel] = useState('');
   const [transcriptionMode, setTranscriptionMode] = useState<TranscriptionMode>('tencent_asr');
-  const [switchingMode, setSwitchingMode] = useState<TranscriptionMode | null>(null);
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [providerForm, setProviderForm] = useState<ProviderFormState>(EMPTY_PROVIDER_FORM);
@@ -364,35 +362,19 @@ export default function AiModelSettingsPage({
     }
   };
 
-  const saveTranscriptionMode = async (mode: TranscriptionMode): Promise<void> => {
-    if (!settings) return;
-    setTranscriptionMode(mode);
-    setSwitchingMode(mode);
-    try {
-      const next: AiModelSettings = await updateAiModelSettings({
-        summaryModel: settings.summaryModel,
-        transcriptionMode: mode,
-        transcriptionModel: settings.transcriptionModel,
-      });
-      setSettings(next);
-      toast.success(mode === 'custom_api' ? '已切换为 API 大模型转录' : '已切换为腾讯 ASR 资源包');
-    } catch {
-      setTranscriptionMode(settings.transcriptionMode);
-      toast.error('切换转录方式失败，请先完成模型配置');
-    } finally {
-      setSwitchingMode(null);
-    }
-  };
-
   if (!settings) {
     return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取模型服务配置…</main>;
   }
 
-  const currentAsrLabel: string = settings.transcriptionModel ? `${settings.transcriptionModel.providerName} · ${settings.transcriptionModel.model}` : '尚未配置 API 转录模型';
+  const currentAsrLabel: string = transcriptionMode === 'tencent_asr'
+    ? '腾讯 ASR 资源包'
+    : settings.transcriptionModel
+      ? `${settings.transcriptionModel.providerName} · ${settings.transcriptionModel.model}`
+      : '尚未配置 API 转录模型';
   const currentLlmLabel: string = settings.summaryModel ? `${settings.summaryModel.providerName} · ${settings.summaryModel.model}` : '使用妙搭内置 AI';
   const providerReady: boolean = settings.providers.some(isSelectableProvider);
-  const modelsReady: boolean = Boolean(settings.transcriptionModel && settings.summaryModel);
   const transcriptionReady: boolean = transcriptionMode === 'tencent_asr' || Boolean(settings.transcriptionModel);
+  const modelsReady: boolean = Boolean(settings.summaryModel) && transcriptionReady;
   const steps: Array<{
     detail: string;
     id: AiSettingsTab;
@@ -400,8 +382,7 @@ export default function AiModelSettingsPage({
     ready: boolean;
   }> = [
     { detail: providerReady ? '连接已配置' : '先添加 API 地址和密钥', id: 'providers', label: '模型服务提供者', ready: providerReady },
-    { detail: modelsReady ? '转录与总结模型已选择' : '选择提供者和具体模型', id: 'models', label: '模型配置', ready: modelsReady },
-    { detail: transcriptionReady ? '已选择默认转录方式' : '选择一种转录方式', id: 'transcription', label: '转录设置', ready: transcriptionReady },
+    { detail: modelsReady ? '转录方式与总结模型已选择' : '选择转录方式和具体模型', id: 'models', label: '模型配置', ready: modelsReady },
   ];
 
   return (
@@ -439,7 +420,7 @@ export default function AiModelSettingsPage({
                 </button>
               ))}
             </div>
-            <p className="mt-3 text-xs text-black/45">建议按 1 → 2 → 3 完成配置；已完成步骤可以随时返回修改。</p>
+            <p className="mt-3 text-xs text-black/45">建议按 1 → 2 完成配置；已完成步骤可以随时返回修改。</p>
           </div>
 
           {tab === 'providers' && (
@@ -490,13 +471,18 @@ export default function AiModelSettingsPage({
 
           {tab === 'models' && (
             <div className="space-y-5">
-              <div><h2 className="text-xl font-semibold">模型配置</h2><p className="mt-1 text-xs text-black/50">先选择提供者，再选择该提供者下的具体模型。</p></div>
+              <div><h2 className="text-xl font-semibold">模型配置</h2><p className="mt-1 text-xs text-black/50">在这里一次性选择转录方式、转录模型和总结模型。</p></div>
               <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-5">
-                <div><p className="font-medium">转录模型</p><p className="mt-1 text-xs text-black/45">API 大模型转录时使用。</p></div>
-                <div className="grid gap-4">
-                  <div className="grid gap-2"><Label>模型服务提供者</Label><Select value={asrProviderId} onValueChange={(value: string): void => selectModelProvider(value, 'transcription')}><SelectTrigger><SelectValue placeholder="上方选择提供者" /></SelectTrigger><SelectContent>{settings.providers.filter(isSelectableProvider).map((provider: ModelServiceProvider): React.ReactNode => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="grid gap-2"><Label>转录模型</Label><div className="flex gap-2"><Select disabled={loadingCapability === 'transcription'} value={asrModel} onValueChange={setAsrModel}><SelectTrigger className="min-w-0 flex-1">{loadingCapability === 'transcription' ? <span className="flex items-center gap-2 text-black/45"><LoaderCircle className="size-4 animate-spin" />正在加载模型…</span> : <SelectValue placeholder="选择转录模型" />}</SelectTrigger><SelectContent>{asrModels.length ? asrModels.map((model: ModelProviderModel): React.ReactNode => <SelectItem key={model.id} value={model.id}>{model.name || model.id}</SelectItem>) : <SelectItem disabled value="__no_transcription_models__">暂无转录模型</SelectItem>}</SelectContent></Select><Button aria-label="刷新转录模型" disabled={!asrProviderId || refreshingProviderId === asrProviderId} onClick={(): void => void refreshModels(asrProviderId, 'transcription')} size="icon" variant="outline"><RefreshCw className={`size-4 ${loadingCapability === 'transcription' ? 'animate-spin' : ''}`} /></Button></div></div>
+                <div><p className="font-medium">转录方式</p><p className="mt-1 text-xs text-black/45">保存时会同时记住默认方式和对应模型。</p></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button aria-pressed={transcriptionMode === 'custom_api'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`} onClick={(): void => setTranscriptionMode('custom_api')} type="button"><p className="font-medium">我的 API 模型</p><p className="mt-1 text-xs leading-5 text-black/50">使用下方提供者和转录模型。</p></button>
+                  <button aria-pressed={transcriptionMode === 'tencent_asr'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`} onClick={(): void => setTranscriptionMode('tencent_asr')} type="button"><p className="font-medium">腾讯 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">使用已配置的腾讯云 ASR 资源包。</p></button>
                 </div>
+                {transcriptionMode === 'custom_api' && <div className="grid gap-4 border-t border-black/8 pt-4">
+                  <div className="grid gap-2"><Label>模型服务提供者</Label><Select value={asrProviderId} onValueChange={(value: string): void => selectModelProvider(value, 'transcription')}><SelectTrigger><SelectValue placeholder="选择已启用的提供者" /></SelectTrigger><SelectContent>{settings.providers.filter(isSelectableProvider).map((provider: ModelServiceProvider): React.ReactNode => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="grid gap-2"><Label>转录模型</Label><div className="flex gap-2"><Select disabled={loadingCapability === 'transcription'} value={asrModel} onValueChange={setAsrModel}><SelectTrigger className="min-w-0 flex-1">{loadingCapability === 'transcription' ? <span className="flex items-center gap-2 text-black/45"><LoaderCircle className="size-4 animate-spin" />正在加载模型…</span> : <SelectValue placeholder="选择转录模型" />}</SelectTrigger><SelectContent>{asrModels.length ? asrModels.map((model: ModelProviderModel): React.ReactNode => <SelectItem key={model.id} value={model.id}>{model.name || model.id}</SelectItem>) : <SelectItem disabled value="__no_transcription_models__">暂无转录模型</SelectItem>}</SelectContent></Select><Button aria-label="刷新转录模型" disabled={!asrProviderId || refreshingProviderId === asrProviderId} onClick={(): void => void refreshModels(asrProviderId, 'transcription')} size="icon" variant="outline"><RefreshCw className={`size-4 ${loadingCapability === 'transcription' ? 'animate-spin' : ''}`} /></Button></div></div>
+                </div>}
+                {transcriptionMode === 'tencent_asr' && <TranscriptionSettingsPage embedded />}
               </div>
               <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-5">
                 <div><p className="font-medium">LLM 总结模型</p><p className="mt-1 text-xs text-black/45">用于摘要、行动项和结构化输出。</p></div>
@@ -510,16 +496,6 @@ export default function AiModelSettingsPage({
             </div>
           )}
 
-          {tab === 'transcription' && (
-            <div className="space-y-5">
-              <div><h2 className="text-xl font-semibold">转录设置</h2><p className="mt-1 text-xs text-black/50">选择新建任务默认使用 API 大模型还是腾讯 ASR 资源包。</p></div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button aria-pressed={transcriptionMode === 'custom_api'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`} disabled={switchingMode !== null} onClick={(): void => void saveTranscriptionMode('custom_api')} type="button"><div className="flex items-center gap-2"><p className="font-medium">API 大模型</p>{switchingMode === 'custom_api' && <LoaderCircle className="size-4 animate-spin text-[#3370ff]" />}</div><p className="mt-1 text-xs leading-5 text-black/50">{currentAsrLabel}</p></button>
-                <button aria-pressed={transcriptionMode === 'tencent_asr'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`} disabled={switchingMode !== null} onClick={(): void => void saveTranscriptionMode('tencent_asr')} type="button"><div className="flex items-center gap-2"><p className="font-medium">腾讯 ASR 资源包</p>{switchingMode === 'tencent_asr' && <LoaderCircle className="size-4 animate-spin text-[#3370ff]" />}</div><p className="mt-1 text-xs leading-5 text-black/50">使用原有腾讯云 ASR 配置</p></button>
-              </div>
-              {transcriptionMode === 'custom_api' ? <Alert variant="success"><CheckCircle2 className="size-4" /><AlertTitle>API 转录已启用</AlertTitle><AlertDescription>新建任务将使用 {currentAsrLabel}。任务创建后会固化实际服务和模型。</AlertDescription></Alert> : <TranscriptionSettingsPage embedded />}
-            </div>
-          )}
         </section>
       </div>
       <Dialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen}>

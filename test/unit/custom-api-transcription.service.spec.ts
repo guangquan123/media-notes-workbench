@@ -60,4 +60,46 @@ describe('custom api transcription', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('reports provider, model, endpoint and transport cause on network failure', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'custom-api-transcription-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const settings = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await settings.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '测试 Provider',
+      });
+      await settings.updateModelSettings({
+        summaryModel: undefined,
+        transcriptionMode: 'custom_api',
+        transcriptionModel: {
+          model: 'asr-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+      });
+      const audioPath = join(baseDir, 'sample.wav');
+      await writeFile(audioPath, Buffer.from('audio-data'));
+      const transportError = Object.assign(new Error('fetch failed'), {
+        cause: Object.assign(new Error('connect ECONNREFUSED'), {
+          code: 'ECONNREFUSED',
+        }),
+      });
+      fetchSpy.mockRejectedValue(transportError);
+
+      await expect(
+        new CustomApiTranscriptionService(settings).transcribe({ audioPath }),
+      ).rejects.toThrow(
+        '自定义 API 转录请求失败（测试 Provider · asr-model）：fetch failed [ECONNREFUSED]（connect ECONNREFUSED）（请求地址：https://models.example.com/v1/audio/transcriptions）',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });
