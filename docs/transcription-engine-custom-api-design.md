@@ -139,3 +139,17 @@ interface TranscriptionProvider {
 ## 10. 回滚方案
 
 开发时采用“新增适配器 + 新增配置接口 + 最后接入 resolver”的顺序。若自定义 API 出现问题，可关闭 `custom_api` provider 路由并继续使用现有腾讯接口；旧字段、旧接口和旧任务记录无需迁移或回写。
+
+## 11. 本轮简化版决策
+
+根据评审反馈，首版界面不暴露通用 HTTP 适配器的高级参数，只保留：
+
+- 引擎选择：腾讯云 ASR / 自定义 API。
+- 自定义 API 地址。
+- API Key。
+- 模型下拉框，以及“刷新模型”。
+- 测试连接、保存并启用。
+
+Bearer Token 作为默认鉴权方式，音频格式、请求字段、响应映射、超时、自定义 Header 等参数先由适配器内部固定，不在用户页面配置。只有实际接入多个协议后，才考虑把这些字段放进“高级设置”。
+
+简化版原型见 `artifacts/transcription-engine-prototype-simple.html`。
