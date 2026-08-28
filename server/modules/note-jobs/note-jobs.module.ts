@@ -15,6 +15,8 @@ import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { TencentAsrTranscriptionService } from './tencent-asr-transcription.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
 import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
+import { ModelProviderSettingsService } from './model-provider-settings.service';
+import { CustomApiTranscriptionService } from './custom-api-transcription.service';
 import { LocalDocumentParserService } from './local-document-parser.service';
 import { ConnectorModule } from '../connectors/connector.module';
 import { TaskNotificationModule } from '../task-notifications/task-notification.module';
@@ -39,6 +41,8 @@ import {
     TencentAsrSettingsService,
     TencentAsrTranscriptionService,
     ExternalModelSettingsService,
+    ModelProviderSettingsService,
+    CustomApiTranscriptionService,
     NoteSummaryPipelineService,
     {
       provide: DOCUMENT_STORAGE_CLIENT,

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import {
   cancelNoteJob,
   createNoteJob,
+  getAiModelSettings,
   getNoteJob,
   getReadiness,
 } from '@/api';
@@ -23,6 +24,7 @@ import {
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
 import type {
+  AiModelSettings,
   NoteJob,
   NoteStyle,
   SystemReadiness,
@@ -120,6 +122,8 @@ export default function RecordingNotesPage() {
     null,
   );
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
+  const [aiModelSettings, setAiModelSettings] =
+    useState<AiModelSettings | null>(null);
   const [preparing, setPreparing] = useState<boolean>(false);
   const [stopping, setStopping] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -241,11 +245,22 @@ export default function RecordingNotesPage() {
       !uploading &&
       !running,
   );
-  const asrLabel: string = job
-    ? getTranscriptionProviderLabel(job.transcriptionProvider)
+  const configuredAsrLabel: string = aiModelSettings
+    ? aiModelSettings.transcriptionMode === 'custom_api'
+      ? aiModelSettings.transcriptionModel
+        ? `${aiModelSettings.transcriptionModel.providerName} · ${aiModelSettings.transcriptionModel.model}`
+        : 'API 大模型（尚未选择转录模型）'
+      : '腾讯 ASR 资源包 · 16k_zh_en_2.0'
     : readiness
-      ? '等待任务返回实际引擎'
+      ? '尚未读取转录方式'
       : '检测中';
+  const asrLabel: string = job
+    ? getTranscriptionProviderLabel(
+        job.transcriptionProvider,
+        job.transcriptionModel,
+        job.transcriptionProviderName,
+      )
+      : configuredAsrLabel;
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +277,11 @@ export default function RecordingNotesPage() {
     void getReadiness()
       .then((next: SystemReadiness) => {
         if (!cancelled) setReadiness(next);
+      })
+      .catch(() => undefined);
+    void getAiModelSettings()
+      .then((next: AiModelSettings) => {
+        if (!cancelled) setAiModelSettings(next);
       })
       .catch(() => undefined);
     void loadLatestStoredRecording()
@@ -764,15 +784,15 @@ export default function RecordingNotesPage() {
             <section className="rounded-xl border border-black/10 bg-white/80 p-5">
               <h2 className="text-sm font-bold">当前处理配置</h2>
               <p className="mt-2 text-xs leading-5 text-black/45">
-                系统会优先使用已配置的云端 ASR；未启用或不可用时自动使用本地 Whisper 兜底。
+                新任务会按“模型服务与转录”中保存的方式处理；任务创建后会显示实际使用的提供者和模型。
               </p>
               <div className="mt-4 space-y-3">
                 <StatusLine label="转录引擎" value={asrLabel} />
                 <StatusLine label="说话人分离" value="沿用系统配置" />
                 <StatusLine label="处理环境" value={readiness?.mediaReady ? '已就绪' : readiness ? '需检查' : '检测中'} />
               </div>
-              <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800" to="/transcription-settings">
-                查看转录配置
+              <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800" to="/ai-settings?tab=transcription">
+                查看模型与转录配置
                 <ArrowUpRight className="size-3.5" />
               </Link>
             </section>

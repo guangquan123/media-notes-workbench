@@ -38,6 +38,7 @@ import {
 } from './recording-note.utils';
 import {
   getRecordingProcessStageIndex,
+  getTranscriptionProviderLabel,
   RECORDING_PROCESS_STAGES,
 } from './recording-processing.utils';
 import type { RecoverableRecording } from './recording-storage';
@@ -548,6 +549,11 @@ export function ProcessingPanel({
 }: ProcessingPanelProps) {
   const stageIndex: number = getRecordingProcessStageIndex(job?.stage);
   const completed: boolean = job?.stage === 'completed';
+  const transcriptionLabel: string = getTranscriptionProviderLabel(
+    job?.transcriptionProvider,
+    job?.transcriptionModel,
+    job?.transcriptionProviderName,
+  );
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-[.12em] text-blue-700">
@@ -564,6 +570,14 @@ export function ProcessingPanel({
       {job?.transcriptionNotice && (
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
           {job.transcriptionNotice}
+        </p>
+      )}
+      {job && (
+        <p className="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-950">
+          <Mic2 className="size-4 shrink-0 text-blue-700" />
+          <span>
+            本次转录模型：<strong>{transcriptionLabel}</strong>
+          </span>
         </p>
       )}
       <div className="mt-8 grid gap-3 sm:grid-cols-3">

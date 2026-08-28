@@ -52,6 +52,7 @@ import type {
   UpdateFrameSelectionResponse,
   RegenerateRawDocumentResponse,
   RetainedNoteSource,
+  TranscriptionProvider,
 } from '@shared/api.interface';
 import {
   getDouyinAudioFallbackArgs,
@@ -146,6 +147,11 @@ import {
   TencentAsrTranscriptionService,
   type TencentAsrTranscriptResult,
 } from './tencent-asr-transcription.service';
+import {
+  CustomApiTranscriptionService,
+  type CustomApiTranscriptResult,
+} from './custom-api-transcription.service';
+import { ModelProviderSettingsService } from './model-provider-settings.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
 import { isTencentAsrQuotaError } from './tencent-asr-error.utils';
 import { fetchExternalModelJson } from './external-model-request.utils';
@@ -216,7 +222,9 @@ interface PreparedMedia {
 }
 
 interface BestTranscriptResult {
-  provider: 'tencent_asr' | 'local_whisper';
+  model: string;
+  provider: Exclude<TranscriptionProvider, 'mixed'>;
+  providerName: string;
   segments: TranscriptSegment[];
   transcript: string;
 }
@@ -299,6 +307,8 @@ export class NoteJobsService implements OnModuleInit {
     private readonly frameInsertionService: FrameInsertionService,
     private readonly frameReviewService: FrameReviewService,
     private readonly tencentAsrTranscriptionService: TencentAsrTranscriptionService,
+    private readonly customApiTranscriptionService: CustomApiTranscriptionService,
+    private readonly modelProviderSettingsService: ModelProviderSettingsService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
     private readonly noteSummaryPipelineService: NoteSummaryPipelineService,
     private readonly documentImageDownloadService: DocumentImageDownloadService,
@@ -346,6 +356,7 @@ export class NoteJobsService implements OnModuleInit {
       whisperModel,
       larkCli,
       tencentAsr,
+      customApiTranscription,
       connectorReady,
       connectorType,
     ] = await Promise.all([
@@ -355,6 +366,7 @@ export class NoteJobsService implements OnModuleInit {
       this.fileExists(this.whisperModelPath),
       this.commandExists('lark-cli'),
       this.tencentAsrTranscriptionService.isEnabled(),
+      this.customApiTranscriptionService.isEnabled(),
       this.connectorRegistryService.isActiveConnectorReady(),
       this.connectorRegistryService.getActiveConnector(),
     ]);
@@ -365,20 +377,21 @@ export class NoteJobsService implements OnModuleInit {
       whisperModel,
       larkCli,
       tencentAsr,
+      customApiTranscription,
       tencentAsrEnabled: tencentAsr,
       ready:
         ffmpeg &&
         connectorReady &&
-        (tencentAsr || (whisperCli && whisperModel)),
+        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
       platformReady:
         ytDlp &&
         ffmpeg &&
         connectorReady &&
-        (tencentAsr || (whisperCli && whisperModel)),
+        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
       mediaReady:
         ffmpeg &&
         connectorReady &&
-        (tencentAsr || (whisperCli && whisperModel)),
+        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
       documentReady: connectorReady,
       pdfReady: connectorReady,
       connectorReady,
@@ -415,6 +428,20 @@ export class NoteJobsService implements OnModuleInit {
     options: CreateJobOptions = {},
   ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
+    const requiresTranscription: boolean = [
+      'platform',
+      'video',
+      'audio',
+      'paired',
+    ].includes(validatedInput.sourceType);
+    const transcriptionSelection = requiresTranscription
+      ? await this.modelProviderSettingsService.getTranscriptionSelection(
+          validatedInput.transcriptionProvider,
+        )
+      : undefined;
+    const executionInput = transcriptionSelection
+      ? { ...validatedInput, transcriptionProvider: transcriptionSelection.mode }
+      : validatedInput;
     const sourceType: NoteSourceType = validatedInput.sourceType;
     const sourcePlatform =
       sourceType === 'platform'
@@ -461,6 +488,9 @@ export class NoteJobsService implements OnModuleInit {
       sourceType,
       sourcePlatform,
       sourceLabel,
+      transcriptionModel: transcriptionSelection?.model,
+      transcriptionProvider: transcriptionSelection?.mode,
+      transcriptionProviderName: transcriptionSelection?.providerName,
       mediaFileName:
         validatedInput.sourceType === 'platform'
           ? undefined
@@ -509,10 +539,10 @@ export class NoteJobsService implements OnModuleInit {
       summary: job.visualSummary,
     });
     this.jobs.set(job.id, { job, larkUserId, ownerId });
-    void this.jobContext.run(job.id, () =>
-      this.run(
-        job.id,
-        validatedInput,
+      void this.jobContext.run(job.id, () =>
+        this.run(
+          job.id,
+          executionInput,
         ownerId,
         sourcePlatform,
         cookieBrowser,
@@ -1143,7 +1173,9 @@ export class NoteJobsService implements OnModuleInit {
       let keyFrames: KeyFrame[] = [];
       let transcript = '';
       let archiveTranscript = '';
-      const transcriptionProviders = new Set<'tencent_asr' | 'local_whisper'>();
+      const transcriptionProviders = new Set<Exclude<TranscriptionProvider, 'mixed'>>();
+      const transcriptionModels = new Set<string>();
+      const transcriptionProviderNames = new Set<string>();
       if (input.sourceType === 'paired' && preparedPairedMedia) {
         const alignment: PairedMediaAlignmentResult =
           await this.resolvePairedAlignment(
@@ -1174,7 +1206,7 @@ export class NoteJobsService implements OnModuleInit {
             id,
             'transcribing',
             44,
-            '正在分别提交两路音频到腾讯云 ASR 大模型转录…',
+            `正在分别提交两路音频到${input.transcriptionProvider === 'custom_api' ? ' API 转录模型' : '腾讯云 ASR 大模型'}…`,
           );
           const [video, auxiliary] = await Promise.all([
             this.transcribeBest(
@@ -1184,6 +1216,8 @@ export class NoteJobsService implements OnModuleInit {
               'video-track',
               input.pairedMedia.video.fileName,
               readiness,
+              undefined,
+              input.transcriptionProvider,
             ),
             this.transcribeBest(
               id,
@@ -1192,6 +1226,8 @@ export class NoteJobsService implements OnModuleInit {
               'auxiliary-track',
               input.pairedMedia.auxiliaryAudio.fileName,
               readiness,
+              undefined,
+              input.transcriptionProvider,
             ),
           ]);
           return { auxiliary, video };
@@ -1203,6 +1239,10 @@ export class NoteJobsService implements OnModuleInit {
         const { auxiliary, video } = transcriptions;
         transcriptionProviders.add(auxiliary.provider);
         transcriptionProviders.add(video.provider);
+        transcriptionModels.add(auxiliary.model);
+        transcriptionModels.add(video.model);
+        transcriptionProviderNames.add(auxiliary.providerName);
+        transcriptionProviderNames.add(video.providerName);
         const fused: FusedTranscriptResult = fuseTranscriptSegments({
           audioOffsetMs: alignment.audioOffsetMs,
           auxiliarySegments: auxiliary.segments,
@@ -1224,7 +1264,7 @@ export class NoteJobsService implements OnModuleInit {
           id,
           'transcribing',
           44,
-          '音频已就绪，正在使用腾讯云 ASR 大模型转录…',
+          `音频已就绪，正在使用${input.transcriptionProvider === 'custom_api' ? ' API 转录模型' : '腾讯云 ASR 大模型'}转录…`,
         );
         const results: BestTranscriptResult[] = await mapWithConcurrency(
           preparedMedia.audioSources,
@@ -1243,6 +1283,7 @@ export class NoteJobsService implements OnModuleInit {
               input.sourceType === 'video' || input.sourceType === 'audio'
                 ? input.transcriptionOptions
                 : undefined,
+              input.transcriptionProvider,
             ),
         );
         if (input.sourceType !== 'audio') {
@@ -1261,6 +1302,8 @@ export class NoteJobsService implements OnModuleInit {
         const transcripts: string[] = results.map(
           (result: BestTranscriptResult, sourceIndex: number): string => {
             transcriptionProviders.add(result.provider);
+            transcriptionModels.add(result.model);
+            transcriptionProviderNames.add(result.providerName);
             return preparedMedia.audioSources.length > 1
               ? `## 原始文件 ${sourceIndex + 1}：${preparedMedia.audioSources[sourceIndex].fileName}\n\n${result.transcript}`
               : result.transcript;
@@ -1270,14 +1313,24 @@ export class NoteJobsService implements OnModuleInit {
         archiveTranscript = transcript;
       }
       if (!transcript.trim()) throw new Error('转录结果为空');
-      const transcriptionProvider: 'tencent_asr' | 'local_whisper' | 'mixed' =
+      const transcriptionProvider: TranscriptionProvider =
         transcriptionProviders.size > 1
           ? 'mixed'
-          : transcriptionProviders.has('local_whisper')
-            ? 'local_whisper'
-            : 'tencent_asr';
+          : Array.from(transcriptionProviders)[0] || 'tencent_asr';
       this.patch(id, {
         transcriptionProvider,
+        transcriptionModel:
+          transcriptionModels.size === 1
+            ? Array.from(transcriptionModels)[0]
+            : transcriptionModels.size > 1
+              ? 'mixed'
+              : undefined,
+        transcriptionProviderName:
+          transcriptionProviderNames.size === 1
+            ? Array.from(transcriptionProviderNames)[0]
+            : transcriptionProvider === 'mixed'
+              ? Array.from(transcriptionProviderNames).join(' + ')
+              : undefined,
       });
       await this.persistRawTranscript(id, archiveTranscript);
 
@@ -1295,6 +1348,14 @@ export class NoteJobsService implements OnModuleInit {
         title: videoTitle,
         transcript: archiveTranscript,
         transcriptionProvider,
+        transcriptionModel:
+          transcriptionModels.size === 1
+            ? Array.from(transcriptionModels)[0]
+            : undefined,
+        transcriptionProviderName:
+          transcriptionProviderNames.size === 1
+            ? Array.from(transcriptionProviderNames)[0]
+            : undefined,
         uploader: metadata.uploader || '未知',
       });
       if (rawDocumentUrl) {
@@ -2016,7 +2077,32 @@ export class NoteJobsService implements OnModuleInit {
     displayName: string,
     readiness: SystemReadiness,
     transcriptionOptions?: CreateNoteJobRequest['transcriptionOptions'],
+    transcriptionProvider?: CreateNoteJobRequest['transcriptionProvider'],
   ): Promise<BestTranscriptResult> {
+    const selectedProvider: Exclude<TranscriptionProvider, 'mixed'> =
+      transcriptionProvider ||
+      (await this.modelProviderSettingsService.getTranscriptionMode());
+    if (selectedProvider === 'custom_api') {
+      const result: CustomApiTranscriptResult =
+        await this.customApiTranscriptionService.transcribe({
+          audioPath,
+          transcriptionOptions,
+          onProgress: (message: string): void =>
+            this.update(
+              id,
+              'transcribing',
+              Math.max(44, this.jobs.get(id)?.job.progress || 44),
+              message,
+            ),
+        });
+      return {
+        model: result.model,
+        provider: result.provider,
+        providerName: result.providerName,
+        segments: result.segments,
+        transcript: result.transcript,
+      };
+    }
     try {
       const result: TencentAsrTranscriptResult =
         await this.tencentAsrTranscriptionService.transcribe({
@@ -2034,7 +2120,9 @@ export class NoteJobsService implements OnModuleInit {
         throw new Error('腾讯云 ASR 转录缺少可用的时间段');
       }
       return {
+        model: result.model,
         provider: 'tencent_asr',
+        providerName: result.providerName,
         segments: result.segments,
         transcript: result.transcript,
       };
@@ -2071,7 +2159,9 @@ export class NoteJobsService implements OnModuleInit {
         transcriptionOptions,
       );
       return {
+        model: 'local-whisper',
         provider: 'local_whisper',
+        providerName: '本地 Whisper',
         segments,
         transcript: this.formatTranscriptSegments(segments),
       };
@@ -3984,7 +4074,9 @@ export class NoteJobsService implements OnModuleInit {
     sourceUrl: string;
     title: string;
     transcript: string;
-    transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+    transcriptionProvider?: TranscriptionProvider;
+    transcriptionModel?: string;
+    transcriptionProviderName?: string;
     uploader: string;
   }): Promise<string | undefined> {
     const rawTitle = buildRawDocumentTitle(input.title);

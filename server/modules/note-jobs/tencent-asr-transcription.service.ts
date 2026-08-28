@@ -13,7 +13,9 @@ import {
 } from './tencent-asr-settings.service';
 
 export interface TencentAsrTranscriptResult {
+  model: string;
   provider: 'tencent_asr';
+  providerName: string;
   segments: TranscriptSegment[];
   taskId: string;
   transcript: string;
@@ -92,7 +94,14 @@ export class TencentAsrTranscriptionService {
     const transcript: string = result.Result?.trim() || formatSegments(segments);
     if (!transcript) throw new Error('腾讯云 ASR 返回了空转录结果');
     this.logger.log(JSON.stringify({ operation: 'tencent_asr', segmentCount: segments.length, taskId }));
-    return { provider: 'tencent_asr', segments, taskId: String(taskId), transcript };
+    return {
+      model: engineModelType,
+      provider: 'tencent_asr',
+      providerName: '腾讯 ASR 资源包',
+      segments,
+      taskId: String(taskId),
+      transcript,
+    };
   }
 
   private createCosClient(config: TencentAsrCredentials): COS {

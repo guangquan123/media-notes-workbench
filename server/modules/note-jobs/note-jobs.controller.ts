@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -30,6 +31,10 @@ import type {
   UpdateNoteTemplateConfigRequest,
   UpdateTencentAsrSettingsRequest,
   UpdateExternalModelSettingsRequest,
+  AiModelCapability,
+  CreateModelServiceProviderRequest,
+  UpdateAiModelSettingsRequest,
+  UpdateModelServiceProviderRequest,
   RegenerateRawDocumentResponse,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
@@ -38,6 +43,7 @@ import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { TencentAsrSettingsService } from './tencent-asr-settings.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
+import { ModelProviderSettingsService } from './model-provider-settings.service';
 import { buildRawTranscriptMarkdown } from './note-document.utils';
 import {
   normalizeHistoryDateRange,
@@ -75,6 +81,7 @@ export class NoteJobsController {
     private readonly noteReviewTaskService: NoteReviewTaskService,
     private readonly tencentAsrSettingsService: TencentAsrSettingsService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
+    private readonly modelProviderSettingsService: ModelProviderSettingsService,
   ) {}
 
   @Get('readiness')
@@ -92,6 +99,60 @@ export class NoteJobsController {
   @Put('transcription-settings')
   updateTranscriptionSettings(@Body() body: UpdateTencentAsrSettingsRequest) {
     return this.tencentAsrSettingsService.update(body);
+  }
+
+  @NeedLogin()
+  @Get('ai-model-settings')
+  aiModelSettings() {
+    return this.modelProviderSettingsService.getModelSettings();
+  }
+
+  @NeedLogin()
+  @Put('ai-model-settings')
+  updateAiModelSettings(@Body() body: UpdateAiModelSettingsRequest) {
+    return this.modelProviderSettingsService.updateModelSettings(body);
+  }
+
+  @NeedLogin()
+  @Get('model-providers')
+  modelProviders() {
+    return this.modelProviderSettingsService.getPublicSettings().then((settings) => settings.providers);
+  }
+
+  @NeedLogin()
+  @Post('model-providers')
+  createModelProvider(@Body() body: CreateModelServiceProviderRequest) {
+    return this.modelProviderSettingsService.createProvider(body);
+  }
+
+  @NeedLogin()
+  @Put('model-providers/:id')
+  updateModelProvider(
+    @Param('id') id: string,
+    @Body() body: UpdateModelServiceProviderRequest,
+  ) {
+    return this.modelProviderSettingsService.updateProvider(id, body);
+  }
+
+  @NeedLogin()
+  @Delete('model-providers/:id')
+  deleteModelProvider(@Param('id') id: string) {
+    return this.modelProviderSettingsService.deleteProvider(id);
+  }
+
+  @NeedLogin()
+  @Get('model-providers/:id/models')
+  modelProviderModels(
+    @Param('id') id: string,
+    @Query('capability') capability: string = 'llm',
+  ) {
+    if (capability !== 'llm' && capability !== 'transcription') {
+      throw new BadRequestException('不支持的模型能力');
+    }
+    return this.modelProviderSettingsService.listModels(
+      id,
+      capability as AiModelCapability,
+    );
   }
 
   @NeedLogin()

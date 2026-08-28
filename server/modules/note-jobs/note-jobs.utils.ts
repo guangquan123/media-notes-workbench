@@ -11,6 +11,7 @@ import type {
   SourcePlatform,
   TranscriptionLanguageMode,
   TranscriptionOptions,
+  TranscriptionProvider,
   UploadedMediaInput,
 } from '@shared/api.interface';
 import { normalizeVisualOptions } from './frame-selection.utils';
@@ -70,6 +71,7 @@ export function buildCancelledNoteJob(
 interface PlatformJobInput {
   sourceType: 'platform';
   noteStyle: NoteStyle;
+  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
   url: string;
   visualOptions: NoteVisualOptions;
 }
@@ -79,6 +81,7 @@ interface MediaJobInput {
   noteStyle: NoteStyle;
   mediaItems: UploadedMediaInput[];
   transcriptionOptions: TranscriptionOptions;
+  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
   visualOptions: NoteVisualOptions;
 }
 
@@ -86,6 +89,7 @@ interface PairedJobInput {
   noteStyle: NoteStyle;
   pairedMedia: PairedMediaInput;
   sourceType: 'paired';
+  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
   visualOptions: NoteVisualOptions;
 }
 
@@ -93,6 +97,7 @@ interface DocumentJobInput {
   sourceType: 'document' | 'pdf';
   noteStyle: NoteStyle;
   mediaItems: UploadedMediaInput[];
+  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
   visualOptions: NoteVisualOptions;
 }
 
@@ -351,11 +356,20 @@ export function validateNoteJobRequest(
   const transcriptionOptions: TranscriptionOptions = normalizeTranscriptionOptions(
     input.transcriptionOptions,
   );
+  const transcriptionProvider = validateTranscriptionProvider(
+    input.transcriptionProvider,
+  );
   if (sourceType === 'platform') {
     if (!input.url?.trim()) {
       throw new BadRequestException('请粘贴需要处理的视频地址');
     }
-    return { sourceType, noteStyle, url: input.url, visualOptions };
+    return {
+      sourceType,
+      noteStyle,
+      transcriptionProvider,
+      url: input.url,
+      visualOptions,
+    };
   }
   if (sourceType === 'paired') {
     if (!input.pairedMedia) {
@@ -400,6 +414,7 @@ export function validateNoteJobRequest(
             alignment.mode === 'manual' ? alignment.audioOffsetMs : undefined,
         },
       },
+      transcriptionProvider,
       visualOptions,
     };
   }
@@ -474,8 +489,19 @@ export function validateNoteJobRequest(
     noteStyle,
     mediaItems: validatedMediaItems,
     transcriptionOptions,
+    transcriptionProvider,
     visualOptions,
   };
+}
+
+function validateTranscriptionProvider(
+  provider: CreateNoteJobRequest['transcriptionProvider'],
+): Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'> | undefined {
+  if (provider === undefined) return undefined;
+  if (provider !== 'tencent_asr' && provider !== 'custom_api') {
+    throw new BadRequestException('不支持的转录服务提供者');
+  }
+  return provider;
 }
 
 function normalizeDouyinUrl(url: URL): string {

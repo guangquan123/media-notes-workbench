@@ -19,12 +19,18 @@ import {
   getExternalModelProvider,
   parseExternalModelBalance,
 } from './external-model-balance.utils';
+import {
+  ModelProviderSettingsService,
+  type ModelProviderCredentials,
+} from './model-provider-settings.service';
 
 export interface ExternalModelCredentials {
   apiKey: string;
   baseUrl: string;
   enabled: boolean;
   model: string;
+  providerId?: string;
+  providerName?: string;
 }
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
@@ -38,7 +44,11 @@ export class ExternalModelSettingsService {
   );
   private current: ExternalModelCredentials | undefined;
 
-  constructor(@Optional() configPath?: string) {
+  constructor(
+    @Optional() configPath?: string,
+    @Optional()
+    private readonly providerSettingsService?: ModelProviderSettingsService,
+  ) {
     if (configPath) this.configPath = configPath;
   }
 
@@ -54,6 +64,11 @@ export class ExternalModelSettingsService {
   }
 
   async getCredentials(): Promise<ExternalModelCredentials | undefined> {
+    if (this.providerSettingsService) {
+      const unified: ModelProviderCredentials | undefined =
+        await this.providerSettingsService.getCredentials('llm');
+      if (unified) return unified;
+    }
     const current: ExternalModelCredentials = await this.load();
     return current.enabled && this.isConfigured(current) ? current : undefined;
   }

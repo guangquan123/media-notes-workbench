@@ -1,27 +1,28 @@
 import {
   ArrowLeft,
-  BotMessageSquare,
   FilePenLine,
   ListChecks,
   Settings2,
-  Speech,
   Cable,
+  Layers3,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import ModelSettingsPage from '@/pages/ModelSettingsPage/ModelSettingsPage';
 import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
-import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
+import AiModelSettingsPage from '@/pages/AiModelSettingsPage/AiModelSettingsPage';
 import SetupOverview from './SetupOverview';
 
 type SettingsSection =
+  | 'ai'
   | 'connectors'
+  /** @deprecated 旧自检链接会映射到 ai。 */
   | 'model'
   | 'prompts'
   | 'setup'
+  /** @deprecated 旧自检链接会映射到 ai。 */
   | 'transcription';
 
 interface SettingsSectionOption {
@@ -51,29 +52,23 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
     icon: FilePenLine,
   },
   {
-    value: 'transcription',
-    label: '转录引擎',
-    description: '管理腾讯云 ASR 和音频转录参数。',
-    icon: Speech,
-  },
-  {
-    value: 'model',
-    label: '总结模型',
-    description: '设置外部大模型的连接与启用状态。',
-    icon: BotMessageSquare,
+    value: 'ai',
+    label: '模型服务与转录',
+    description: '配置多个 API 提供者、能力模型和转录方式。',
+    icon: Layers3,
   },
 ];
 
 function getSelectedSection(section: string | null): SettingsSection {
   if (
-    section === 'model' ||
+    section === 'ai' ||
     section === 'prompts' ||
     section === 'setup' ||
-    section === 'transcription' ||
     section === 'connectors'
   ) {
     return section;
   }
+  if (section === 'model' || section === 'transcription') return 'ai';
   return 'setup';
 }
 
@@ -168,10 +163,7 @@ export default function SettingsPage() {
                 <SetupOverview onSelectSection={selectSection} />
               )}
               {selectedSection === 'prompts' && <NoteTemplatesPage embedded />}
-              {selectedSection === 'transcription' && (
-                <TranscriptionSettingsPage embedded />
-              )}
-              {selectedSection === 'model' && <ModelSettingsPage embedded />}
+              {selectedSection === 'ai' && <AiModelSettingsPage embedded />}
               {selectedSection === 'connectors' && <ConnectorSettingsPage />}
             </section>
           </div>

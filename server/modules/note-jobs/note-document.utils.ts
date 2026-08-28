@@ -5,7 +5,13 @@ interface BuildRawTranscriptMarkdownInput {
   sourceUrl: string;
   title: string;
   transcript: string;
-  transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+  transcriptionProvider?:
+    | 'tencent_asr'
+    | 'local_whisper'
+    | 'custom_api'
+    | 'mixed';
+  transcriptionModel?: string;
+  transcriptionProviderName?: string;
   uploader: string;
 }
 
@@ -32,6 +38,12 @@ export function buildRawTranscriptMarkdown(
     `| 时长 | ${input.duration} |`,
     `| 原链接 | ${input.sourceUrl} |`,
     `| 转录引擎 | ${formatTranscriptionProvider(input.transcriptionProvider)} |`,
+    input.transcriptionProviderName
+      ? `| 转录服务 | ${input.transcriptionProviderName} |`
+      : '',
+    input.transcriptionModel
+      ? `| 转录模型 | ${input.transcriptionModel} |`
+      : '',
     `| 整理日期 | ${input.generatedDate} |`,
     '',
     '## 完整转录',
@@ -45,6 +57,7 @@ function formatTranscriptionProvider(
   provider: BuildRawTranscriptMarkdownInput['transcriptionProvider'],
 ): string {
   if (provider === 'tencent_asr') return '腾讯云 ASR 大模型 2.0';
+  if (provider === 'custom_api') return '自定义 API 转录模型';
   if (provider === 'mixed') return '腾讯云 ASR + 本地 Whisper（部分兜底）';
   if (provider === 'local_whisper') return '本地 Whisper（故障兜底）';
   return '未记录';

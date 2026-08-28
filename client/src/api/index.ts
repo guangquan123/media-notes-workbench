@@ -52,6 +52,13 @@ import type {
   ConnectorType,
   RuntimeStatus,
   UpdateConnectorRequest,
+  AiModelCapability,
+  AiModelSettings,
+  CreateModelServiceProviderRequest,
+  ModelProviderModelsResponse,
+  ModelServiceProvider,
+  UpdateAiModelSettingsRequest,
+  UpdateModelServiceProviderRequest,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -165,6 +172,73 @@ export async function getExternalModelSettings(): Promise<ExternalModelSettings>
   const response = await axiosForBackend({
     url: '/api/note-jobs/model-settings',
     method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getAiModelSettings(): Promise<AiModelSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/ai-model-settings',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateAiModelSettings(
+  input: UpdateAiModelSettingsRequest,
+): Promise<AiModelSettings> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/ai-model-settings',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function createModelServiceProvider(
+  input: CreateModelServiceProviderRequest,
+): Promise<ModelServiceProvider> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/model-providers',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateModelServiceProvider(
+  id: string,
+  input: UpdateModelServiceProviderRequest,
+): Promise<ModelServiceProvider> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/model-providers/${id}`,
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function deleteModelServiceProvider(id: string): Promise<void> {
+  await axiosForBackend({
+    url: `/api/note-jobs/model-providers/${id}`,
+    method: 'DELETE',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+}
+
+export async function getModelProviderModels(
+  providerId: string,
+  capability: AiModelCapability,
+): Promise<ModelProviderModelsResponse> {
+  const response = await axiosForBackend({
+    url: `/api/note-jobs/model-providers/${providerId}/models`,
+    method: 'GET',
+    params: { capability },
     timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;

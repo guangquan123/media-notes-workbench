@@ -18,9 +18,20 @@ export function getRecordingProcessStageIndex(stage?: string): number {
 }
 
 export function getTranscriptionProviderLabel(
-  provider?: 'tencent_asr' | 'local_whisper' | 'mixed',
+  provider?: 'tencent_asr' | 'local_whisper' | 'custom_api' | 'mixed',
+  model?: string,
+  providerName?: string,
 ): string {
-  if (provider === 'tencent_asr') return '腾讯云 ASR 大模型';
+  if (provider === 'tencent_asr') {
+    return model ? `腾讯 ASR 资源包 · ${model}` : '腾讯云 ASR 大模型';
+  }
+  if (provider === 'custom_api') {
+    return providerName && model
+      ? `${providerName} · ${model}`
+      : model
+        ? `API 大模型 · ${model}`
+        : 'API 大模型';
+  }
   if (provider === 'local_whisper') return '本地 Whisper';
   if (provider === 'mixed') return '腾讯云 ASR + 本地 Whisper';
   return '等待任务返回实际引擎';

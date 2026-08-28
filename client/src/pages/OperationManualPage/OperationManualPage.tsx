@@ -50,7 +50,7 @@ interface FaqItem {
 const WORKFLOW_STEPS: ManualStep[] = [
   {
     title: '完成首次配置',
-    description: '检查环境，确定笔记输出位置、转录引擎和总结模型。',
+    description: '检查环境，配置模型服务提供者、能力模型和转录方式。',
     icon: Settings2,
   },
   {
@@ -274,13 +274,12 @@ const OperationManualPage = () => {
                 </li>
                 <li>
                   <strong className="text-zinc-900">03. 按需配置转录：</strong>
-                  在“转录引擎”管理腾讯云 ASR
-                  与相关参数；环境检测会说明当前音视频链路采用的转录方式。
+                  在“模型服务与转录”中先添加 API 提供者，再分别选择转录模型和 LLM
+                  总结模型；腾讯 ASR 仍可在同一页面直接维护原有参数。
                 </li>
                 <li>
-                  <strong className="text-zinc-900">04. 配置总结模型：</strong>
-                  在“总结模型”填写 OpenAI
-                  兼容接口并测试连通性。启用外部模型时，待总结的转录稿或文档原文会发送给该模型。
+                  <strong className="text-zinc-900">04. 选择处理方式：</strong>
+                  新建转录任务时会沿用已保存的 API 大模型或腾讯 ASR 资源包选择，并在处理面板显示实际提供者与模型。
                 </li>
               </ol>
               <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">

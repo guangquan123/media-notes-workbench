@@ -124,7 +124,7 @@ export default function TranscriptionSettingsPage({
   };
 
   if (!settings || !form) {
-    return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取转录引擎配置…</main>;
+    return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取腾讯 ASR 配置…</main>;
   }
 
   return (
@@ -135,7 +135,7 @@ export default function TranscriptionSettingsPage({
           <Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button>
         </header>}
         <section className={`${embedded ? 'pt-2' : 'mt-8'} space-y-6`}>
-          <div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，视频和录音都优先使用腾讯云大模型；关闭后使用本地兜底。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div>
+          <div className="flex items-center justify-between rounded-xl border border-black/8 bg-white p-5"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，选择腾讯 ASR 的任务会使用此资源包；关闭后请在上方切换到 API 大模型。</p></div><Switch checked={form.enabled} disabled={!editing} onCheckedChange={(enabled: boolean): void => update({ enabled })} /></div>
           {settings.configured && !editing && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-semibold">配置已保存并锁定</p><p className="mt-1 text-xs leading-5">SecretId：{settings.secretId}；SecretKey：已保存；地域：{settings.region}；存储桶：{settings.bucket || '未填写'}。</p></div>}
           <div className="grid gap-5 rounded-xl border border-black/8 bg-white p-5">
             <div className="grid gap-2"><Label htmlFor="secret-id">SecretId</Label><Input disabled={!editing} id="secret-id" onChange={(event) => update({ secretId: event.target.value })} placeholder={settings.secretId || 'AKID…'} value={form.secretId} /><p className="text-xs text-black/45">{settings.secretId ? `当前：${settings.secretId}` : '尚未保存'}</p></div>

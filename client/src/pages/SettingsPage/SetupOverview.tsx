@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type {
+  AiModelSettings,
   ConnectorSettingsResponse,
   ExternalModelSettings,
   RuntimeStatus,
@@ -18,6 +19,7 @@ import type {
   TencentAsrSettings,
 } from '@shared/api.interface';
 import {
+  getAiModelSettings,
   getConnectorSettings,
   getExternalModelSettings,
   getReadiness,
@@ -38,6 +40,7 @@ interface SetupOverviewProps {
 }
 
 interface SetupSnapshot {
+  aiModelSettings: AiModelSettings | null;
   connectors: ConnectorSettingsResponse | null;
   externalModel: ExternalModelSettings | null;
   readiness: SystemReadiness;
@@ -86,12 +89,14 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
     const [
       readinessResult,
       connectorResult,
+      aiModelResult,
       asrResult,
       modelResult,
       runtimeResult,
     ] = await Promise.allSettled([
       getReadiness(),
       getConnectorSettings(),
+      getAiModelSettings(),
       getTencentAsrSettings(),
       getExternalModelSettings(),
       getRuntimeStatus(),
@@ -104,6 +109,7 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
       return;
     }
     setSnapshot({
+      aiModelSettings: settledValue(aiModelResult),
       connectors: settledValue(connectorResult),
       externalModel: settledValue(modelResult),
       readiness,

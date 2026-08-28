@@ -1,4 +1,5 @@
 import type {
+  AiModelSettings,
   ConnectorSettingsResponse,
   ExternalModelSettings,
   RuntimeStatus,
@@ -7,8 +8,11 @@ import type {
 } from '@shared/api.interface';
 
 export type SetupActionSection =
+  | 'ai'
   | 'connectors'
+  /** @deprecated 保留旧自检结果，SettingsPage 会映射到统一模型页面。 */
   | 'model'
+  /** @deprecated 保留旧自检结果，SettingsPage 会映射到统一模型页面。 */
   | 'transcription';
 
 export type SetupCapabilityStatus = 'action' | 'optional' | 'ready';
@@ -31,6 +35,7 @@ export interface SetupCapabilityItem {
 }
 
 export interface SetupReadinessInput {
+  aiModelSettings?: AiModelSettings | null;
   connectors: ConnectorSettingsResponse | null;
   externalModel: ExternalModelSettings | null;
   readiness: SystemReadiness;
@@ -63,10 +68,8 @@ function buildTranscriptionDetails(input: SetupReadinessInput): string[] {
   if (!input.readiness.ffmpeg) {
     details.push('未检测到 ffmpeg：本地音视频需要它提取和处理音轨。');
   }
-  if (!input.readiness.tencentAsr && !input.readiness.whisperCli) {
-    details.push('未检测到 whisper-cli，可在“转录引擎”中改用腾讯云 ASR。');
-  } else if (!input.readiness.tencentAsr && !input.readiness.whisperModel) {
-    details.push('已检测到 whisper-cli，但缺少本地 Whisper 模型文件。');
+  if (!input.readiness.tencentAsr && !input.readiness.customApiTranscription) {
+    details.push('尚未配置可用的转录方式，请在“模型服务与转录”中选择腾讯 ASR 或 API 模型。');
   }
   if (
     input.tencentAsr?.enabled &&
@@ -75,9 +78,9 @@ function buildTranscriptionDetails(input: SetupReadinessInput): string[] {
     details.push('腾讯云 ASR 已开启，但凭证、存储桶或连接状态尚未就绪。');
   }
   if (input.readiness.tencentAsr) {
-    details.push('当前使用腾讯云 ASR，无需安装本地 Whisper。');
-  } else if (input.readiness.whisperCli && input.readiness.whisperModel) {
-    details.push('当前使用本地 Whisper，无需配置腾讯云账号。');
+    details.push('腾讯 ASR 已就绪，任务会沿用原有腾讯配置。');
+  } else if (input.readiness.customApiTranscription) {
+    details.push('API 转录已就绪，任务会使用统一模型配置中的转录模型。');
   }
   return details;
 }
@@ -91,7 +94,8 @@ export function buildSetupReadiness(
   const connectorLabel = getConnectorLabel(input);
   const transcriptionReady = Boolean(
     input.readiness.tencentAsr ||
-    (input.readiness.whisperCli && input.readiness.whisperModel),
+      input.readiness.customApiTranscription ||
+      (input.readiness.whisperCli && input.readiness.whisperModel),
   );
   const localMediaReady = Boolean(
     connectorReady && input.readiness.ffmpeg && transcriptionReady,
@@ -105,8 +109,10 @@ export function buildSetupReadiness(
     input.externalModel?.enabled && input.externalModel.configured,
   );
   const externalModelRequired = input.runtime?.mode === 'local';
+  const unifiedSummaryReady = Boolean(input.aiModelSettings?.summaryModel);
+  const summaryModelReady = unifiedSummaryReady || externalModelReady;
   const generationReady = Boolean(
-    runtimeKnown && (!externalModelRequired || externalModelReady),
+    runtimeKnown && (!externalModelRequired || summaryModelReady),
   );
   const documentSourceReady = Boolean(documentReady && generationReady);
   const localMediaSourceReady = Boolean(localMediaReady && generationReady);
@@ -121,19 +127,15 @@ export function buildSetupReadiness(
 
   const localMediaActionSection: SetupActionSection = !connectorReady
     ? 'connectors'
-    : !localMediaReady
-      ? 'transcription'
-      : 'model';
+    : 'model';
   const localMediaActionLabel =
     localMediaActionSection === 'connectors'
       ? '配置输出位置'
-      : localMediaActionSection === 'model'
-        ? '配置总结模型'
-        : '配置转录引擎';
+      : '配置模型服务与转录';
   const documentActionSection: SetupActionSection = connectorReady
     ? 'model'
     : 'connectors';
-  const documentActionLabel = connectorReady ? '配置总结模型' : '配置输出位置';
+  const documentActionLabel = connectorReady ? '配置模型服务与转录' : '配置输出位置';
 
   const modelItem: SetupCapabilityItem = !runtimeKnown
     ? {
@@ -144,16 +146,16 @@ export function buildSetupReadiness(
         details: ['运行模式接口读取失败，自检不会据此猜测模型可用性。'],
         required: true,
         status: 'action',
-        actionLabel: '检查模型配置',
+        actionLabel: '配置模型服务与转录',
         actionSection: 'model',
       }
     : externalModelRequired
       ? {
           id: 'model',
-          label: '总结模型',
-          description: externalModelReady
-            ? `本地模式已启用 ${input.externalModel?.model || '外部模型'}。`
-            : '本地模式需要一个 OpenAI 兼容模型，完成转录后才能生成笔记。',
+          label: 'LLM 总结模型',
+          description: unifiedSummaryReady || externalModelReady
+            ? `本地模式已配置 ${input.aiModelSettings?.summaryModel?.model || input.externalModel?.model || 'LLM 模型'}。`
+            : '本地模式需要先在统一模型配置中选择一个 LLM 总结模型。',
           details: externalModelReady
             ? ['API Key 仅以脱敏状态读取。']
             : [
@@ -162,23 +164,25 @@ export function buildSetupReadiness(
                   : '当前未启用外部模型；本地模式没有内置模型兜底。',
               ],
           required: true,
-          status: externalModelReady ? 'ready' : 'action',
-          actionLabel: externalModelReady ? undefined : '配置总结模型',
-          actionSection: externalModelReady ? undefined : 'model',
+          status: unifiedSummaryReady || externalModelReady ? 'ready' : 'action',
+          actionLabel: unifiedSummaryReady || externalModelReady ? undefined : '配置模型服务与转录',
+          actionSection: unifiedSummaryReady || externalModelReady ? undefined : 'model',
         }
       : {
           id: 'model',
-          label: '总结模型',
-          description: externalModelReady
-            ? `已启用 ${input.externalModel?.model || '外部模型'}，生成失败时仍可回退内置模型。`
-            : '当前使用平台内置模型；外部模型属于可选增强。',
-          details: input.externalModel
-            ? ['不配置外部 API Key 也不影响基础使用。']
-            : ['模型设置读取失败，不影响平台内置模型。'],
+          label: 'LLM 总结模型',
+          description: unifiedSummaryReady
+            ? `已启用 ${input.aiModelSettings?.summaryModel?.providerName || 'API 提供者'} · ${input.aiModelSettings?.summaryModel?.model || 'LLM 模型'}。`
+            : externalModelReady
+              ? `已启用 ${input.externalModel?.model || '外部模型'}，可迁移到统一模型配置。`
+              : '当前使用平台内置模型；外部模型属于可选增强。',
+          details: unifiedSummaryReady
+            ? ['提供者和模型均在“模型服务与转录”中统一维护。']
+            : ['不配置外部 API Key 也不影响平台内置模型。'],
           required: false,
-          status: externalModelReady ? 'ready' : 'optional',
-          actionLabel: externalModelReady ? undefined : '按需配置',
-          actionSection: externalModelReady ? undefined : 'model',
+          status: unifiedSummaryReady || externalModelReady ? 'ready' : 'optional',
+          actionLabel: unifiedSummaryReady || externalModelReady ? undefined : '配置模型服务与转录',
+          actionSection: unifiedSummaryReady || externalModelReady ? undefined : 'model',
         };
 
   const items: SetupCapabilityItem[] = [

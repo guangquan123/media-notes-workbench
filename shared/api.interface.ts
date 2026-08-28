@@ -293,6 +293,8 @@ export interface CreateNoteJobRequest {
   media?: UploadedMediaInput;
   mediaItems?: UploadedMediaInput[];
   pairedMedia?: PairedMediaInput;
+  /** 未提供时使用当前转录设置中的默认方式。 */
+  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
   transcriptionOptions?: TranscriptionOptions;
   visualOptions?: NoteVisualOptions;
 }
@@ -358,7 +360,11 @@ export interface NoteJob {
   pageCount?: number;
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
-  transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+  transcriptionProvider?: TranscriptionProvider;
+  /** 创建任务时固化的实际转录模型标识。 */
+  transcriptionModel?: string;
+  /** 创建任务时固化的实际服务名称，不能包含地址或密钥。 */
+  transcriptionProviderName?: string;
   transcriptionNotice?: string;
   transcriptionOptions?: TranscriptionOptions;
   summaryGeneration?: SummaryGenerationInfo;
@@ -371,6 +377,12 @@ export interface NoteJob {
   createdAt: string;
   updatedAt: string;
 }
+
+export type TranscriptionProvider =
+  | 'tencent_asr'
+  | 'local_whisper'
+  | 'custom_api'
+  | 'mixed';
 
 export type SummaryGenerationStage =
   | 'preparing'
@@ -392,6 +404,7 @@ export interface SummaryGenerationInfo {
 }
 
 export interface SystemReadiness {
+  customApiTranscription?: boolean;
   ytDlp: boolean;
   ffmpeg: boolean;
   whisperCli: boolean;
@@ -467,6 +480,64 @@ export interface ExternalModelSettings {
   configured: boolean;
   enabled: boolean;
   model: string;
+}
+
+export type AiModelCapability = 'transcription' | 'llm';
+
+export interface ModelProviderModel {
+  capabilities: AiModelCapability[];
+  id: string;
+  name?: string;
+}
+
+export interface ModelServiceProvider {
+  apiKeyConfigured: boolean;
+  baseUrl: string;
+  configured: boolean;
+  enabled: boolean;
+  id: string;
+  models: ModelProviderModel[];
+  name: string;
+}
+
+export interface ModelReference {
+  model: string;
+  providerId: string;
+  providerName: string;
+}
+
+export type TranscriptionMode = 'custom_api' | 'tencent_asr';
+
+export interface AiModelSettings {
+  providers: ModelServiceProvider[];
+  summaryModel?: ModelReference;
+  transcriptionMode: TranscriptionMode;
+  transcriptionModel?: ModelReference;
+}
+
+export interface CreateModelServiceProviderRequest {
+  apiKey?: string;
+  baseUrl: string;
+  enabled: boolean;
+  name: string;
+}
+
+export interface UpdateModelServiceProviderRequest {
+  apiKey?: string;
+  baseUrl: string;
+  enabled: boolean;
+  name: string;
+}
+
+export interface UpdateAiModelSettingsRequest {
+  summaryModel?: ModelReference;
+  transcriptionMode: TranscriptionMode;
+  transcriptionModel?: ModelReference;
+}
+
+export interface ModelProviderModelsResponse {
+  items: ModelProviderModel[];
+  providerId: string;
 }
 
 export interface UpdateExternalModelSettingsRequest {
