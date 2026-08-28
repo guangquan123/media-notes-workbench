@@ -55,14 +55,18 @@ export class TencentAsrTranscriptionService {
       credential: { secretId: config.secretId, secretKey: config.secretKey },
       region: config.asrRegion,
     });
+    const engineModelType = resolveEngineModelType(
+      config.engineModelType,
+      input.transcriptionOptions?.languageMode,
+    );
     const created = await client.CreateRecTask({
       ChannelNum: 1,
       ConvertNumMode: 1,
-      EngineModelType: resolveEngineModelType(config.engineModelType, input.transcriptionOptions?.languageMode),
+      EngineModelType: engineModelType,
       FilterModal: 1,
       ResTextFormat: 3,
       SourceType: 0,
-      SpeakerDiarization: config.speakerDiarization ? 1 : 0,
+      SpeakerDiarization: config.speakerDiarization && supportsSpeakerDiarization(engineModelType) ? 1 : 0,
       Url: url,
       HotwordList: buildHotwordList(input.transcriptionOptions),
     });
@@ -139,6 +143,24 @@ export function resolveEngineModelType(
     return '16k_yue';
   }
   return configured;
+}
+
+function supportsSpeakerDiarization(engineModelType: string): boolean {
+  return new Set([
+    '8k_zh',
+    '8k_zh_large',
+    '16k_zh_en_2.0',
+    '16k_zh_en',
+    '16k_zh',
+    '16k_ms',
+    '16k_en',
+    '16k_id',
+    '16k_zh_dialect',
+    '16k_es',
+    '16k_fr',
+    '16k_ja',
+    '16k_ko',
+  ]).has(engineModelType);
 }
 
 export function buildHotwordList(options?: TranscriptionOptions): string | undefined {
