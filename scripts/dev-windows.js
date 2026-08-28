@@ -120,6 +120,21 @@ function clearStalePidFile() {
   runFileOperationWithRetry(() => fs.unlinkSync(pidPath));
 }
 
+function claimPidFile() {
+  try {
+    const fd = fs.openSync(pidPath, 'wx');
+    try {
+      fs.writeSync(fd, String(process.pid), 0, 'utf8');
+    } finally {
+      fs.closeSync(fd);
+    }
+    return true;
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error;
+    return false;
+  }
+}
+
 function ensureNoExistingLauncher() {
   if (!fs.existsSync(pidPath)) return null;
   const existingPid = Number.parseInt(
@@ -178,7 +193,19 @@ if (existingLauncherPid) {
   );
   process.exit(0);
 }
-fs.writeFileSync(pidPath, String(process.pid), 'utf8');
+if (!claimPidFile()) {
+  const claimedPid = ensureNoExistingLauncher();
+  if (claimedPid) {
+    process.stdout.write(
+      `[dev-windows] 项目已在运行（PID ${claimedPid}），未重复创建实例。\n`,
+    );
+    process.exit(0);
+  }
+  if (!claimPidFile()) {
+    process.stdout.write('[dev-windows] 无法独占项目 PID 文件，请稍后重试。\n');
+    process.exit(1);
+  }
+}
 const logFd = fs.openSync(logPath, 'a');
 const children = new Set();
 let staticClientServer = null;

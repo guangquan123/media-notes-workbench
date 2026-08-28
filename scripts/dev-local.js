@@ -43,7 +43,36 @@ fs.mkdirSync(LOG_DIR, { recursive: true });
 const PID_DIR = 'pids';
 const PID_PATH = path.join(PID_DIR, 'dev-local.pid');
 fs.mkdirSync(PID_DIR, { recursive: true });
-fs.writeFileSync(PID_PATH, String(process.pid), 'utf8');
+
+function claimPidFile() {
+  try {
+    const fd = fs.openSync(PID_PATH, 'wx');
+    try {
+      fs.writeSync(fd, String(process.pid), 0, 'utf8');
+    } finally {
+      fs.closeSync(fd);
+    }
+    return true;
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error;
+    const existingPid = Number.parseInt(fs.readFileSync(PID_PATH, 'utf8').trim(), 10);
+    if (Number.isInteger(existingPid) && existingPid > 0) {
+      try {
+        process.kill(existingPid, 0);
+        console.log(`[dev-local] 项目已在运行（PID ${existingPid}），未重复启动。`);
+        process.exit(0);
+      } catch (probeError) {
+        if (probeError?.code !== 'ESRCH' && probeError?.code !== 'EINVAL') {
+          throw probeError;
+        }
+      }
+    }
+    fs.unlinkSync(PID_PATH);
+    return claimPidFile();
+  }
+}
+
+claimPidFile();
 
 const clearPidFile = () => {
   try {
