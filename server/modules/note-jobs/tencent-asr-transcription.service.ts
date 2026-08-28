@@ -6,6 +6,7 @@ import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { TranscriptSegment } from './paired-media.utils';
+import type { TranscriptionLanguageMode, TranscriptionOptions } from '@shared/api.interface';
 import {
   TencentAsrSettingsService,
   type TencentAsrCredentials,
@@ -33,6 +34,7 @@ export class TencentAsrTranscriptionService {
 
   async transcribe(input: {
     audioPath: string;
+    transcriptionOptions?: TranscriptionOptions;
     onProgress?: (message: string) => void;
   }): Promise<TencentAsrTranscriptResult> {
     const config: TencentAsrCredentials | undefined =
@@ -56,12 +58,13 @@ export class TencentAsrTranscriptionService {
     const created = await client.CreateRecTask({
       ChannelNum: 1,
       ConvertNumMode: 1,
-      EngineModelType: config.engineModelType,
+      EngineModelType: resolveEngineModelType(config.engineModelType, input.transcriptionOptions?.languageMode),
       FilterModal: 1,
       ResTextFormat: 3,
       SourceType: 0,
       SpeakerDiarization: config.speakerDiarization ? 1 : 0,
       Url: url,
+      HotwordList: buildHotwordList(input.transcriptionOptions),
     });
     const taskId: number | undefined = created.Data?.TaskId;
     if (!taskId) throw new Error('腾讯云 ASR 未返回 TaskId');
@@ -97,7 +100,7 @@ export class TencentAsrTranscriptionService {
         Body: createReadStream(audioPath),
         Bucket: config.bucket,
         ContentLength: audioStat.size,
-        ContentType: 'audio/mpeg',
+        ContentType: getAudioContentType(audioPath),
         Key: objectKey,
         Region: config.region,
         ServerSideEncryption: 'AES256',
@@ -121,6 +124,37 @@ export class TencentAsrTranscriptionService {
     }
     throw new Error('腾讯云 ASR 任务等待超时，请稍后重试');
   }
+}
+
+export function resolveEngineModelType(
+  configured: string,
+  languageMode?: TranscriptionLanguageMode,
+): string {
+  if (languageMode === 'sichuan' || languageMode === 'mixed' || languageMode === 'auto') {
+    return configured === '8k_zh' || configured === '16k_zh'
+      ? '16k_zh_en_2.0'
+      : configured;
+  }
+  if (languageMode === 'cantonese' && configured !== '16k_yue') {
+    return '16k_yue';
+  }
+  return configured;
+}
+
+export function buildHotwordList(options?: TranscriptionOptions): string | undefined {
+  const hotwords = (options?.hotwords || [])
+    .map((word) => word.trim().replace(/[|,]/gu, ' '))
+    .filter(Boolean)
+    .slice(0, 128);
+  return hotwords.length ? hotwords.map((word) => `${word}|5`).join(',') : undefined;
+}
+
+export function getAudioContentType(audioPath: string): string {
+  const extension = basename(audioPath).split('.').pop()?.toLowerCase();
+  if (extension === 'wav') return 'audio/wav';
+  if (extension === 'm4a' || extension === 'mp4') return 'audio/mp4';
+  if (extension === 'ogg') return 'audio/ogg';
+  return 'audio/mpeg';
 }
 
 interface TencentSentenceDetail {

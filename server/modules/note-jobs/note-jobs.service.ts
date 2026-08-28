@@ -473,6 +473,10 @@ export class NoteJobsService implements OnModuleInit {
                 .join('、'),
       createdAt: now,
       updatedAt: now,
+      transcriptionOptions:
+        validatedInput.sourceType === 'video' || validatedInput.sourceType === 'audio'
+          ? validatedInput.transcriptionOptions
+          : undefined,
       visualOptions: validatedInput.visualOptions,
       visualSummary:
         validatedInput.visualOptions.mode === 'disabled'
@@ -1235,6 +1239,9 @@ export class NoteJobsService implements OnModuleInit {
               `source-${String(index).padStart(2, '0')}`,
               source.fileName,
               readiness,
+              input.sourceType === 'video' || input.sourceType === 'audio'
+                ? input.transcriptionOptions
+                : undefined,
             ),
         );
         if (input.sourceType !== 'audio') {
@@ -1788,7 +1795,7 @@ export class NoteJobsService implements OnModuleInit {
           workDir,
           `source-${index}.${extension}`,
         );
-        const audioPath: string = join(workDir, `audio-${index}.mp3`);
+        const audioPath: string = join(workDir, `audio-${index}.wav`);
         await this.downloadUploadedMedia(id, media, sourcePath);
         await this.measureStep(
           id,
@@ -1802,10 +1809,12 @@ export class NoteJobsService implements OnModuleInit {
               '-i',
               sourcePath,
               '-vn',
+              '-ac',
+              '1',
+              '-ar',
+              '16000',
               '-codec:a',
-              'libmp3lame',
-              '-q:a',
-              '5',
+              'pcm_s16le',
               '-y',
               audioPath,
             ]),
@@ -2003,11 +2012,13 @@ export class NoteJobsService implements OnModuleInit {
     prefix: string,
     displayName: string,
     readiness: SystemReadiness,
+    transcriptionOptions?: CreateNoteJobRequest['transcriptionOptions'],
   ): Promise<BestTranscriptResult> {
     try {
       const result: TencentAsrTranscriptResult =
         await this.tencentAsrTranscriptionService.transcribe({
           audioPath,
+          transcriptionOptions,
           onProgress: (message: string) =>
             this.update(
               id,
@@ -2046,6 +2057,7 @@ export class NoteJobsService implements OnModuleInit {
         audioPath,
         workDir,
         prefix,
+        transcriptionOptions,
       );
       return {
         provider: 'local_whisper',
@@ -2060,6 +2072,7 @@ export class NoteJobsService implements OnModuleInit {
     audioPath: string,
     workDir: string,
     prefix: string,
+    transcriptionOptions?: CreateNoteJobRequest['transcriptionOptions'],
   ): Promise<TranscriptSegment[]> {
     const parts: string[] = await this.splitAudioIfNeeded(
       audioPath,
@@ -2087,7 +2100,9 @@ export class NoteJobsService implements OnModuleInit {
             '--model',
             this.whisperModelPath,
             '--language',
-            'zh',
+            transcriptionOptions?.languageMode === 'mixed'
+              ? 'auto'
+              : 'zh',
             '--output-json',
             '--output-file',
             outputBase,

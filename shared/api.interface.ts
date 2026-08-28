@@ -137,6 +137,18 @@ export interface UploadedMediaPart {
   storage?: StoredSourceObject;
 }
 
+export type TranscriptionLanguageMode =
+  | 'mandarin'
+  | 'sichuan'
+  | 'cantonese'
+  | 'mixed'
+  | 'auto';
+
+export interface TranscriptionOptions {
+  hotwords?: string[];
+  languageMode?: TranscriptionLanguageMode;
+}
+
 export interface StoredSourceObject {
   bucketId: string;
   filePath: string;
@@ -281,6 +293,7 @@ export interface CreateNoteJobRequest {
   media?: UploadedMediaInput;
   mediaItems?: UploadedMediaInput[];
   pairedMedia?: PairedMediaInput;
+  transcriptionOptions?: TranscriptionOptions;
   visualOptions?: NoteVisualOptions;
 }
 
@@ -346,6 +359,7 @@ export interface NoteJob {
   parseQuality?: 'parsed' | 'needs_ocr' | 'needs_review';
   pairedAlignment?: PairedMediaAlignmentResult;
   transcriptionProvider?: 'tencent_asr' | 'local_whisper' | 'mixed';
+  transcriptionOptions?: TranscriptionOptions;
   summaryGeneration?: SummaryGenerationInfo;
   visualOptions?: NoteVisualOptions;
   visualSummary?: VisualPipelineSummary;
@@ -485,6 +499,7 @@ export type RetainedNoteSource =
       mediaItems: RetainedUploadedMedia[];
       noteStyle: NoteStyle;
       sourceType: 'video' | 'audio' | 'document' | 'pdf';
+      transcriptionOptions?: TranscriptionOptions;
       visualOptions: NoteVisualOptions;
     }
   | {

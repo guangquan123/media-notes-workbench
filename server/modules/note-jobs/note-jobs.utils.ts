@@ -9,6 +9,8 @@ import type {
   NoteVisualOptions,
   PairedMediaInput,
   SourcePlatform,
+  TranscriptionLanguageMode,
+  TranscriptionOptions,
   UploadedMediaInput,
 } from '@shared/api.interface';
 import { normalizeVisualOptions } from './frame-selection.utils';
@@ -76,6 +78,7 @@ interface MediaJobInput {
   sourceType: 'video' | 'audio';
   noteStyle: NoteStyle;
   mediaItems: UploadedMediaInput[];
+  transcriptionOptions: TranscriptionOptions;
   visualOptions: NoteVisualOptions;
 }
 
@@ -100,6 +103,30 @@ type ValidatedNoteJobInput =
   | DocumentJobInput;
 
 const NOTE_STYLES: readonly NoteStyle[] = ['learning', 'meeting'];
+const TRANSCRIPTION_LANGUAGE_MODES: readonly TranscriptionLanguageMode[] = [
+  'mandarin',
+  'sichuan',
+  'cantonese',
+  'mixed',
+  'auto',
+];
+
+export function normalizeTranscriptionOptions(
+  input?: TranscriptionOptions,
+): TranscriptionOptions {
+  const languageMode: TranscriptionLanguageMode =
+    input?.languageMode && TRANSCRIPTION_LANGUAGE_MODES.includes(input.languageMode)
+      ? input.languageMode
+      : 'auto';
+  const hotwords = Array.from(
+    new Set(
+      (input?.hotwords || [])
+        .map((word: string) => String(word).trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 128);
+  return { languageMode, ...(hotwords.length ? { hotwords } : {}) };
+}
 
 const PLATFORM_URL_PROFILES: Record<
   SourcePlatform,
@@ -319,6 +346,9 @@ export function validateNoteJobRequest(
   const visualOptions: NoteVisualOptions = supportsVisualProcessing(sourceType)
     ? normalizeVisualOptions(input.visualOptions)
     : { mode: 'disabled' };
+  const transcriptionOptions: TranscriptionOptions = normalizeTranscriptionOptions(
+    input.transcriptionOptions,
+  );
   if (sourceType === 'platform') {
     if (!input.url?.trim()) {
       throw new BadRequestException('请粘贴需要处理的视频地址');
@@ -441,6 +471,7 @@ export function validateNoteJobRequest(
     sourceType,
     noteStyle,
     mediaItems: validatedMediaItems,
+    transcriptionOptions,
     visualOptions,
   };
 }

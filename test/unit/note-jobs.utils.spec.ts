@@ -5,6 +5,7 @@ import {
   validateMediaDownloadUrl,
   validateMediaInput,
   validateNoteJobRequest,
+  normalizeTranscriptionOptions,
   normalizePlatformSourceUrl,
   validateDocumentInput,
   getDouyinAudioFallbackArgs,
@@ -260,6 +261,21 @@ describe('note job request validation', () => {
     expect(() => validateNoteJobRequest({ sourceType: 'audio' })).toThrow(
       '请选择需要处理的录音文件',
     );
+  });
+
+  it('normalizes Sichuan transcription options and bounds temporary hotwords', () => {
+    const result = normalizeTranscriptionOptions({
+      languageMode: 'sichuan',
+      hotwords: [' 项目A ', '项目A', '', '项目B'],
+    });
+    expect(result).toEqual({
+      languageMode: 'sichuan',
+      hotwords: ['项目A', '项目B'],
+    });
+  });
+
+  it('defaults unspecified transcription language to automatic detection', () => {
+    expect(normalizeTranscriptionOptions()).toEqual({ languageMode: 'auto' });
   });
 
   it('accepts an uploaded document with safe metadata', () => {

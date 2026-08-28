@@ -5,6 +5,8 @@ import type {
   RetainedNoteSource,
   RetainedUploadedMedia,
   StoredSourceObject,
+  TranscriptionLanguageMode,
+  TranscriptionOptions,
   UploadedMediaInput,
   UploadedMediaPart,
 } from './api.interface';
@@ -44,6 +46,18 @@ function isVisualOptions(value: unknown): value is NoteVisualOptions {
       value.outputMode === 'original_with_ai_notes' ||
       value.outputMode === 'original_with_ai_derivative')
   );
+}
+
+function parseTranscriptionOptions(value: unknown): TranscriptionOptions | undefined {
+  if (!isRecord(value)) return undefined;
+  const modes: readonly TranscriptionLanguageMode[] = ['mandarin', 'sichuan', 'cantonese', 'mixed', 'auto'];
+  const languageMode = modes.includes(value.languageMode as TranscriptionLanguageMode)
+    ? value.languageMode as TranscriptionLanguageMode
+    : undefined;
+  const hotwords = Array.isArray(value.hotwords)
+    ? value.hotwords.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 128)
+    : [];
+  return languageMode || hotwords.length ? { languageMode, ...(hotwords.length ? { hotwords } : {}) } : undefined;
 }
 
 function parseRetainedUploadedMedia(
@@ -101,6 +115,7 @@ function parseUploadedSource(
     mediaItems,
     noteStyle: value.noteStyle,
     sourceType: value.sourceType,
+    transcriptionOptions: parseTranscriptionOptions(value.transcriptionOptions),
     visualOptions: value.visualOptions,
   };
 }
@@ -326,6 +341,7 @@ export function captureRetainedNoteSource(
     mediaItems: retainedItems,
     noteStyle,
     sourceType,
+    transcriptionOptions: input.transcriptionOptions,
     visualOptions,
   };
 }
@@ -427,6 +443,7 @@ export function materializeRetainedNoteSource(
     ),
     noteStyle: source.noteStyle,
     sourceType: source.sourceType,
+    transcriptionOptions: source.transcriptionOptions,
     visualOptions: source.visualOptions,
   };
 }
