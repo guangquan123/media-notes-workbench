@@ -46,6 +46,18 @@ describe('Windows launcher action routing', () => {
     );
   });
 
+  it('uses the native Vite config loader for stable Windows startup', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+    const viteConfig = readFileSync(resolve(root, 'vite.config.ts'), 'utf8');
+
+    expect(launcher).toContain("'--configLoader', 'native'");
+    expect(viteConfig).toContain('const projectRoot: string = process.cwd();');
+    expect(viteConfig).toContain('noDiscovery: stableMode');
+  });
+
   it('rejects a missing or invalid launcher action instead of defaulting to start', () => {
     const launcher = readFileSync(
       resolve(root, 'scripts', 'workbench-launcher.hta'),

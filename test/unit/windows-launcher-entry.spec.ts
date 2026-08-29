@@ -12,8 +12,12 @@ describe('Windows launcher entry', () => {
 
     expect(script).toMatch(/workbench-launcher\.hta/i);
     expect(script).toContain('action = "start"');
-    expect(script).toContain('htaUrl = "file:///" & Replace(htaPath, "\\", "/") & "#" & action');
-    expect(script).toContain('shell.Run Quote(mshtaPath) & " " & Quote(htaUrl), 1, False');
+    expect(script).toContain(
+      'htaUrl = "file:///" & Replace(htaPath, "\\", "/") & "#" & action',
+    );
+    expect(script).toContain(
+      'shell.Run Quote(mshtaPath) & " " & Quote(htaUrl), 1, False',
+    );
     expect(script).not.toMatch(/run-hidden\.vbs[\s\S]*start:windows/i);
   });
 
@@ -70,8 +74,10 @@ describe('Windows launcher entry', () => {
       '实时输出管道被 Windows 拒绝，已自动切换到日志直写模式继续启动',
     );
     expect(devWindows).toContain("stdio: ['ignore', logFd, logFd]");
-    expect(devWindows).toContain('staticClientServer ? null : client');
-    expect(devWindows).toContain('staticClientServer ? 15000 : 120000');
+    expect(devWindows).toContain("'--configLoader', 'native'");
+    expect(devWindows).toContain('await waitForApplicationReady(client, 8000)');
+    expect(devWindows).toContain('前端页面验证失败，切换到静态前端兜底服务');
+    expect(devWindows).toContain('await waitForApplicationReady(null, 15000)');
     expect(devWindows).toContain(
       'const runtimeUrl = `http://${serverHost}:${serverPort}/api/runtime`;',
     );
@@ -114,7 +120,6 @@ describe('Windows launcher entry', () => {
     expect(viteConfig).toContain('target: localApiTarget');
     expect(viteConfig).toContain('requestPath.slice(clientBasePath.length)');
   });
-
 
   it('makes the mounted React layout acknowledge the one-time launcher token', () => {
     const layout = readFileSync(

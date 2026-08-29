@@ -484,6 +484,31 @@ async function waitForPort(name, host, port, child, timeoutMs = 120000) {
   );
 }
 
+async function waitForPortClosed(host, port, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await canConnect(host, port))) return;
+    await delay(200);
+  }
+  throw new Error(`端口 ${host}:${port} 在停止前端进程后仍被占用`);
+}
+
+function startStaticClientFallback() {
+  process.env.NODE_ENV = 'production';
+  process.env.CLIENT_DEV_HOST = clientHost;
+  process.env.CLIENT_DEV_PORT = String(clientPort);
+  process.env.CLIENT_BASE_PATH = clientBasePath;
+  process.env.SERVER_HOST = serverHost;
+  process.env.SERVER_PORT = String(serverPort);
+  const staticClientInstanceToken = `${process.pid}-${Date.now()}`;
+  process.env.STATIC_CLIENT_INSTANCE_TOKEN = staticClientInstanceToken;
+  staticClientServer = require(staticClientPath).start();
+  return waitForStaticClientReady(
+    staticClientServer,
+    staticClientInstanceToken,
+  );
+}
+
 function requestHttp(target, timeoutMs = 2500) {
   return new Promise((resolve) => {
     const request = http.get(target, (response) => {
@@ -515,7 +540,9 @@ async function waitForStaticClientReady(server, instanceToken) {
     await server.ready;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`静态前端兜底服务无法绑定 ${clientHost}:${clientPort}：${message}`);
+    throw new Error(
+      `静态前端兜底服务无法绑定 ${clientHost}:${clientPort}：${message}`,
+    );
   }
 
   const response = await requestHttp(appUrl);
@@ -559,13 +586,21 @@ function terminateProcessTree(child) {
   if (!child.pid || child.exitCode !== null || child.signalCode !== null)
     return;
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    return;
+    const result = spawnSync(
+      'taskkill',
+      ['/PID', String(child.pid), '/T', '/F'],
+      {
+        stdio: 'ignore',
+        windowsHide: true,
+      },
+    );
+    if (result.status === 0) return;
   }
-  child.kill('SIGTERM');
+  try {
+    child.kill('SIGTERM');
+  } catch {
+    // The process may have exited between the port check and termination.
+  }
 }
 
 function clearPidFile() {
@@ -671,32 +706,40 @@ async function main() {
   fs.rmSync(clientIndexPath, { force: true });
   startupStage = '前端启动失败';
   const clientStartAttempts = 3;
+  const clientPortTimeoutMs = 15000;
   let client = null;
   let clientStartError = null;
   for (let attempt = 1; attempt <= clientStartAttempts; attempt += 1) {
     writeLine(
       `[dev-windows] 启动前端（${attempt}/${clientStartAttempts}）: ${appUrl}`,
     );
-    client = startNodeProcess(
-      'client',
-      [viteCliPath, '--config', 'vite.config.ts'],
-      {
-        NODE_ENV: 'development',
-        MIAODA_LOCAL_DEV: '1',
-        VITE_RUNTIME: 'local',
-        VITE_STABLE_MODE: 'true',
-        CLIENT_DEV_HOST: clientHost,
-        CLIENT_DEV_PORT: String(clientPort),
-      },
-      false,
-    );
     try {
-      await waitForPort('前端', clientHost, clientPort, client);
+      client = startNodeProcess(
+        'client',
+        [viteCliPath, '--config', 'vite.config.ts', '--configLoader', 'native'],
+        {
+          NODE_ENV: 'development',
+          MIAODA_LOCAL_DEV: '1',
+          VITE_RUNTIME: 'local',
+          VITE_STABLE_MODE: 'true',
+          CLIENT_DEV_HOST: clientHost,
+          CLIENT_DEV_PORT: String(clientPort),
+        },
+        false,
+      );
+      await waitForPort(
+        '前端',
+        clientHost,
+        clientPort,
+        client,
+        clientPortTimeoutMs,
+      );
       clientStartError = null;
       break;
     } catch (error) {
       clientStartError = error;
       terminateProcessTree(client);
+      await waitForPortClosed(clientHost, clientPort);
       if (attempt < clientStartAttempts) {
         writeLine('[dev-windows] 前端启动失败，2 秒后重试...');
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -705,31 +748,33 @@ async function main() {
   }
   if (clientStartError) {
     writeLine('[dev-windows] Vite 启动失败，切换到静态前端兜底服务');
-    process.env.NODE_ENV = 'production';
-    process.env.CLIENT_DEV_HOST = clientHost;
-    process.env.CLIENT_DEV_PORT = String(clientPort);
-    process.env.CLIENT_BASE_PATH = clientBasePath;
-    process.env.SERVER_HOST = serverHost;
-    process.env.SERVER_PORT = String(serverPort);
-    const staticClientInstanceToken = `${process.pid}-${Date.now()}`;
-    process.env.STATIC_CLIENT_INSTANCE_TOKEN = staticClientInstanceToken;
-    staticClientServer = require(staticClientPath).start();
-    await waitForStaticClientReady(
-      staticClientServer,
-      staticClientInstanceToken,
-    );
+    await startStaticClientFallback();
   }
   if (!client && !staticClientServer) {
     throw clientStartError || new Error('前端启动失败');
   }
-  client?.once('close', handleUnexpectedExit('前端'));
   startupStage = '验证服务可访问性';
-  await waitForApplicationReady(
-    staticClientServer ? null : client,
-    staticClientServer ? 15000 : 120000,
-  );
+  if (!staticClientServer) {
+    try {
+      await waitForApplicationReady(client, 8000);
+    } catch (error) {
+      writeLine(
+        `[dev-windows] 前端页面验证失败，切换到静态前端兜底服务: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      terminateProcessTree(client);
+      await waitForPortClosed(clientHost, clientPort);
+      client = null;
+      await startStaticClientFallback();
+      await waitForApplicationReady(null, 15000);
+    }
+  } else {
+    await waitForApplicationReady(null, 15000);
+  }
   writeLine('[dev-windows] 页面和本地 API 已验证可访问');
   startupCompleted = true;
+  client?.once('close', handleUnexpectedExit('前端'));
   writeLauncherReadyToken();
   writeLine(`[dev-windows] 项目已启动: ${appUrl}`);
 }
