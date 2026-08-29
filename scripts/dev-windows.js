@@ -9,6 +9,11 @@ const { spawn, spawnSync } = require('node:child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const skipBuild = process.argv.includes('--skip-build');
+// Windows 上 Vite 的 CommonJS 依赖预处理依赖 esbuild 子进程；当系统策略
+// 拒绝创建该子进程时，关闭预处理会让 react/dayjs 以错误的 ESM 形式返回。
+// 稳定启动默认直接使用已构建的静态资源，--vite-client 仅用于调试 HMR。
+const useStaticClient =
+  process.platform === 'win32' && !process.argv.includes('--vite-client');
 process.chdir(rootDir);
 
 const logDir = path.resolve(rootDir, process.env.LOG_DIR || 'logs');
@@ -709,7 +714,15 @@ async function main() {
   const clientPortTimeoutMs = 15000;
   let client = null;
   let clientStartError = null;
-  for (let attempt = 1; attempt <= clientStartAttempts; attempt += 1) {
+  if (useStaticClient) {
+    writeLine('[dev-windows] Windows 稳定模式使用静态前端资源');
+    await startStaticClientFallback();
+  }
+  for (
+    let attempt = 1;
+    !useStaticClient && attempt <= clientStartAttempts;
+    attempt += 1
+  ) {
     writeLine(
       `[dev-windows] 启动前端（${attempt}/${clientStartAttempts}）: ${appUrl}`,
     );

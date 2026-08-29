@@ -75,6 +75,9 @@ describe('Windows launcher entry', () => {
     );
     expect(devWindows).toContain("stdio: ['ignore', logFd, logFd]");
     expect(devWindows).toContain("'--configLoader', 'native'");
+    expect(devWindows).toContain("process.platform === 'win32'");
+    expect(devWindows).toContain("!process.argv.includes('--vite-client')");
+    expect(devWindows).toContain('Windows 稳定模式使用静态前端资源');
     expect(devWindows).toContain('await waitForApplicationReady(client, 8000)');
     expect(devWindows).toContain('前端页面验证失败，切换到静态前端兜底服务');
     expect(devWindows).toContain('await waitForApplicationReady(null, 15000)');
