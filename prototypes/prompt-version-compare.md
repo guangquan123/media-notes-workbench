@@ -14,6 +14,8 @@
 
 完整用户旅程请打开 [prompt-template-full-flow.html](D:/data/codex_space/media-notes-workbench/prototypes/prompt-template-full-flow.html)，可从“提示词配置”入口开始，依次体验选择模板、编辑、保存草稿、发布、历史版本和独立差异对比。
 
+根据交互复审后的 UX v2 请打开 [prompt-template-ux-v2.html](D:/data/codex_space/media-notes-workbench/prototypes/prompt-template-ux-v2.html)。该版本将“选择模板 → 编辑 → 发布”保留为主任务，将“历史版本 → 版本比较”拆为当前提示词页面上的独立侧栏操作，比较完成后可直接返回当前提示词。
+
 ## 关键交互
 
 - “对比版本”默认带入当前提示词类型，不跨类型混选。
