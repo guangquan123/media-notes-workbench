@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#101828" flood-opacity=".10"/></filter>
+    <filter id="sm-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#101828" flood-opacity=".08"/></filter>
+    <style>
+      .font { font-family: Inter, 'Microsoft YaHei', sans-serif; }
+      .title { font-size: 21px; font-weight: 800; fill: #101828; }
+      .label { font-size: 11px; font-weight: 700; fill: #667085; }
+      .body { font-size: 10px; fill: #667085; }
+      .body-dark { font-size: 10px; fill: #344054; }
+      .small { font-size: 9px; fill: #98A2B3; }
+    </style>
+  </defs>
+  <rect width="1800" height="1180" fill="#F7F8FA"/>
+  <text x="54" y="42" class="font title" font-size="18">提示词模板 · 多版本对比高保真原型</text>
+  <text x="54" y="66" class="font body">保留现有设置页结构，在当前上下文内完成“选择两个版本 → 查看差异 → 返回编辑”的闭环。</text>
+
+  <!-- Artboard A: entry state -->
+  <g transform="translate(36 92)">
+    <rect width="548" height="1048" rx="18" fill="#EEF1F5" stroke="#E4E7EC"/>
+    <rect width="548" height="58" rx="18" fill="#FFF"/><rect y="44" width="548" height="14" fill="#FFF"/>
+    <circle cx="30" cy="29" r="16" fill="#111"/><path d="M23 29h14M30 22v14" stroke="#FFF" stroke-width="2" stroke-linecap="round"/>
+    <text x="58" y="26" class="font" font-size="14" font-weight="700" fill="#1D2939">参数配置</text><text x="58" y="43" class="font small">提示词模板</text>
+    <text x="22" y="92" class="font label">配置模块</text>
+    <rect x="18" y="108" width="158" height="62" rx="12" fill="#FFF"/><text x="36" y="132" class="font body-dark" font-weight="700">开始使用</text><text x="36" y="151" class="font small">自动检测环境并给出下一步</text>
+    <rect x="18" y="178" width="158" height="62" rx="12" fill="#FFF"/><text x="36" y="202" class="font body-dark" font-weight="700">连接器</text><text x="36" y="221" class="font small">选择飞书或钉钉协作能力</text>
+    <rect x="18" y="248" width="158" height="62" rx="12" fill="#111"/><text x="36" y="272" class="font" font-size="12" font-weight="700" fill="#FFF">提示词模板</text><text x="36" y="291" class="font" font-size="9" fill="#D0D5DD">编辑、发布并对比生成提示词</text>
+    <rect x="18" y="318" width="158" height="62" rx="12" fill="#FFF"/><text x="36" y="342" class="font body-dark" font-weight="700">模型服务与转录</text><text x="36" y="361" class="font small">配置 API 提供者与转录方式</text>
+    <text x="204" y="92" class="font label">提示词配置</text><text x="204" y="125" class="font title">让笔记按你的方式组织。</text><text x="204" y="149" class="font body">发布中的版本会直接传给 AI；草稿可反复修改。</text>
+    <rect x="204" y="176" width="322" height="78" rx="12" fill="#E5EFFF" stroke="#C8DCFF"/><text x="222" y="202" class="font" font-size="13" font-weight="700" fill="#1D2939">学习笔记</text><text x="222" y="222" class="font small">适用于课程、书籍、报告、论文与技术资料</text><text x="222" y="242" class="font" font-size="9" fill="#4F7CFF">当前发布 V3 · 2026-08-28 14:32</text>
+    <rect x="204" y="264" width="322" height="78" rx="12" fill="#FFF" stroke="#EAECF0"/><text x="222" y="290" class="font body-dark" font-weight="700">会议纪要</text><text x="222" y="310" class="font small">适用于会议录音、访谈、讨论和项目同步资料</text><text x="222" y="330" class="font small">当前发布 V2</text>
+    <rect x="204" y="366" width="322" height="54" rx="12" fill="#FFF" stroke="#EAECF0"/><text x="222" y="389" class="font small">当前生效：发布版本 V3</text><rect x="222" y="396" width="70" height="18" rx="9" fill="#ECFDF3"/><text x="257" y="409" text-anchor="middle" class="font" font-size="9" font-weight="700" fill="#027A48">已发布</text>
+    <rect x="300" y="381" width="86" height="28" rx="7" fill="#FFF" stroke="#D0D5DD"/><text x="343" y="399" text-anchor="middle" class="font" font-size="10" font-weight="700" fill="#344054">历史版本 3</text>
+    <rect x="396" y="381" width="112" height="28" rx="7" fill="#2563EB"/><text x="452" y="399" text-anchor="middle" class="font" font-size="10" font-weight="700" fill="#FFF">对比版本</text>
+    <rect x="204" y="438" width="322" height="566" rx="16" fill="#FFF" filter="url(#shadow)"/><text x="226" y="472" class="font body-dark" font-weight="700">学习笔记 · V3（当前发布）</text><line x1="226" y1="488" x2="502" y2="488" stroke="#EAECF0"/>
+    <text x="226" y="518" class="font body">目标：把原始材料整理成详细、准确、可复习、可检索的学习笔记。</text><text x="226" y="548" class="font body">一、真实性与完整性</text><text x="226" y="575" class="font body">1. 只能使用原文和系统提供的证据账本。</text><text x="226" y="602" class="font body">2. 完整保留数字、版本、价格、时间与限制。</text><rect x="226" y="630" width="256" height="32" rx="6" fill="#FFF7ED"/><text x="238" y="651" class="font" font-size="9" fill="#C2410C">新增：增加“风险、误区与注意事项”模块</text><text x="226" y="696" class="font body">四、交付标准</text><text x="226" y="723" class="font body">只输出最终 Markdown 笔记，不输出分析过程。</text><line x1="226" y1="964" x2="502" y2="964" stroke="#EAECF0"/><text x="226" y="987" class="font small">1,420 / 60,000 字符</text>
+  </g>
+
+  <!-- Artboard B: selection -->
+  <g transform="translate(626 92)">
+    <rect width="548" height="1048" rx="18" fill="#EEF1F5" stroke="#E4E7EC"/><rect width="548" height="58" rx="18" fill="#FFF"/><rect y="44" width="548" height="14" fill="#FFF"/>
+    <circle cx="30" cy="29" r="16" fill="#111"/><path d="M23 29h14M30 22v14" stroke="#FFF" stroke-width="2" stroke-linecap="round"/><text x="58" y="26" class="font" font-size="14" font-weight="700" fill="#1D2939">参数配置</text><text x="58" y="43" class="font small">提示词模板</text>
+    <text x="24" y="94" class="font label">版本对比</text><text x="24" y="126" class="font title">选择要比较的版本</text><text x="24" y="150" class="font body">同一提示词类型内，可任意选择两个已保存版本。</text>
+    <rect x="24" y="178" width="500" height="124" rx="14" fill="#FFF" filter="url(#sm-shadow)"/><text x="44" y="206" class="font label">比较对象 A</text><text x="290" y="206" class="font label">比较对象 B</text>
+    <rect x="44" y="220" width="216" height="56" rx="8" fill="#FFF" stroke="#2563EB" stroke-width="2"/><text x="60" y="244" class="font body-dark" font-weight="700">V2 · 已发布</text><text x="60" y="262" class="font small">2026-08-21 09:15 · 张敏</text><path d="M240 241l6 6 6-6" fill="none" stroke="#667085" stroke-width="2"/>
+    <rect x="284" y="220" width="216" height="56" rx="8" fill="#FFF" stroke="#D0D5DD"/><text x="300" y="244" class="font body-dark" font-weight="700">V3 · 当前发布</text><text x="300" y="262" class="font small">2026-08-28 14:32 · 李然</text><path d="M480 241l6 6 6-6" fill="none" stroke="#667085" stroke-width="2"/>
+    <rect x="24" y="322" width="500" height="172" rx="14" fill="#FFF" filter="url(#sm-shadow)"/><text x="44" y="352" class="font label">版本列表</text><rect x="44" y="366" width="460" height="34" rx="7" fill="#F9FAFB"/><text x="58" y="388" class="font body-dark">V3  当前发布</text><text x="482" y="388" text-anchor="end" class="font small">1,420 字符</text><rect x="44" y="406" width="460" height="34" rx="7" fill="#FFF" stroke="#EAECF0"/><text x="58" y="428" class="font body-dark">V2  已发布</text><text x="482" y="428" text-anchor="end" class="font small">1,180 字符</text><rect x="44" y="446" width="460" height="34" rx="7" fill="#FFF" stroke="#EAECF0"/><text x="58" y="468" class="font body-dark">V1  草稿</text><text x="482" y="468" text-anchor="end" class="font small">980 字符</text>
+    <rect x="24" y="514" width="500" height="264" rx="14" fill="#FFF" filter="url(#sm-shadow)"/><text x="44" y="546" class="font label">对比设置</text><text x="44" y="578" class="font body-dark">差异展示方式</text><rect x="44" y="590" width="460" height="38" rx="8" fill="#EFF6FF" stroke="#2563EB"/><circle cx="64" cy="609" r="7" fill="#2563EB"/><circle cx="64" cy="609" r="3" fill="#FFF"/><text x="84" y="613" class="font body-dark">并排对比（推荐）</text><rect x="44" y="636" width="460" height="38" rx="8" fill="#FFF" stroke="#D0D5DD"/><circle cx="64" cy="655" r="7" fill="#FFF" stroke="#98A2B3"/><text x="84" y="659" class="font body">统一视图</text><rect x="44" y="698" width="220" height="44" rx="8" fill="#2563EB"/><text x="154" y="726" text-anchor="middle" class="font" font-size="11" font-weight="700" fill="#FFF">查看差异</text><rect x="284" y="698" width="220" height="44" rx="8" fill="#FFF" stroke="#D0D5DD"/><text x="394" y="726" text-anchor="middle" class="font" font-size="11" font-weight="700" fill="#344054">取消</text>
+    <text x="24" y="1010" class="font small">设计意图：选择器内完成全部决策，不打断编辑上下文。</text>
+  </g>
+
+  <!-- Artboard C: diff workspace -->
+  <g transform="translate(1216 92)">
+    <rect width="548" height="1048" rx="18" fill="#EEF1F5" stroke="#E4E7EC"/><rect width="548" height="58" rx="18" fill="#FFF"/><rect y="44" width="548" height="14" fill="#FFF"/>
+    <circle cx="30" cy="29" r="16" fill="#111"/><path d="M23 29h14M30 22v14" stroke="#FFF" stroke-width="2" stroke-linecap="round"/><text x="58" y="26" class="font" font-size="14" font-weight="700" fill="#1D2939">参数配置</text><text x="58" y="43" class="font small">提示词模板</text>
+    <text x="24" y="94" class="font label">差异对比</text><text x="24" y="126" class="font title">V2 与 V3 的改动</text><text x="24" y="150" class="font body">学习笔记 · 2026-08-21 → 2026-08-28</text>
+    <rect x="24" y="174" width="500" height="64" rx="12" fill="#FFF" filter="url(#sm-shadow)"/><text x="44" y="203" class="font body-dark" font-weight="700">共 12 处差异</text><rect x="160" y="192" width="74" height="22" rx="11" fill="#ECFDF3"/><text x="197" y="207" text-anchor="middle" class="font" font-size="9" font-weight="700" fill="#027A48">新增 7</text><rect x="242" y="192" width="74" height="22" rx="11" fill="#FFF1F2"/><text x="279" y="207" text-anchor="middle" class="font" font-size="9" font-weight="700" fill="#BE123C">删除 3</text><rect x="324" y="192" width="74" height="22" rx="11" fill="#FFF7ED"/><text x="361" y="207" text-anchor="middle" class="font" font-size="9" font-weight="700" fill="#C2410C">修改 2</text><text x="498" y="207" text-anchor="end" class="font small">相似度 86%</text>
+    <rect x="24" y="254" width="500" height="48" rx="10" fill="#FFF" stroke="#EAECF0"/><text x="44" y="284" class="font body-dark" font-weight="700">筛选</text><rect x="104" y="266" width="90" height="24" rx="12" fill="#111"/><text x="149" y="282" text-anchor="middle" class="font" font-size="9" fill="#FFF">全部差异</text><rect x="202" y="266" width="70" height="24" rx="12" fill="#FFF" stroke="#D0D5DD"/><text x="237" y="282" text-anchor="middle" class="font small">新增</text><rect x="280" y="266" width="70" height="24" rx="12" fill="#FFF" stroke="#D0D5DD"/><text x="315" y="282" text-anchor="middle" class="font small">删除</text><rect x="358" y="266" width="70" height="24" rx="12" fill="#FFF" stroke="#D0D5DD"/><text x="393" y="282" text-anchor="middle" class="font small">修改</text>
+    <rect x="24" y="320" width="240" height="650" rx="14" fill="#FFF" filter="url(#sm-shadow)"/><rect x="284" y="320" width="240" height="650" rx="14" fill="#FFF" filter="url(#sm-shadow)"/><rect x="24" y="320" width="240" height="52" rx="14" fill="#F9FAFB"/><rect x="24" y="358" width="240" height="14" fill="#F9FAFB"/><text x="44" y="344" class="font body-dark" font-weight="700">V2 · 已发布</text><text x="246" y="344" text-anchor="end" class="font small">1,180 字符</text><rect x="284" y="320" width="240" height="52" rx="14" fill="#EFF6FF"/><rect x="284" y="358" width="240" height="14" fill="#EFF6FF"/><text x="304" y="344" class="font body-dark" font-weight="700" fill="#1D4ED8">V3 · 当前发布</text><text x="506" y="344" text-anchor="end" class="font small" fill="#4F7CFF">1,420 字符</text>
+    <text x="40" y="404" class="font body">一、真实性与完整性</text><text x="40" y="432" class="font body">1. 只能使用原文和证据账本。</text><rect x="40" y="450" width="208" height="30" rx="5" fill="#FFF1F2"/><text x="50" y="469" class="font" font-size="9" fill="#BE123C">删除：不得补充案例或因果关系。</text><text x="40" y="514" class="font body">二、输出结构</text><text x="40" y="542" class="font body">3. 核心知识体系按知识逻辑分组。</text><text x="40" y="586" class="font body">四、交付标准</text>
+    <text x="300" y="404" class="font body">一、真实性与完整性</text><text x="300" y="432" class="font body">1. 只能使用原文和证据账本。</text><rect x="300" y="450" width="208" height="30" rx="5" fill="#ECFDF3"/><text x="310" y="469" class="font" font-size="9" fill="#027A48">新增：不确定内容标记【待人工确认】。</text><text x="300" y="514" class="font body">二、输出结构</text><rect x="300" y="530" width="208" height="42" rx="5" fill="#FFF7ED"/><text x="310" y="548" class="font" font-size="9" fill="#C2410C">修改：增加“风险与注意事项”</text><text x="310" y="563" class="font" font-size="9" fill="#C2410C">模块并保留原文边界。</text><text x="300" y="612" class="font body">四、交付标准</text>
+    <line x1="274" y1="320" x2="274" y2="970" stroke="#D0D5DD" stroke-dasharray="4 6"/>
+    <rect x="24" y="994" width="500" height="44" rx="8" fill="#111"/><text x="274" y="1022" text-anchor="middle" class="font" font-size="10" font-weight="700" fill="#FFF">返回提示词 · 保持当前选中的比较条件</text>
+  </g>
+</svg>
