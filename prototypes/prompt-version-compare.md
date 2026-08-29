@@ -12,6 +12,8 @@
 2. **版本选择态**：A/B 两个选择器、版本列表、对比方式和“查看差异”集中在一个工作区内完成。
 3. **差异对比态**：双栏同步阅读，使用绿色/红色/橙色分别表达新增/删除/修改，并提供差异统计和筛选。
 
+完整用户旅程请打开 [prompt-template-full-flow.html](D:/data/codex_space/media-notes-workbench/prototypes/prompt-template-full-flow.html)，可从“提示词配置”入口开始，依次体验选择模板、编辑、保存草稿、发布、历史版本和独立差异对比。
+
 ## 关键交互
 
 - “对比版本”默认带入当前提示词类型，不跨类型混选。
