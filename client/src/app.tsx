@@ -9,6 +9,7 @@ import EntryPage from './pages/EntryPage/EntryPage';
 import LocalVideoNotesPage from './pages/LocalVideoNotesPage/LocalVideoNotesPage';
 import NotFound from './pages/NotFound/NotFound';
 import NoteTemplatesPage from './pages/NoteTemplatesPage/NoteTemplatesPage';
+import NoteTemplatesComparePage from './pages/NoteTemplatesComparePage/NoteTemplatesComparePage';
 import OperationManualPage from './pages/OperationManualPage/OperationManualPage';
 import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import RecordingNotesPage from './pages/RecordingNotesPage/RecordingNotesPage';
@@ -31,8 +32,18 @@ const RoutesComponent = () => {
         <Route path="pdf-notes" element={<PdfNotesPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
-        <Route path="transcription-settings" element={<AiModelSettingsPage initialTab="transcription" />} />
-        <Route path="model-settings" element={<AiModelSettingsPage initialTab="models" />} />
+        <Route
+          path="note-templates/compare"
+          element={<NoteTemplatesComparePage />}
+        />
+        <Route
+          path="transcription-settings"
+          element={<AiModelSettingsPage initialTab="transcription" />}
+        />
+        <Route
+          path="model-settings"
+          element={<AiModelSettingsPage initialTab="models" />}
+        />
         <Route path="ai-settings" element={<AiModelSettingsPage />} />
         <Route path="operation-manual" element={<OperationManualPage />} />
         <Route path="conversion-history" element={<ConversionHistoryPage />} />
