@@ -533,7 +533,7 @@ export default function ConversionHistoryPage() {
 
         <section className="py-4 md:py-5">
           <div className="mb-4 flex flex-col gap-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">
@@ -553,8 +553,8 @@ export default function ConversionHistoryPage() {
                 <Button
                   className={
                     selectionMode
-                      ? 'rounded-full bg-[#161616] text-white hover:bg-[#161616]'
-                      : 'rounded-full border-black/8 bg-white text-black/62'
+                      ? 'rounded-xl bg-[#161616] text-white hover:bg-[#161616]'
+                      : 'rounded-xl border-[#3370ff]/25 bg-[#edf3ff] text-[#2458c6] hover:border-[#3370ff]/40 hover:bg-[#e2ebff]'
                   }
                   onClick={() => {
                     setSelectionMode((enabled: boolean) => !enabled);

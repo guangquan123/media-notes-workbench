@@ -150,8 +150,8 @@ export function HistoryFilterControls({
 
   return (
     <div className="rounded-2xl border border-black/8 bg-white/82 p-4 shadow-[0_10px_30px_rgba(40,35,29,0.04)] md:p-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <div className="flex min-w-0 gap-2 md:col-span-2 xl:col-span-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="flex min-w-0 gap-2 md:col-span-2 lg:col-span-3 xl:col-span-5">
           <Input
             aria-label="按笔记标题搜索"
             className="h-10 min-w-0 border-black/10 bg-white text-sm"
