@@ -531,8 +531,8 @@ export default function ConversionHistoryPage() {
           </div>
         </header>
 
-        <section className="py-3 md:py-4">
-          <div className="mb-3 flex flex-col gap-3">
+        <section className="py-2 md:py-3">
+          <div className="mb-2 flex flex-col gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h1 className="text-2xl font-semibold tracking-[-0.03em]">
@@ -654,7 +654,7 @@ export default function ConversionHistoryPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3" data-ai-section-type="card-list">
+            <div className="space-y-2" data-ai-section-type="card-list">
               {records.map((record: NoteConversionRecord) => {
                 const sourceStyle = SOURCE_STYLES[record.sourceType];
                 const selectable: boolean = isSelectable(record);
@@ -683,10 +683,10 @@ export default function ConversionHistoryPage() {
                   actionJobId === record.jobId;
                 return (
                   <article
-                    className="group rounded-2xl border border-black/7 bg-white/92 p-3.5 shadow-[0_10px_30px_rgba(40,35,29,0.045)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_14px_40px_rgba(40,35,29,0.075)] md:p-4"
+                    className="group rounded-xl border border-black/7 bg-white/92 p-3 shadow-[0_8px_24px_rgba(40,35,29,0.035)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_12px_32px_rgba(40,35,29,0.065)] md:p-3.5"
                     key={record.id}
                   >
-                    <div className="flex gap-4">
+                    <div className="flex gap-3">
                       {selectionMode ? (
                         <Checkbox
                           aria-label={`选择 ${record.title}`}
@@ -815,7 +815,7 @@ export default function ConversionHistoryPage() {
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-col gap-2 border-t border-black/6 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-2 flex flex-col gap-2 border-t border-black/6 pt-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex flex-wrap items-center gap-2">
                         {record.documentUrl ? (
                           <Button
