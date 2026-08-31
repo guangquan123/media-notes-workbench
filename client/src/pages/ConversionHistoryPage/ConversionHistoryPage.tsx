@@ -432,9 +432,7 @@ export default function ConversionHistoryPage() {
     setSelectedJobIds([]);
   };
 
-  const changeSourceChannel = (
-    value: ConversionSourceChannel | undefined,
-  ) => {
+  const changeSourceChannel = (value: ConversionSourceChannel | undefined) => {
     setSourceChannel(value);
     setPage(1);
     setSelectedJobIds([]);
@@ -492,8 +490,8 @@ export default function ConversionHistoryPage() {
 
   return (
     <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
-      <div className="mx-auto min-h-screen max-w-6xl px-5 md:px-10">
-        <header className="sticky top-0 z-20 -mx-5 flex h-12 items-center justify-between gap-4 border-b border-black/8 bg-[#faf9f6]/95 px-5 backdrop-blur md:-mx-10 md:px-10">
+      <div className="mx-auto min-h-screen w-[calc(100%-28px)] max-w-[1560px] sm:w-[calc(100%-48px)]">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-black/8 bg-[#faf9f6]/95 backdrop-blur">
           <nav
             aria-label="面包屑"
             className="flex min-w-0 items-center gap-2 text-xs text-black/45"
@@ -506,7 +504,7 @@ export default function ConversionHistoryPage() {
           </nav>
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              className="rounded-full border-black/8 bg-white text-black/62"
+              className="rounded-lg border-black/8 bg-white text-black/62"
               disabled={refreshing}
               onClick={() => void loadRecords(true)}
               size="sm"
@@ -519,7 +517,7 @@ export default function ConversionHistoryPage() {
             </Button>
             <Button
               asChild
-              className="rounded-full border-black/8 bg-white text-black/62"
+              className="rounded-lg border-black/8 bg-white text-black/62"
               size="sm"
               variant="outline"
             >
@@ -531,13 +529,11 @@ export default function ConversionHistoryPage() {
           </div>
         </header>
 
-        <section className="py-2 md:py-3">
+        <section className="py-3 md:py-4">
           <div className="mb-2 flex flex-col gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h1 className="text-2xl font-semibold tracking-[-0.03em]">
-                  转化记录
-                </h1>
+                <h1 className="text-2xl font-semibold">转化记录</h1>
                 {!loading ? (
                   <span className="text-sm text-black/42">
                     共 {totalItems} 条
@@ -551,8 +547,8 @@ export default function ConversionHistoryPage() {
                 <Button
                   className={
                     selectionMode
-                      ? 'rounded-xl bg-[#161616] text-white hover:bg-[#161616]'
-                      : 'rounded-xl border-[#3370ff]/25 bg-[#edf3ff] text-[#2458c6] hover:border-[#3370ff]/40 hover:bg-[#e2ebff]'
+                      ? 'rounded-lg bg-[#161616] text-white hover:bg-[#161616]'
+                      : 'rounded-lg border-[#3370ff]/25 bg-[#edf3ff] text-[#2458c6] hover:border-[#3370ff]/40 hover:bg-[#e2ebff]'
                   }
                   onClick={() => {
                     setSelectionMode((enabled: boolean) => !enabled);
@@ -591,7 +587,7 @@ export default function ConversionHistoryPage() {
             />
 
             {selectionMode && selectableRecords.length > 0 ? (
-              <div className="flex flex-col gap-3 rounded-2xl border border-[#3370ff]/20 bg-[#eff4ff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-lg border border-[#3370ff]/20 bg-[#eff4ff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[#1e4bbd]">
                   <Checkbox
                     checked={isAllPageSelected}
@@ -626,15 +622,27 @@ export default function ConversionHistoryPage() {
             ) : null}
           </div>
 
+          <div className="mt-4 flex items-baseline justify-between gap-3 px-1">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-base font-semibold">转化记录列表</h2>
+              <span className="text-xs text-black/42">按生成时间倒序</span>
+            </div>
+            {!loading && totalItems > 0 ? (
+              <span className="text-xs text-black/42">
+                当前页 {records.length} 条
+              </span>
+            ) : null}
+          </div>
+
           {loading ? (
-            <div className="grid min-h-72 place-items-center rounded-[2rem] border border-black/7 bg-white/85">
+            <div className="grid min-h-48 place-items-center rounded-lg border border-black/7 bg-white/85">
               <div className="text-center">
                 <LoaderCircle className="mx-auto size-6 animate-spin text-[#3370ff]" />
                 <p className="mt-3 text-sm text-black/45">正在整理历史记录…</p>
               </div>
             </div>
           ) : records.length === 0 ? (
-            <div className="grid min-h-72 place-items-center rounded-[2rem] border border-dashed border-black/12 bg-white/75 px-6 text-center">
+            <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-black/12 bg-white/75 px-6 text-center">
               <div>
                 <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-black/5 text-black/35">
                   <History className="size-6" />
@@ -654,39 +662,44 @@ export default function ConversionHistoryPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2" data-ai-section-type="card-list">
-              {records.map((record: NoteConversionRecord) => {
-                const sourceStyle = SOURCE_STYLES[record.sourceType];
-                const selectable: boolean = isSelectable(record);
-                const sourceCapabilities = getSourceAssetCapabilities(
-                  record.sourceAssets,
-                );
-                const taskFinished: boolean =
-                  record.status !== 'processing';
-                const canRegenerate: boolean =
-                  taskFinished && record.rawTranscriptAvailable;
-                const canFullReprocess: boolean =
-                  taskFinished && sourceCapabilities.canReprocess;
-                const visualOptionsCopy = getVisualOptionsCopy(
-                  record.visualOptions,
-                );
-                const canReprocessImages: boolean =
-                  canFullReprocess && visualOptionsCopy.enabled;
-                const canDeleteSource: boolean =
-                  taskFinished && sourceCapabilities.canDelete;
-                const hasMoreActions: boolean =
-                  Boolean(record.rawDocumentUrl) ||
-                  record.rawTranscriptAvailable ||
-                  canDeleteSource ||
-                  canFullReprocess;
-                const actionRunning: boolean =
-                  actionJobId === record.jobId;
-                return (
-                  <article
-                    className="group rounded-xl border border-black/7 bg-white/92 p-3 shadow-[0_8px_24px_rgba(40,35,29,0.035)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_12px_32px_rgba(40,35,29,0.065)] md:p-3.5"
-                    key={record.id}
-                  >
-                    <div className="flex gap-3">
+            <div className="overflow-hidden rounded-lg border border-black/7 bg-white shadow-[0_8px_24px_rgba(40,35,29,0.035)]">
+              <div
+                className="divide-y divide-black/7"
+                data-ai-section-type="card-list"
+              >
+                {records.map((record: NoteConversionRecord) => {
+                  const sourceStyle = SOURCE_STYLES[record.sourceType];
+                  const selectable: boolean = isSelectable(record);
+                  const sourceCapabilities = getSourceAssetCapabilities(
+                    record.sourceAssets,
+                  );
+                  const taskFinished: boolean = record.status !== 'processing';
+                  const canRegenerate: boolean =
+                    taskFinished && record.rawTranscriptAvailable;
+                  const canFullReprocess: boolean =
+                    taskFinished && sourceCapabilities.canReprocess;
+                  const visualOptionsCopy = getVisualOptionsCopy(
+                    record.visualOptions,
+                  );
+                  const canReprocessImages: boolean =
+                    canFullReprocess && visualOptionsCopy.enabled;
+                  const canDeleteSource: boolean =
+                    taskFinished && sourceCapabilities.canDelete;
+                  const hasMoreActions: boolean =
+                    Boolean(record.rawDocumentUrl) ||
+                    record.rawTranscriptAvailable ||
+                    canDeleteSource ||
+                    canFullReprocess;
+                  const actionRunning: boolean = actionJobId === record.jobId;
+                  return (
+                    <article
+                      className={`group grid gap-3 px-4 py-3.5 transition hover:bg-black/[0.012] md:gap-4 ${
+                        selectionMode
+                          ? 'grid-cols-[20px_36px_minmax(0,1fr)] md:grid-cols-[24px_42px_minmax(0,1fr)_auto]'
+                          : 'grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[42px_minmax(0,1fr)_auto]'
+                      }`}
+                      key={record.id}
+                    >
                       {selectionMode ? (
                         <Checkbox
                           aria-label={`选择 ${record.title}`}
@@ -699,7 +712,7 @@ export default function ConversionHistoryPage() {
                         />
                       ) : null}
                       <div
-                        className="grid size-10 shrink-0 place-items-center rounded-xl"
+                        className="grid size-10 shrink-0 place-items-center rounded-lg"
                         style={{
                           backgroundColor: sourceStyle.background,
                           color: sourceStyle.accent,
@@ -707,7 +720,7 @@ export default function ConversionHistoryPage() {
                       >
                         <ConversionIcon sourceType={record.sourceType} />
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
                             className="border-transparent"
@@ -751,8 +764,7 @@ export default function ConversionHistoryPage() {
                             </Badge>
                           ) : null}
                           <Badge variant="outline">
-                            V{record.versionNumber} ·{' '}
-                            {getRerunModeCopy(record)}
+                            V{record.versionNumber} · {getRerunModeCopy(record)}
                           </Badge>
                           <Badge
                             className={
@@ -813,256 +825,255 @@ export default function ConversionHistoryPage() {
                           </span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="mt-2 flex flex-col gap-2 border-t border-black/6 pt-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {record.documentUrl ? (
-                          <Button
-                            asChild
-                            className="rounded-xl bg-[#3370ff] text-white hover:bg-[#2864ea]"
-                            size="sm"
-                          >
-                            <a
-                              href={record.documentUrl}
-                              rel="noopener noreferrer"
-                              target="_blank"
+                      <div className="col-span-full mt-1 flex flex-col gap-2 border-t border-black/6 pt-2 sm:flex-row sm:items-center sm:justify-between md:col-span-1 md:mt-0 md:border-0 md:pt-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {record.documentUrl ? (
+                            <Button
+                              asChild
+                              className="rounded-lg bg-[#3370ff] text-white hover:bg-[#2864ea]"
+                              size="sm"
                             >
-                              查看总结笔记
-                              <ArrowUpRight className="size-4" />
-                            </a>
-                          </Button>
-                        ) : null}
-                        {record.larkTaskUrl ? (
-                          <Button
-                            asChild
-                            className="rounded-xl border-black/10 bg-white text-black/70 hover:bg-black/5"
-                            size="sm"
-                            variant="outline"
-                          >
-                            <a
-                              href={record.larkTaskUrl}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              查看待处理任务
-                              <ArrowUpRight className="size-4" />
-                            </a>
-                          </Button>
-                        ) : null}
-                        {hasMoreActions ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                className="rounded-xl border-black/10 bg-white text-black/70 hover:bg-black/5"
-                                disabled={actionRunning}
-                                size="sm"
-                                variant="outline"
+                              <a
+                                href={record.documentUrl}
+                                rel="noopener noreferrer"
+                                target="_blank"
                               >
-                                {actionRunning ? '处理中' : '更多'}
-                                {actionRunning ? (
-                                  <LoaderCircle className="size-4 animate-spin" />
-                                ) : (
-                                  <MoreHorizontal className="size-4" />
-                                )}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                              {record.rawDocumentUrl ? (
-                                <DropdownMenuItem asChild>
-                                  <a
-                                    href={record.rawDocumentUrl}
-                                    rel="noopener noreferrer"
-                                    target="_blank"
-                                  >
-                                    查看原文
-                                    <ArrowUpRight className="size-4" />
-                                  </a>
-                                </DropdownMenuItem>
-                              ) : null}
-                              {record.rawTranscriptAvailable ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    void downloadTranscript(record)
-                                  }
+                                查看总结笔记
+                                <ArrowUpRight className="size-4" />
+                              </a>
+                            </Button>
+                          ) : null}
+                          {record.larkTaskUrl ? (
+                            <Button
+                              asChild
+                              className="rounded-lg border-black/10 bg-white text-black/70 hover:bg-black/5"
+                              size="sm"
+                              variant="outline"
+                            >
+                              <a
+                                href={record.larkTaskUrl}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                              >
+                                查看待处理任务
+                                <ArrowUpRight className="size-4" />
+                              </a>
+                            </Button>
+                          ) : null}
+                          {hasMoreActions ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  className="rounded-lg border-black/10 bg-white text-black/70 hover:bg-black/5"
+                                  disabled={actionRunning}
+                                  size="sm"
+                                  variant="outline"
                                 >
-                                  下载原文
-                                  <Download className="size-4" />
-                                </DropdownMenuItem>
-                              ) : null}
-                              {(record.rawDocumentUrl ||
-                                record.rawTranscriptAvailable) &&
-                              (canRegenerate ||
-                                canFullReprocess ||
-                                canDeleteSource) ? (
-                                <DropdownMenuSeparator />
-                              ) : null}
-                              {canRegenerate ? (
-                                <DropdownMenuItem
-                                  onClick={() => void regenerateRaw(record)}
-                                >
-                                  重新生成原文
-                                  <FileText className="size-4" />
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canRegenerate ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    void regenerateSummary(record)
-                                  }
-                                >
-                                  仅重新生成笔记
-                                  <Repeat2 className="size-4" />
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canReprocessImages ? (
-                                <DropdownMenuItem
-                                  onClick={() => openImageReprocess(record)}
-                                >
-                                  重新处理图片
-                                  <ImageIcon className="size-4" />
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canFullReprocess ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    void fullyReprocess(record)
-                                  }
-                                >
-                                  用源文件完整重跑
-                                  <RefreshCw className="size-4" />
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canDeleteSource ? (
-                                <>
-                                  <DropdownMenuSeparator />
+                                  {actionRunning ? '处理中' : '更多'}
+                                  {actionRunning ? (
+                                    <LoaderCircle className="size-4 animate-spin" />
+                                  ) : (
+                                    <MoreHorizontal className="size-4" />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                {record.rawDocumentUrl ? (
+                                  <DropdownMenuItem asChild>
+                                    <a
+                                      href={record.rawDocumentUrl}
+                                      rel="noopener noreferrer"
+                                      target="_blank"
+                                    >
+                                      查看原文
+                                      <ArrowUpRight className="size-4" />
+                                    </a>
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {record.rawTranscriptAvailable ? (
                                   <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-600"
                                     onClick={() =>
-                                      setSourceToDelete(record)
+                                      void downloadTranscript(record)
                                     }
                                   >
-                                    永久删除源文件
-                                    <Trash2 className="size-4" />
+                                    下载原文
+                                    <Download className="size-4" />
                                   </DropdownMenuItem>
-                                </>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                        {!record.documentUrl && !record.rawDocumentUrl ? (
-                          <span className="text-xs text-black/35">
-                            {record.status === 'processing'
-                              ? '完成后可查看'
-                              : '没有生成笔记'}
-                          </span>
+                                ) : null}
+                                {(record.rawDocumentUrl ||
+                                  record.rawTranscriptAvailable) &&
+                                (canRegenerate ||
+                                  canFullReprocess ||
+                                  canDeleteSource) ? (
+                                  <DropdownMenuSeparator />
+                                ) : null}
+                                {canRegenerate ? (
+                                  <DropdownMenuItem
+                                    onClick={() => void regenerateRaw(record)}
+                                  >
+                                    重新生成原文
+                                    <FileText className="size-4" />
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {canRegenerate ? (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      void regenerateSummary(record)
+                                    }
+                                  >
+                                    仅重新生成笔记
+                                    <Repeat2 className="size-4" />
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {canReprocessImages ? (
+                                  <DropdownMenuItem
+                                    onClick={() => openImageReprocess(record)}
+                                  >
+                                    重新处理图片
+                                    <ImageIcon className="size-4" />
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {canFullReprocess ? (
+                                  <DropdownMenuItem
+                                    onClick={() => void fullyReprocess(record)}
+                                  >
+                                    用源文件完整重跑
+                                    <RefreshCw className="size-4" />
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {canDeleteSource ? (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-600"
+                                      onClick={() => setSourceToDelete(record)}
+                                    >
+                                      永久删除源文件
+                                      <Trash2 className="size-4" />
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : null}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                          {!record.documentUrl && !record.rawDocumentUrl ? (
+                            <span className="text-xs text-black/35">
+                              {record.status === 'processing'
+                                ? '完成后可查看'
+                                : '没有生成笔记'}
+                            </span>
+                          ) : null}
+                        </div>
+                        {record.status === 'completed' ? (
+                          <Button
+                            className={
+                              record.processingStatus === 'processed'
+                                ? 'rounded-lg border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'
+                                : 'rounded-lg bg-[#161616] text-white hover:bg-[#3370ff]'
+                            }
+                            disabled={
+                              record.processingStatus === 'processed' ||
+                              markingJobId === record.jobId
+                            }
+                            onClick={() => void markProcessed(record)}
+                            size="sm"
+                            variant={
+                              record.processingStatus === 'processed'
+                                ? 'outline'
+                                : 'default'
+                            }
+                          >
+                            <CheckCircle2 className="size-4" />
+                            {record.processingStatus === 'processed'
+                              ? '已处理'
+                              : markingJobId === record.jobId
+                                ? '同步中'
+                                : '标记已处理'}
+                          </Button>
                         ) : null}
                       </div>
-                      {record.status === 'completed' ? (
-                        <Button
-                          className={
-                            record.processingStatus === 'processed'
-                              ? 'rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'
-                              : 'rounded-xl bg-[#161616] text-white hover:bg-[#3370ff]'
-                          }
-                          disabled={
-                            record.processingStatus === 'processed' ||
-                            markingJobId === record.jobId
-                          }
-                          onClick={() => void markProcessed(record)}
-                          size="sm"
-                          variant={
-                            record.processingStatus === 'processed'
-                              ? 'outline'
-                              : 'default'
-                          }
-                        >
-                          <CheckCircle2 className="size-4" />
-                          {record.processingStatus === 'processed'
-                            ? '已处理'
-                            : markingJobId === record.jobId
-                              ? '同步中'
-                              : '标记已处理'}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
+                    </article>
+                  );
+                })}
+              </div>
+              {!loading && totalPages > 1 ? (
+                <nav
+                  aria-label="转化记录分页"
+                  className="flex flex-wrap items-center justify-between gap-3 border-t border-black/7 px-4 py-3"
+                >
+                  <span className="text-xs text-black/48">
+                    第 {page} / {totalPages} 页 · 共 {totalItems} 条
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      className="rounded-lg border-black/10 bg-white text-black/65"
+                      disabled={page === 1}
+                      onClick={() => setPage((current: number) => current - 1)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <ChevronLeft className="size-4" />
+                      上一页
+                    </Button>
+                    <Button
+                      className="rounded-lg border-black/10 bg-white text-black/65"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((current: number) => current + 1)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      下一页
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </nav>
+              ) : null}
             </div>
           )}
-
-          {!loading && totalPages > 1 ? (
-            <nav
-              aria-label="转化记录分页"
-              className="mt-7 flex flex-wrap items-center justify-center gap-3"
-            >
-              <Button
-                className="rounded-xl border-black/10 bg-white text-black/65"
-                disabled={page === 1}
-                onClick={() => setPage((current: number) => current - 1)}
-                variant="outline"
-              >
-                <ChevronLeft className="size-4" />
-                上一页
-              </Button>
-              <span className="text-sm text-black/48">
-                第 {page} / {totalPages} 页
-              </span>
-              <Button
-                className="rounded-xl border-black/10 bg-white text-black/65"
-                disabled={page >= totalPages}
-                onClick={() => setPage((current: number) => current + 1)}
-                variant="outline"
-              >
-                下一页
-                <ChevronRight className="size-4" />
-              </Button>
-            </nav>
-          ) : null}
         </section>
       </div>
-        <SourceDeletionDialog
+      <SourceDeletionDialog
         deleting={deletingSource}
         onConfirm={() => void deleteRetainedSource()}
         onOpenChange={(open: boolean) => {
           if (!open && !deletingSource) setSourceToDelete(null);
         }}
         record={sourceToDelete}
-        />
-        <Dialog
-          onOpenChange={(open) => {
-            if (!open) setImageReprocessRecord(null);
-          }}
-          open={imageReprocessRecord !== null}
-        >
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>重新处理图片</DialogTitle>
-              <DialogDescription>
-                将创建新的转化版本，原笔记和原始图片保持不变。
-              </DialogDescription>
-            </DialogHeader>
-            <VisualOptionsPanel
-              disabled={actionJobId === imageReprocessRecord?.jobId}
-              onChange={setImageReprocessOptions}
-              value={imageReprocessOptions}
-            />
-            <DialogFooter>
-              <Button
-                disabled={
-                  imageReprocessOptions.mode === 'disabled' ||
-                  actionJobId === imageReprocessRecord?.jobId
-                }
-                onClick={() => void submitImageReprocess()}
-              >
-                {actionJobId === imageReprocessRecord?.jobId
-                  ? '正在创建任务'
-                  : '创建图片重处理版本'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      />
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) setImageReprocessRecord(null);
+        }}
+        open={imageReprocessRecord !== null}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>重新处理图片</DialogTitle>
+            <DialogDescription>
+              将创建新的转化版本，原笔记和原始图片保持不变。
+            </DialogDescription>
+          </DialogHeader>
+          <VisualOptionsPanel
+            disabled={actionJobId === imageReprocessRecord?.jobId}
+            onChange={setImageReprocessOptions}
+            value={imageReprocessOptions}
+          />
+          <DialogFooter>
+            <Button
+              disabled={
+                imageReprocessOptions.mode === 'disabled' ||
+                actionJobId === imageReprocessRecord?.jobId
+              }
+              onClick={() => void submitImageReprocess()}
+            >
+              {actionJobId === imageReprocessRecord?.jobId
+                ? '正在创建任务'
+                : '创建图片重处理版本'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

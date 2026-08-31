@@ -147,144 +147,170 @@ export function HistoryFilterControls({
     values.sourceType ||
     values.status,
   );
+  const activeFilterCount: number = [
+    keyword,
+    values.dateFrom || values.dateTo,
+    values.processingStatus,
+    values.sourceChannel,
+    values.sourceType,
+    values.status,
+  ].filter(Boolean).length;
 
   return (
-    <div className="rounded-2xl border border-black/8 bg-white/82 p-3 shadow-[0_8px_24px_rgba(40,35,29,0.035)] md:p-4">
-      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-        <div className="flex min-w-0 gap-2 md:col-span-2 lg:col-span-3 xl:col-span-2">
-          <Input
-            aria-label="按笔记标题搜索"
-            className="h-10 min-w-0 border-black/10 bg-white text-sm"
-            onChange={(event) => onKeywordChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') onKeywordSubmit();
-            }}
-            placeholder="搜索笔记标题"
-            value={keyword}
-          />
-          <Button
-            aria-label="搜索"
-            className="size-10 shrink-0 rounded-xl bg-[#161616] text-white hover:bg-[#3370ff]"
-            onClick={onKeywordSubmit}
-            size="icon"
-          >
-            <Search className="size-4" />
-          </Button>
+    <section className="overflow-hidden rounded-lg border border-black/8 bg-white shadow-[0_8px_24px_rgba(40,35,29,0.035)]">
+      <div className="flex items-center justify-between gap-4 border-b border-black/8 px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-black/80">筛选条件</h2>
+          <p className="mt-0.5 truncate text-xs text-black/42">
+            {hasActiveFilters
+              ? `已应用 ${activeFilterCount} 个筛选条件`
+              : '搜索标题或组合条件快速定位记录'}
+          </p>
         </div>
-        <Select
-          onValueChange={(value: string) =>
-            onSourceChannelChange(parseSourceChannel(value))
-          }
-          value={values.sourceChannel || 'all'}
+        <Button
+          className="shrink-0 rounded-lg px-2.5 text-black/55 hover:bg-black/5"
+          onClick={onReset}
+          size="sm"
+          variant="ghost"
         >
-          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
-            <SelectValue placeholder="来源渠道" />
-          </SelectTrigger>
-          <SelectContent>
-            {SOURCE_CHANNEL_OPTIONS.map(
-              (option: { label: string; value: string }) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-        <Select
-          onValueChange={(value: string) =>
-            onSourceTypeChange(parseSourceType(value))
-          }
-          value={values.sourceType || 'all'}
-        >
-          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
-            <SelectValue placeholder="资料类型" />
-          </SelectTrigger>
-          <SelectContent>
-            {SOURCE_OPTIONS.map((option: { label: string; value: string }) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          onValueChange={(value: string) => onStatusChange(parseStatus(value))}
-          value={values.status || 'all'}
-        >
-          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
-            <SelectValue placeholder="转化结果" />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((option: { label: string; value: string }) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          onValueChange={(value: string) =>
-            onProcessingStatusChange(parseProcessingStatus(value))
-          }
-          value={values.processingStatus || 'all'}
-        >
-          <SelectTrigger className="h-10 w-full border-black/10 bg-white text-sm">
-            <SelectValue placeholder="处理状态" />
-          </SelectTrigger>
-          <SelectContent>
-            {PROCESSING_OPTIONS.map(
-              (option: { label: string; value: string }) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
+          <RotateCcw className="size-3.5" />
+          重置
+        </Button>
+      </div>
+      <div className="p-3 md:p-3.5">
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(250px,2.15fr)_repeat(5,minmax(128px,1fr))]">
+          <div className="flex min-w-0 gap-2 md:col-span-2 lg:col-span-3 xl:col-span-2">
+            <Input
+              aria-label="按笔记标题搜索"
+              className="h-9 min-w-0 border-black/10 bg-white text-sm"
+              onChange={(event) => onKeywordChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') onKeywordSubmit();
+              }}
+              placeholder="搜索笔记标题"
+              value={keyword}
+            />
+            <Button
+              aria-label="搜索"
+              className="size-9 shrink-0 rounded-lg bg-[#161616] text-white hover:bg-[#3370ff]"
+              onClick={onKeywordSubmit}
+              size="icon"
+            >
+              <Search className="size-4" />
+            </Button>
+          </div>
+          <Select
+            onValueChange={(value: string) =>
+              onSourceChannelChange(parseSourceChannel(value))
+            }
+            value={values.sourceChannel || 'all'}
+          >
+            <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+              <SelectValue placeholder="来源渠道" />
+            </SelectTrigger>
+            <SelectContent>
+              {SOURCE_CHANNEL_OPTIONS.map(
+                (option: { label: string; value: string }) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          <Select
+            onValueChange={(value: string) =>
+              onSourceTypeChange(parseSourceType(value))
+            }
+            value={values.sourceType || 'all'}
+          >
+            <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+              <SelectValue placeholder="资料类型" />
+            </SelectTrigger>
+            <SelectContent>
+              {SOURCE_OPTIONS.map(
+                (option: { label: string; value: string }) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          <Select
+            onValueChange={(value: string) =>
+              onStatusChange(parseStatus(value))
+            }
+            value={values.status || 'all'}
+          >
+            <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+              <SelectValue placeholder="转化结果" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map(
+                (option: { label: string; value: string }) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          <Select
+            onValueChange={(value: string) =>
+              onProcessingStatusChange(parseProcessingStatus(value))
+            }
+            value={values.processingStatus || 'all'}
+          >
+            <SelectTrigger className="h-9 w-full border-black/10 bg-white text-sm">
+              <SelectValue placeholder="处理状态" />
+            </SelectTrigger>
+            <SelectContent>
+              {PROCESSING_OPTIONS.map(
+                (option: { label: string; value: string }) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  className="h-9 min-w-[10rem] flex-1 justify-start rounded-lg border-black/10 bg-white text-black/60 hover:bg-black/5"
+                  size="sm"
+                  variant="outline"
+                >
+                  <CalendarDays className="size-3.5" />
+                  <span className="truncate">
+                    {getDateRangeLabel(dateRange)}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-0">
+                <Calendar
+                  mode="range"
+                  numberOfMonths={1}
+                  onSelect={onDateRangeChange}
+                  selected={dateRange}
+                />
+              </PopoverContent>
+            </Popover>
+            {dateRange ? (
               <Button
-                className="h-10 min-w-[10rem] flex-1 justify-start rounded-xl border-black/10 bg-white text-black/60 hover:bg-black/5"
+                className="h-9 shrink-0 rounded-lg px-3 text-black/50"
+                onClick={() => onDateRangeChange(undefined)}
                 size="sm"
-                variant="outline"
+                variant="ghost"
               >
-                <CalendarDays className="size-3.5" />
-                <span className="truncate">{getDateRangeLabel(dateRange)}</span>
+                清除日期
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <Calendar
-                mode="range"
-                numberOfMonths={1}
-                onSelect={onDateRangeChange}
-                selected={dateRange}
-              />
-            </PopoverContent>
-          </Popover>
-          {dateRange ? (
-            <Button
-              className="h-10 shrink-0 rounded-xl px-3 text-black/50"
-              onClick={() => onDateRangeChange(undefined)}
-              size="sm"
-              variant="ghost"
-            >
-              清除日期
-            </Button>
-          ) : null}
-          {hasActiveFilters ? (
-            <Button
-              className="h-10 shrink-0 rounded-xl border-black/10 bg-white px-3 text-black/60 hover:bg-black/5"
-              onClick={onReset}
-              size="sm"
-              variant="outline"
-            >
-              <RotateCcw className="size-3.5" />
-              重置
-            </Button>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
