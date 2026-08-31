@@ -87,6 +87,9 @@ export default function SettingsPage() {
   const selectedSection: SettingsSection = getSelectedSection(
     searchParams.get('section'),
   );
+  const selectedSectionLabel =
+    SETTINGS_SECTIONS.find((item) => item.value === selectedSection)?.label ||
+    '开始使用';
 
   const selectSection = (section: SettingsSection): void => {
     setSearchParams({ section }, { replace: true });
@@ -104,15 +107,9 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold">参数配置</p>
-                  <p className="hidden text-xs text-black/45 sm:block">
-                    先完成自动检测，再按需调整连接器、转录与模型
-                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <p className="hidden text-xs leading-5 text-black/45 lg:block lg:max-w-xs lg:text-right">
-                  密钥只会以脱敏状态显示，保存后不会回传到页面或写入日志。
-                </p>
                 <Button
                   asChild
                   className="rounded-full bg-white/85 text-black/65 hover:bg-white hover:text-black"
@@ -127,6 +124,18 @@ export default function SettingsPage() {
               </div>
             </div>
           </header>
+
+          <div className="flex items-center gap-2 py-2 text-xs text-black/45">
+            <Link className="transition hover:text-black" to="/">
+              工作台
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span className="text-black/70">参数配置</span>
+            <span aria-hidden="true">/</span>
+            <span className="font-medium text-black/80">
+              {selectedSectionLabel}
+            </span>
+          </div>
 
           <div className="grid gap-5 py-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-5">
             <nav
@@ -174,7 +183,9 @@ export default function SettingsPage() {
               )}
               {selectedSection === 'prompts' && <NoteTemplatesPage embedded />}
               {selectedSection === 'ai' && <AiModelSettingsPage embedded />}
-              {selectedSection === 'connectors' && <ConnectorSettingsPage />}
+              {selectedSection === 'connectors' && (
+                <ConnectorSettingsPage embedded />
+              )}
               {selectedSection === 'storage' && <MediaCleanupSettingsPage />}
             </section>
           </div>

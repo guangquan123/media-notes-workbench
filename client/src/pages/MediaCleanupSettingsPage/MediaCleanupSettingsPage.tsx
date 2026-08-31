@@ -1,5 +1,7 @@
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   FileVideo2,
   History,
@@ -9,7 +11,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -112,6 +114,8 @@ export default function MediaCleanupSettingsPage() {
     MediaCleanupRunHistoryItem[]
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [previewPage, setPreviewPage] = useState(1);
+  const previewPageSize = 10;
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -207,6 +211,22 @@ export default function MediaCleanupSettingsPage() {
 
   const eligibleFiles = inventory?.summary.eligibleFiles || 0;
   const eligibleBytes = inventory?.summary.eligibleBytes || 0;
+  const previewFiles = inventory?.files || [];
+  const previewPageCount = Math.max(
+    1,
+    Math.ceil(previewFiles.length / previewPageSize),
+  );
+  const visiblePreviewFiles = useMemo(
+    () =>
+      previewFiles.slice(
+        (previewPage - 1) * previewPageSize,
+        previewPage * previewPageSize,
+      ),
+    [previewFiles, previewPage],
+  );
+  useEffect(() => {
+    setPreviewPage((current) => Math.min(current, previewPageCount));
+  }, [previewPageCount]);
 
   if (historyOpen) {
     return (
@@ -498,7 +518,7 @@ export default function MediaCleanupSettingsPage() {
             </div>
           )}
           {!loading &&
-            inventory?.files.map((file) => (
+            visiblePreviewFiles.map((file) => (
               <article
                 className="rounded-xl border border-black/8 p-4"
                 key={file.objectId}
@@ -554,6 +574,44 @@ export default function MediaCleanupSettingsPage() {
               </article>
             ))}
         </div>
+        {!loading && previewFiles.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-4">
+            <p className="text-xs text-black/45">
+              显示第 {(previewPage - 1) * previewPageSize + 1}—
+              {Math.min(previewPage * previewPageSize, previewFiles.length)}{' '}
+              项，共 {previewFiles.length} 个文件
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                aria-label="上一页"
+                disabled={previewPage <= 1}
+                onClick={(): void =>
+                  setPreviewPage((current) => Math.max(1, current - 1))
+                }
+                size="icon"
+                variant="outline"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-16 text-center text-xs text-black/55">
+                {previewPage} / {previewPageCount}
+              </span>
+              <Button
+                aria-label="下一页"
+                disabled={previewPage >= previewPageCount}
+                onClick={(): void =>
+                  setPreviewPage((current) =>
+                    Math.min(previewPageCount, current + 1),
+                  )
+                }
+                size="icon"
+                variant="outline"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
 
       <AlertDialog onOpenChange={setConfirmOpen} open={confirmOpen}>

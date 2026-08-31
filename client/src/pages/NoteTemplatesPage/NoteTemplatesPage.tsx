@@ -488,6 +488,9 @@ export default function NoteTemplatesPage({
                       <Checkbox
                         aria-label={`${isSelected ? '取消选择' : '选择'} V${version.versionNumber}`}
                         checked={isSelected}
+                        disabled={
+                          selectedVersionIds.length === 2 && !isSelected
+                        }
                         id={`version-${version.id}`}
                         onCheckedChange={(checked: boolean): void =>
                           toggleVersion(version.id, checked)
