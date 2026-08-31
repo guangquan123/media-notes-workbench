@@ -600,7 +600,7 @@ export default function ConversionHistoryPage() {
                     已选择 {selectedCount} 条
                   </span>
                   <Button
-                    className="rounded-xl bg-[#161616] text-white hover:bg-[#3370ff]"
+                    className="rounded-lg bg-[#161616] text-white hover:bg-[#3370ff]"
                     disabled={selectedCount === 0 || batchProcessing}
                     onClick={() => void markSelectedProcessed()}
                     size="sm"
@@ -609,7 +609,7 @@ export default function ConversionHistoryPage() {
                     {batchProcessing ? '同步中' : '批量标记已处理'}
                   </Button>
                   <Button
-                    className="rounded-xl text-[#1e4bbd]"
+                    className="rounded-lg text-[#1e4bbd]"
                     onClick={() => setSelectedJobIds([])}
                     size="sm"
                     variant="ghost"
@@ -644,7 +644,7 @@ export default function ConversionHistoryPage() {
           ) : records.length === 0 ? (
             <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-black/12 bg-white/75 px-6 text-center">
               <div>
-                <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-black/5 text-black/35">
+                <div className="mx-auto grid size-14 place-items-center rounded-lg bg-black/5 text-black/35">
                   <History className="size-6" />
                 </div>
                 <h2 className="mt-5 text-lg font-semibold">
@@ -655,7 +655,7 @@ export default function ConversionHistoryPage() {
                 </p>
                 <Button
                   asChild
-                  className="mt-6 rounded-xl bg-[#161616] text-white"
+                  className="mt-6 rounded-lg bg-[#161616] text-white"
                 >
                   <Link to="/">开始第一次转化</Link>
                 </Button>
@@ -778,7 +778,7 @@ export default function ConversionHistoryPage() {
                             {visualOptionsCopy.title}
                           </Badge>
                         </div>
-                        <h2 className="mt-1.5 truncate text-base font-semibold tracking-[-0.02em]">
+                        <h2 className="mt-1.5 truncate text-base font-semibold">
                           {record.title}
                         </h2>
                         {record.status === 'processing' ? (
