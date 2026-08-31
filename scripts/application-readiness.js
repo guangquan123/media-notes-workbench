@@ -6,7 +6,10 @@ function isSuccessful(response) {
 }
 
 function isRuntimeStatusReady(response) {
-  if (!isSuccessful(response) || !response.contentType.includes('application/json')) {
+  if (
+    !isSuccessful(response) ||
+    !response.contentType.includes('application/json')
+  ) {
     return false;
   }
 
@@ -27,6 +30,38 @@ function isRuntimeStatusReady(response) {
   }
 }
 
+function isSystemReadinessReady(response) {
+  if (
+    !isSuccessful(response) ||
+    !response.contentType.includes('application/json')
+  ) {
+    return false;
+  }
+
+  try {
+    const status = JSON.parse(response.body);
+    const requiredBooleanFields = [
+      'ytDlp',
+      'ffmpeg',
+      'whisperCli',
+      'whisperModel',
+      'larkCli',
+      'tencentAsr',
+      'tencentAsrEnabled',
+      'ready',
+      'platformReady',
+      'mediaReady',
+      'documentReady',
+      'pdfReady',
+    ];
+    return requiredBooleanFields.every(
+      (field) => typeof status[field] === 'boolean',
+    );
+  } catch {
+    return false;
+  }
+}
+
 function extractEntryResources(response, pageUrl) {
   if (
     !isSuccessful(response) ||
@@ -37,15 +72,23 @@ function extractEntryResources(response, pageUrl) {
   }
 
   const resources = [];
-  const scripts = /<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
-  const stylesheets = /<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["']([^"']+)["'][^>]*>/gi;
+  const scripts =
+    /<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+  const stylesheets =
+    /<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["']([^"']+)["'][^>]*>/gi;
   let match;
 
   while ((match = scripts.exec(response.body))) {
-    resources.push({ kind: 'script', url: new URL(match[1], pageUrl).toString() });
+    resources.push({
+      kind: 'script',
+      url: new URL(match[1], pageUrl).toString(),
+    });
   }
   while ((match = stylesheets.exec(response.body))) {
-    resources.push({ kind: 'stylesheet', url: new URL(match[1], pageUrl).toString() });
+    resources.push({
+      kind: 'stylesheet',
+      url: new URL(match[1], pageUrl).toString(),
+    });
   }
   return resources;
 }
@@ -57,22 +100,69 @@ function isEntryResourceReady(resource, response) {
     : response.contentType.includes('text/css');
 }
 
-async function isApplicationReady({ pageUrl, runtimeUrl, request }) {
-  const [page, runtime] = await Promise.all([request(pageUrl), request(runtimeUrl)]);
-  if (!isRuntimeStatusReady(runtime)) return false;
+function describeHttpStatus(response) {
+  return response.status > 0 ? `HTTP ${response.status}` : '无响应';
+}
 
-  const resources = extractEntryResources(page, pageUrl);
-  if (resources.length === 0 || !resources.some((resource) => resource.kind === 'script')) {
-    return false;
+async function inspectApplicationReadiness({
+  pageUrl,
+  readinessUrl,
+  runtimeUrl,
+  request,
+}) {
+  const [page, runtime, readiness] = await Promise.all([
+    request(pageUrl),
+    request(runtimeUrl),
+    request(readinessUrl),
+  ]);
+  if (!isRuntimeStatusReady(runtime)) {
+    return {
+      ready: false,
+      reason: `后台运行状态接口未返回有效响应（${describeHttpStatus(runtime)}）`,
+    };
+  }
+  if (!isSystemReadinessReady(readiness)) {
+    return {
+      ready: false,
+      reason: `核心环境检测接口未返回有效响应（${describeHttpStatus(readiness)}）`,
+    };
   }
 
-  const responses = await Promise.all(resources.map((resource) => request(resource.url)));
-  return resources.every((resource, index) => isEntryResourceReady(resource, responses[index]));
+  const resources = extractEntryResources(page, pageUrl);
+  if (
+    resources.length === 0 ||
+    !resources.some((resource) => resource.kind === 'script')
+  ) {
+    return {
+      ready: false,
+      reason: `前端入口未返回有效页面（${describeHttpStatus(page)}）`,
+    };
+  }
+
+  const responses = await Promise.all(
+    resources.map((resource) => request(resource.url)),
+  );
+  const failedResourceIndex = resources.findIndex(
+    (resource, index) => !isEntryResourceReady(resource, responses[index]),
+  );
+  if (failedResourceIndex >= 0) {
+    return {
+      ready: false,
+      reason: `前端资源加载失败：${resources[failedResourceIndex].url}`,
+    };
+  }
+  return { ready: true, reason: '' };
+}
+
+async function isApplicationReady(input) {
+  return (await inspectApplicationReadiness(input)).ready;
 }
 
 module.exports = {
   extractEntryResources,
+  inspectApplicationReadiness,
   isApplicationReady,
   isEntryResourceReady,
   isRuntimeStatusReady,
+  isSystemReadinessReady,
 };

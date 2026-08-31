@@ -9,6 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { runBackgroundTask } from '../../common/utils/background-task';
 import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 import type {
   ArticleArtifact,
@@ -105,7 +106,26 @@ export class ArticleExportService {
     };
 
     this.jobs.set(job.id, job);
-    void this.run(job.id, sourceDocUrl, targetPlatforms, includeImages, preferredStyle);
+    runBackgroundTask(
+      () =>
+        this.run(
+          job.id,
+          sourceDocUrl,
+          targetPlatforms,
+          includeImages,
+          preferredStyle,
+        ),
+      (error: unknown): void => {
+        const message: string =
+          error instanceof Error ? error.message : '未知错误';
+        this.logger.error(`文章导出任务 ${job.id} 意外终止: ${message}`);
+        this.patch(job.id, {
+          error: message,
+          message: '处理意外终止',
+          stage: 'failed',
+        });
+      },
+    );
     return job;
   }
 

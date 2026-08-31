@@ -27,6 +27,7 @@ import {
   getTencentAsrSettings,
 } from '@/api';
 import { Button } from '@/components/ui/button';
+import { describeBackendFailure } from '@/lib/backend-health';
 import {
   buildSetupReadiness,
   type SetupActionSection,
@@ -46,6 +47,12 @@ interface SetupSnapshot {
   readiness: SystemReadiness;
   runtime: RuntimeStatus | null;
   tencentAsr: TencentAsrSettings | null;
+}
+
+interface SetupDetectionError {
+  description: string;
+  detail: string;
+  title: string;
 }
 
 function settledValue<T>(result: PromiseSettledResult<T>): T | null {
@@ -81,11 +88,11 @@ function getStatusPresentation(status: SetupCapabilityStatus): {
 const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
   const [snapshot, setSnapshot] = useState<SetupSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<SetupDetectionError | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
-    setError('');
+    setError(null);
     const [
       readinessResult,
       connectorResult,
@@ -103,8 +110,31 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
     ]);
     const readiness = settledValue(readinessResult);
     if (!readiness) {
+      const runtime = settledValue(runtimeResult);
+      const readinessError: unknown =
+        readinessResult.status === 'rejected'
+          ? readinessResult.reason
+          : new Error('环境检测接口返回空结果');
       setSnapshot(null);
-      setError('无法读取环境状态。请确认本地服务已启动，然后重新检测。');
+      setError(
+        runtime?.ready
+          ? {
+              description:
+                '后台服务仍在响应，但核心环境检测接口执行失败。请查看启动日志定位具体依赖或配置错误。',
+              detail: describeBackendFailure(readinessError),
+              title: '环境检测接口异常',
+            }
+          : {
+              description:
+                '页面静态资源仍可显示，但后台服务没有正常响应。请运行“重启多媒体笔记工作台.vbs”，等待启动器验证完成后再试。',
+              detail: describeBackendFailure(
+                runtimeResult.status === 'rejected'
+                  ? runtimeResult.reason
+                  : readinessError,
+              ),
+              title: '后台服务不可用',
+            },
+      );
       setLoading(false);
       return;
     }
@@ -144,11 +174,21 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
           <CircleAlert className="mt-0.5 size-5 shrink-0" />
           <div className="grid gap-3">
             <div>
-              <p className="font-semibold">环境检测暂不可用</p>
-              <p className="mt-1 text-sm leading-6 text-red-900/70">{error}</p>
+              <p className="font-semibold">
+                {error?.title || '环境检测暂不可用'}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-red-900/70">
+                {error?.description || '环境检测没有返回有效结果。'}
+              </p>
+              {error?.detail && (
+                <p className="mt-2 break-words text-xs text-red-900/50">
+                  检测信息：{error.detail}
+                </p>
+              )}
             </div>
             <Button
               className="w-fit"
+              data-ai-section-type="button"
               onClick={() => void load()}
               variant="outline"
             >

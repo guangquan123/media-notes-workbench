@@ -1,4 +1,7 @@
-import { inspectWindowsLauncherProcess } from '../../scripts/launcher-process.js';
+import {
+  inspectWindowsLauncherProcess,
+  resolveExistingLauncherState,
+} from '../../scripts/launcher-process.js';
 
 describe('Windows launcher PID ownership inspection', () => {
   const rootDir = 'D:\\data\\codex_space\\media-notes-workbench';
@@ -37,5 +40,46 @@ describe('Windows launcher PID ownership inspection', () => {
         }),
       }),
     ).toEqual({ ownership: 'unknown' });
+  });
+
+  it('uses verified service state instead of trusting an unreadable stale PID', () => {
+    expect(
+      resolveExistingLauncherState({
+        ownership: 'unknown',
+        pidFileAgeMs: 600_000,
+        serviceState: 'unavailable',
+      }),
+    ).toBe('stale');
+    expect(
+      resolveExistingLauncherState({
+        ownership: 'unknown',
+        pidFileAgeMs: 10_000,
+        serviceState: 'unavailable',
+      }),
+    ).toBe('reuse-starting');
+    expect(
+      resolveExistingLauncherState({
+        ownership: 'unknown',
+        pidFileAgeMs: 600_000,
+        serviceState: 'ready',
+      }),
+    ).toBe('reuse-ready');
+    expect(
+      resolveExistingLauncherState({
+        ownership: 'unknown',
+        pidFileAgeMs: 600_000,
+        serviceState: 'unknown',
+      }),
+    ).toBe('blocked');
+  });
+
+  it('does not wait forever for an old owned launcher with an unavailable service', () => {
+    expect(
+      resolveExistingLauncherState({
+        ownership: 'owned',
+        pidFileAgeMs: 600_000,
+        serviceState: 'unavailable',
+      }),
+    ).toBe('blocked');
   });
 });

@@ -185,8 +185,17 @@ function proxyRequest(
     },
   );
   proxy.on('error', (error) => {
-    if (!response.headersSent) response.writeHead(502);
-    response.end(`后端暂不可用: ${error.message}`);
+    if (!response.headersSent) {
+      response.writeHead(502, {
+        'content-type': 'application/json; charset=utf-8',
+      });
+    }
+    response.end(
+      JSON.stringify({
+        code: 'BACKEND_UNAVAILABLE',
+        message: `后端暂不可用: ${error.message}`,
+      }),
+    );
   });
   request.pipe(proxy);
 }
@@ -264,7 +273,9 @@ function start() {
 if (require.main === module) {
   const server = start();
   server.ready.catch((error) => {
-    process.stderr.write(`[static-client] failed to listen: ${error.message}\n`);
+    process.stderr.write(
+      `[static-client] failed to listen: ${error.message}\n`,
+    );
     process.exitCode = 1;
   });
 }

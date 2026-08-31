@@ -29,6 +29,7 @@ import {
   getCliEnvironment,
   resolveCliInvocation,
 } from '../../common/utils/cli-command';
+import { runBackgroundTask } from '../../common/utils/background-task';
 import type {
   ConfirmDeletedSourceObjectsRequest,
   CreateNoteJobRequest,
@@ -540,16 +541,21 @@ export class NoteJobsService implements OnModuleInit {
       summary: job.visualSummary,
     });
     this.jobs.set(job.id, { job, larkUserId, ownerId });
-      void this.jobContext.run(job.id, () =>
-        this.run(
-          job.id,
-          executionInput,
-        ownerId,
-        sourcePlatform,
-        cookieBrowser,
-        larkUserId,
-        options.rerunLockKey,
-      ),
+    runBackgroundTask(
+      () =>
+        this.jobContext.run(job.id, () =>
+          this.run(
+            job.id,
+            executionInput,
+            ownerId,
+            sourcePlatform,
+            cookieBrowser,
+            larkUserId,
+            options.rerunLockKey,
+          ),
+        ),
+      (error: unknown): void =>
+        this.handleUnexpectedBackgroundFailure(job.id, error),
     );
     return job;
   }
@@ -731,15 +737,20 @@ export class NoteJobsService implements OnModuleInit {
         summary: job.visualSummary,
       });
       this.jobs.set(job.id, { job, larkUserId, ownerId });
-      void this.jobContext.run(job.id, () =>
-        this.runRegenerateNote(
-          job.id,
-          context,
-          ownerId,
-          larkUserId,
-          versionNumber,
-          rerunLockKey,
-        ),
+      runBackgroundTask(
+        () =>
+          this.jobContext.run(job.id, () =>
+            this.runRegenerateNote(
+              job.id,
+              context,
+              ownerId,
+              larkUserId,
+              versionNumber,
+              rerunLockKey,
+            ),
+          ),
+        (error: unknown): void =>
+          this.handleUnexpectedBackgroundFailure(job.id, error),
       );
       return job;
     } catch (error) {
@@ -4575,6 +4586,42 @@ export class NoteJobsService implements OnModuleInit {
           error instanceof Error ? error.message : '未知错误';
         this.logger.warn(`任务 ${input.id} 的通知处理失败：${message}`);
       });
+  }
+
+  private handleUnexpectedBackgroundFailure(id: string, error: unknown): void {
+    if (this.cancelledJobs.has(id)) return;
+    const message: string =
+      error instanceof Error ? error.message : '未知后台任务错误';
+    const stack: string =
+      error instanceof Error ? error.stack || error.message : String(error);
+    this.logger.error(`任务 ${id} 后台执行意外终止: ${stack}`);
+
+    const stored: StoredNoteJob | undefined = this.jobs.get(id);
+    if (
+      !stored ||
+      stored.job.stage === 'completed' ||
+      stored.job.stage === 'failed'
+    ) {
+      return;
+    }
+    this.patch(id, {
+      error: message,
+      message: '处理意外终止',
+      stage: 'failed',
+    });
+    runBackgroundTask(
+      () =>
+        this.persistFinish(id, {
+          error: message,
+          rawDocumentUrl: stored.job.rawDocumentUrl,
+          status: 'failed',
+        }),
+      (persistError: unknown): void => {
+        this.logger.warn(
+          `记录任务 ${id} 意外终止状态失败: ${String(persistError)}`,
+        );
+      },
+    );
   }
 
   private async persistFinish(

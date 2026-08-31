@@ -4,14 +4,14 @@
 const path = require('node:path');
 
 function normalizeWindowsPath(value) {
-  return String(value || '').trim().toLowerCase().replace(/\\/g, '/');
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\\/g, '/');
 }
 
 function isWindowsInspectionBlocked(result) {
-  const message = [
-    result?.stderr || '',
-    result?.error?.message || '',
-  ]
+  const message = [result?.stderr || '', result?.error?.message || '']
     .join('\n')
     .toLowerCase();
 
@@ -83,6 +83,20 @@ function inspectWindowsLauncherProcess(pid, options = {}) {
   };
 }
 
+function resolveExistingLauncherState({
+  ownership,
+  serviceState,
+  pidFileAgeMs,
+  startupGraceMs = 300000,
+}) {
+  if (serviceState === 'ready') return 'reuse-ready';
+  if (ownership === 'stale') return 'stale';
+  if (pidFileAgeMs <= startupGraceMs) return 'reuse-starting';
+  if (ownership === 'owned') return 'blocked';
+  return serviceState === 'unavailable' ? 'stale' : 'blocked';
+}
+
 module.exports = {
   inspectWindowsLauncherProcess,
+  resolveExistingLauncherState,
 };

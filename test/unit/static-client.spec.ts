@@ -1,6 +1,8 @@
 import { get } from 'node:http';
 
-const { resolveBackendProxyPath }: {
+const {
+  resolveBackendProxyPath,
+}: {
   resolveBackendProxyPath: (
     requestUrl: string,
     configuredBasePath?: string,
@@ -30,7 +32,11 @@ describe('static client backend proxy path', () => {
     process.env.CLIENT_DEV_PORT = '0';
     process.env.STATIC_CLIENT_INSTANCE_TOKEN = 'test-static-instance';
 
-    let start: () => { ready: Promise<unknown>; close: (callback: () => void) => void; address: () => { port: number } | string | null };
+    let start: () => {
+      ready: Promise<unknown>;
+      close: (callback: () => void) => void;
+      address: () => { port: number } | string | null;
+    };
     jest.isolateModules(() => {
       ({ start } = require('../../scripts/static-client.js'));
     });
@@ -42,27 +48,91 @@ describe('static client backend proxy path', () => {
     expect(typeof address).not.toBe('string');
     const port = (address as { port: number }).port;
 
-    const response = await new Promise<{ status: number; token: string }>((resolve, reject) => {
+    const response = await new Promise<{ status: number; token: string }>(
+      (resolve, reject) => {
+        const request = get(
+          `http://127.0.0.1:${port}/app/app_179bn4jet6k/`,
+          (result) => {
+            result.resume();
+            result.on('end', () =>
+              resolve({
+                status: result.statusCode || 0,
+                token: String(
+                  result.headers['x-media-notes-static-client'] || '',
+                ),
+              }),
+            );
+          },
+        );
+        request.once('error', reject);
+      },
+    );
+    expect(response).toEqual({ status: 200, token: 'test-static-instance' });
+
+    await new Promise<void>((resolve) => server.close(resolve));
+    if (originalPort === undefined) delete process.env.CLIENT_DEV_PORT;
+    else process.env.CLIENT_DEV_PORT = originalPort;
+    if (originalToken === undefined)
+      delete process.env.STATIC_CLIENT_INSTANCE_TOKEN;
+    else process.env.STATIC_CLIENT_INSTANCE_TOKEN = originalToken;
+  });
+
+  it('returns a structured 502 response when the backend is unavailable', async () => {
+    const originalClientPort = process.env.CLIENT_DEV_PORT;
+    const originalServerPort = process.env.SERVER_PORT;
+    process.env.CLIENT_DEV_PORT = '0';
+    process.env.SERVER_PORT = '1';
+
+    let start: () => {
+      ready: Promise<unknown>;
+      close: (callback: () => void) => void;
+      address: () => { port: number } | string | null;
+    };
+    jest.isolateModules(() => {
+      ({ start } = require('../../scripts/static-client.js'));
+    });
+
+    const server = start();
+    await server.ready;
+    const address = server.address();
+    expect(address).not.toBeNull();
+    expect(typeof address).not.toBe('string');
+    const port = (address as { port: number }).port;
+
+    const response = await new Promise<{
+      body: string;
+      contentType: string;
+      status: number;
+    }>((resolve, reject) => {
       const request = get(
-        `http://127.0.0.1:${port}/app/app_179bn4jet6k/`,
+        `http://127.0.0.1:${port}/app/app_179bn4jet6k/api/runtime`,
         (result) => {
-          result.resume();
+          let body = '';
+          result.setEncoding('utf8');
+          result.on('data', (chunk: string) => {
+            body += chunk;
+          });
           result.on('end', () =>
             resolve({
+              body,
+              contentType: String(result.headers['content-type'] || ''),
               status: result.statusCode || 0,
-              token: String(result.headers['x-media-notes-static-client'] || ''),
             }),
           );
         },
       );
       request.once('error', reject);
     });
-    expect(response).toEqual({ status: 200, token: 'test-static-instance' });
+    expect(response.status).toBe(502);
+    expect(response.contentType).toContain('application/json');
+    expect(JSON.parse(response.body)).toMatchObject({
+      code: 'BACKEND_UNAVAILABLE',
+    });
 
     await new Promise<void>((resolve) => server.close(resolve));
-    if (originalPort === undefined) delete process.env.CLIENT_DEV_PORT;
-    else process.env.CLIENT_DEV_PORT = originalPort;
-    if (originalToken === undefined) delete process.env.STATIC_CLIENT_INSTANCE_TOKEN;
-    else process.env.STATIC_CLIENT_INSTANCE_TOKEN = originalToken;
+    if (originalClientPort === undefined) delete process.env.CLIENT_DEV_PORT;
+    else process.env.CLIENT_DEV_PORT = originalClientPort;
+    if (originalServerPort === undefined) delete process.env.SERVER_PORT;
+    else process.env.SERVER_PORT = originalServerPort;
   });
 });

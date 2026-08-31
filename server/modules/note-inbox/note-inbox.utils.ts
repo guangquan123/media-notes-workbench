@@ -12,13 +12,6 @@ export interface InboxMessage {
   readonly messageId: string;
 }
 
-export function runBackgroundTask(
-  task: () => Promise<void>,
-  reportError: (error: unknown) => void,
-): void {
-  void Promise.resolve().then(task).catch(reportError);
-}
-
 function isSupportedUrl(candidate: string): boolean {
   try {
     const hostname = new URL(candidate).hostname.toLowerCase();

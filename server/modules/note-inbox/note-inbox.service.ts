@@ -3,6 +3,7 @@ import { DRIZZLE_DATABASE } from '@lark-apaas/fullstack-nestjs-core';
 import type { AppDatabase } from '@server/database/database.types';
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { spawn } from 'node:child_process';
+import { runBackgroundTask } from '../../common/utils/background-task';
 import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
 import { noteConversionRecords, noteInboxBindings, noteInboxMedia, noteInboxMessages } from '@server/database/schema';
 import type { InboxMessageStatus, NoteInboxMessageListResponse, NoteInboxStatus, NoteStyle, SourcePlatform } from '@shared/api.interface';
@@ -12,7 +13,6 @@ import {
   extractSupportedPlatformUrl,
   isValidInboxChatId,
   parseInboxMessages,
-  runBackgroundTask,
 } from './note-inbox.utils';
 
 const POLL_INTERVAL_MS = 30_000;

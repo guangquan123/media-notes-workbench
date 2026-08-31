@@ -39,8 +39,6 @@ function readLauncherOperationToken() {
   }
 }
 
-const launcherOperationToken = readLauncherOperationToken();
-
 require('dotenv').config({ path: path.join(rootDir, '.env.local') });
 require('dotenv').config({ path: path.join(rootDir, '.env') });
 
@@ -95,9 +93,15 @@ const viteCliPath = path.join(
 const serverEntryPath = path.join(rootDir, 'dist', 'server', 'main.js');
 const clientIndexPath = path.join(rootDir, 'dist', 'client', 'index.html');
 const staticClientPath = path.join(rootDir, 'scripts', 'static-client.js');
-const { isApplicationReady } = require('./application-readiness.js');
+const { inspectApplicationReadiness } = require('./application-readiness.js');
 const { ensureLocalRuntimeConfig } = require('./local-runtime-config.js');
-const { inspectWindowsLauncherProcess } = require('./launcher-process.js');
+const {
+  inspectWindowsLauncherProcess,
+  resolveExistingLauncherState,
+} = require('./launcher-process.js');
+const {
+  writeLauncherFailure: writeStandaloneLauncherFailure,
+} = require('./launcher-status.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -140,7 +144,27 @@ function claimPidFile() {
   }
 }
 
-function ensureNoExistingLauncher() {
+async function probeExistingService() {
+  // Probe the same origin and mounted path that the browser uses. A direct
+  // backend 200 is insufficient when the frontend proxy or app base path is
+  // misconfigured and would otherwise let the launcher report a false success.
+  const runtimeUrl = `${appUrl}api/runtime`;
+  const readinessUrl = `${appUrl}api/note-jobs/readiness`;
+  try {
+    const inspection = await inspectApplicationReadiness({
+      pageUrl: appUrl,
+      readinessUrl,
+      runtimeUrl,
+      request: (target) =>
+        requestHttp(target, target === readinessUrl ? 12000 : 2500),
+    });
+    return inspection.ready ? 'ready' : 'unavailable';
+  } catch {
+    return 'unknown';
+  }
+}
+
+async function ensureNoExistingLauncher() {
   if (!fs.existsSync(pidPath)) return null;
   const existingPid = Number.parseInt(
     fs.readFileSync(pidPath, 'utf8').trim(),
@@ -166,52 +190,68 @@ function ensureNoExistingLauncher() {
     return null;
   }
 
+  let ownership = 'unknown';
   if (process.platform === 'win32') {
-    const inspection = inspectWindowsLauncherProcess(existingPid, {
+    ({ ownership } = inspectWindowsLauncherProcess(existingPid, {
       rootDir,
       spawnSync,
-    });
-    if (inspection.ownership === 'stale') {
-      clearStalePidFile();
-      process.stdout.write(
-        `[dev-windows] PID 文件指向非本项目启动器进程 ${existingPid}，已清理过期状态并继续启动。\n`,
-      );
-      return null;
-    }
-    if (inspection.ownership === 'unknown') {
-      process.stdout.write(
-        `[dev-windows] 无法确认 PID ${existingPid} 是否属于本项目启动器，为避免重复实例将暂不覆盖。\n`,
-      );
-    }
+    }));
   }
 
-  return existingPid;
+  let pidFileAgeMs = Number.POSITIVE_INFINITY;
+  try {
+    pidFileAgeMs = Math.max(0, Date.now() - fs.statSync(pidPath).mtimeMs);
+  } catch {
+    return null;
+  }
+  const serviceState = await probeExistingService();
+  const state = resolveExistingLauncherState({
+    ownership,
+    pidFileAgeMs,
+    serviceState,
+  });
+
+  if (state === 'stale') {
+    clearStalePidFile();
+    process.stdout.write(
+      `[dev-windows] PID ${existingPid} 未对应可用的本项目服务，已清理过期状态并继续启动。\n`,
+    );
+    return null;
+  }
+
+  return { pid: existingPid, state };
 }
 
-const existingLauncherPid = ensureNoExistingLauncher();
-if (existingLauncherPid) {
-  // 启动窗口会为每次操作写入新令牌。若服务已经由本项目启动器运行，
-  // 必须接管该令牌，否则窗口会把“避免重复启动”误判为 120 秒超时。
-  writeLauncherReadyToken();
-  process.stdout.write(
-    `[dev-windows] 项目已在运行（PID ${existingLauncherPid}），已接管当前启动窗口，不重复创建实例。\n`,
-  );
-  process.exit(0);
-}
-if (!claimPidFile()) {
-  const claimedPid = ensureNoExistingLauncher();
-  if (claimedPid) {
+function exitForExistingLauncher(existingLauncher) {
+  if (existingLauncher.state === 'reuse-ready') {
+    writeLauncherReadyToken();
     process.stdout.write(
-      `[dev-windows] 项目已在运行（PID ${claimedPid}），未重复创建实例。\n`,
+      `[dev-windows] 已验证项目服务可用（启动器 PID ${existingLauncher.pid}），已接管当前启动窗口。\n`,
     );
     process.exit(0);
   }
-  if (!claimPidFile()) {
-    process.stdout.write('[dev-windows] 无法独占项目 PID 文件，请稍后重试。\n');
-    process.exit(1);
+  if (existingLauncher.state === 'reuse-starting') {
+    process.stdout.write(
+      `[dev-windows] 项目正在启动（PID ${existingLauncher.pid}），等待原启动进程完成就绪验证。\n`,
+    );
+    process.exit(0);
   }
+
+  writeStandaloneLauncherFailure({
+    rootDir,
+    stage: '检查已有实例',
+    message: '无法确认已有启动进程是否健康',
+    detail: `PID ${existingLauncher.pid} 仍存在，但本地页面和核心 API 未通过完整就绪检查。`,
+    suggestion:
+      '请运行“停止多媒体笔记工作台.vbs”，确认端口释放后再重新启动；不要继续使用浏览器中的旧页面。',
+  });
+  process.stderr.write(
+    `[dev-windows] PID ${existingLauncher.pid} 仍存在，但服务未通过完整就绪检查；为避免假启动已停止。\n`,
+  );
+  process.exit(1);
 }
-const logFd = fs.openSync(logPath, 'a');
+
+let logFd = null;
 const children = new Set();
 let staticClientServer = null;
 let shuttingDown = false;
@@ -229,18 +269,15 @@ function parsePort(rawValue, fallback, name) {
 function writeLine(message) {
   const line = `${message}\n`;
   process.stdout.write(line);
-  fs.writeSync(logFd, line);
+  if (Number.isInteger(logFd)) fs.writeSync(logFd, line);
 }
 
 function writeLauncherReadyToken() {
   try {
-    if (launcherOperationToken) {
+    const currentOperationToken = readLauncherOperationToken();
+    if (currentOperationToken) {
       runFileOperationWithRetry(() =>
-        fs.writeFileSync(
-          launcherReadyTokenPath,
-          launcherOperationToken,
-          'utf8',
-        ),
+        fs.writeFileSync(launcherReadyTokenPath, currentOperationToken, 'utf8'),
       );
     }
   } catch {
@@ -283,6 +320,16 @@ function toLauncherFailure(error) {
   const message = rawMessage.replace(/\s+/g, ' ').trim();
   const lowerMessage = message.toLowerCase();
 
+  if (startupCompleted) {
+    return {
+      stage: '运行期后台失败',
+      message: '后台服务在启动成功后意外终止',
+      detail: message || '后台进程发生未预期的致命错误。',
+      suggestion:
+        '请运行“重启多媒体笔记工作台.vbs”，并在问题重复出现时通过启动器打开日志。',
+    };
+  }
+
   if (isSpawnEperm(error)) {
     return {
       stage: startupStage || '启动失败',
@@ -324,9 +371,10 @@ function toLauncherFailure(error) {
 }
 
 function writeLauncherFailure(error) {
-  if (!launcherOperationToken) return;
+  const currentOperationToken = readLauncherOperationToken();
+  if (!currentOperationToken) return;
   const failure = {
-    operationToken: launcherOperationToken,
+    operationToken: currentOperationToken,
     ...toLauncherFailure(error),
     timestamp: Date.now(),
   };
@@ -356,6 +404,19 @@ function writeLauncherFailure(error) {
     );
   }
 }
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  try {
+    startupStage = startupCompleted ? '运行期后台失败' : startupStage;
+    writeLine(
+      `[dev-windows] 致命错误（${origin}）: ${error.stack || error.message}`,
+    );
+    writeLauncherFailure(error);
+  } catch {
+    // 保留 Node.js 默认退出行为，避免监控逻辑掩盖原始致命错误。
+  }
+});
+
 function pipeWithPrefix(stream, name) {
   let pending = '';
   stream.setEncoding('utf8');
@@ -564,26 +625,30 @@ async function waitForStaticClientReady(server, instanceToken) {
 
 async function waitForApplicationReady(child, timeoutMs = 120000) {
   const deadline = Date.now() + timeoutMs;
-  // 后端本地模式不依赖浏览器 Cookie，直接探测真实 API，避免 Vite
-  // 前缀代理与平台认证状态把已启动的服务误判为超时。
-  const runtimeUrl = `http://${serverHost}:${serverPort}/api/runtime`;
+  // Probe the browser-facing origin/path so proxy and base-path failures are
+  // treated as startup failures instead of being hidden by a direct backend
+  // response.
+  const runtimeUrl = `${appUrl}api/runtime`;
+  const readinessUrl = `${appUrl}api/note-jobs/readiness`;
+  let lastFailureReason = '服务尚未返回有效状态';
   while (Date.now() < deadline) {
     if (child && (child.exitCode !== null || child.signalCode !== null)) {
       throw new Error('前端在页面可访问前已退出');
     }
-    if (
-      await isApplicationReady({
-        pageUrl: appUrl,
-        runtimeUrl,
-        request: requestHttp,
-      })
-    ) {
-      return;
-    }
+    const inspection = await inspectApplicationReadiness({
+      pageUrl: appUrl,
+      readinessUrl,
+      runtimeUrl,
+      request: (target) =>
+        requestHttp(target, target === readinessUrl ? 12000 : 2500),
+    });
+    if (inspection.ready) return;
+    lastFailureReason = inspection.reason;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(
-    `等待工作台页面可访问超时（${Math.round(timeoutMs / 1000)}s）：${appUrl}`,
+    `等待工作台完整可用超时（${Math.round(timeoutMs / 1000)}s）：${appUrl}。` +
+      `最后检测结果：${lastFailureReason}`,
   );
 }
 
@@ -624,10 +689,12 @@ function shutdown(exitCode = 0) {
   staticClientServer?.close();
   for (const child of [...children]) terminateProcessTree(child);
   clearPidFile();
-  try {
-    fs.closeSync(logFd);
-  } catch {
-    // 日志文件已关闭。
+  if (Number.isInteger(logFd)) {
+    try {
+      fs.closeSync(logFd);
+    } catch {
+      // 日志文件已关闭。
+    }
   }
   process.exit(exitCode);
 }
@@ -792,7 +859,25 @@ async function main() {
   writeLine(`[dev-windows] 项目已启动: ${appUrl}`);
 }
 
-main().catch((error) => {
+async function bootstrap() {
+  const existingLauncher = await ensureNoExistingLauncher();
+  if (existingLauncher) {
+    // 启动窗口会为每次操作写入新令牌。若服务已经由本项目启动器运行，
+    // 必须由已验证服务或原启动进程接管；不能仅凭一个存活 PID 宣布成功。
+    exitForExistingLauncher(existingLauncher);
+  }
+  if (!claimPidFile()) {
+    const claimedLauncher = await ensureNoExistingLauncher();
+    if (claimedLauncher) exitForExistingLauncher(claimedLauncher);
+    if (!claimPidFile()) {
+      throw new Error('无法独占项目 PID 文件，请稍后重试。');
+    }
+  }
+  logFd = fs.openSync(logPath, 'a');
+  await main();
+}
+
+bootstrap().catch((error) => {
   const message =
     error instanceof Error ? error.stack || error.message : String(error);
   writeLine(`[dev-windows] 启动失败: ${message}`);

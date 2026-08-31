@@ -29,6 +29,9 @@ describe('Windows launcher entry', () => {
 
     expect(launcher).toContain('launcher-ui-ready.token');
     expect(launcher).toContain('servicesReady && !browserLaunchObserved');
+    expect(launcher).toContain(
+      'var servicesReady = restartReadyTokenMatches() && api;',
+    );
     expect(
       (launcher.match(/browserLaunchObserved && uiReady/g) || []).length,
     ).toBe(2);
@@ -69,7 +72,7 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain(
       '在启动完成前意外退出，请查看日志确认具体原因。',
     );
-    expect(devWindows).toContain('operationToken: launcherOperationToken');
+    expect(devWindows).toContain('operationToken: currentOperationToken');
     expect(devWindows).toContain(
       '实时输出管道被 Windows 拒绝，已自动切换到日志直写模式继续启动',
     );
@@ -82,14 +85,27 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain('前端页面验证失败，切换到静态前端兜底服务');
     expect(devWindows).toContain('await waitForApplicationReady(null, 15000)');
     expect(devWindows).toContain(
-      'const runtimeUrl = `http://${serverHost}:${serverPort}/api/runtime`;',
+      'const runtimeUrl = `${appUrl}api/runtime`;',
     );
+    expect(devWindows).toContain(
+      'const readinessUrl = `${appUrl}api/note-jobs/readiness`;',
+    );
+    expect(devWindows).toContain(
+      'Probe the browser-facing origin/path so proxy and base-path failures are',
+    );
+    expect(devWindows).toContain('inspectApplicationReadiness');
+    expect(devWindows).toContain('最后检测结果');
+    expect(devWindows).toContain('uncaughtExceptionMonitor');
+    expect(devWindows).toContain('运行期后台失败');
     expect(devWindows).toContain('ensureLocalRuntimeConfig(rootDir)');
     expect(devWindows).toContain('runFileOperationWithRetry');
     expect(devWindows).toContain('启动状态文件暂时被占用');
     expect(devWindows).toContain('waitForStaticClientReady');
     expect(devWindows).toContain('STATIC_CLIENT_INSTANCE_TOKEN');
-    expect(devWindows).toContain('已接管当前启动窗口，不重复创建实例');
+    expect(devWindows).toContain('已验证项目服务可用');
+    expect(devWindows).toContain('项目正在启动');
+    expect(devWindows).toContain('为避免假启动已停止');
+    expect(devWindows).toContain('resolveExistingLauncherState');
   });
   it('does not create a second instance when the previous service cannot be stopped', () => {
     const restart = readFileSync(
