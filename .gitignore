@@ -17,6 +17,8 @@ build/
 .task-notification-config.json
 .connector-config.json
 .runtime-config.json
+.media-cleanup-config.json
+.media-cleanup-history.json
 data/
 
 # Logs

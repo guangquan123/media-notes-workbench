@@ -5,6 +5,7 @@ import {
   Settings2,
   Cable,
   Layers3,
+  HardDrive,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
 import AiModelSettingsPage from '@/pages/AiModelSettingsPage/AiModelSettingsPage';
+import MediaCleanupSettingsPage from '@/pages/MediaCleanupSettingsPage/MediaCleanupSettingsPage';
 import SetupOverview from './SetupOverview';
 
 type SettingsSection =
@@ -22,6 +24,7 @@ type SettingsSection =
   | 'model'
   | 'prompts'
   | 'setup'
+  | 'storage'
   /** @deprecated 旧自检链接会映射到 ai。 */
   | 'transcription';
 
@@ -57,6 +60,12 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
     description: '配置多个 API 提供者、能力模型和转录方式。',
     icon: Layers3,
   },
+  {
+    value: 'storage',
+    label: '媒体清理',
+    description: '盘点媒体占用，并配置定时或手工清理。',
+    icon: HardDrive,
+  },
 ];
 
 function getSelectedSection(section: string | null): SettingsSection {
@@ -64,7 +73,8 @@ function getSelectedSection(section: string | null): SettingsSection {
     section === 'ai' ||
     section === 'prompts' ||
     section === 'setup' ||
-    section === 'connectors'
+    section === 'connectors' ||
+    section === 'storage'
   ) {
     return section;
   }
@@ -85,22 +95,22 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
       <div className="min-h-screen bg-[radial-gradient(circle_at_84%_4%,rgba(77,93,255,0.1),transparent_25%),linear-gradient(135deg,rgba(17,19,21,0.025)_1px,transparent_1px)] bg-[size:auto,32px_32px]">
-        <div className="mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10">
-          <header className="border-b border-black/8 pb-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto min-h-screen max-w-7xl px-5 py-4 md:px-8 md:py-5">
+          <header className="border-b border-black/8 pb-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
                   <Settings2 className="size-5" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold">参数配置</p>
-                  <p className="text-xs text-black/45">
+                  <p className="hidden text-xs text-black/45 sm:block">
                     先完成自动检测，再按需调整连接器、转录与模型
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col items-start gap-3 sm:items-end">
-                <p className="text-xs leading-5 text-black/45 sm:max-w-xs sm:text-right">
+              <div className="flex items-center gap-2">
+                <p className="hidden text-xs leading-5 text-black/45 lg:block lg:max-w-xs lg:text-right">
                   密钥只会以脱敏状态显示，保存后不会回传到页面或写入日志。
                 </p>
                 <Button
@@ -118,7 +128,7 @@ export default function SettingsPage() {
             </div>
           </header>
 
-          <div className="grid gap-6 py-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-6">
+          <div className="grid gap-5 py-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-5">
             <nav
               aria-label="配置模块"
               className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible"
@@ -165,6 +175,7 @@ export default function SettingsPage() {
               {selectedSection === 'prompts' && <NoteTemplatesPage embedded />}
               {selectedSection === 'ai' && <AiModelSettingsPage embedded />}
               {selectedSection === 'connectors' && <ConnectorSettingsPage />}
+              {selectedSection === 'storage' && <MediaCleanupSettingsPage />}
             </section>
           </div>
         </div>

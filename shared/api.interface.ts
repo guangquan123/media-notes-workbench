@@ -294,7 +294,10 @@ export interface CreateNoteJobRequest {
   mediaItems?: UploadedMediaInput[];
   pairedMedia?: PairedMediaInput;
   /** 未提供时使用当前转录设置中的默认方式。 */
-  transcriptionProvider?: Exclude<TranscriptionProvider, 'local_whisper' | 'mixed'>;
+  transcriptionProvider?: Exclude<
+    TranscriptionProvider,
+    'local_whisper' | 'mixed'
+  >;
   transcriptionOptions?: TranscriptionOptions;
   visualOptions?: NoteVisualOptions;
 }
@@ -639,6 +642,117 @@ export interface NoteSourceSnapshotResponse {
 
 export interface ConfirmDeletedSourceObjectsRequest {
   objectIds: string[];
+}
+
+export type MediaCleanupFrequency = 'daily' | 'weekly' | 'monthly';
+
+export type MediaCleanupRunSource = 'manual' | 'scheduled';
+
+export interface MediaCleanupSettings {
+  deleteFailedRecords: boolean;
+  deleteOrphanFiles: boolean;
+  enabled: boolean;
+  frequency: MediaCleanupFrequency;
+  lastRunAt: string | null;
+  lastRunSource: MediaCleanupRunSource | null;
+  monthlyDay: number;
+  nextRunAt: string | null;
+  retentionDays: number;
+  scheduledTime: string;
+  timezone: 'Asia/Shanghai';
+  weeklyDay: number;
+}
+
+export interface UpdateMediaCleanupSettingsRequest {
+  deleteFailedRecords: boolean;
+  deleteOrphanFiles: boolean;
+  enabled: boolean;
+  frequency: MediaCleanupFrequency;
+  monthlyDay: number;
+  retentionDays: number;
+  scheduledTime: string;
+  weeklyDay: number;
+}
+
+export interface MediaCleanupRelatedNote {
+  completedAt: string | null;
+  jobId: string;
+  sourceAssetGroupId: string;
+  startedAt: string;
+  status: ConversionStatus;
+  title: string;
+}
+
+export interface MediaCleanupFileItem {
+  absolutePath: string;
+  eligible: boolean;
+  fileName: string;
+  fileSize: number;
+  inUse: boolean;
+  lastReferencedAt: string | null;
+  modifiedAt: string;
+  objectId: string;
+  orphan: boolean;
+  reason: string;
+  relatedNotes: MediaCleanupRelatedNote[];
+}
+
+export interface MediaCleanupInventoryResponse {
+  files: MediaCleanupFileItem[];
+  generatedAt: string;
+  summary: {
+    eligibleBytes: number;
+    eligibleFiles: number;
+    orphanBytes: number;
+    orphanFiles: number;
+    protectedFiles: number;
+    totalBytes: number;
+    totalFiles: number;
+  };
+}
+
+export interface RunMediaCleanupRequest {
+  dryRun?: boolean;
+  force?: boolean;
+  objectIds?: string[];
+}
+
+export interface MediaCleanupRunResponse {
+  deletedBytes: number;
+  deletedFiles: number;
+  dryRun: boolean;
+  failed: Array<{ message: string; objectId: string }>;
+  finishedAt: string;
+  skipped: Array<{ message: string; objectId: string }>;
+  source: MediaCleanupRunSource;
+}
+
+export type MediaCleanupRunStatus = 'success' | 'partial' | 'failed';
+
+export interface MediaCleanupDeletedItem {
+  fileName: string;
+  fileSize: number;
+  objectId: string;
+}
+
+export interface MediaCleanupRunHistoryItem {
+  deletedBytes: number;
+  deletedFiles: number;
+  deletedItems: MediaCleanupDeletedItem[];
+  dryRun: boolean;
+  durationMs: number;
+  failed: Array<{ message: string; objectId: string }>;
+  finishedAt: string;
+  id: string;
+  skipped: Array<{ message: string; objectId: string }>;
+  source: MediaCleanupRunSource;
+  startedAt: string;
+  status: MediaCleanupRunStatus;
+}
+
+export interface MediaCleanupRunHistoryResponse {
+  items: MediaCleanupRunHistoryItem[];
+  totalItems: number;
 }
 
 export interface RegenerateRawDocumentResponse {

@@ -60,6 +60,12 @@ import type {
   ModelServiceProvider,
   UpdateAiModelSettingsRequest,
   UpdateModelServiceProviderRequest,
+  MediaCleanupInventoryResponse,
+  MediaCleanupRunHistoryResponse,
+  MediaCleanupRunResponse,
+  MediaCleanupSettings,
+  RunMediaCleanupRequest,
+  UpdateMediaCleanupSettingsRequest,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -745,6 +751,57 @@ export async function logoutConnector(connector: ConnectorType): Promise<void> {
     url: `/api/connectors/${connector}/auth/logout`,
     method: 'POST',
     timeout: 30000,
+  });
+  return response.data;
+}
+
+export async function getMediaCleanupSettings(): Promise<MediaCleanupSettings> {
+  const response = await axiosForBackend({
+    url: '/api/media-cleanup/settings',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateMediaCleanupSettings(
+  input: UpdateMediaCleanupSettingsRequest,
+): Promise<MediaCleanupSettings> {
+  const response = await axiosForBackend({
+    url: '/api/media-cleanup/settings',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getMediaCleanupFiles(): Promise<MediaCleanupInventoryResponse> {
+  const response = await axiosForBackend({
+    url: '/api/media-cleanup/files',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getMediaCleanupHistory(): Promise<MediaCleanupRunHistoryResponse> {
+  const response = await axiosForBackend({
+    url: '/api/media-cleanup/history',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function runMediaCleanup(
+  input: RunMediaCleanupRequest = {},
+): Promise<MediaCleanupRunResponse> {
+  const response = await axiosForBackend({
+    url: '/api/media-cleanup/run',
+    method: 'POST',
+    data: input,
+    timeout: 120000,
   });
   return response.data;
 }
