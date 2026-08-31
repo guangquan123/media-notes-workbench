@@ -531,21 +531,19 @@ export default function ConversionHistoryPage() {
           </div>
         </header>
 
-        <section className="py-4 md:py-5">
-          <div className="mb-4 flex flex-col gap-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-3xl">
-                    转化记录
-                  </h1>
-                  {!loading ? (
-                    <span className="text-sm text-black/42">
-                      共 {totalItems} 条
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-sm text-black/45">
+        <section className="py-3 md:py-4">
+          <div className="mb-3 flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-semibold tracking-[-0.03em]">
+                  转化记录
+                </h1>
+                {!loading ? (
+                  <span className="text-sm text-black/42">
+                    共 {totalItems} 条
+                  </span>
+                ) : null}
+                <p className="basis-full text-sm text-black/45 sm:basis-auto">
                   按资料类型、生成时间和处理状态快速定位笔记
                 </p>
               </div>
@@ -685,7 +683,7 @@ export default function ConversionHistoryPage() {
                   actionJobId === record.jobId;
                 return (
                   <article
-                    className="group rounded-3xl border border-black/7 bg-white/92 p-5 shadow-[0_14px_45px_rgba(40,35,29,0.055)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_18px_55px_rgba(40,35,29,0.09)] md:p-6"
+                    className="group rounded-2xl border border-black/7 bg-white/92 p-3.5 shadow-[0_10px_30px_rgba(40,35,29,0.045)] transition hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_14px_40px_rgba(40,35,29,0.075)] md:p-4"
                     key={record.id}
                   >
                     <div className="flex gap-4">
@@ -693,7 +691,7 @@ export default function ConversionHistoryPage() {
                         <Checkbox
                           aria-label={`选择 ${record.title}`}
                           checked={selectedJobIds.includes(record.jobId)}
-                          className="mt-4"
+                          className="mt-3"
                           disabled={!selectable}
                           onCheckedChange={() =>
                             toggleRecordSelection(record.jobId)
@@ -701,7 +699,7 @@ export default function ConversionHistoryPage() {
                         />
                       ) : null}
                       <div
-                        className="grid size-12 shrink-0 place-items-center rounded-2xl"
+                        className="grid size-10 shrink-0 place-items-center rounded-xl"
                         style={{
                           backgroundColor: sourceStyle.background,
                           color: sourceStyle.accent,
@@ -768,11 +766,11 @@ export default function ConversionHistoryPage() {
                             {visualOptionsCopy.title}
                           </Badge>
                         </div>
-                        <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">
+                        <h2 className="mt-1.5 truncate text-base font-semibold tracking-[-0.02em]">
                           {record.title}
                         </h2>
                         {record.status === 'processing' ? (
-                          <div className="mt-4 max-w-2xl rounded-xl bg-[#f5f7fb] px-3 py-2.5">
+                          <div className="mt-2.5 max-w-2xl rounded-lg bg-[#f5f7fb] px-3 py-2">
                             <div className="flex items-center justify-between gap-3 text-xs text-black/55">
                               <span className="font-medium text-[#3370ff]">
                                 {getStageLabel(record.currentStage)}
@@ -788,11 +786,11 @@ export default function ConversionHistoryPage() {
                             </p>
                           </div>
                         ) : record.status === 'failed' && record.error ? (
-                          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+                          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
                             {record.error}
                           </p>
                         ) : null}
-                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-black/42">
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-black/42">
                           <span className="inline-flex items-center gap-1.5">
                             <Clock3 className="size-3.5" />
                             {dayjs(record.startedAt).format('YYYY-MM-DD HH:mm')}
@@ -817,7 +815,7 @@ export default function ConversionHistoryPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-3 border-t border-black/6 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-2 border-t border-black/6 pt-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex flex-wrap items-center gap-2">
                         {record.documentUrl ? (
                           <Button
