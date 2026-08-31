@@ -631,13 +631,43 @@ export class MediaCleanupService implements OnModuleInit, OnModuleDestroy {
       typeof item.startedAt === 'string' &&
       typeof item.finishedAt === 'string' &&
       typeof item.durationMs === 'number' &&
+      Number.isFinite(item.durationMs) &&
       typeof item.dryRun === 'boolean' &&
       typeof item.deletedBytes === 'number' &&
+      Number.isFinite(item.deletedBytes) &&
+      item.deletedBytes >= 0 &&
       typeof item.deletedFiles === 'number' &&
+      Number.isInteger(item.deletedFiles) &&
+      item.deletedFiles >= 0 &&
       Array.isArray(item.deletedItems) &&
+      item.deletedItems.every((deletedItem: unknown) =>
+        this.isDeletedItem(deletedItem),
+      ) &&
       Array.isArray(item.failed) &&
-      Array.isArray(item.skipped)
+      item.failed.every((entry: unknown) => this.isResultEntry(entry)) &&
+      Array.isArray(item.skipped) &&
+      item.skipped.every((entry: unknown) => this.isResultEntry(entry))
     );
+  }
+
+  private isDeletedItem(value: unknown): value is MediaCleanupDeletedItem {
+    if (!value || typeof value !== 'object') return false;
+    const item = value as Partial<MediaCleanupDeletedItem>;
+    return (
+      typeof item.objectId === 'string' &&
+      typeof item.fileName === 'string' &&
+      typeof item.fileSize === 'number' &&
+      Number.isFinite(item.fileSize) &&
+      item.fileSize >= 0
+    );
+  }
+
+  private isResultEntry(
+    value: unknown,
+  ): value is { message: string; objectId: string } {
+    if (!value || typeof value !== 'object') return false;
+    const item = value as { message?: unknown; objectId?: unknown };
+    return typeof item.objectId === 'string' && typeof item.message === 'string';
   }
 
   private toPublicSettings(
