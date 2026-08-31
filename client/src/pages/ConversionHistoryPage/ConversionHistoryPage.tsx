@@ -492,22 +492,24 @@ export default function ConversionHistoryPage() {
 
   return (
     <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
-      <div className="mx-auto min-h-screen max-w-6xl px-5 py-7 md:px-10 md:py-10">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-2xl bg-[#161616] text-white shadow-sm">
-              <History className="size-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">转化记录</p>
-              <p className="text-xs text-black/45">回看每一次知识沉淀</p>
-            </div>
-          </div>
+      <div className="mx-auto min-h-screen max-w-6xl px-5 md:px-10">
+        <header className="sticky top-0 z-20 -mx-5 flex h-12 items-center justify-between gap-4 border-b border-black/8 bg-[#faf9f6]/95 px-5 backdrop-blur md:-mx-10 md:px-10">
+          <nav
+            aria-label="面包屑"
+            className="flex min-w-0 items-center gap-2 text-xs text-black/45"
+          >
+            <Link className="shrink-0 transition hover:text-black" to="/">
+              工作台
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span className="truncate font-medium text-black/80">转化记录</span>
+          </nav>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               className="rounded-full border-black/8 bg-white text-black/62"
               disabled={refreshing}
               onClick={() => void loadRecords(true)}
+              size="sm"
               variant="outline"
             >
               <RefreshCw
@@ -518,6 +520,7 @@ export default function ConversionHistoryPage() {
             <Button
               asChild
               className="rounded-full border-black/8 bg-white text-black/62"
+              size="sm"
               variant="outline"
             >
               <Link to="/">
@@ -528,8 +531,8 @@ export default function ConversionHistoryPage() {
           </div>
         </header>
 
-        <section className="py-10">
-          <div className="mb-6 flex flex-col gap-3">
+        <section className="py-4 md:py-5">
+          <div className="mb-4 flex flex-col gap-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-baseline gap-2">
