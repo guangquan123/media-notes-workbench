@@ -667,7 +667,9 @@ export class MediaCleanupService implements OnModuleInit, OnModuleDestroy {
   ): value is { message: string; objectId: string } {
     if (!value || typeof value !== 'object') return false;
     const item = value as { message?: unknown; objectId?: unknown };
-    return typeof item.objectId === 'string' && typeof item.message === 'string';
+    return (
+      typeof item.objectId === 'string' && typeof item.message === 'string'
+    );
   }
 
   private toPublicSettings(
