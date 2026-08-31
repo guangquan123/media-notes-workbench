@@ -251,7 +251,7 @@ export default function NoteTemplatesPage({
         className={
           embedded
             ? ''
-            : 'mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10'
+            : 'mx-auto min-h-screen max-w-7xl px-5 py-4 md:px-8 md:py-5'
         }
       >
         {!embedded && (

@@ -52,6 +52,7 @@ import type {
   UpdateMediaCleanupSettingsRequest,
 } from '@shared/api.interface';
 import MediaCleanupHistoryView from './MediaCleanupHistoryView';
+import MediaCleanupPreviewView from './MediaCleanupPreviewView';
 
 const DEFAULT_FORM: UpdateMediaCleanupSettingsRequest = {
   deleteFailedRecords: false,
@@ -114,6 +115,7 @@ export default function MediaCleanupSettingsPage() {
     MediaCleanupRunHistoryItem[]
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
   const previewPageSize = 10;
 
@@ -235,6 +237,16 @@ export default function MediaCleanupSettingsPage() {
         loading={historyLoading}
         onBack={(): void => setHistoryOpen(false)}
         onRefresh={(): void => void refreshHistory()}
+      />
+    );
+  }
+
+  if (previewOpen) {
+    return (
+      <MediaCleanupPreviewView
+        inventory={inventory}
+        loading={loading}
+        onBack={(): void => setPreviewOpen(false)}
       />
     );
   }
@@ -455,18 +467,27 @@ export default function MediaCleanupSettingsPage() {
               执行前按最新文件状态再次复核，不会删除运行中媒体。
             </p>
           </div>
-          <Button
-            className="bg-red-600 text-white hover:bg-red-700"
-            disabled={loading || running || eligibleFiles === 0}
-            onClick={(): void => setConfirmOpen(true)}
-          >
-            {running ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
-            )}
-            手工执行清理
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={(): void => setPreviewOpen(true)}
+              size="sm"
+              variant="outline"
+            >
+              查看可清理明细
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={loading || running || eligibleFiles === 0}
+              onClick={(): void => setConfirmOpen(true)}
+            >
+              {running ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              手工执行清理
+            </Button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -506,7 +527,7 @@ export default function MediaCleanupSettingsPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 hidden grid gap-3">
           {loading && (
             <div className="grid min-h-32 place-items-center text-sm text-black/45">
               <LoaderCircle className="size-5 animate-spin" />

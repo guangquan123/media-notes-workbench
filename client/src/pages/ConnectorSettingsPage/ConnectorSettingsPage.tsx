@@ -508,7 +508,7 @@ export default function ConnectorSettingsPage({
   if (loading) {
     return (
       <main
-        className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-6 sm:px-5 sm:py-8 md:px-8'}`}
+        className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
       >
         <div className="mx-auto max-w-5xl animate-pulse space-y-6">
           <div className="h-16 rounded-2xl bg-black/[0.06]" />
@@ -526,7 +526,7 @@ export default function ConnectorSettingsPage({
   if (loadError || !settings) {
     return (
       <main
-        className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-6 sm:px-5 sm:py-8 md:px-8'}`}
+        className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
       >
         <div className="mx-auto max-w-3xl">
           <header className="flex items-center justify-between border-b border-black/8 pb-5">
@@ -579,7 +579,7 @@ export default function ConnectorSettingsPage({
 
   return (
     <main
-      className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-6 sm:px-5 sm:py-8 md:px-8'}`}
+      className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
     >
       <div className="mx-auto w-full min-w-0 max-w-5xl">
         <header

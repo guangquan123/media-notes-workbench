@@ -51,20 +51,81 @@ function styleLabel(style: NoteStyle): string {
 function buildDiff(left: string, right: string): DiffRow[] {
   const leftLines = left.split('\n');
   const rightLines = right.split('\n');
-  const rows: DiffRow[] = [];
-  const max = Math.max(leftLines.length, rightLines.length);
-  for (let index = 0; index < max; index += 1) {
-    const before = leftLines[index];
-    const after = rightLines[index];
-    if (before === after) {
-      rows.push({ left: before, right: after, type: 'context' });
-    } else if (before === undefined) {
-      rows.push({ right: after, type: 'added' });
-    } else if (after === undefined) {
-      rows.push({ left: before, type: 'removed' });
-    } else {
-      rows.push({ left: before, right: after, type: 'changed' });
+  const matrix: number[][] = Array.from({ length: leftLines.length + 1 }, () =>
+    Array<number>(rightLines.length + 1).fill(0),
+  );
+  for (let leftIndex = leftLines.length - 1; leftIndex >= 0; leftIndex -= 1) {
+    for (
+      let rightIndex = rightLines.length - 1;
+      rightIndex >= 0;
+      rightIndex -= 1
+    ) {
+      matrix[leftIndex][rightIndex] =
+        leftLines[leftIndex] === rightLines[rightIndex]
+          ? matrix[leftIndex + 1][rightIndex + 1] + 1
+          : Math.max(
+              matrix[leftIndex + 1][rightIndex],
+              matrix[leftIndex][rightIndex + 1],
+            );
     }
+  }
+  const operations: Array<{
+    line: string;
+    type: 'added' | 'removed' | 'context';
+  }> = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < leftLines.length || rightIndex < rightLines.length) {
+    if (
+      leftIndex < leftLines.length &&
+      rightIndex < rightLines.length &&
+      leftLines[leftIndex] === rightLines[rightIndex]
+    ) {
+      operations.push({ line: leftLines[leftIndex], type: 'context' });
+      leftIndex += 1;
+      rightIndex += 1;
+    } else if (
+      rightIndex < rightLines.length &&
+      (leftIndex >= leftLines.length ||
+        matrix[leftIndex][rightIndex + 1] >= matrix[leftIndex + 1][rightIndex])
+    ) {
+      operations.push({ line: rightLines[rightIndex], type: 'added' });
+      rightIndex += 1;
+    } else {
+      operations.push({ line: leftLines[leftIndex], type: 'removed' });
+      leftIndex += 1;
+    }
+  }
+  const rows: DiffRow[] = [];
+  for (let index = 0; index < operations.length; index += 1) {
+    const operation = operations[index];
+    if (operation.type === 'context') {
+      rows.push({
+        left: operation.line,
+        right: operation.line,
+        type: 'context',
+      });
+      continue;
+    }
+    const removed: string[] = [];
+    const added: string[] = [];
+    while (operations[index]?.type === 'removed')
+      removed.push(operations[index++].line);
+    while (operations[index]?.type === 'added')
+      added.push(operations[index++].line);
+    const pairCount = Math.max(removed.length, added.length);
+    for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
+      const before = removed[pairIndex];
+      const after = added[pairIndex];
+      rows.push(
+        before !== undefined && after !== undefined
+          ? { left: before, right: after, type: 'changed' }
+          : before !== undefined
+            ? { left: before, type: 'removed' }
+            : { right: after, type: 'added' },
+      );
+    }
+    index -= 1;
   }
   return rows;
 }
@@ -81,6 +142,7 @@ export default function NoteTemplatesComparePage() {
   const [filter, setFilter] = useState<'all' | Exclude<DiffType, 'context'>>(
     'all',
   );
+  const [viewMode, setViewMode] = useState<'changes' | 'all'>('changes');
   const [activeChange, setActiveChange] = useState(0);
 
   useEffect(() => {
@@ -190,14 +252,14 @@ export default function NoteTemplatesComparePage() {
     );
   }
 
-  const visibleRows = rows.filter(
-    (row: DiffRow) =>
-      filter === 'all' || row.type === 'context' || row.type === filter,
-  );
+  const visibleRows = rows.filter((row: DiffRow) => {
+    if (viewMode === 'changes' && row.type === 'context') return false;
+    return filter === 'all' || row.type === 'context' || row.type === filter;
+  });
   return (
     <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
-      <div className="mx-auto min-h-screen max-w-[1500px] px-5 py-7 md:px-10 md:py-9">
-        <header className="border-b border-black/8 pb-5">
+      <div className="mx-auto min-h-screen max-w-[1500px] px-5 py-3 md:px-8 md:py-4">
+        <header className="border-b border-black/8 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
@@ -221,7 +283,7 @@ export default function NoteTemplatesComparePage() {
           </div>
         </header>
 
-        <section className="py-7">
+        <section className="py-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3370ff]">
@@ -239,7 +301,47 @@ export default function NoteTemplatesComparePage() {
             </Badge>
           </div>
 
-          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="mt-4 rounded-2xl border border-[#3370ff]/15 bg-[#edf3ff] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#1f4fae]">差异结果</p>
+                <p className="mt-1 text-xs text-[#2864ea]/75">
+                  已对齐相同内容，仅将新增、删除和修改集中展示。
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                <span className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-emerald-800">
+                  新增 {summary.added}
+                </span>
+                <span className="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-800">
+                  删除 {summary.removed}
+                </span>
+                <span className="rounded-lg bg-amber-100 px-2.5 py-1.5 text-amber-900">
+                  修改 {summary.changed}
+                </span>
+                <div className="ml-1 flex rounded-lg border border-[#3370ff]/20 bg-white p-0.5">
+                  <button
+                    aria-pressed={viewMode === 'changes'}
+                    className={`rounded-md px-2.5 py-1.5 ${viewMode === 'changes' ? 'bg-[#111315] text-white' : 'text-black/55'}`}
+                    onClick={(): void => setViewMode('changes')}
+                    type="button"
+                  >
+                    只看差异
+                  </button>
+                  <button
+                    aria-pressed={viewMode === 'all'}
+                    className={`rounded-md px-2.5 py-1.5 ${viewMode === 'all' ? 'bg-[#111315] text-white' : 'text-black/55'}`}
+                    onClick={(): void => setViewMode('all')}
+                    type="button"
+                  >
+                    展示全部
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
             <section className="min-w-0 overflow-hidden rounded-2xl border border-black/8 bg-white shadow-sm">
               <div className="grid grid-cols-2 border-b border-black/8">
                 <div className="bg-[#fafaf8] px-4 py-4 md:px-6">
