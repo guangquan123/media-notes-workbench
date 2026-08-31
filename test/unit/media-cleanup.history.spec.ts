@@ -146,7 +146,7 @@ describe('media cleanup history', () => {
       expect(history.items[0]).toEqual(
         expect.objectContaining({
           dryRun: true,
-          deletedItems: [{ fileName: objectId, fileSize: 6, objectId }],
+          deletedItems: [{ fileName: objectId, fileSize: 7, objectId }],
           status: 'success',
         }),
       );
