@@ -1,0 +1,10 @@
+.workspace{width:min(1384px,calc(100% - 56px));margin-top:24px}
+.surface{padding:26px 72px 30px}
+.intro-block{text-align:center}
+.intro-block>div:first-child{width:100%}
+.intro-icon{display:none}
+.form-grid{max-width:840px;margin:32px auto 0;text-align:left}
+.action-row--primary{display:block;max-width:680px;margin-inline:auto}
+.action-row--primary .action-hint{display:block;margin-top:10px;text-align:center}
+@media(max-width:800px){.workspace{width:min(100% - 28px,680px);margin-top:22px}.surface{padding:26px 20px 24px}.action-row--primary{max-width:none}}
+@media(min-width:801px){.workspace{margin-top:16px}.surface{padding-top:18px;padding-bottom:18px}.step-rail{margin-bottom:16px}.intro-block h1{font-size:32px}.intro-copy{margin-top:6px}.form-grid{margin-top:20px}.mic-test{margin-top:18px;padding:18px 22px}.mic-steps{margin-top:16px}.meter-row{margin-top:16px}.advanced-toggle{margin-top:10px;padding-top:12px;padding-bottom:12px}.action-row--primary{margin-top:16px}.privacy-note{margin-top:10px}}
