@@ -50,16 +50,18 @@ export default function MediaCleanupPreviewView({
 
   return (
     <div className="grid gap-4">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/8 pb-4">
-        <div>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/8 pb-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Button onClick={onBack} size="sm" variant="outline">
             <ArrowLeft className="size-3.5" />
             返回媒体清理
           </Button>
-          <h2 className="mt-3 text-xl font-semibold">可清理媒体预览</h2>
-          <p className="mt-1 text-xs text-black/50">
-            查看当前盘点结果和每个媒体文件的清理原因。
-          </p>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold">可清理媒体预览</h2>
+            <p className="mt-1 text-xs text-black/50">
+              查看当前盘点结果和每个媒体文件的清理原因。
+            </p>
+          </div>
         </div>
         <div className="rounded-xl bg-black/[0.035] px-3 py-2 text-right text-xs text-black/55">
           <p>可清理 {inventory?.summary.eligibleFiles || 0} 个</p>

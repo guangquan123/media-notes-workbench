@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   FilePenLine,
   ListChecks,
-  Settings2,
   Cable,
   Layers3,
   HardDrive,
@@ -98,46 +97,36 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
       <div className="min-h-screen bg-[radial-gradient(circle_at_84%_4%,rgba(77,93,255,0.1),transparent_25%),linear-gradient(135deg,rgba(17,19,21,0.025)_1px,transparent_1px)] bg-[size:auto,32px_32px]">
-        <div className="mx-auto min-h-screen max-w-7xl px-5 py-4 md:px-8 md:py-5">
-          <header className="border-b border-black/8 pb-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
-                  <Settings2 className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">参数配置</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  asChild
-                  className="rounded-full bg-white/85 text-black/65 hover:bg-white hover:text-black"
-                  size="sm"
-                  variant="outline"
-                >
-                  <Link to="/">
-                    <ArrowLeft className="size-3.5" />
-                    返回入口
-                  </Link>
-                </Button>
-              </div>
-            </div>
+        <div className="mx-auto min-h-screen max-w-7xl px-5 md:px-8">
+          <header className="sticky top-0 z-20 -mx-5 flex h-12 items-center justify-between gap-4 border-b border-black/8 bg-[#f6f7f5]/95 px-5 backdrop-blur md:-mx-8 md:px-8">
+            <nav
+              aria-label="面包屑"
+              className="flex min-w-0 items-center gap-2 text-xs text-black/45"
+            >
+              <Link className="shrink-0 transition hover:text-black" to="/">
+                工作台
+              </Link>
+              <span aria-hidden="true">/</span>
+              <span className="shrink-0 text-black/70">参数配置</span>
+              <span aria-hidden="true">/</span>
+              <span className="truncate font-medium text-black/80">
+                {selectedSectionLabel}
+              </span>
+            </nav>
+            <Button
+              asChild
+              className="shrink-0 rounded-full bg-white/85 text-black/65 hover:bg-white hover:text-black"
+              size="sm"
+              variant="outline"
+            >
+              <Link to="/">
+                <ArrowLeft className="size-3.5" />
+                返回入口
+              </Link>
+            </Button>
           </header>
 
-          <div className="flex items-center gap-2 py-2 text-xs text-black/45">
-            <Link className="transition hover:text-black" to="/">
-              工作台
-            </Link>
-            <span aria-hidden="true">/</span>
-            <span className="text-black/70">参数配置</span>
-            <span aria-hidden="true">/</span>
-            <span className="font-medium text-black/80">
-              {selectedSectionLabel}
-            </span>
-          </div>
-
-          <div className="grid gap-5 py-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-5">
+          <div className="grid gap-5 py-3 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-4">
             <nav
               aria-label="配置模块"
               className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible"

@@ -1,7 +1,5 @@
 import {
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   FileVideo2,
   History,
@@ -11,7 +9,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -31,7 +29,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -116,8 +113,6 @@ export default function MediaCleanupSettingsPage() {
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewPage, setPreviewPage] = useState(1);
-  const previewPageSize = 10;
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -213,22 +208,6 @@ export default function MediaCleanupSettingsPage() {
 
   const eligibleFiles = inventory?.summary.eligibleFiles || 0;
   const eligibleBytes = inventory?.summary.eligibleBytes || 0;
-  const previewFiles = inventory?.files || [];
-  const previewPageCount = Math.max(
-    1,
-    Math.ceil(previewFiles.length / previewPageSize),
-  );
-  const visiblePreviewFiles = useMemo(
-    () =>
-      previewFiles.slice(
-        (previewPage - 1) * previewPageSize,
-        previewPage * previewPageSize,
-      ),
-    [previewFiles, previewPage],
-  );
-  useEffect(() => {
-    setPreviewPage((current) => Math.min(current, previewPageCount));
-  }, [previewPageCount]);
 
   if (historyOpen) {
     return (
@@ -526,113 +505,6 @@ export default function MediaCleanupSettingsPage() {
             </p>
           </div>
         </div>
-
-        <div className="mt-5 hidden grid gap-3">
-          {loading && (
-            <div className="grid min-h-32 place-items-center text-sm text-black/45">
-              <LoaderCircle className="size-5 animate-spin" />
-            </div>
-          )}
-          {!loading && inventory?.files.length === 0 && (
-            <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-black/45">
-              上传目录中没有媒体文件。
-            </div>
-          )}
-          {!loading &&
-            visiblePreviewFiles.map((file) => (
-              <article
-                className="rounded-xl border border-black/8 p-4"
-                key={file.objectId}
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="break-all text-sm font-semibold">
-                        {file.fileName}
-                      </p>
-                      <Badge
-                        variant={file.eligible ? 'destructive' : 'outline'}
-                      >
-                        {file.eligible ? '可清理' : '受保护'}
-                      </Badge>
-                      {file.orphan && (
-                        <Badge variant="secondary">孤儿文件</Badge>
-                      )}
-                    </div>
-                    <p className="mt-2 break-all font-mono text-[11px] leading-5 text-black/45">
-                      {file.absolutePath}
-                    </p>
-                    <p className="mt-2 text-xs text-black/55">{file.reason}</p>
-                  </div>
-                  <div className="shrink-0 text-left text-xs text-black/45 lg:text-right">
-                    <p className="font-semibold text-black/70">
-                      {formatBytes(file.fileSize)}
-                    </p>
-                    <p className="mt-1">修改：{formatDate(file.modifiedAt)}</p>
-                  </div>
-                </div>
-                {file.relatedNotes.length > 0 && (
-                  <div className="mt-3 border-t border-black/6 pt-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-black/35">
-                      关联笔记
-                    </p>
-                    <div className="mt-2 grid gap-1.5">
-                      {file.relatedNotes.map((note) => (
-                        <div
-                          className="flex flex-col gap-1 text-xs text-black/55 sm:flex-row sm:items-center sm:justify-between"
-                          key={note.jobId}
-                        >
-                          <span className="min-w-0 truncate">{note.title}</span>
-                          <span className="shrink-0">
-                            {note.status} ·{' '}
-                            {formatDate(note.completedAt || note.startedAt)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </article>
-            ))}
-        </div>
-        {!loading && previewFiles.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-4">
-            <p className="text-xs text-black/45">
-              显示第 {(previewPage - 1) * previewPageSize + 1}—
-              {Math.min(previewPage * previewPageSize, previewFiles.length)}{' '}
-              项，共 {previewFiles.length} 个文件
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                aria-label="上一页"
-                disabled={previewPage <= 1}
-                onClick={(): void =>
-                  setPreviewPage((current) => Math.max(1, current - 1))
-                }
-                size="icon"
-                variant="outline"
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="min-w-16 text-center text-xs text-black/55">
-                {previewPage} / {previewPageCount}
-              </span>
-              <Button
-                aria-label="下一页"
-                disabled={previewPage >= previewPageCount}
-                onClick={(): void =>
-                  setPreviewPage((current) =>
-                    Math.min(previewPageCount, current + 1),
-                  )
-                }
-                size="icon"
-                variant="outline"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          </div>
-        )}
       </section>
 
       <AlertDialog onOpenChange={setConfirmOpen} open={confirmOpen}>

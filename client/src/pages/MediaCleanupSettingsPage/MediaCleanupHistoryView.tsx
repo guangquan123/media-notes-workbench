@@ -115,18 +115,18 @@ export default function MediaCleanupHistoryView({
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-3 border-b border-black/8 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <Button onClick={onBack} size="sm" variant="outline">
             <ArrowLeft className="size-3.5" />
             返回媒体清理
           </Button>
-          <h2 className="mt-4 text-xl font-semibold tracking-tight">
-            执行历史
-          </h2>
-          <p className="mt-1 text-xs leading-5 text-black/50">
-            查看每次定时或手工清理的执行结果、时间和文件明细。
-          </p>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight">执行历史</h2>
+            <p className="mt-1 text-xs leading-5 text-black/50">
+              查看每次定时或手工清理的执行结果、时间和文件明细。
+            </p>
+          </div>
         </div>
         <Button
           disabled={loading}

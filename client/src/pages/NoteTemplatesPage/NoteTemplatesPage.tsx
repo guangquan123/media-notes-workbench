@@ -251,11 +251,11 @@ export default function NoteTemplatesPage({
         className={
           embedded
             ? ''
-            : 'mx-auto min-h-screen max-w-7xl px-5 py-4 md:px-8 md:py-5'
+            : 'mx-auto min-h-screen max-w-7xl px-5 py-2 md:px-8 md:py-3'
         }
       >
         {!embedded && (
-          <header className="flex items-center justify-between border-b border-black/8 pb-5">
+          <header className="flex items-center justify-between border-b border-black/8 pb-3">
             <div className="flex items-center gap-3">
               <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
                 <FilePenLine className="size-5" />
@@ -276,7 +276,7 @@ export default function NoteTemplatesPage({
           </header>
         )}
 
-        <section className="grid gap-6 py-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-6">
+        <section className="grid gap-6 py-3 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-4">
           <aside className="space-y-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3370ff]">

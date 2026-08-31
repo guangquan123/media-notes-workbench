@@ -228,7 +228,7 @@ export default function NoteTemplatesComparePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f6f7f5] p-8 text-sm text-black/50">
+      <main className="min-h-screen bg-[#f6f7f5] px-5 py-3 text-sm text-black/50 md:px-8 md:py-4">
         <LoaderCircle className="mr-2 inline size-4 animate-spin" />
         正在读取版本差异…
       </main>
@@ -237,7 +237,7 @@ export default function NoteTemplatesComparePage() {
 
   if (!template || !left || !right) {
     return (
-      <main className="min-h-screen bg-[#f6f7f5] px-5 py-8 text-[#161616] md:px-10">
+      <main className="min-h-screen bg-[#f6f7f5] px-5 py-3 text-[#161616] md:px-8 md:py-4">
         <div className="mx-auto max-w-3xl rounded-2xl border border-black/8 bg-white p-7 shadow-sm">
           <p className="text-sm font-semibold">无法打开版本比较</p>
           <p className="mt-2 text-sm leading-6 text-black/50">
@@ -258,20 +258,25 @@ export default function NoteTemplatesComparePage() {
   });
   return (
     <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
-      <div className="mx-auto min-h-screen max-w-[1500px] px-5 py-3 md:px-8 md:py-4">
-        <header className="border-b border-black/8 pb-3">
+      <div className="mx-auto min-h-screen max-w-[1500px] px-5 md:px-8">
+        <header className="sticky top-0 z-20 -mx-5 flex h-12 items-center justify-between gap-4 border-b border-black/8 bg-[#f6f7f5]/95 px-5 backdrop-blur md:-mx-8 md:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-xl bg-[#111315] text-white shadow-sm">
-                <FilePenLine className="size-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">提示词版本比较</p>
-                <p className="text-xs text-black/45">
-                  只读查看，不会改变当前生效版本
-                </p>
-              </div>
+            <nav
+              aria-label="面包屑"
+              className="flex items-center gap-2 text-xs text-black/45"
+            >
+              <span>工作台</span>
+              <span aria-hidden="true">/</span>
+              <span>参数配置</span>
+              <span aria-hidden="true">/</span>
+              <span className="font-medium text-black/80">版本比较</span>
+            </nav>
+            <div className="hidden items-center gap-2 text-xs text-black/45 sm:flex">
+              <FilePenLine className="size-3.5" />
+              <span>只读查看</span>
             </div>
+          </div>
+          <div className="shrink-0">
             <Button
               onClick={(): void => navigate(returnTo)}
               size="sm"
@@ -283,7 +288,7 @@ export default function NoteTemplatesComparePage() {
           </div>
         </header>
 
-        <section className="py-4">
+        <section className="py-3">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3370ff]">
