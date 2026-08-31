@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
-  AlertTriangle,
   ArrowLeft,
-  ArrowUpRight,
   Mic2,
   XCircle,
 } from 'lucide-react';
@@ -12,7 +10,6 @@ import { toast } from 'sonner';
 import {
   cancelNoteJob,
   createNoteJob,
-  getAiModelSettings,
   getNoteJob,
   getReadiness,
 } from '@/api';
@@ -24,7 +21,6 @@ import {
   type UploadFileData,
 } from '@/components/business-ui/api/files/service';
 import type {
-  AiModelSettings,
   NoteJob,
   NoteStyle,
   SystemReadiness,
@@ -59,10 +55,9 @@ import {
   ProcessingPanel,
   RecordingPanel,
   ReviewPanel,
+  RecordingStepRail,
   SetupPanel,
-  StatusLine,
 } from './RecordingPanels';
-import { getTranscriptionProviderLabel } from './recording-processing.utils';
 
 type RecordingPhase = 'setup' | 'recording' | 'paused' | 'review' | 'processing';
 type QualityLevel = 'good' | 'warning' | 'poor';
@@ -92,6 +87,7 @@ export default function RecordingNotesPage() {
   const [audioProfile, setAudioProfile] = useState<RecordingAudioProfile>(DEFAULT_RECORDING_AUDIO_PROFILE);
   const [languageMode, setLanguageMode] = useState<TranscriptionLanguageMode>('auto');
   const [hotwords, setHotwords] = useState<string>('');
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
   const [preparation, setPreparation] = useState<RecorderPreparation | null>(
     null,
   );
@@ -122,8 +118,6 @@ export default function RecordingNotesPage() {
     null,
   );
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [aiModelSettings, setAiModelSettings] =
-    useState<AiModelSettings | null>(null);
   const [preparing, setPreparing] = useState<boolean>(false);
   const [stopping, setStopping] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -245,22 +239,6 @@ export default function RecordingNotesPage() {
       !uploading &&
       !running,
   );
-  const configuredAsrLabel: string = aiModelSettings
-    ? aiModelSettings.transcriptionMode === 'custom_api'
-      ? aiModelSettings.transcriptionModel
-        ? `${aiModelSettings.transcriptionModel.providerName} · ${aiModelSettings.transcriptionModel.model}`
-        : 'API 大模型（尚未选择转录模型）'
-      : '腾讯 ASR 资源包 · 16k_zh_en_2.0'
-    : readiness
-      ? '尚未读取转录方式'
-      : '检测中';
-  const asrLabel: string = job
-    ? getTranscriptionProviderLabel(
-        job.transcriptionProvider,
-        job.transcriptionModel,
-        job.transcriptionProviderName,
-      )
-      : configuredAsrLabel;
 
   useEffect(() => {
     let cancelled = false;
@@ -277,11 +255,6 @@ export default function RecordingNotesPage() {
     void getReadiness()
       .then((next: SystemReadiness) => {
         if (!cancelled) setReadiness(next);
-      })
-      .catch(() => undefined);
-    void getAiModelSettings()
-      .then((next: AiModelSettings) => {
-        if (!cancelled) setAiModelSettings(next);
       })
       .catch(() => undefined);
     void loadLatestStoredRecording()
@@ -374,6 +347,15 @@ export default function RecordingNotesPage() {
   const prepareMicrophone = async (): Promise<void> => {
     setPreparing(true);
     setError(null);
+    setPreparation(null);
+    setDeviceState({ muted: false, state: 'checking' });
+    setMetrics({
+      clipCount: 0,
+      inputDetected: false,
+      peak: 0,
+      rms: 0,
+      silentForMs: 0,
+    });
     try {
       const nextPreparation: RecorderPreparation = await recorder.prepare(audioProfile);
       setPreparation(nextPreparation);
@@ -638,8 +620,21 @@ export default function RecordingNotesPage() {
     setJob(null);
     setError(null);
     setPreparation(null);
+    setAdvancedOpen(false);
     setDeviceState({ muted: false, state: 'checking' });
     setMetrics({ clipCount: 0, inputDetected: false, peak: 0, rms: 0, silentForMs: 0 });
+  };
+
+  const resetMicrophoneCheck = (): void => {
+    setPreparation(null);
+    setDeviceState({ muted: false, state: 'checking' });
+    setMetrics({
+      clipCount: 0,
+      inputDetected: false,
+      peak: 0,
+      rms: 0,
+      silentForMs: 0,
+    });
   };
 
   const signalWidth: number = Math.min(100, Math.max(2, metrics.rms * 320));
@@ -652,7 +647,7 @@ export default function RecordingNotesPage() {
 
   return (
     <main className="min-h-screen bg-[#eef2f6] text-[#111827]">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6 md:px-10 md:py-8">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-5 md:px-8 md:py-7">
         <header className="flex items-center justify-between gap-4 border-b border-black/10 pb-5">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-lg bg-[#111827] text-white shadow-sm">
@@ -675,20 +670,26 @@ export default function RecordingNotesPage() {
           </Link>
         </header>
 
-        <section className="grid flex-1 gap-6 py-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
-          <div className="rounded-xl border border-black/10 bg-white/90 p-6 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:p-8">
+        <section className="flex-1 py-6 md:py-7">
+          <div className="mx-auto max-w-4xl rounded-2xl border border-black/10 bg-white/95 p-5 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:p-9">
+            <RecordingStepRail phase={phase} />
             {phase === 'setup' && (
               <SetupPanel
                 audioProfile={audioProfile}
+                advancedOpen={advancedOpen}
                 canStart={canStart}
+                deviceState={deviceState}
+                error={error}
                 hotwords={hotwords}
                 languageMode={languageMode}
+                metrics={metrics}
                 noteStyle={noteStyle}
                 onDiscardRecovery={() => void discardRecording()}
                 onAudioProfileChange={(value: RecordingAudioProfile) => {
                   setAudioProfile(value);
-                  setPreparation(null);
+                  resetMicrophoneCheck();
                 }}
+                onAdvancedToggle={() => setAdvancedOpen((open: boolean) => !open)}
                 onHotwordsChange={setHotwords}
                 onLanguageModeChange={setLanguageMode}
                 onNoteStyleChange={setNoteStyle}
@@ -697,6 +698,7 @@ export default function RecordingNotesPage() {
                 onStart={() => void startRecording()}
                 onTitleChange={setTitle}
                 preparing={preparing}
+                preparation={preparation}
                 recoverable={recoverable}
                 storageReady={storageReady}
                 title={title}
@@ -759,50 +761,6 @@ export default function RecordingNotesPage() {
               </div>
             )}
           </div>
-
-          <aside className="space-y-4">
-            <section className="rounded-xl border border-black/10 bg-white/80 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold">录音质量保障</h2>
-                <span className={`text-xs font-semibold ${qualityColor}`}>{qualityCopy.label}</span>
-              </div>
-              <div className="mt-4 space-y-3">
-                <StatusLine label="麦克风权限" value={preparation ? '已允许' : '待检测'} />
-                <StatusLine label="设备连接" value={deviceState.state === 'ready' ? '正常' : deviceState.state === 'muted' ? '已静音' : '待检测'} />
-                <StatusLine
-                  label="采样参数"
-                  value={
-                    preparation
-                      ? `${preparation.sampleRate || '未知'} Hz · ${preparation.channelCount} 声道`
-                      : '待检测'
-                  }
-                />
-                <StatusLine label="声音输入" value={metrics.inputDetected ? '已检测到' : '请说话测试'} />
-                <StatusLine label="本地恢复" value={storageReady ? '每秒保存分片' : '仅当前页面内存'} />
-              </div>
-            </section>
-            <section className="rounded-xl border border-black/10 bg-white/80 p-5">
-              <h2 className="text-sm font-bold">当前处理配置</h2>
-              <p className="mt-2 text-xs leading-5 text-black/45">
-                新任务会按“模型服务与转录”中保存的方式处理；任务创建后会显示实际使用的提供者和模型。
-              </p>
-              <div className="mt-4 space-y-3">
-                <StatusLine label="转录引擎" value={asrLabel} />
-                <StatusLine label="说话人分离" value="沿用系统配置" />
-                <StatusLine label="处理环境" value={readiness?.mediaReady ? '已就绪' : readiness ? '需检查' : '检测中'} />
-              </div>
-              <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800" to="/ai-settings?tab=transcription">
-                查看模型与转录配置
-                <ArrowUpRight className="size-3.5" />
-              </Link>
-            </section>
-            <section className="rounded-xl border border-blue-100 bg-blue-50/70 p-5 text-xs leading-5 text-blue-950">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-blue-700" />
-                <p>浏览器切到后台、麦克风被系统静音或设备断开时，页面会立即提示。录音不会静默失败。</p>
-              </div>
-            </section>
-          </aside>
         </section>
       </div>
     </main>

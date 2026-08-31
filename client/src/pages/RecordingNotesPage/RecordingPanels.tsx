@@ -2,15 +2,22 @@ import type { ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   FileAudio,
+  FilePenLine,
+  Info,
   LoaderCircle,
   Mic2,
   Pause,
   Play,
   RefreshCcw,
   ShieldCheck,
+  SlidersHorizontal,
   Square,
+  TriangleAlert,
   UploadCloud,
   Volume2,
 } from 'lucide-react';
@@ -42,18 +49,27 @@ import {
   RECORDING_PROCESS_STAGES,
 } from './recording-processing.utils';
 import type { RecoverableRecording } from './recording-storage';
-import type { RecorderDeviceState, RecorderMetrics } from './reliable-recorder';
+import type {
+  RecorderDeviceState,
+  RecorderMetrics,
+  RecorderPreparation,
+} from './reliable-recorder';
 
 type ActiveRecordingPhase = 'recording' | 'paused';
 
 interface SetupPanelProps {
   audioProfile: RecordingAudioProfile;
+  advancedOpen: boolean;
   canStart: boolean;
+  deviceState: RecorderDeviceState;
+  error: string | null;
   hotwords: string;
   languageMode: TranscriptionLanguageMode;
+  metrics: RecorderMetrics;
   noteStyle: NoteStyle;
   onDiscardRecovery: () => void;
   onAudioProfileChange: (value: RecordingAudioProfile) => void;
+  onAdvancedToggle: () => void;
   onHotwordsChange: (value: string) => void;
   onLanguageModeChange: (value: TranscriptionLanguageMode) => void;
   onNoteStyleChange: (value: NoteStyle) => void;
@@ -62,6 +78,7 @@ interface SetupPanelProps {
   onStart: () => void;
   onTitleChange: (value: string) => void;
   preparing: boolean;
+  preparation: RecorderPreparation | null;
   recoverable: RecoverableRecording | null;
   storageReady: boolean;
   title: string;
@@ -110,14 +127,39 @@ interface ProcessingPanelProps {
   uploading: boolean;
 }
 
+type RecordingStepPhase = 'setup' | 'recording' | 'paused' | 'review' | 'processing';
+
+export function RecordingStepRail({ phase }: { phase: RecordingStepPhase }) {
+  const activeStep: number =
+    phase === 'setup' ? 0 : phase === 'recording' || phase === 'paused' ? 1 : 2;
+  return (
+    <nav aria-label={`当前步骤：${['准备', '录音', '确认'][activeStep]}`} className="recording-step-rail">
+      {['准备', '录音', '确认'].map((label: string, index: number) => (
+        <div className="recording-step" key={label}>
+          <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
+            {index < activeStep ? <Check className="size-4" /> : index + 1}
+          </span>
+          <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
+          {index < 2 && <i className={index < activeStep ? 'is-done' : ''} aria-hidden="true" />}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export function SetupPanel({
   audioProfile,
+  advancedOpen,
   canStart,
+  deviceState,
+  error,
   hotwords,
   languageMode,
+  metrics,
   noteStyle,
   onDiscardRecovery,
   onAudioProfileChange,
+  onAdvancedToggle,
   onHotwordsChange,
   onLanguageModeChange,
   onNoteStyleChange,
@@ -126,69 +168,213 @@ export function SetupPanel({
   onStart,
   onTitleChange,
   preparing,
+  preparation,
   recoverable,
   storageReady,
   title,
 }: SetupPanelProps) {
+  const micState: 'idle' | 'checking' | 'listening' | 'success' | 'error' =
+    preparing
+      ? 'checking'
+      : ['error', 'ended', 'muted'].includes(deviceState.state)
+        ? 'error'
+        : metrics.inputDetected
+          ? 'success'
+          : preparation
+            ? 'listening'
+            : 'idle';
+  const micStep: number =
+    micState === 'success' ? 2 : micState === 'listening' ? 1 : 0;
+  const meterPercent: number = Math.min(100, Math.max(0, metrics.rms * 320));
+  const meterActiveBars: number = Math.round((meterPercent / 100) * 30);
+  const micTitle: string = {
+    idle: '先检测麦克风',
+    checking: '正在连接麦克风…',
+    listening: '请说一句话测试',
+    success: '声音已检测到，可以开始录音',
+    error: '麦克风暂时不可用',
+  }[micState];
+  const micDescription: string = {
+    idle: '正式录音前必须完成设备和声音测试。',
+    checking: '请在浏览器弹窗中允许麦克风访问。',
+    listening: '说话时观察音量条，出现绿色波动就说明工作正常。',
+    success: '设备连接正常，录音时会持续显示声音状态。',
+    error: error || '请允许浏览器访问麦克风后重新检测。',
+  }[micState];
+  const micTone: string =
+    micState === 'success'
+      ? 'border-emerald-200 bg-emerald-50/60'
+      : micState === 'error'
+        ? 'border-red-200 bg-red-50/60'
+        : micState === 'listening' || micState === 'checking'
+          ? 'border-blue-200 bg-blue-50/50'
+          : 'border-amber-200 bg-amber-50/60';
+  const micButtonLabel: string =
+    micState === 'checking'
+      ? '正在检测麦克风'
+      : micState === 'idle'
+        ? '检测麦克风'
+        : '重新检测';
+
   return (
-    <div>
-      <div className="flex items-start justify-between gap-4">
+    <div className="recording-setup">
+      <div className="recording-intro">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.12em] text-blue-700">
-            独立录音入口
-          </p>
-          <h1 className="mt-3 text-3xl font-bold tracking-[-.04em] md:text-4xl">
-            直接录音，自动整理成笔记
-          </h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-black/50">
-            开始前先做麦克风声音测试；录音过程中持续检测音量、设备连接和数据写入，结束后先试听，再提交转录。
-          </p>
+          <p className="recording-kicker">录音笔记</p>
+          <h1>开始一段新录音</h1>
+          <p>设置标题，先完成麦克风检测，再开始录音。</p>
         </div>
-        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-blue-600 text-white shadow-lg shadow-blue-600/20">
-          <FileAudio className="size-5" />
+        <span className="recording-intro__icon" aria-hidden="true">
+          <Mic2 className="size-6" />
         </span>
       </div>
-      <label className="mt-8 block text-xs font-semibold text-black/60">
-        录音标题
-        <Input
-          className="mt-2 h-11 border-black/10 bg-[#fbfcff]"
-          onChange={(event) => onTitleChange(event.target.value)}
-          value={title}
-        />
-      </label>
-      <div className="mt-6">
-        <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
+
+      <div className="recording-required" role="note">
+        <span className="recording-required__number">1</span>
+        <div>
+          <strong>录音前必须检测麦克风</strong>
+          <span>确认设备已连接并能听到声音，检测通过后才会解锁开始录音。</span>
+        </div>
       </div>
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <div className="grid gap-2 text-xs font-semibold text-black/60">
-          录音模式
-          <Select
-            onValueChange={(value: string) =>
-              onAudioProfileChange(value as RecordingAudioProfile)
-            }
-            value={audioProfile}
+
+      {recoverable && (
+        <div className="recording-recovery" role="alert">
+          <div>
+            <strong>发现上次未完成的录音</strong>
+            <span>{formatRecordingDuration(recoverable.durationMs)} · 建议先恢复再开始新的录音</span>
+          </div>
+          <div className="recording-recovery__actions">
+            <Button onClick={onRecover} size="sm">恢复录音</Button>
+            <Button onClick={onDiscardRecovery} size="sm" variant="outline">丢弃</Button>
+          </div>
+        </div>
+      )}
+
+      <section className={`recording-mic-test ${micTone}`}>
+        <div className="recording-mic-test__header">
+          <div>
+            <p className="recording-section-label">麦克风检测</p>
+            <h2 aria-live="polite">{micTitle}</h2>
+            <p>{micDescription}</p>
+          </div>
+          <Button
+            className="recording-mic-test__button"
+            data-ai-section-type="button"
+            disabled={preparing}
+            onClick={onPrepare}
+            type="button"
           >
-            <SelectTrigger className="h-11 w-full border-black/10 bg-[#fbfcff] font-normal text-black/75">
-              <SelectValue />
-            </SelectTrigger>
+            {preparing ? <LoaderCircle className="animate-spin" /> : <Mic2 />}
+            {micButtonLabel}
+          </Button>
+        </div>
+
+        <div className="recording-mic-steps" aria-label="麦克风检测进度">
+          {['连接设备', '说一句话', '可以开始'].map((label: string, index: number) => (
+            <div className="recording-mic-step" key={label}>
+              <span
+                className={`recording-mic-step__node ${
+                  index < micStep ? 'is-done' : index === micStep ? 'is-active' : ''
+                }`}
+              >
+                {index < micStep ? <Check className="size-4" /> : index + 1}
+              </span>
+              <span>
+                <strong>{label}</strong>
+                <small>
+                  {index === 0
+                    ? micStep > 0
+                      ? '设备已连接'
+                      : '等待连接'
+                    : index === 1
+                      ? micStep > 1
+                        ? '声音输入正常'
+                        : micStep === 1
+                          ? '正在监听声音'
+                          : '待完成'
+                      : micStep === 2
+                        ? '检测通过'
+                        : '待完成'}
+                </small>
+              </span>
+              {index < 2 && (
+                <i className={index < micStep ? 'is-done' : ''} aria-hidden="true" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="recording-meter-row">
+          <span className="recording-meter-label"><Mic2 className="size-5" />实时音量</span>
+          <div className="recording-meter" aria-label={`实时音量 ${Math.round(meterPercent)}%`}>
+            {Array.from({ length: 30 }, (_, index: number) => (
+              <i
+                className={index < meterActiveBars ? 'is-on' : ''}
+                key={index}
+                style={{ height: `${8 + ((index * 7) % 14)}px` }}
+              />
+            ))}
+          </div>
+          <span className={`recording-meter-status ${micState === 'success' ? 'is-success' : ''}`}>
+            {micState === 'success' ? '声音正常' : micState === 'listening' ? '监听中' : '等待输入'}
+          </span>
+        </div>
+        {micState === 'listening' && (
+          <p className="recording-inline-tip"><Info className="size-4" />请靠近麦克风说话，看到绿色音量条再开始。</p>
+        )}
+        {micState === 'error' && (
+          <p className="recording-inline-tip is-error"><TriangleAlert className="size-4" />{micDescription}</p>
+        )}
+        {preparation?.deviceLabel && micState === 'success' && (
+          <p className="recording-device-copy">当前设备：{preparation.deviceLabel}</p>
+        )}
+      </section>
+
+      <div className="recording-form-grid">
+        <label className="recording-field">
+          <span>录音标题</span>
+          <div className="recording-input-wrap">
+            <FilePenLine className="size-4" />
+            <Input
+              aria-label="录音标题"
+              className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              maxLength={80}
+              onChange={(event) => onTitleChange(event.target.value)}
+              value={title}
+            />
+            <small>{title.length}/80</small>
+          </div>
+        </label>
+        <div className="recording-field">
+          <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
+        </div>
+      </div>
+
+      <button
+        aria-expanded={advancedOpen}
+        className="recording-advanced-toggle"
+        onClick={onAdvancedToggle}
+        type="button"
+      >
+        <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
+        {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+      </button>
+      {advancedOpen && <div className="recording-advanced-panel">
+        <label className="recording-field">
+          <span>录音模式</span>
+          <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
+            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
               <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
               <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="grid gap-2 text-xs font-semibold text-black/60">
-          语言模式
-          <Select
-            onValueChange={(value: string) =>
-              onLanguageModeChange(value as TranscriptionLanguageMode)
-            }
-            value={languageMode}
-          >
-            <SelectTrigger className="h-11 w-full border-black/10 bg-[#fbfcff] font-normal text-black/75">
-              <SelectValue />
-            </SelectTrigger>
+        </label>
+        <label className="recording-field">
+          <span>语言模式</span>
+          <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
+            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="auto">自动识别（推荐）</SelectItem>
               <SelectItem value="mandarin">普通话</SelectItem>
@@ -197,93 +383,41 @@ export function SetupPanel({
               <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </div>
-      <label className="mt-4 grid gap-2 text-xs font-semibold text-black/60">
-        本次词表（可选）
-        <Input className="h-11 border-black/10 bg-[#fbfcff] text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
-        <span className="font-normal text-black/40">词表只作为识别提示，不会覆盖原始转写。</span>
-      </label>
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <ReliabilityItem
-          icon={<ShieldCheck className="size-4" />}
-          label="开始前检查"
-          value="权限、设备、声音"
-        />
-        <ReliabilityItem
-          icon={<Volume2 className="size-4" />}
-          label="录音中监控"
-          value="音量、静音、削波"
-        />
-        <ReliabilityItem
-          icon={<RefreshCcw className="size-4" />}
-          label="意外可恢复"
-          value="每秒保存分片"
-        />
-      </div>
-      <div className="mt-7 rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-950">
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-blue-700" />
-          <p className="leading-6">
-            只有点击“开始录音”后才会持续采集。录音完成前不会提交转录，试听确认后才上传处理。
-          </p>
-        </div>
-      </div>
-      <div
-        className={`mt-4 rounded-lg border p-4 text-sm leading-6 ${
-          storageReady
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-            : 'border-red-200 bg-red-50 text-red-900'
-        }`}
-      >
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0" />
-          <p>
-            {storageReady
-              ? '录音保护已就绪：每秒写入本地恢复存储，页面意外刷新后可以找回。'
-              : '录音保护存储不可用，暂不允许开始录音，以免页面意外关闭后丢失内容。'}
-          </p>
-        </div>
-      </div>
-      {recoverable && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <span>
-            发现上次未完成的录音（
-            {formatRecordingDuration(recoverable.durationMs)}）
-          </span>
-          <span className="flex gap-2">
-            <Button onClick={onRecover} size="sm">
-              恢复录音
-            </Button>
-            <Button onClick={onDiscardRecovery} size="sm" variant="outline">
-              丢弃
-            </Button>
-          </span>
-        </div>
-      )}
-      <div className="mt-8 flex flex-wrap gap-3">
+        </label>
+        <label className="recording-field recording-field--full">
+          <span>词表（可选）</span>
+          <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
+        </label>
+      </div>}
+
+      <div className="recording-primary-action">
         <Button
-          className="min-h-11 bg-blue-600 px-5 hover:bg-blue-700"
-          disabled={preparing}
-          onClick={onPrepare}
-        >
-          {preparing ? (
-            <LoaderCircle className="animate-spin" />
-          ) : (
-            <Mic2 />
-          )}
-          {preparing ? '正在检测麦克风' : '检测麦克风'}
-        </Button>
-        <Button
-          className="min-h-11 px-5"
+          className="recording-start-button"
+          data-ai-section-type="button"
           disabled={!canStart}
           onClick={onStart}
-          variant="outline"
+          type="button"
         >
-          <Play />
-          开始录音
+          <Mic2 className="size-5" />开始录音
         </Button>
+        <p className="recording-start-hint">
+          {canStart
+            ? '准备完成，可以开始录音'
+            : micState === 'idle'
+              ? '请先点击上方“检测麦克风”'
+              : micState === 'checking'
+                ? '正在连接设备，请稍候…'
+                : micState === 'listening'
+                  ? '请说一句话，确认有声音输入'
+                  : micState === 'error'
+                    ? '麦克风不可用，请重新检测'
+                    : storageReady
+                      ? '检测通过后才可开始录音'
+                      : '录音保护存储未就绪，暂不能开始'}
+        </p>
       </div>
+      <p className="recording-privacy"><ShieldCheck className="size-4" />录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p>
+      {!storageReady && <p className="recording-storage-error"><AlertTriangle className="size-4" />录音保护存储不可用，暂不允许开始录音。</p>}
     </div>
   );
 }
