@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>多媒体笔记工作台 · 详情页紧凑排版原型</title>
+  <style>
+    :root {
+      --ink: #161616;
+      --muted: #777f8c;
+      --quiet: #a0a6ae;
+      --line: rgba(22, 22, 22, .10);
+      --page: #f7f7f5;
+      --surface: #fff;
+      --blue: #3370ff;
+      --orange: #e86f3d;
+      --green: #168b75;
+      --indigo: #4d5dff;
+      --shadow: 0 14px 35px rgba(35, 30, 24, .08);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; min-width: 320px; margin: 0; }
+    body { color: var(--ink); background: var(--page); font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .page { height: 100vh; overflow: hidden; padding: 16px 24px 14px; background: var(--page); }
+    .shell { display: flex; width: min(1440px, 100%); height: 100%; margin: auto; flex-direction: column; }
+    .topbar { display: flex; flex: none; min-height: 56px; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; min-width: 0; align-items: center; gap: 12px; }
+    .brand-icon { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border-radius: 13px; color: #fff; background: var(--accent); }
+    .brand-icon svg { width: 20px; height: 20px; }
+    .brand-title { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+    .brand-subtitle { display: block; margin-top: 3px; color: #858b95; font-size: 11px; }
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .status { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #cfe9dc; border-radius: 999px; background: #f8fffb; color: #2f805f; font-size: 11px; font-weight: 600; }
+    .status i { width: 6px; height: 6px; border-radius: 50%; background: #1daf6e; box-shadow: 0 0 0 3px rgba(29, 175, 110, .13); }
+    .back { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.88); color: #5d626a; font-size: 12px; }
+    .back:hover { border-color: color-mix(in srgb, var(--accent), #fff 50%); color: var(--accent); }
+    .preview-nav { display: flex; flex: none; gap: 6px; padding: 10px 0 8px; overflow-x: auto; }
+    .preview-nav button { display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #858b95; font-size: 11px; font-weight: 650; white-space: nowrap; }
+    .preview-nav button:hover { background: #fff; color: var(--accent); }
+    .preview-nav button.active { border-color: color-mix(in srgb, var(--accent), #fff 70%); background: color-mix(in srgb, var(--accent), #fff 91%); color: var(--accent); }
+    .preview-nav svg { width: 14px; height: 14px; }
+    .detail { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, .82fr) minmax(600px, 1.18fr); gap: 30px; padding: 8px 0 3px; }
+    .summary { display: flex; min-width: 0; flex-direction: column; justify-content: flex-start; padding: 38px 8px 14px 2px; }
+    .eyebrow { display: inline-flex; width: fit-content; align-items: center; gap: 7px; margin: 0 0 13px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--accent), #fff 72%); border-radius: 999px; background: color-mix(in srgb, var(--accent), #fff 92%); color: var(--accent); font-size: 11px; font-weight: 700; }
+    .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent), transparent 86%); }
+    .summary h1 { max-width: 560px; margin: 0; font-size: clamp(2rem, 3.35vw, 3.7rem); line-height: 1.08; letter-spacing: -.06em; }
+    .summary-copy { max-width: 550px; margin: 15px 0 0; color: #7a818b; font-size: 15px; line-height: 1.65; }
+    .stage-rail { display: grid; max-width: 600px; gap: 6px; margin-top: 23px; }
+    .stage-rail.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .stage-rail.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .stage-rail.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .stage { min-width: 0; padding: 9px 5px 8px; border: 1px solid #e0e2e4; border-radius: 10px; background: rgba(255,255,255,.55); color: #9399a1; text-align: center; font-size: 10px; }
+    .stage b { display: grid; width: 22px; height: 22px; margin: 0 auto 5px; place-items: center; border-radius: 50%; background: #eeeeed; color: #8f949b; font-size: 10px; }
+    .stage.active { border-color: color-mix(in srgb, var(--accent), #fff 55%); background: color-mix(in srgb, var(--accent), #fff 95%); color: var(--accent); }
+    .stage.active b { background: var(--accent); color: #fff; }
+    .trust { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 17px; color: #8d939b; font-size: 10px; }
+    .trust span { display: inline-flex; align-items: center; gap: 4px; }
+    .trust b { color: #2b9b6b; font-size: 13px; }
+    .workspace { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); }
+    .workspace-inner { display: flex; height: 100%; min-height: 0; flex-direction: column; padding: 21px 24px 19px; }
+    .workspace-head { display: flex; flex: none; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid rgba(22,22,22,.07); }
+    .workspace-head h2 { margin: 0; font-size: 19px; letter-spacing: -.04em; }
+    .workspace-head p { margin: 5px 0 0; color: #9298a1; font-size: 12px; line-height: 1.45; }
+    .workspace-mark { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 11px; color: #fff; background: var(--accent); }
+    .workspace-mark svg { width: 17px; height: 17px; }
+    .section-label { margin: 13px 0 8px; color: #6e747c; font-size: 11px; font-weight: 700; }
+    .drop-grid { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+    .dropzone { display: flex; min-height: 164px; align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 14px; border: 1px dashed #d2d4d6; border-radius: 17px; background: #fbfbfa; text-align: center; }
+    .dropzone:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent), #fff 97%); }
+    .drop-icon { display: grid; width: 42px; height: 42px; margin-bottom: 4px; place-items: center; border-radius: 14px; color: #fff; background: var(--accent); }
+    .drop-icon svg { width: 20px; height: 20px; }
+    .dropzone strong { font-size: 13px; }
+    .dropzone small { color: #a1a6ad; font-size: 10px; line-height: 1.45; }
+    .dropzone button { margin-top: 3px; padding: 6px 10px; border: 1px solid #e0e2e4; border-radius: 7px; background: #fff; color: #6d737c; font-size: 10px; }
+    .dropzone button:hover { border-color: var(--accent); color: var(--accent); }
+    .dropzone.single { min-height: 176px; }
+    .dropzone.single .drop-icon { width: 45px; height: 45px; }
+    .meta-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: #969ba2; font-size: 10px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .tag { padding: 5px 8px; border: 1px solid #e2e4e6; border-radius: 7px; color: #858b94; font-size: 10px; }
+    .control-row { display: grid; gap: 8px; margin-top: 10px; }
+    .control-row.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .control { display: flex; min-height: 45px; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 11px; border-radius: 11px; background: #f7f7f5; }
+    .control span { color: #717780; font-size: 11px; }
+    .segmented { display: inline-flex; gap: 4px; }
+    .segmented button { padding: 5px 8px; border: 1px solid #e2e4e6; border-radius: 6px; background: #fff; color: #858b93; font-size: 10px; }
+    .segmented button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .style-option { display: block; min-height: 60px; padding: 10px 11px; border: 1px solid #e1e3e5; border-radius: 11px; background: #fff; text-align: left; }
+    .style-option strong { display: block; font-size: 12px; }
+    .style-option small { display: block; margin-top: 4px; color: #9a9fa6; font-size: 10px; }
+    .style-option.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent), #fff 95%); }
+    .style-option.active strong { color: var(--accent); }
+    .visual-strip { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 9px 11px; border: 1px solid #e8e9ea; border-radius: 11px; }
+    .visual-strip span { color: #777d85; font-size: 10px; }
+    .toggle { width: 35px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: #d9dce0; }
+    .toggle i { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s ease; }
+    .toggle.on { background: var(--accent); }
+    .toggle.on i { transform: translateX(15px); }
+    .workspace-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 13px; border-top: 1px solid rgba(22,22,22,.07); }
+    .workspace-footer small { max-width: 54%; color: #9a9fa6; font-size: 10px; line-height: 1.45; }
+    .primary { min-height: 39px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; box-shadow: 0 8px 18px color-mix(in srgb, var(--accent), transparent 76%); }
+    .primary:hover { filter: brightness(.94); }
+    .recording-surface { display: grid; min-height: 0; grid-template-columns: minmax(0,1.05fr) minmax(0,.95fr); gap: 12px; }
+    .recording-panel { min-width: 0; padding: 13px; border: 1px solid #e6e8eb; border-radius: 14px; background: #fcfcfb; }
+    .recording-panel h3 { margin: 0; font-size: 14px; letter-spacing: -.02em; }
+    .recording-panel p { margin: 4px 0 0; color: #9a9fa5; font-size: 10px; line-height: 1.45; }
+    .mic-status { display: flex; align-items: center; gap: 10px; margin-top: 13px; padding: 11px; border-radius: 11px; background: #eef8f4; color: #237d64; }
+    .mic-status b { font-size: 12px; }
+    .mic-status small { display: block; margin-top: 2px; color: #72a996; font-size: 10px; }
+    .mic-dot { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: var(--green); color: #fff; }
+    .meter { display: flex; height: 31px; align-items: end; gap: 3px; margin-top: 14px; padding: 0 3px; }
+    .meter i { width: 5px; height: 8px; border-radius: 3px 3px 0 0; background: #d9ebe4; }
+    .meter i:nth-child(2n) { height: 15px; }.meter i:nth-child(3n) { height: 24px; }.meter i:nth-child(5n) { height: 18px; }
+    .meter i.on { background: #36ad83; }
+    .mic-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-top: 10px; }
+    .mic-step { padding: 7px 4px; border: 1px solid #e2e5e5; border-radius: 8px; color: #9ca1a8; text-align: center; font-size: 9px; }
+    .mic-step.active { border-color: #8dcab6; background: #f1faf6; color: #287d64; }
+    .mic-step b { display: block; margin-bottom: 3px; font-size: 10px; }
+    .field { display: block; margin-bottom: 10px; color: #737981; font-size: 10px; font-weight: 650; }
+    .field input { width: 100%; height: 34px; margin-top: 5px; padding: 0 9px; border: 1px solid #e1e3e5; border-radius: 8px; outline: 0; background: #fff; color: #34383d; font-size: 11px; }
+    .field input:focus { border-color: var(--indigo); }
+    .advanced { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; padding: 9px 0 0; border-top: 1px solid #ececed; color: #747a82; font-size: 10px; }
+    .recording-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(22,22,22,.07); }
+    .recording-footer small { color: #9298a0; font-size: 10px; }
+    .record-button { display: inline-flex; min-height: 40px; align-items: center; gap: 7px; padding: 0 16px; border: 0; border-radius: 10px; background: #123b96; color: #fff; font-size: 11px; font-weight: 700; box-shadow: 0 9px 20px rgba(18,59,150,.24); }
+    .record-button:hover { background: #0b2e79; }
+    .toast { position: fixed; right: 24px; bottom: 20px; z-index: 2; display: none; padding: 10px 13px; border: 1px solid #dfe4ed; border-radius: 10px; background: #fff; box-shadow: var(--shadow); color: #596274; font-size: 11px; }
+    .toast.show { display: block; }
+    @media (max-width: 1080px) { .detail { grid-template-columns: minmax(0,.72fr) minmax(530px,1.28fr); gap: 18px; }.summary h1 { font-size: clamp(1.9rem, 3.5vw, 3rem); }.workspace-inner { padding-inline: 17px; } }
+    @media (max-width: 860px) { .page { height: auto; min-height: 100vh; overflow: visible; }.shell { height: auto; }.detail { grid-template-columns: 1fr; }.summary { justify-content: flex-start; padding-top: 22px; }.workspace { min-height: 560px; }.summary h1 { max-width: 700px; }.recording-surface { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .page { padding: 12px; }.top-actions .status { display: none; }.topbar { min-height: 52px; }.preview-nav { padding-top: 8px; }.drop-grid, .control-row.two, .style-grid { grid-template-columns: 1fr; }.workspace-inner { padding: 15px; }.workspace-footer, .recording-footer { align-items: stretch; flex-direction: column; }.workspace-footer small { max-width: none; }.primary, .record-button { width: 100%; justify-content: center; }.stage-rail.six, .stage-rail.seven { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  </style>
+</head>
+<body>
+  <main class="page" id="page">
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-icon" id="brandIcon"></span><span><strong class="brand-title" id="brandTitle"></strong><small class="brand-subtitle">上传、转录、总结、发布</small></span></div>
+        <div class="top-actions"><span class="status"><i></i>本地运行正常</span><button class="back" id="backBtn" type="button">← 返回入口</button></div>
+      </header>
+      <nav class="preview-nav" aria-label="详情页原型切换" id="previewNav"></nav>
+      <section class="detail" id="detail"></section>
+    </div>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const icon = (name) => {
+      const paths = {
+        video: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h7A2.5 2.5 0 0 1 16 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 4 18.5z"/><path d="m16 9 4-2v10l-4-2z"/><path d="m9 8 4 4-4 4z"/>',
+        audio: '<rect x="5" y="3" width="14" height="18" rx="7"/><path d="M9 8v5a3 3 0 0 0 6 0V8"/><path d="M12 20v2M8 22h8"/>',
+        document: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/>',
+        paired: '<circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 0 1 2.2-5.9M21 12a9 9 0 0 0-2.2-5.9M3 12a9 9 0 0 0 2.2 5.9M21 12a9 9 0 0 1-2.2 5.9"/>',
+        mic: '<rect x="8" y="3" width="8" height="13" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',
+        upload: '<path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
+        check: '<path d="m5 12 4 4L19 6"/>',
+      };
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.document}</svg>`;
+    };
+
+    const mediaStages = ['安全上传', '整理媒体', '处理画面', '语音转文字', '生成笔记', '保存笔记'];
+    const documentStages = ['安全上传', '读取文件', '解析原文', '生成笔记', '保存笔记'];
+    const data = {
+      paired: {
+        key: 'paired', label: '双源会议 / 培训', title: '双源会议 / 培训工作台', accent: '#4d5dff', icon: 'paired',
+        hero: '把画面和声音，整理成一份可核对的会议笔记。',
+        description: '系统会自动对齐两路声音，分别转写，再结合视频关键画面生成融合时间线。数字、术语或结论不一致时会保留两种说法，交给你确认。',
+        stages: ['安全上传', '提取音轨', '时间对齐', '处理画面', '双路转写', '交叉验证', '写入飞书'], type: 'paired'
+      },
+      video: {
+        key: 'video', label: '本地视频', title: '本地视频工作台', accent: '#e86f3d', icon: 'video',
+        hero: '把本地视频，变成一篇有结构的学习笔记。',
+        description: '上传课程、讲座或屏幕录制，系统会提取音轨、转录内容并整理成可复习的学习笔记。',
+        stages: mediaStages, type: 'media', source: '视频', hint: '最多 10 个视频，单个及累计均不超过 10 GB'
+      },
+      recording: {
+        key: 'recording', label: '录音整理', title: '录音整理工作台', accent: '#168b75', icon: 'audio',
+        hero: '让一段录音，沉淀成真正可复习的笔记。',
+        description: '录音前先完成麦克风和声音测试，结束后试听确认，再进入转录和整理，避免漏录和断音。',
+        stages: ['准备', '录音', '确认'], type: 'recording'
+      },
+      document: {
+        key: 'document', label: '文档学习', title: '文档学习工作台', accent: '#3370ff', icon: 'document',
+        hero: '把多份文档，沉淀成一篇可回顾的知识资产。',
+        description: '上传书籍、报告、论文或课程资料，系统会解析原文、提炼知识结构并生成可追溯的学习笔记。',
+        stages: documentStages, type: 'media', source: '文档', hint: '支持 PDF、Word、PowerPoint、TXT、Markdown；最多 10 个，累计不超过 200 MB'
+      }
+    };
+    let current = 'paired';
+
+    function button(label, className = '') { return `<button type="button" class="${className}">${label}</button>`; }
+    function stages(items, active = 0) { return `<div class="stage-rail ${items.length === 7 ? 'seven' : items.length === 6 ? 'six' : 'three'}">${items.map((label, index) => `<div class="stage ${index === active ? 'active' : ''}"><b>${index < active ? icon('check') : index + 1}</b>${label}</div>`).join('')}</div>`; }
+    function commonSummary(screen) { return `<div class="summary"><p class="eyebrow"><i></i>${screen.title}</p><h1>${screen.hero}</h1><p class="summary-copy">${screen.description}</p>${stages(screen.stages, screen.type === 'recording' ? 0 : 0)}<div class="trust"><span><b>✓</b>原始文件保留</span><span><b>✓</b>处理状态可追溯</span><span><b>✓</b>可回到原文核对</span></div></div>`; }
+    function dropzone(label, hint, kind) { return `<div class="dropzone"><span class="drop-icon">${icon(kind)}</span><strong>${label}</strong><small>${hint}</small>${button('选择文件', 'demo-select')}</div>`; }
+    function styleOptions() { return `<p class="section-label">笔记风格</p><div class="style-grid"><button type="button" class="style-option active"><strong>学习笔记</strong><small>通用学习、系统总结与行动清单</small></button><button type="button" class="style-option"><strong>会议纪要</strong><small>议题、决策、待办与责任人</small></button></div>`; }
+    function visualOptions() { return `<div class="visual-strip"><span>关键画面与视觉证据（可选）</span><button type="button" class="toggle" aria-label="关键画面开关"><i></i></button></div>`; }
+    function mediaWorkspace(screen) { const isVideo = screen.source === '视频'; return `<section class="workspace"><div class="workspace-inner"><div class="workspace-head"><div><h2>选择${screen.source}文件</h2><p>${screen.hint}</p></div><span class="workspace-mark">${icon(screen.icon)}</span></div><p class="section-label">上传${screen.source}文件</p>${dropzone('拖入文件，或点击选择', '文件仅用于生成当前学习笔记', screen.icon === 'document' ? 'document' : 'upload')}<div class="meta-line"><span>尚未选择文件</span><span>${screen.source === '文档' ? '最多 10 个' : '支持常见本地格式'}</span></div>${styleOptions()}${isVideo ? visualOptions() : ''}<div class="workspace-footer"><small>结果保留原文锚点，处理完成后可回到转化记录核对。</small>${button('开始生成学习笔记 →', 'primary demo-action')}</div></div></section>`; }
+    function pairedWorkspace(screen) { return `<section class="workspace"><div class="workspace-inner"><div class="workspace-head"><div><h2>选择双源文件</h2><p>主视频与辅助录音累计不超过 10 GB</p></div><span class="workspace-mark">${icon('paired')}</span></div><p class="section-label">上传两份素材</p><div class="drop-grid">${dropzone('主视频', '提供屏幕、PPT 和视频音轨', 'video')}${dropzone('辅助录音', '提供更清晰的讲话内容', 'audio')}</div><div class="meta-line"><span>两个文件累计 0 B / 10 GB</span><span>原始文件会保留</span></div><div class="control-row two"><div class="control"><span>时间对齐</span><div class="segmented">${button('自动对齐', 'active')}${button('手动偏移')}</div></div><div class="control"><span>视觉证据</span><div class="segmented">${button('关闭', 'active')}${button('开启')}</div></div></div>${styleOptions()}<div class="workspace-footer"><small>两个文件会在本机处理，完成后保留两路证据供核对。</small>${button('开始双源交叉验证 →', 'primary demo-action')}</div></div></section>`; }
+    function recordingWorkspace(screen) { return `<section class="workspace"><div class="workspace-inner"><div class="workspace-head"><div><h2>准备录音</h2><p>录音、试听、转录、整理</p></div><span class="workspace-mark">${icon('mic')}</span></div><div class="recording-surface"><section class="recording-panel"><h3>麦克风检测</h3><p>正式录音前完成设备和声音测试。</p><div class="mic-status"><span class="mic-dot">${icon('mic')}</span><span><b>声音已检测到</b><small>设备连接正常，可以开始录音</small></span></div><div class="meter">${Array.from({length: 24}, (_, i) => `<i class="${i < 17 ? 'on' : ''}"></i>`).join('')}</div><div class="mic-steps"><div class="mic-step active"><b>1</b>连接设备</div><div class="mic-step active"><b>2</b>说一句话</div><div class="mic-step"><b>3</b>可以开始</div></div></section><section class="recording-panel"><h3>录音设置</h3><p>先把这段录音准备好。</p><label class="field">录音标题<input value="未命名录音 · 2026-09-01" aria-label="录音标题" /></label><label class="field">笔记风格<div class="style-grid"><button type="button" class="style-option active"><strong>会议纪要</strong><small>议题、决策、待办</small></button><button type="button" class="style-option"><strong>学习笔记</strong><small>重点与行动清单</small></button></div></label><div class="advanced"><span>高级设置 · 录音模式、语言、词表</span><span>⌄</span></div></section></div><div class="recording-footer"><small>开始前会持续显示实时音量，录音结束后可试听确认。</small>${button('◉ 开始录音', 'record-button demo-action')}</div></div></section>`; }
+    function render() { const screen = data[current]; document.documentElement.style.setProperty('--accent', screen.accent); document.getElementById('brandIcon').innerHTML = icon(screen.icon); document.getElementById('brandTitle').textContent = screen.title; document.getElementById('previewNav').innerHTML = Object.values(data).map(item => `<button class="${item.key === current ? 'active' : ''}" data-page="${item.key}">${icon(item.icon)}${item.label}</button>`).join(''); const right = screen.type === 'paired' ? pairedWorkspace(screen) : screen.type === 'recording' ? recordingWorkspace(screen) : mediaWorkspace(screen); document.getElementById('detail').innerHTML = commonSummary(screen) + right; bind(); }
+    function toast(message) { const node = document.getElementById('toast'); node.textContent = message; node.classList.add('show'); window.clearTimeout(window.__toastTimer); window.__toastTimer = window.setTimeout(() => node.classList.remove('show'), 1800); }
+    function bind() { document.querySelectorAll('[data-page]').forEach(item => item.addEventListener('click', () => { current = item.dataset.page; render(); })); document.getElementById('backBtn').onclick = () => toast('原型演示：返回工作台入口'); document.querySelectorAll('.demo-action').forEach(item => item.addEventListener('click', () => toast('原型演示：已保留当前页面功能语义'))); document.querySelectorAll('.demo-select').forEach(item => item.addEventListener('click', event => { event.preventDefault(); toast('原型演示：打开本地文件选择器'); })); document.querySelectorAll('.style-option').forEach(item => item.addEventListener('click', () => { item.parentElement.querySelectorAll('.style-option').forEach(option => option.classList.remove('active')); item.classList.add('active'); })); document.querySelectorAll('.segmented button').forEach(item => item.addEventListener('click', () => { item.parentElement.querySelectorAll('button').forEach(option => option.classList.remove('active')); item.classList.add('active'); })); document.querySelectorAll('.toggle').forEach(item => item.addEventListener('click', () => item.classList.toggle('on'))); }
+    render();
+  </script>
+</body>
+</html>
