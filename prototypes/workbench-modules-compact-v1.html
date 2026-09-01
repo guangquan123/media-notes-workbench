@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>多媒体笔记工作台 · 四模块紧凑布局原型</title>
+  <style>
+    :root {
+      --ink: #101a2d;
+      --muted: #718096;
+      --quiet: #96a3b5;
+      --line: #dfe7f2;
+      --page: #eef3f8;
+      --surface: #ffffff;
+      --blue: #2458db;
+      --blue-deep: #0b2d73;
+      --blue-soft: #edf4ff;
+      --cyan: #38bdf8;
+      --green: #15935a;
+      --shadow: 0 18px 42px rgba(20, 45, 88, .09);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-width: 320px; height: 100%; margin: 0; }
+    body { color: var(--ink); background: var(--page); font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .prototype {
+      height: 100vh;
+      overflow: hidden;
+      padding: 16px 24px 14px;
+      background:
+        radial-gradient(850px 420px at 5% -12%, rgba(138, 183, 255, .23), transparent 72%),
+        radial-gradient(760px 360px at 96% 2%, rgba(100, 226, 218, .13), transparent 72%),
+        var(--page);
+    }
+    .shell { display: flex; flex-direction: column; width: min(1540px, 100%); height: 100%; margin: auto; }
+
+    .topbar { display: flex; height: 58px; flex: none; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid rgba(34, 58, 96, .12); }
+    .brand { display: inline-flex; min-width: 0; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+    .brand-mark { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border-radius: 11px; background: linear-gradient(145deg, #0b1832, #1c3d7c 62%, #2b6add); color: #fff; box-shadow: 0 10px 20px rgba(20, 65, 150, .2); }
+    .brand-mark svg { width: 20px; height: 20px; }
+    .brand strong, .brand small { display: block; }
+    .brand strong { font-size: 16px; letter-spacing: -.035em; }
+    .brand small { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #d5e4dc; border-radius: 9px; background: rgba(248, 255, 251, .8); color: #2f7759; font-size: 11px; font-weight: 700; }
+    .status i { width: 7px; height: 7px; border-radius: 50%; background: #1db16d; box-shadow: 0 0 0 4px rgba(29, 177, 109, .12); }
+    .btn { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, .85); color: #53627a; font-size: 11px; font-weight: 700; transition: .18s ease; }
+    .btn:hover { border-color: #a9c2f3; background: #fff; color: var(--blue); }
+    .btn.primary { border-color: var(--blue); background: var(--blue); color: #fff; box-shadow: 0 8px 18px rgba(36, 88, 219, .2); }
+    .btn.primary:hover { border-color: #1745bc; background: #1745bc; color: #fff; }
+
+    .module-tabs { display: flex; flex: none; gap: 7px; padding: 12px 0 10px; overflow-x: auto; }
+    .module-tab { display: inline-flex; min-height: 34px; flex: none; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #67758b; font-size: 11px; font-weight: 750; white-space: nowrap; }
+    .module-tab:hover { background: rgba(255, 255, 255, .65); color: var(--blue); }
+    .module-tab.active { border-color: #c8d9fb; background: #e9f1ff; color: #1b52cc; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .65); }
+    .module-tab svg { width: 15px; height: 15px; }
+
+    .content { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, .92fr) minmax(560px, 1.08fr); gap: 22px; padding: 8px 0 4px; }
+    .intro { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 10px 8px 18px 4px; }
+    .eyebrow { display: inline-flex; width: fit-content; align-items: center; gap: 7px; margin: 0 0 13px; padding: 6px 10px; border: 1px solid #cfe0ff; border-radius: 999px; background: rgba(237, 245, 255, .78); color: #2458db; font-size: 11px; font-weight: 800; }
+    .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, .13); }
+    .intro h1 { max-width: 640px; margin: 0; font-size: clamp(2.2rem, 4vw, 4rem); line-height: 1.02; letter-spacing: -.065em; }
+    .intro-copy { max-width: 600px; margin: 16px 0 0; color: #718096; font-size: 16px; line-height: 1.65; }
+    .workflow { display: grid; max-width: 630px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 25px; }
+    .workflow-step { position: relative; min-width: 0; padding: 10px 9px; border: 1px solid #dce5f1; border-radius: 10px; background: rgba(255, 255, 255, .62); }
+    .workflow-step strong, .workflow-step span { display: block; }
+    .workflow-step strong { color: #53627a; font-size: 11px; }
+    .workflow-step span { margin-top: 4px; overflow: hidden; color: #9aa7b8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .workflow-step.is-active { border-color: #bed2fb; background: #edf4ff; box-shadow: inset 0 2px 0 #3b73e8; }
+    .workflow-step.is-active strong { color: #1e55cc; }
+    .workflow-step::after { position: absolute; top: 50%; right: -8px; width: 8px; height: 1px; background: #cfdae8; content: ""; }
+    .workflow-step:last-child::after { display: none; }
+    .trust-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; color: #7c899d; font-size: 10px; }
+    .trust-row span { display: inline-flex; align-items: center; gap: 5px; }
+    .trust-row b { color: #2d9a66; font-size: 13px; }
+
+    .action-card { position: relative; min-width: 0; overflow: hidden; border: 1px solid transparent; border-radius: 18px; background: linear-gradient(150deg, #fff 0%, #fbfcff 100%) padding-box, linear-gradient(128deg, #b5ceff 0%, #e4d9ff 54%, #b9e5da 100%) border-box; box-shadow: var(--shadow); }
+    .action-card::before { position: absolute; inset: 1px; border-radius: 17px; background: linear-gradient(145deg, rgba(255,255,255,.7), transparent 40%); content: ""; pointer-events: none; }
+    .action-inner { position: relative; z-index: 1; display: flex; height: 100%; flex-direction: column; padding: 25px 27px 21px; }
+    .action-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+    .action-head h2 { margin: 0; font-size: 24px; letter-spacing: -.045em; }
+    .action-head p { max-width: 520px; margin: 7px 0 0; color: #7c899d; font-size: 12px; line-height: 1.55; }
+    .action-mark { display: grid; width: 42px; height: 42px; flex: none; place-items: center; border-radius: 12px; background: #111c31; color: #fff; box-shadow: 0 8px 17px rgba(17, 28, 49, .14); }
+    .action-mark svg { width: 21px; height: 21px; }
+    .section-label { margin: 20px 0 8px; color: #65748a; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+    .drop-grid { display: grid; min-height: 0; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .dropzone { display: flex; min-height: 190px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 17px; border: 1px dashed #c6d2e2; border-radius: 14px; background: #fbfcfe; text-align: center; transition: .18s ease; }
+    .dropzone:hover { border-color: #83a8ef; background: #f5f8ff; }
+    .drop-icon { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 13px; background: #e8f0ff; color: #2c64df; }
+    .drop-icon svg { width: 22px; height: 22px; }
+    .dropzone strong { font-size: 14px; }
+    .dropzone span { color: #93a0b2; font-size: 11px; line-height: 1.45; }
+    .dropzone .btn { margin-top: 4px; }
+    .dropzone.is-dark { border: 1px solid rgba(114, 164, 255, .65); background: linear-gradient(124deg, #0c2d73, #1a4bae 55%, #2764db); color: #fff; box-shadow: 0 14px 26px rgba(20, 66, 164, .22); }
+    .dropzone.is-dark:hover { background: linear-gradient(124deg, #0a2868, #1745a2 55%, #215dd2); }
+    .dropzone.is-dark .drop-icon { background: rgba(255,255,255,.14); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+    .dropzone.is-dark span { color: rgba(235, 244, 255, .75); }
+    .dropzone.is-dark .btn { border-color: rgba(255,255,255,.8); background: #fff; color: #164399; }
+    .dropzone--single { min-height: 252px; }
+    .option-row { display: flex; flex-wrap: wrap; gap: 7px; }
+    .option { display: inline-flex; flex: 1; min-width: 125px; flex-direction: column; gap: 4px; padding: 11px 12px; border: 1px solid #dfe7f2; border-radius: 10px; background: #fff; color: #5c6b80; text-align: left; }
+    .option strong { color: #293952; font-size: 12px; }
+    .option span { color: #96a3b4; font-size: 10px; }
+    .option.active { border-color: #6e99eb; background: #eff5ff; box-shadow: 0 0 0 3px rgba(47, 98, 217, .08); }
+    .option.active strong { color: #1e55cc; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+    .tag { padding: 5px 8px; border: 1px solid #e0e6ef; border-radius: 6px; background: #fff; color: #7c899b; font-size: 10px; }
+    .action-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e7edf5; }
+    .action-footer small { color: #98a4b4; font-size: 10px; line-height: 1.5; }
+    .action-footer .btn { min-height: 39px; padding-inline: 17px; }
+    .note-box { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #dce8fd; border-radius: 9px; background: #f5f8ff; color: #5474b3; font-size: 10px; line-height: 1.45; }
+    .note-box b { color: #2460d7; font-size: 13px; }
+    .record-panel { display: grid; min-height: 0; flex: 1; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .record-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid #9bc1ff; border-radius: 12px; background: linear-gradient(125deg, #f0f6ff, #f9fbff); }
+    .record-status strong, .record-status span { display: block; }
+    .record-status strong { color: #1e55cc; font-size: 13px; }
+    .record-status span { margin-top: 4px; color: #7b8a9f; font-size: 10px; }
+    .record-status__dot { display: flex; align-items: center; gap: 7px; color: #2e9666; font-size: 10px; font-weight: 800; }
+    .record-status__dot i { width: 8px; height: 8px; border-radius: 50%; background: #1fb16c; box-shadow: 0 0 0 4px rgba(31,177,108,.12); }
+    .record-visual { position: relative; display: flex; min-height: 200px; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #dce7f8; border-radius: 14px; background: linear-gradient(145deg, #f8fbff, #edf5ff); }
+    .record-visual::before { position: absolute; width: 320px; height: 160px; border: 1px solid rgba(97, 151, 242, .2); border-radius: 50%; content: ""; }
+    .record-visual::after { position: absolute; width: 240px; height: 120px; border: 1px solid rgba(97, 151, 242, .14); border-radius: 50%; content: ""; }
+    .record-button { position: relative; z-index: 1; display: grid; width: 68px; height: 68px; place-items: center; border: 0; border-radius: 50%; background: linear-gradient(145deg, #1649b2, #2f72eb); color: #fff; box-shadow: 0 14px 26px rgba(36, 88, 219, .28), 0 0 0 9px rgba(65, 124, 234, .12); }
+    .record-button svg { width: 28px; height: 28px; }
+    .record-visual strong, .record-visual span { position: relative; z-index: 1; }
+    .record-visual strong { margin-top: 15px; font-size: 14px; }
+    .record-visual span { margin-top: 5px; color: #7e8da4; font-size: 10px; }
+    .meter { display: flex; width: min(320px, 70%); height: 24px; align-items: center; gap: 4px; margin-top: 16px; }
+    .meter i { display: block; width: 5px; height: 8px; flex: 1; max-width: 9px; border-radius: 5px; background: #cbdaf2; }
+    .meter i:nth-child(2n), .meter i:nth-child(3n) { height: 15px; }
+    .meter i.on { background: #3c78e8; box-shadow: 0 0 7px rgba(60, 120, 232, .4); }
+    .record-controls { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+    .toast { position: fixed; left: 50%; bottom: 20px; z-index: 5; padding: 10px 14px; border-radius: 9px; background: #111c31; color: #fff; font-size: 11px; opacity: 0; pointer-events: none; transform: translate(-50%, 10px); transition: .18s ease; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 1040px) {
+      .prototype { padding-inline: 18px; }
+      .content { grid-template-columns: minmax(0, .84fr) minmax(480px, 1.16fr); gap: 15px; }
+      .action-inner { padding-inline: 21px; }
+      .intro h1 { font-size: 2.65rem; }
+    }
+    @media (max-width: 860px) {
+      .prototype { height: auto; min-height: 100vh; overflow: visible; padding-block: 13px 20px; }
+      .shell { height: auto; min-height: calc(100vh - 33px); }
+      .topbar { height: auto; min-height: 54px; align-items: flex-start; padding-bottom: 12px; }
+      .status { display: none; }
+      .content { display: block; padding-top: 8px; }
+      .intro { padding: 17px 2px 22px; }
+      .intro h1 { max-width: 620px; font-size: 2.55rem; }
+      .workflow { margin-top: 18px; }
+      .action-card { min-height: 590px; }
+    }
+    @media (max-width: 560px) {
+      .prototype { padding-inline: 13px; }
+      .topbar { gap: 10px; }
+      .brand strong { font-size: 14px; }
+      .brand small { font-size: 10px; }
+      .top-actions .btn { padding-inline: 9px; }
+      .module-tabs { margin-inline: -3px; }
+      .intro h1 { font-size: 2.2rem; }
+      .intro-copy { font-size: 14px; }
+      .workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workflow-step::after { display: none; }
+      .action-inner { padding: 18px 15px 16px; }
+      .action-head h2 { font-size: 20px; }
+      .drop-grid { grid-template-columns: 1fr; }
+      .dropzone, .dropzone--single { min-height: 170px; }
+      .action-footer { align-items: stretch; flex-direction: column; }
+      .action-footer .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="prototype">
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="多媒体笔记工作台">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 6h8M6 8v8M18 8v8M8 18h8M8 7.5l8 9M8 16.5l8-9"/></svg>
+          </span>
+          <span><strong>多媒体笔记工作台</strong><small>紧凑布局 · 四个模块页面原型</small></span>
+        </a>
+        <div class="top-actions"><span class="status"><i></i>本地环境已就绪</span><button class="btn" id="backBtn" type="button">← 返回入口</button></div>
+      </header>
+
+      <nav class="module-tabs" aria-label="模块页面切换">
+        <button class="module-tab active" data-screen="paired" type="button"></button>
+        <button class="module-tab" data-screen="video" type="button"></button>
+        <button class="module-tab" data-screen="recording" type="button"></button>
+        <button class="module-tab" data-screen="document" type="button"></button>
+      </nav>
+
+      <section class="content" id="content" aria-live="polite"></section>
+    </div>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const icon = (name) => {
+      const paths = {
+        paired: '<circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 0 1 2.2-5.9M21 12a9 9 0 0 0-2.2-5.9M3 12a9 9 0 0 0 2.2 5.9M21 12a9 9 0 0 1-2.2 5.9"/>',
+        video: '<path d="m8 5 8 7-8 7z"/><rect x="3" y="3" width="18" height="18" rx="3"/>',
+        recording: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/>',
+        document: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>',
+        upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
+        mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/>',
+      };
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.document}</svg>`;
+    };
+
+    const screens = {
+      paired: {
+        tab: '双源会议 / 培训', eyebrow: '双源会议 / 培训工作台', title: '让画面与声音，互相校验。', copy: '同时上传视频和录音，系统会自动对齐时间轴、提炼要点，并标记需要人工确认的冲突内容。', active: 0, mark: 'paired',
+        steps: [['上传素材', '视频 + 录音'], ['自动对齐', '时间轴校准'], ['提炼重点', '结构化整理'], ['发布笔记', '飞书归档']],
+        body: `<p class="section-label">上传两份素材</p><div class="drop-grid"><label class="dropzone"><span class="drop-icon">${icon('video')}</span><strong>上传会议视频</strong><span>MP4、MOV、WebM · 单个不超过 2 GB</span><button class="btn demo-upload" type="button">选择视频</button></label><label class="dropzone"><span class="drop-icon">${icon('recording')}</span><strong>上传配套录音</strong><span>MP3、M4A、WAV · 自动与视频对齐</span><button class="btn demo-upload" type="button">选择录音</button></label></div><div class="tag-row"><span class="tag">时间对齐</span><span class="tag">关键画面</span><span class="tag">冲突标记</span></div><div class="action-footer"><small>两份素材会在本机处理，原始文件可回到转化记录核对。</small><button class="btn primary demo-action" type="button">开始处理双源素材 →</button></div>`
+      },
+      video: {
+        tab: '本地视频', eyebrow: '本地视频工作台', title: '一段视频，整理成一份可复习笔记。', copy: '上传课程、讲座或屏幕录制，系统会提取音轨、转录重点，并保留处理进度与原文证据。', active: 0, mark: 'video',
+        steps: [['上传视频', '选择本地文件'], ['提取音轨', '画面 + 声音'], ['生成笔记', '重点与结构'], ['发布结果', '飞书归档']],
+        body: `<p class="section-label">选择一个本地视频</p><label class="dropzone dropzone--single is-dark"><span class="drop-icon">${icon('upload')}</span><strong>拖入视频，或点击选择</strong><span>支持 MP4、MOV、WebM · 最大 2 GB</span><button class="btn demo-upload" type="button">选择视频文件</button></label><div class="note-box" style="margin-top:12px"><b>✓</b><span>上传后会先检查音轨和文件完整性，不会覆盖原始文件。</span></div><div class="action-footer"><small>可在处理过程中查看进度，完成后回到原文核对。</small><button class="btn primary demo-action" type="button">上传并生成笔记 →</button></div>`
+      },
+      recording: {
+        tab: '录音整理', eyebrow: '录音整理工作台', title: '按下录音，把现场变成行动清单。', copy: '实时检测麦克风和声音输入，录音结束后先试听确认，再上传转录，避免漏录和断音。', active: 1, mark: 'recording',
+        steps: [['准备设备', '检测麦克风'], ['开始录音', '实时音量'], ['试听确认', '完整性检查'], ['生成笔记', '行动清单']],
+        body: `<p class="section-label">录音状态</p><div class="record-panel"><div class="record-status"><div><strong>麦克风已连接</strong><span>声音输入稳定，可以开始录音</span></div><div class="record-status__dot"><i></i>已就绪</div></div><div class="record-visual"><button class="record-button demo-action" type="button" aria-label="开始录音">${icon('mic')}</button><strong>点击开始录音</strong><span>会议、课堂和访谈 · 录音会持续写入本机恢复存储</span><div class="meter" aria-hidden="true">${Array.from({length: 26}, (_, i) => `<i class="${i < 9 ? 'on' : ''}"></i>`).join('')}</div></div><div class="record-controls"><button class="btn" type="button">检测麦克风</button><button class="btn" type="button">录音设置</button></div></div><div class="action-footer"><small>录音完成后会进入试听确认，不会直接上传。</small><button class="btn primary demo-action" type="button">开始录音 →</button></div>`
+      },
+      document: {
+        tab: '文档学习', eyebrow: '文档学习工作台', title: '把多份文档，沉淀成可回看的知识资产。', copy: '上传书籍、报告或课件，系统会解析原文、提炼知识结构，并为每个结论保留可追溯依据。', active: 0, mark: 'document',
+        steps: [['上传文档', '最多 10 个'], ['解析原文', '保留章节'], ['生成笔记', '结构化总结'], ['发布结果', '飞书归档']],
+        body: `<p class="section-label">选择文档文件</p><label class="dropzone dropzone--single"><span class="drop-icon">${icon('upload')}</span><strong>拖入文件，或点击选择</strong><span>支持 PDF、Word、PowerPoint、TXT、Markdown · 总计不超过 200 MB</span><button class="btn demo-upload" type="button">选择文档</button></label><p class="section-label">笔记风格</p><div class="option-row"><button class="option active" type="button"><strong>学习笔记</strong><span>通用学习、系统总结与行动清单</span></button><button class="option" type="button"><strong>会议纪要</strong><span>议题、决策、待办与责任人</span></button></div><div class="action-footer"><small>结果会保留原文锚点，方便回到源文件逐段核对。</small><button class="btn primary demo-action" type="button">上传并生成笔记 →</button></div>`
+      }
+    };
+
+    const state = { screen: 'paired' };
+    const svgButton = (name) => `<span aria-hidden="true">${icon(name)}</span>`;
+    function render() {
+      const screen = screens[state.screen];
+      document.querySelectorAll('.module-tab').forEach((button) => {
+        const key = button.dataset.screen;
+        button.classList.toggle('active', key === state.screen);
+        button.innerHTML = `${svgButton(screens[key].mark)}${screens[key].tab}`;
+      });
+      document.getElementById('content').innerHTML = `<div class="intro"><p class="eyebrow"><i></i>${screen.eyebrow}</p><h1>${screen.title}</h1><p class="intro-copy">${screen.copy}</p><div class="workflow">${screen.steps.map((step, index) => `<div class="workflow-step ${index === screen.active ? 'is-active' : ''}"><strong>${step[0]}</strong><span>${step[1]}</span></div>`).join('')}</div><div class="trust-row"><span><b>✓</b>原始文件保留</span><span><b>✓</b>处理状态可追溯</span><span><b>✓</b>本机完成核心处理</span></div></div><section class="action-card"><div class="action-inner"><div class="action-head"><div><h2>${screen.tab}工作台</h2><p>从第一屏开始完成核心操作，顶部不再占用无效空间。</p></div><span class="action-mark">${icon(screen.mark)}</span></div>${screen.body}</div></section>`;
+      bindActionEvents();
+    }
+    function toast(message) {
+      const element = document.getElementById('toast');
+      element.textContent = message;
+      element.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => element.classList.remove('show'), 1800);
+    }
+    function bindActionEvents() {
+      document.querySelectorAll('.demo-action').forEach((button) => button.addEventListener('click', () => toast('原型演示：已进入下一步')));
+      document.querySelectorAll('.demo-upload').forEach((button) => button.addEventListener('click', (event) => { event.preventDefault(); toast('原型演示：文件选择已打开'); }));
+      document.querySelectorAll('.option').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.option').forEach((item) => item.classList.remove('active')); button.classList.add('active'); }));
+    }
+    document.querySelectorAll('.module-tab').forEach((button) => button.addEventListener('click', () => { state.screen = button.dataset.screen; render(); }));
+    document.getElementById('backBtn').addEventListener('click', () => toast('原型演示：返回工作台入口'));
+    render();
+  </script>
+</body>
+</html>
