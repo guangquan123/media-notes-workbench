@@ -13,6 +13,7 @@ const ErrorRender = isLocalRuntime() ? LocalErrorRender : PlatformErrorRender;
 
 import RoutesComponent from './app.tsx';
 import './index.css';
+import './entry-page-refresh.css';
 import { createPortal } from 'react-dom';
 import { Toaster } from '@client/src/components/ui/sonner';
 

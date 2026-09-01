@@ -1,0 +1,86 @@
+/* Entry page visual refresh: preserve the compact one-screen layout. */
+.entry-page {
+  background:
+    radial-gradient(circle at 92% 8%, rgb(125 211 252 / 16%), transparent 30%),
+    linear-gradient(180deg, #f3f7fc 0%, #eef2f6 62%, #eaf0f6 100%);
+}
+
+.entry-brand__mark {
+  background: linear-gradient(145deg, #0c1830 0%, #182d59 58%, #2458bf 100%);
+  box-shadow: 0 10px 22px rgb(20 65 150 / 20%);
+}
+
+.entry-nav .entry-nav__primary {
+  border-color: #122347;
+  background: #122347;
+}
+
+.entry-direct-record {
+  position: relative;
+  isolation: isolate;
+  border-color: rgb(93 153 255 / 55%);
+  background: linear-gradient(118deg, #0b2c72 0%, #1247ae 52%, #2563d7 100%);
+  color: white;
+  box-shadow:
+    0 14px 26px rgb(20 67 160 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+.entry-direct-record::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 88% 0%, rgb(125 211 252 / 32%), transparent 42%);
+  content: '';
+  pointer-events: none;
+}
+
+.entry-direct-record > * {
+  position: relative;
+  z-index: 1;
+}
+
+.entry-direct-record:hover,
+.entry-direct-record:focus-visible {
+  border-color: rgb(147 197 253 / 80%);
+  background: linear-gradient(118deg, #0a2868 0%, #1044a8 52%, #215ed2 100%);
+  box-shadow:
+    0 18px 34px rgb(20 67 160 / 30%),
+    inset 0 1px 0 rgb(255 255 255 / 22%);
+}
+
+.entry-direct-record__icon {
+  background: rgb(255 255 255 / 16%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%), 0 8px 18px rgb(4 23 63 / 22%);
+}
+
+.entry-direct-record__copy small {
+  color: #b9dcff;
+}
+
+.entry-direct-record__copy > span {
+  color: rgb(235 244 255 / 74%);
+}
+
+.entry-direct-record__cta {
+  border-color: rgb(255 255 255 / 75%);
+  background: white;
+  color: #123d95;
+  box-shadow: 0 8px 16px rgb(4 23 63 / 22%);
+}
+
+.entry-direct-record:hover .entry-direct-record__cta,
+.entry-direct-record:focus-visible .entry-direct-record__cta {
+  background: #e9f2ff;
+  box-shadow: 0 10px 20px rgb(4 23 63 / 28%);
+}
+
+.entry-card::before {
+  background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 52%, #6366f1 100%);
+}
+
+.entry-card--featured {
+  background: linear-gradient(160deg, #f8fbff 0%, #f1f6ff 62%, #edf5ff 100%);
+  box-shadow: 0 12px 28px rgb(37 99 235 / 8%), inset 0 1px 0 rgb(255 255 255 / 92%);
+}
