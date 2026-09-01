@@ -58,3 +58,13 @@ The microphone panel was checked through DOM state and a live browser interactio
 ## Final result
 
 passed
+
+## v6 UI refresh evidence
+
+- Source screenshots: `C:/Users/15208/AppData/Local/Temp/codex-clipboard-1fe7fdc2-e045-4f2b-b5c2-0da729f5a4d5.png` and `C:/Users/15208/AppData/Local/Temp/codex-clipboard-1dde175b-1942-4abd-a232-8e96d756d19e.png`.
+- Accepted prepare screenshot: `v6-prepare.png` at 1280 × 720.
+- Accepted microphone listening screenshot: `v6-mic-listening.png` at 1280 × 720.
+- Accepted recording screenshot: `v6-recording.png` at 1280 × 720.
+- The v6 pass compresses the top bar and step rail, adds a bordered configuration card with distinct title/style controls, and gives the microphone panel a clear primary action and live meter.
+- Interaction evidence: `connecting` shows the loading state, `listening` shows 9 active meter bars and a persistent `重新检测` action, `success` enables `开始录音`, and recording shows a continuously animated 40-bar waveform.
+- Layout evidence: 1280 × 720 has `scrollHeight === 720` with no horizontal overflow; 390px mobile layout collapses to one column with no horizontal overflow.

@@ -1,11 +1,10 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   FileAudio,
   FilePenLine,
@@ -136,19 +135,13 @@ export function RecordingStepRail({ phase }: { phase: RecordingStepPhase }) {
   return (
     <nav aria-label={`当前步骤：${['准备', '录音', '确认'][activeStep]}`} className="recording-step-rail">
       {['准备', '录音', '确认'].map((label: string, index: number) => (
-        <Fragment key={label}>
-          <div className={`recording-step ${index < activeStep ? 'is-done' : ''}`}>
-            <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
-              {index < activeStep ? <Check className="size-4" /> : index + 1}
-            </span>
-            <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
-          </div>
-          {index < 2 && (
-            <span className={`recording-step-arrow ${index < activeStep ? 'is-done' : ''}`} aria-hidden="true">
-              <ChevronRight className="size-5" />
-            </span>
-          )}
-        </Fragment>
+        <div className="recording-step" key={label}>
+          <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
+            {index < activeStep ? <Check className="size-4" /> : index + 1}
+          </span>
+          <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
+          {index < 2 && <i className={index < activeStep ? 'is-done' : ''} aria-hidden="true" />}
+        </div>
       ))}
     </nav>
   );
@@ -208,7 +201,14 @@ export function SetupPanel({
     success: '设备连接正常，录音时会持续显示声音状态。',
     error: error || '请允许浏览器访问麦克风后重新检测。',
   }[micState];
-  const micTone: string = `recording-mic-test--${micState}`;
+  const micTone: string =
+    micState === 'success'
+      ? 'border-emerald-200 bg-emerald-50/60'
+      : micState === 'error'
+        ? 'border-red-200 bg-red-50/60'
+        : micState === 'listening' || micState === 'checking'
+          ? 'border-blue-200 bg-blue-50/50'
+          : 'border-amber-200 bg-amber-50/60';
   const micButtonLabel: string =
     micState === 'checking'
       ? '正在检测麦克风'
@@ -218,6 +218,25 @@ export function SetupPanel({
 
   return (
     <div className="recording-setup">
+      <div className="recording-intro">
+        <div>
+          <p className="recording-kicker">录音笔记</p>
+          <h1>开始一段新录音</h1>
+          <p>设置标题，先完成麦克风检测，再开始录音。</p>
+        </div>
+        <span className="recording-intro__icon" aria-hidden="true">
+          <Mic2 className="size-6" />
+        </span>
+      </div>
+
+      <div className="recording-required" role="note">
+        <span className="recording-required__number">1</span>
+        <div>
+          <strong>录音前必须检测麦克风</strong>
+          <span>确认设备已连接并能听到声音，检测通过后才会解锁开始录音。</span>
+        </div>
+      </div>
+
       {recoverable && (
         <div className="recording-recovery" role="alert">
           <div>
@@ -231,7 +250,7 @@ export function SetupPanel({
         </div>
       )}
 
-      <section className={`recording-mic-test ${micTone}`} data-mic-state={micState}>
+      <section className={`recording-mic-test ${micTone}`}>
         <div className="recording-mic-test__header">
           <div>
             <p className="recording-section-label">麦克风检测</p>
@@ -311,75 +330,65 @@ export function SetupPanel({
         )}
       </section>
 
-      <section className="recording-config-panel" aria-labelledby="recording-config-title">
-        <div className="recording-config-heading">
-          <div>
-            <p className="recording-section-label">录音设置</p>
-            <h2 id="recording-config-title">先把这段录音准备好</h2>
+      <div className="recording-form-grid">
+        <label className="recording-field">
+          <span>录音标题</span>
+          <div className="recording-input-wrap">
+            <FilePenLine className="size-4" />
+            <Input
+              aria-label="录音标题"
+              className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              maxLength={80}
+              onChange={(event) => onTitleChange(event.target.value)}
+              value={title}
+            />
+            <small>{title.length}/80</small>
           </div>
-          <span className="recording-config-count">1 / 2</span>
+        </label>
+        <div className="recording-field">
+          <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
         </div>
+      </div>
 
-        <div className="recording-form-grid">
-          <label className="recording-field">
-            <span>录音标题</span>
-            <div className="recording-input-wrap">
-              <FilePenLine className="size-4" />
-              <Input
-                aria-label="录音标题"
-                className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                maxLength={80}
-                onChange={(event) => onTitleChange(event.target.value)}
-                value={title}
-              />
-              <small>{title.length}/80</small>
-            </div>
-          </label>
-          <div className="recording-field">
-            <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
-          </div>
-        </div>
-
-        <button
-          aria-expanded={advancedOpen}
-          className="recording-advanced-toggle"
-          onClick={onAdvancedToggle}
-          type="button"
-        >
-          <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
-          {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-        </button>
-        {advancedOpen && <div className="recording-advanced-panel">
-          <label className="recording-field">
-            <span>录音模式</span>
-            <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
-              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
-                <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
-                <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="recording-field">
-            <span>语言模式</span>
-            <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
-              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动识别（推荐）</SelectItem>
-                <SelectItem value="mandarin">普通话</SelectItem>
-                <SelectItem value="sichuan">四川话增强</SelectItem>
-                <SelectItem value="cantonese">粤语</SelectItem>
-                <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="recording-field recording-field--full">
-            <span>词表（可选）</span>
-            <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
-          </label>
-        </div>}
-      </section>
+      <button
+        aria-expanded={advancedOpen}
+        className="recording-advanced-toggle"
+        onClick={onAdvancedToggle}
+        type="button"
+      >
+        <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
+        {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+      </button>
+      {advancedOpen && <div className="recording-advanced-panel">
+        <label className="recording-field">
+          <span>录音模式</span>
+          <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
+            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
+              <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
+              <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="recording-field">
+          <span>语言模式</span>
+          <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
+            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">自动识别（推荐）</SelectItem>
+              <SelectItem value="mandarin">普通话</SelectItem>
+              <SelectItem value="sichuan">四川话增强</SelectItem>
+              <SelectItem value="cantonese">粤语</SelectItem>
+              <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="recording-field recording-field--full">
+          <span>词表（可选）</span>
+          <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
+        </label>
+      </div>}
 
       <div className="recording-primary-action">
         <Button
@@ -407,6 +416,7 @@ export function SetupPanel({
                       : '录音保护存储未就绪，暂不能开始'}
         </p>
       </div>
+      <p className="recording-privacy"><ShieldCheck className="size-4" />录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p>
       {!storageReady && <p className="recording-storage-error"><AlertTriangle className="size-4" />录音保护存储不可用，暂不允许开始录音。</p>}
     </div>
   );

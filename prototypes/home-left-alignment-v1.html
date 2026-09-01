@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>首页左侧功能区对齐 · HTML 原型</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #718096;
+      --line: rgba(15, 23, 42, .10);
+      --blue: #2454d8;
+      --blue-soft: #e7eeff;
+      --page: #eef2f6;
+      --card: rgba(255, 255, 255, .90);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; }
+    .page { min-height: 100vh; padding: 22px 28px 18px; }
+    .shell { min-height: calc(100vh - 40px); display: flex; flex-direction: column; }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+      padding-bottom: 27px; border-bottom: 1px solid var(--line);
+    }
+    .brand { display: inline-flex; align-items: center; gap: 16px; }
+    .brand-mark { display: grid; width: 60px; height: 60px; place-items: center; border-radius: 14px; background: #111827; color: #fff; box-shadow: 0 10px 20px rgba(15, 23, 42, .14); }
+    .brand-mark svg { width: 30px; height: 30px; }
+    .brand strong, .brand small { display: block; }
+    .brand strong { font-size: 25px; letter-spacing: -.04em; }
+    .brand small { margin-top: 4px; color: rgba(15, 23, 42, .48); font-size: 17px; }
+    .nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+    .nav a { display: inline-flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 19px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 255, 255, .74); color: rgba(15, 23, 42, .64); font-size: 17px; font-weight: 700; }
+    .nav a.primary { border-color: #111827; background: #111827; color: #fff; }
+    .nav a:hover { border-color: rgba(36, 84, 216, .38); background: #fff; color: var(--blue); }
+    .nav a.primary:hover { border-color: var(--blue); background: var(--blue); color: #fff; }
+    .nav svg { width: 22px; height: 22px; }
+
+    .intro { padding: 34px 0 22px; }
+    .eyebrow { margin: 0 0 12px; color: var(--blue); font-size: 19px; font-weight: 800; }
+    h1 { margin: 0; font-size: clamp(42px, 4vw, 64px); line-height: 1.05; letter-spacing: -.06em; }
+    .intro-copy { max-width: 1120px; margin: 18px 0 0; color: rgba(15, 23, 42, .57); font-size: 23px; line-height: 1.5; }
+
+    /* 核心调整：左右两列使用相同的两行轨道，左侧两块卡片各占一行。 */
+    .workspace { flex: 1; display: grid; grid-template-columns: minmax(430px, .96fr) minmax(0, 1.32fr); gap: 16px; min-height: 0; }
+    .left-stack, .right-grid { min-height: 0; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .right-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .quick-card, .card { position: relative; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--card); }
+    .quick-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 21px; padding: 28px 30px; border-color: rgba(36, 84, 216, .28); background: #f4f7ff; }
+    .quick-card::before, .card.featured::before { position: absolute; inset: 0 auto auto 0; width: 100%; height: 4px; background: var(--blue); content: ""; }
+    .quick-icon { display: grid; width: 62px; height: 62px; place-items: center; border-radius: 14px; background: var(--blue); color: #fff; box-shadow: 0 12px 24px rgba(36, 84, 216, .22); }
+    .quick-icon svg { width: 35px; height: 35px; }
+    .quick-copy small, .quick-copy strong, .quick-copy span { display: block; }
+    .quick-copy small { color: var(--blue); font-size: 17px; font-weight: 800; }
+    .quick-copy strong { margin-top: 7px; font-size: 28px; letter-spacing: -.04em; }
+    .quick-copy span { margin-top: 7px; color: rgba(15, 23, 42, .48); font-size: 17px; }
+    .quick-cta { display: inline-flex; align-items: center; gap: 11px; min-height: 56px; padding: 0 20px; border-radius: 12px; background: var(--blue); color: #fff; font-size: 20px; font-weight: 800; box-shadow: 0 11px 20px rgba(36, 84, 216, .20); }
+    .quick-cta svg { width: 24px; height: 24px; }
+    .quick-card:hover { border-color: #8cabea; background: #eef4ff; }
+
+    .card { display: flex; flex-direction: column; padding: 28px 30px; }
+    .card.featured { border-color: rgba(36, 84, 216, .28); background: #f8fbff; }
+    .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .badge { display: inline-flex; align-items: center; gap: 9px; width: fit-content; padding: 8px 13px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-size: 17px; font-weight: 800; }
+    .badge svg { width: 20px; height: 20px; }
+    .card-icon { display: grid; width: 53px; height: 53px; place-items: center; border-radius: 12px; background: #111827; color: #fff; }
+    .card-icon svg { width: 28px; height: 28px; }
+    .card-body { flex: 1; padding-top: 31px; }
+    .card h2 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -.04em; }
+    .card.featured h2 { font-size: 41px; }
+    .card p { max-width: 620px; margin: 16px 0 0; color: rgba(15, 23, 42, .52); font-size: 21px; line-height: 1.5; }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 19px; }
+    .pills span { padding: 8px 11px; border: 1px solid rgba(15, 23, 42, .10); border-radius: 8px; background: rgba(255, 255, 255, .74); color: rgba(15, 23, 42, .55); font-size: 16px; }
+    .cta { display: inline-flex; align-items: center; gap: 13px; color: var(--blue); font-size: 21px; font-weight: 800; }
+    .cta svg { width: 25px; height: 25px; transition: transform .18s ease; }
+    .card:hover { border-color: rgba(36, 84, 216, .36); background: #fff; box-shadow: 0 16px 34px rgba(15, 23, 42, .08); transform: translateY(-2px); transition: .18s ease; }
+    .card:hover .cta svg { transform: translateX(4px); }
+
+    @media (max-width: 1100px) {
+      .page { padding-inline: 20px; }
+      .workspace { grid-template-columns: minmax(350px, .9fr) minmax(0, 1.2fr); }
+      .quick-copy strong { font-size: 22px; }
+      .quick-copy span, .quick-cta { font-size: 15px; }
+      .card p { font-size: 17px; }
+    }
+    @media (max-width: 820px) {
+      .header { align-items: flex-start; flex-direction: column; }
+      .nav { justify-content: flex-start; }
+      .workspace { grid-template-columns: 1fr; }
+      .left-stack { grid-template-rows: repeat(2, minmax(240px, 1fr)); }
+      .right-grid { min-height: 500px; }
+    }
+    @media (max-width: 560px) {
+      .page { padding: 16px 14px; }
+      .brand-mark { width: 48px; height: 48px; }
+      .brand strong { font-size: 20px; }
+      .brand small { font-size: 14px; }
+      .nav a { min-height: 42px; padding: 0 12px; font-size: 14px; }
+      .intro { padding: 28px 0 18px; }
+      .eyebrow { font-size: 15px; }
+      h1 { font-size: 39px; }
+      .intro-copy { font-size: 17px; }
+      .quick-card { grid-template-columns: auto minmax(0, 1fr); padding: 22px; gap: 14px; }
+      .quick-icon { width: 48px; height: 48px; }
+      .quick-copy small { font-size: 14px; }
+      .quick-copy strong { font-size: 19px; }
+      .quick-copy span { font-size: 14px; }
+      .quick-cta { grid-column: 2; justify-self: start; min-height: 40px; padding: 0 13px; font-size: 14px; }
+      .card { padding: 22px; }
+      .card h2, .card.featured h2 { font-size: 27px; }
+      .card p { font-size: 16px; }
+      .right-grid { grid-template-columns: 1fr; min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="shell">
+      <header class="header">
+        <a class="brand" href="#">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 6h8M6 8v8M18 8v8M8 18h8M8 7.5l8 9M8 16.5l8-9"/></svg></span>
+          <span><strong>多媒体笔记工作台</strong><small>把资料整理成可复用的知识</small></span>
+        </a>
+        <nav class="nav" aria-label="工作台辅助导航">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/><path d="M12 7v5l3 2"/></svg>转化记录</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22z"/><path d="M8 7h1M8 11h1M15 7h1M15 11h1"/></svg>操作手册</a>
+          <a class="primary" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/></svg>参数配置</a>
+        </nav>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow">从素材开始，留下知识轨迹</p>
+        <h1>你想先整理哪一种内容？</h1>
+        <p class="intro-copy">选择一个入口，系统会负责转录、提炼、结构化和归档。处理过程都在本机完成，结果可回到原文核对。</p>
+      </section>
+
+      <section class="workspace" aria-label="素材入口">
+        <div class="left-stack">
+          <a class="quick-card" href="#">
+            <span class="quick-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg></span>
+            <span class="quick-copy"><small>实时录音</small><strong>直接录音，自动整理成笔记</strong><span>会议、课堂和访谈，点击即可开始</span></span>
+            <span class="quick-cta">开始录音<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </a>
+
+          <a class="card featured" href="#">
+            <div class="card-top"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22z"/></svg>最常用</span><span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22z"/></svg></span></div>
+            <div class="card-body"><h2>视频学习笔记</h2><p>粘贴 B站或抖音链接，自动提炼重点并写成可复习的笔记。</p><div class="pills"><span>自动转录</span><span>结构化总结</span><span>飞书归档</span></div></div>
+            <span class="cta">开始处理视频<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </a>
+        </div>
+
+        <div class="right-grid">
+          <a class="card" href="#"><div class="card-top"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 0 1 2.2-5.9M21 12a9 9 0 0 0-2.2-5.9M3 12a9 9 0 0 0 2.2 5.9M21 12a9 9 0 0 1-2.2 5.9"/></svg>视频 + 录音</span><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 0 1 2.2-5.9M21 12a9 9 0 0 0-2.2-5.9M3 12a9 9 0 0 0 2.2 5.9M21 12a9 9 0 0 1-2.2 5.9"/></svg></span></div><div class="card-body"><h2>双源会议 / 培训笔记</h2><p>同时上传视频和录音，用画面与语音交叉验证内容。</p><div class="pills"><span>时间对齐</span><span>关键画面</span><span>冲突标记</span></div></div><span class="cta">上传双文件<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+          <a class="card" href="#"><div class="card-top"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>视频文件</span><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 5 8 7-8 7z"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg></span></div><div class="card-body"><h2>本地视频</h2><p>课程、讲座或屏幕录制，都可以直接上传处理。</p><div class="pills"><span>文件上传</span><span>音轨提取</span><span>处理进度</span></div></div><span class="cta">上传视频<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+          <a class="card" href="#"><div class="card-top"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>录音文件</span><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg></span></div><div class="card-body"><h2>录音笔记</h2><p>把课堂录音、访谈和语音备忘变成行动清单。</p><div class="pills"><span>多种格式</span><span>自动切片</span><span>行动项</span></div></div><span class="cta">上传录音<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+          <a class="card" href="#"><div class="card-top"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg>文档文件</span><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg></span></div><div class="card-body"><h2>文档笔记</h2><p>上传书籍、报告或课件，融合沉淀知识结构。</p><div class="pills"><span>多文件融合</span><span>原文解析</span><span>飞书归档</span></div></div><span class="cta">上传文档<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

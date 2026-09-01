@@ -395,7 +395,7 @@
     var startupFailure = readLauncherFailure();
     if (startupFailure) { setFailure(startupFailure.stage || "启动失败", formatLauncherFailure(startupFailure)); return; }
     var now = new Date().getTime(); var elapsed = now - startedAt;
-    var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var servicesReady = restartReadyTokenMatches(); var uiReady = launcherUiReadyTokenMatches(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api && servicesReady, frontend && servicesReady, pid);
+    var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var servicesReady = restartReadyTokenMatches() && api; var uiReady = launcherUiReadyTokenMatches(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api && servicesReady, frontend && servicesReady, pid);
     if (action === "stop") {
       if (backend || frontend || pid) moveTo(1, "正在确认进程退出", "正在等待后台进程和端口完全释放");
       else complete("服务已停止，端口已释放", false);

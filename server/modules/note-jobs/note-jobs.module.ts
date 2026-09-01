@@ -24,9 +24,11 @@ import {
   DOCUMENT_STORAGE_CLIENT,
   DocumentImageDownloadService,
 } from './document-image-download.service';
+import { MediaCleanupController } from './media-cleanup.controller';
+import { MediaCleanupService } from './media-cleanup.service';
 
 @Module({
-  controllers: [NoteJobsController],
+  controllers: [NoteJobsController, MediaCleanupController],
   imports: [ConnectorModule, TaskNotificationModule],
   providers: [
     NoteHistoryService,
@@ -54,6 +56,7 @@ import {
     },
     DocumentImageDownloadService,
     LocalDocumentParserService,
+    MediaCleanupService,
   ],
   exports: [NoteJobsService],
 })
