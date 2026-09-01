@@ -35,3 +35,13 @@ final result: passed
 - Visual inspection: the microphone test remains the dominant module, settings sit beside it on desktop, and secondary settings stay collapsed by default.
 - Build and lint checks passed for the client and recording page. Browser console entries observed during the check were existing platform telemetry 404s (`collectEvent`/tenant bootstrap), unrelated to this page change.
 - Hardware permission approval and a real voice signal could not be completed in the automated browser session; the success state should be smoke-tested once in a browser with microphone permission granted.
+
+## Recording notes interaction polish
+
+final result: passed
+
+- The desktop surface now uses the available width more effectively (`1232px` at a `1280px` viewport), reducing the large side gutters shown in the review screenshots.
+- The recording state uses a dedicated live-volume panel with 28 animated bars, numeric input level, quality label, and pause/resume guidance.
+- Review state spacing is compressed around the player, integrity notice, and action row. `转为笔记` remains the primary action while backup and restart use a consistent secondary button style.
+- Browser smoke check confirmed the setup state remains `scrollHeight === clientHeight` at `1280x720`, with no horizontal overflow; mobile `390px` remains single-column with no horizontal overflow.
+- Browser smoke check confirmed clicking `检测麦克风` changes the status to `正在连接麦克风…` and the button to `正在检测麦克风` while `开始录音` stays disabled.

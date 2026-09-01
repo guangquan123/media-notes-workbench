@@ -440,9 +440,12 @@ export function RecordingPanel({
   stopping,
   title,
 }: RecordingPanelProps) {
+  const liveMeterPercent: number = Math.min(100, Math.max(0, signalWidth));
+  const liveMeterBars: number = Math.round((liveMeterPercent / 100) * 28);
+
   return (
-    <div>
-      <div className="flex items-start justify-between gap-4">
+    <div className="recording-live-panel">
+      <div className="recording-live-panel__header flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.12em] text-blue-700">
             {phase === 'recording' ? '正在录音' : '录音已暂停'}
@@ -451,39 +454,40 @@ export function RecordingPanel({
             {title || '未命名录音'}
           </h1>
         </div>
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+        <span className="recording-live-panel__duration rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
           {formatRecordingDuration(durationMs)}
         </span>
       </div>
-      <div className="mt-10 grid place-items-center rounded-xl bg-[#f7faff] py-10">
-        <div className="grid size-36 place-items-center rounded-full border border-blue-200 bg-blue-50 shadow-[0_0_0_16px_rgba(37,99,235,.05)]">
-          <span className="grid size-16 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/25">
-            {phase === 'recording' ? (
-              <Mic2 className="size-7" />
-            ) : (
-              <Pause className="size-7" />
-            )}
-          </span>
+      <section className="recording-live-volume" aria-label="录音实时音量">
+        <div className="recording-live-volume__header">
+          <div className="recording-live-volume__label">
+            <span className="recording-live-volume__icon" aria-hidden="true">
+              {phase === 'recording' ? <Mic2 className="size-5" /> : <Pause className="size-5" />}
+            </span>
+            <div>
+              <strong>{phase === 'recording' ? '正在采集声音' : '录音已暂停'}</strong>
+              <span>{phase === 'recording' ? '说话时观察音量条，确认声音持续写入' : '点击“继续”恢复声音采集'}</span>
+            </div>
+          </div>
+          <div className="recording-live-volume__value" aria-live="polite">
+            <strong>{Math.round(liveMeterPercent)}%</strong>
+            <span>{qualityLabel}</span>
+          </div>
         </div>
-        <div className="mt-7 text-5xl font-bold tabular-nums tracking-[-.06em]">
-          {formatRecordingDuration(durationMs)}
+        <div className="recording-live-meter" aria-label={`实时音量 ${Math.round(liveMeterPercent)}%`}>
+          {Array.from({ length: 28 }, (_, index: number) => (
+            <i
+              className={index < liveMeterBars ? 'is-on' : ''}
+              key={index}
+              style={{ height: `${8 + ((index * 7) % 16)}px` }}
+            />
+          ))}
         </div>
-        <div
-          className={`mt-3 flex items-center gap-2 text-sm font-semibold ${qualityColor}`}
-        >
+        <div className={`recording-live-volume__quality ${qualityColor}`}>
           <span className="size-2 rounded-full bg-current" />
-          {qualityLabel} · {qualityDescription}
+          <span>{qualityDescription}</span>
         </div>
-        <div className="mt-6 h-2 w-[min(100%,420px)] overflow-hidden rounded-full bg-blue-100">
-          <span
-            className="block h-full rounded-full bg-blue-600 transition-[width]"
-            style={{ width: `${signalWidth}%` }}
-          />
-        </div>
-        <div className="mt-3 text-xs text-black/45">
-          实时输入电平 · {Math.round(metrics.rms * 1_000) / 10}%
-        </div>
-      </div>
+      </section>
       <div className="mt-6 grid gap-3 sm:grid-cols-4">
         <StatusLine
           label="设备"
@@ -530,12 +534,12 @@ export function RecordingPanel({
           麦克风连接已断开，后续不会继续采集；请先完成当前录音并试听确认。
         </div>
       )}
-      <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <Button onClick={onPause} variant="outline" disabled={phase === 'paused'}>
+      <div className="recording-action-row mt-7 flex flex-wrap justify-center gap-3">
+        <Button className="recording-secondary-button" onClick={onPause} variant="outline" disabled={phase === 'paused'}>
           <Pause />
           暂停
         </Button>
-        <Button onClick={onResume} variant="outline" disabled={phase === 'recording'}>
+        <Button className="recording-secondary-button" onClick={onResume} variant="outline" disabled={phase === 'recording'}>
           <Play />
           继续
         </Button>
@@ -571,8 +575,8 @@ export function ReviewPanel({
   recordingUrl,
 }: ReviewPanelProps) {
   return (
-    <div>
-      <div className="flex items-start justify-between gap-4">
+    <div className="recording-review-panel">
+      <div className="recording-review-panel__header flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.12em] text-blue-700">
             录音完成
@@ -586,7 +590,7 @@ export function ReviewPanel({
         </div>
         <CheckCircle2 className="size-9 text-emerald-600" />
       </div>
-      <div className="mt-8 rounded-xl border border-black/8 bg-[#fbfdfc] p-5">
+      <div className="recording-review-panel__player mt-8 rounded-xl border border-black/8 bg-[#fbfdfc] p-5">
         <audio
           aria-label="录音试听"
           className="w-full"
@@ -603,7 +607,7 @@ export function ReviewPanel({
           <StatusLine label="数据分片" value={`${chunkCount} 个`} />
         </div>
       </div>
-      <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-blue-950">
+      <div className="recording-review-panel__notice mt-6 rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-blue-950">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-blue-700" />
           <span>试听完成且确认没有断音、明显杂音或漏录，再开始转化。</span>
@@ -651,7 +655,7 @@ export function ReviewPanel({
           正在验证录音文件是否可播放、时长是否完整…
         </div>
       )}
-      <div className="mt-7 flex flex-wrap gap-3">
+      <div className="recording-review-panel__actions mt-7 flex flex-wrap gap-3">
         <Button
           className="bg-blue-600 hover:bg-blue-700"
           disabled={!canConvert}
@@ -660,11 +664,11 @@ export function ReviewPanel({
           <UploadCloud />
           转为笔记
         </Button>
-        <Button onClick={onDownloadBackup} variant="outline">
+        <Button className="recording-secondary-button" onClick={onDownloadBackup} variant="outline">
           <FileAudio />
           下载录音备份
         </Button>
-        <Button onClick={onReset} variant="outline">
+        <Button className="recording-secondary-button" onClick={onReset} variant="outline">
           <RefreshCcw />
           重新录音
         </Button>
