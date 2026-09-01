@@ -41,7 +41,68 @@ function MicStatus({ micState, onRetry }) {
 
 function Preparation({ title, setTitle, noteStyle, setNoteStyle, advancedOpen, setAdvancedOpen, advanced, setAdvanced, micState, startMicTest, startRecording }) {
   const canStart = micState === 'success';
-  return <><div className="intro-block"><div><p className="section-kicker">录音笔记</p><h1>开始一段新录音</h1><p className="intro-copy">设置标题，测试麦克风，然后开始录音。</p></div><div className="intro-icon"><Icon name="mic-2" size={24} /></div></div><div className="form-grid"><label className="field"><span>录音标题</span><div className="input-wrap"><Icon name="file-pen-line" size={17} /><input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /><small>{title.length}/80</small></div></label><div className="field"><span>笔记风格</span><div className="style-options" role="group" aria-label="选择笔记风格">{NOTE_STYLES.map((style) => <button key={style.id} type="button" className={`style-option ${noteStyle === style.id ? 'is-selected' : ''}`} onClick={() => setNoteStyle(style.id)}><Icon name={style.icon} size={20} /><span><strong>{style.label}</strong><small>{style.detail}</small></span><span className="radio-dot" aria-hidden="true" /></button>)}</div></div></div><MicStatus micState={micState} onRetry={startMicTest} /><button className="advanced-toggle" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(!advancedOpen)}><span><Icon name="sliders-horizontal" size={17} /><strong>高级设置</strong><small>录音模式、语言、热词</small></span><Icon name={advancedOpen ? 'chevron-up' : 'chevron-down'} size={18} /></button>{advancedOpen && <div className="advanced-panel"><label className="field"><span>录音模式</span><select value={advanced.audio} onChange={(event) => setAdvanced({ ...advanced, audio: event.target.value })}><option>原声保真（推荐）</option><option>会议清晰（回声/多人）</option><option>强噪增强（街道/风扇）</option></select></label><label className="field"><span>语言模式</span><select value={advanced.language} onChange={(event) => setAdvanced({ ...advanced, language: event.target.value })}><option>自动识别（推荐）</option><option>普通话</option><option>粤语</option><option>普通话 + 英语</option></select></label><label className="field field--full"><span>热词（可选）</span><input value={advanced.hotwords} placeholder="人名、项目名、术语，用逗号分隔" onChange={(event) => setAdvanced({ ...advanced, hotwords: event.target.value })} /></label></div>}<div className="action-row action-row--primary"><button className="button button--primary button--wide" type="button" disabled={!canStart} onClick={startRecording}><Icon name="mic" size={19} /> 开始录音</button>{!canStart && <span className="action-hint">{micState === 'idle' ? '完成麦克风检测后才能开始' : micState === 'connecting' ? '正在连接设备…' : micState === 'listening' || micState === 'timeout' ? '请先说话，确认有声音输入' : '请重新检测麦克风'}</span>}</div><p className="privacy-note"><Icon name="shield-check" size={16} /> 录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p></>;
+  return <>
+    <div className="intro-block">
+      <div>
+        <p className="section-kicker">录音笔记</p>
+        <h1>开始一段新录音</h1>
+        <p className="intro-copy">设置标题，先确认麦克风，再开始录音。</p>
+      </div>
+      <div className="intro-icon"><Icon name="mic-2" size={24} /></div>
+    </div>
+
+    <div className="prepare-columns">
+      <section className="prepare-config" aria-labelledby="record-config-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-kicker">录音设置</p>
+            <h2 id="record-config-title">先把这段录音准备好</h2>
+          </div>
+          <span className="section-count">1 / 2</span>
+        </div>
+
+        <div className="form-grid">
+          <label className="field field--full">
+            <span>录音标题</span>
+            <div className="input-wrap">
+              <Icon name="file-pen-line" size={17} />
+              <input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} />
+              <small>{title.length}/80</small>
+            </div>
+          </label>
+
+          <div className="field field--full">
+            <span>笔记风格</span>
+            <div className="style-options" role="group" aria-label="选择笔记风格">
+              {NOTE_STYLES.map((style) => <button key={style.id} type="button" className={`style-option ${noteStyle === style.id ? 'is-selected' : ''}`} onClick={() => setNoteStyle(style.id)}><Icon name={style.icon} size={20} /><span><strong>{style.label}</strong><small>{style.detail}</small></span><span className="radio-dot" aria-hidden="true" /></button>)}
+            </div>
+          </div>
+        </div>
+
+        <button className="advanced-toggle" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(!advancedOpen)}>
+          <span><Icon name="sliders-horizontal" size={17} /><strong>高级设置</strong><small>录音模式、语言、热词</small></span>
+          <Icon name={advancedOpen ? 'chevron-up' : 'chevron-down'} size={18} />
+        </button>
+        {advancedOpen && <div className="advanced-panel">
+          <label className="field"><span>录音模式</span><select value={advanced.audio} onChange={(event) => setAdvanced({ ...advanced, audio: event.target.value })}><option>原声保真（推荐）</option><option>会议清晰（回声/多人）</option><option>强噪增强（街道/风扇）</option></select></label>
+          <label className="field"><span>语言模式</span><select value={advanced.language} onChange={(event) => setAdvanced({ ...advanced, language: event.target.value })}><option>自动识别（推荐）</option><option>普通话</option><option>粤语</option><option>普通话 + 英语</option></select></label>
+          <label className="field field--full"><span>热词（可选）</span><input value={advanced.hotwords} placeholder="人名、项目名、术语，用逗号分隔" onChange={(event) => setAdvanced({ ...advanced, hotwords: event.target.value })} /></label>
+        </div>}
+      </section>
+
+      <div className="prepare-check">
+        <MicStatus micState={micState} onRetry={startMicTest} />
+      </div>
+    </div>
+
+    <div className="prepare-footer">
+      <div className="action-row action-row--primary">
+        <button className="button button--primary button--wide" type="button" disabled={!canStart} onClick={startRecording}><Icon name="mic" size={19} /> 开始录音</button>
+        {!canStart && <span className="action-hint">{micState === 'idle' ? '完成右侧麦克风检测后才能开始' : micState === 'connecting' ? '正在连接设备…' : micState === 'listening' || micState === 'timeout' ? '请先说话，确认有声音输入' : '请重新检测麦克风'}</span>}
+      </div>
+      <p className="privacy-note"><Icon name="shield-check" size={16} /> 录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p>
+    </div>
+  </>;
 }
 
 function Recording({ title, elapsed, setElapsed, paused, setPaused, finishRecording }) {
