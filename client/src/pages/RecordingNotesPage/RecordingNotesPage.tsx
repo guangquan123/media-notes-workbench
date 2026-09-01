@@ -646,9 +646,9 @@ export default function RecordingNotesPage() {
         : 'text-red-700';
 
   return (
-    <main className="min-h-screen bg-[#eef2f6] text-[#111827]">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-5 md:px-8 md:py-7">
-        <header className="flex items-center justify-between gap-4 border-b border-black/10 pb-5">
+    <main className="recording-notes-page min-h-screen bg-[#eef2f6] text-[#111827]">
+      <div className="recording-notes-page__container mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-3 md:px-6 md:py-3">
+        <header className="flex items-center justify-between gap-4 border-b border-black/10 pb-3">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-lg bg-[#111827] text-white shadow-sm">
               <Mic2 className="size-5" />
@@ -670,8 +670,8 @@ export default function RecordingNotesPage() {
           </Link>
         </header>
 
-        <section className="flex-1 py-6 md:py-7">
-          <div className="mx-auto max-w-4xl rounded-2xl border border-black/10 bg-white/95 p-5 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:p-9">
+        <section className="flex-1 py-2 md:py-3">
+          <div className="recording-notes-page__surface mx-auto max-w-4xl rounded-2xl border border-black/10 bg-white/95 p-4 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:px-7 md:py-5">
             <RecordingStepRail phase={phase} />
             {phase === 'setup' && (
               <SetupPanel

@@ -285,6 +285,102 @@ body {
   flex: 1;
 }
 
+.entry-primary-stack {
+  display: grid;
+  min-height: 422px;
+  grid-template-rows: 96px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.entry-primary-stack .entry-card--featured {
+  min-height: 0;
+}
+
+.entry-direct-record {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 13px;
+  border: 1px solid rgb(37 99 235 / 25%);
+  border-radius: 8px;
+  background: #f3f7ff;
+  padding: 13px 15px;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 7px 18px rgb(29 78 216 / 5%);
+  transition: 180ms ease;
+}
+
+.entry-direct-record:hover,
+.entry-direct-record:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgb(37 99 235 / 48%);
+  background: #eaf1ff;
+  box-shadow: 0 14px 30px rgb(29 78 216 / 13%);
+  outline: none;
+}
+
+.entry-direct-record__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: #1d4ed8;
+  color: white;
+  box-shadow: 0 8px 18px rgb(37 99 235 / 20%);
+}
+
+.entry-direct-record__copy {
+  min-width: 0;
+}
+
+.entry-direct-record__copy small,
+.entry-direct-record__copy strong,
+.entry-direct-record__copy > span {
+  display: block;
+}
+
+.entry-direct-record__copy small {
+  color: #1d4ed8;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.entry-direct-record__copy strong {
+  margin-top: 3px;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+.entry-direct-record__copy > span {
+  margin-top: 3px;
+  color: rgb(15 23 42 / 48%);
+  font-size: 0.68rem;
+}
+
+.entry-direct-record__cta {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #1d4ed8;
+  border-radius: 7px;
+  background: #1d4ed8;
+  padding: 0 11px;
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 7px 14px rgb(29 78 216 / 18%);
+  transition: 180ms ease;
+}
+
+.entry-direct-record:hover .entry-direct-record__cta,
+.entry-direct-record:focus-visible .entry-direct-record__cta {
+  background: #173ea8;
+  box-shadow: 0 9px 18px rgb(29 78 216 / 26%);
+}
+
 .entry-secondary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -507,8 +603,22 @@ body {
   }
 
   .entry-workspace,
+  .entry-primary-stack,
   .entry-secondary-grid {
     gap: 10px;
+  }
+
+  .entry-primary-stack {
+    min-height: 338px;
+    grid-template-rows: 82px minmax(0, 1fr);
+  }
+
+  .entry-direct-record {
+    padding: 10px 12px;
+  }
+
+  .entry-direct-record__copy > span {
+    display: none;
   }
 
   .entry-card {
@@ -585,6 +695,11 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .entry-primary-stack {
+    min-height: 0;
+    grid-template-rows: auto auto;
+  }
+
   .entry-card--featured {
     min-height: 320px;
   }
@@ -616,6 +731,15 @@ body {
 
   .entry-secondary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .entry-direct-record {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .entry-direct-record__cta {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .entry-card,
@@ -1389,5 +1513,113 @@ body {
 
   .recording-meter i {
     width: 3px;
+  }
+}
+
+/* Keep the desktop capture flow within a single working viewport. */
+@media (min-width: 861px) {
+  .recording-setup {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    column-gap: 20px;
+    align-items: start;
+  }
+
+  .recording-setup > .recording-intro,
+  .recording-setup > .recording-required,
+  .recording-setup > .recording-recovery,
+  .recording-setup > .recording-advanced-toggle,
+  .recording-setup > .recording-advanced-panel,
+  .recording-setup > .recording-primary-action,
+  .recording-setup > .recording-privacy,
+  .recording-setup > .recording-storage-error {
+    grid-column: 1 / -1;
+  }
+
+  .recording-setup > .recording-mic-test {
+    grid-column: 1;
+  }
+
+  .recording-setup > .recording-form-grid {
+    grid-column: 2;
+    align-self: stretch;
+  }
+
+  .recording-notes-page__container {
+    max-width: 1200px;
+  }
+
+  .recording-notes-page__surface {
+    max-width: 1120px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .recording-step-rail {
+    width: min(100%, 520px);
+    margin-bottom: 8px;
+  }
+
+  .recording-intro {
+    gap: 16px;
+  }
+
+  .recording-intro h1 {
+    margin-top: 4px;
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+
+  .recording-intro p:not(.recording-kicker) {
+    margin-top: 4px;
+  }
+
+  .recording-required {
+    margin-top: 10px;
+    padding: 8px 12px;
+  }
+
+  .recording-mic-test {
+    margin-top: 8px;
+    padding: 10px 16px;
+  }
+
+  .recording-mic-steps {
+    margin-top: 8px;
+  }
+
+  .recording-meter-row {
+    margin-top: 7px;
+    padding: 7px 11px;
+  }
+
+  .recording-form-grid {
+    gap: 14px;
+    margin-top: 12px;
+  }
+
+  .recording-input-wrap {
+    height: 40px;
+  }
+
+  .recording-setup .recording-field [aria-label='选择笔记风格'] > button {
+    min-height: 62px;
+  }
+
+  .recording-advanced-toggle {
+    margin-top: 6px;
+    padding-block: 7px;
+  }
+
+  .recording-primary-action {
+    margin-top: 8px;
+  }
+
+  .recording-start-button {
+    min-height: 42px !important;
+  }
+
+  .recording-privacy {
+    margin-top: 4px;
   }
 }

@@ -22,3 +22,16 @@ final result: passed
 ## Visual evidence
 
 - `.tmp/parameter-config-redesign-shot.png` (generated locally during QA)
+
+## Recording notes page QA
+
+final result: passed
+
+- Target: `http://127.0.0.1:8081/app/app_179bn4jet6k/recording-notes`
+- Desktop viewport `1280x720`: `document.documentElement.scrollHeight === 720`, no horizontal overflow, and the setup surface fits in the first viewport.
+- Mobile viewport `390x844`: responsive layout switches back to a single column with no horizontal overflow.
+- Initial state: the primary recording action is disabled until microphone testing is complete.
+- Interaction: clicking `检测麦克风` immediately changes the heading to `正在连接麦克风…` and the button to `正在检测麦克风`, providing visible progress feedback.
+- Visual inspection: the microphone test remains the dominant module, settings sit beside it on desktop, and secondary settings stay collapsed by default.
+- Build and lint checks passed for the client and recording page. Browser console entries observed during the check were existing platform telemetry 404s (`collectEvent`/tenant bootstrap), unrelated to this page change.
+- Hardware permission approval and a real voice signal could not be completed in the automated browser session; the success state should be smoke-tested once in a browser with microphone permission granted.
