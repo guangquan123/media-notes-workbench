@@ -1,0 +1,198 @@
+/* Detail-page-only layout calibration. No colors, copy, or interaction semantics are changed. */
+.media-note-page,
+.paired-media-page {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.media-note-page__container,
+.paired-media-page__container {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding-top: 18px !important;
+  padding-bottom: 14px !important;
+}
+
+.media-note-page__header,
+.paired-media-page__header {
+  flex: 0 0 auto;
+  min-height: 54px;
+  padding-bottom: 12px !important;
+}
+
+.media-note-page__layout,
+.paired-media-page__layout {
+  min-height: 0;
+  align-items: start !important;
+  gap: clamp(24px, 4vw, 56px) !important;
+  padding-top: 20px !important;
+  padding-bottom: 12px !important;
+}
+
+.media-note-page__hero,
+.paired-media-page__hero {
+  padding-top: 6px;
+}
+
+.media-note-page__hero h1,
+.paired-media-page__hero h1 {
+  max-width: 13ch;
+  font-size: clamp(2.35rem, 4.4vw, 4.25rem) !important;
+  line-height: 1.05 !important;
+}
+
+.media-note-page__hero > p:not(.inline-flex),
+.paired-media-page__hero > p:not(.inline-flex) {
+  max-width: 38rem;
+  margin-top: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.media-note-page__hero > div:last-child,
+.paired-media-page__hero > div:last-child {
+  margin-top: 20px !important;
+}
+
+.media-note-page__panel,
+.paired-media-page__panel {
+  min-height: 0;
+  max-height: calc(100dvh - 110px);
+  overflow-y: auto;
+  padding: 20px !important;
+  border-radius: 24px !important;
+  scrollbar-width: thin;
+}
+
+.media-note-page__panel > .mt-7 {
+  margin-top: 16px !important;
+}
+
+.media-note-page__panel > .mt-5,
+.paired-media-page__panel > .mt-5 {
+  margin-top: 14px !important;
+}
+
+.media-note-page__panel > .mt-6,
+.paired-media-page__panel > .mt-6 {
+  margin-top: 16px !important;
+}
+
+.paired-media-page__panel > .grid {
+  gap: 12px !important;
+}
+
+.paired-media-page__panel > .grid:first-child > div {
+  padding: 12px !important;
+}
+
+.paired-media-page__panel > .grid:first-child > div > div:last-child {
+  margin-top: 10px !important;
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+.paired-media-page__panel .rounded-2xl.bg-\[\#f7f7f5\] {
+  padding: 12px !important;
+}
+
+.paired-media-page__panel .min-h-\[500px\] {
+  min-height: 0 !important;
+}
+
+@media (max-width: 1023px) {
+  .media-note-page,
+  .paired-media-page {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .media-note-page__container,
+  .paired-media-page__container {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .media-note-page__layout,
+  .paired-media-page__layout {
+    align-items: stretch !important;
+    padding-top: 18px !important;
+  }
+
+  .media-note-page__panel,
+  .paired-media-page__panel {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 640px) {
+  .media-note-page__container,
+  .paired-media-page__container {
+    padding-inline: 16px !important;
+    padding-top: 12px !important;
+  }
+
+  .media-note-page__header,
+  .paired-media-page__header {
+    min-height: 48px;
+    gap: 10px !important;
+  }
+
+  .media-note-page__layout,
+  .paired-media-page__layout {
+    gap: 20px !important;
+  }
+
+  .media-note-page__hero h1,
+  .paired-media-page__hero h1 {
+    max-width: none;
+    font-size: 2.5rem !important;
+  }
+
+  .media-note-page__panel,
+  .paired-media-page__panel {
+    padding: 16px !important;
+    border-radius: 20px !important;
+  }
+}
+
+/* The recording screen already owns a stable class namespace. These rules only
+   reclaim vertical space on desktop; mobile keeps its natural document flow. */
+.recording-notes-page {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.recording-notes-page__container {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+}
+
+.recording-notes-page__container > section {
+  min-height: 0;
+  overflow: auto;
+}
+
+.recording-notes-page__surface {
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  .recording-notes-page {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .recording-notes-page__container {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .recording-notes-page__container > section {
+    overflow: visible;
+  }
+}

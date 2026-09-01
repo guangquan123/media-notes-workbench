@@ -44,6 +44,7 @@ import {
   loadLatestStoredRecording,
   type RecoverableRecording,
 } from './recording-storage';
+import '../MediaNotePage/detail-pages-compact.css';
 import {
   ReliableRecorder,
   type RecorderDeviceState,

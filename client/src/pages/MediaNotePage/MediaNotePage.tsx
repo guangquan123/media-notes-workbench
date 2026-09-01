@@ -51,6 +51,7 @@ import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
 import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
 import { getMediaNoteConnectorCopy } from './media-note-connector.utils';
+import './detail-pages-compact.css';
 import type {
   NoteJob,
   NoteStyle,
@@ -536,11 +537,11 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
 
   return (
     <main
-      className="min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]"
+      className="media-note-page min-h-screen overflow-auto bg-[#f7f7f5] text-[#161616]"
       style={{ '--media-accent': copy.accent } as CSSProperties}
     >
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-7 md:px-10 md:py-10">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
+      <div className="media-note-page__container mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-7 md:px-10 md:py-10">
+        <header className="media-note-page__header flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div
               className="grid size-10 place-items-center rounded-2xl text-white shadow-sm"
@@ -562,8 +563,8 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
           </Link>
         </header>
 
-        <section className="grid min-w-0 flex-1 items-center gap-12 py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
-          <div className="min-w-0 max-w-xl">
+        <section className="media-note-page__layout grid min-w-0 flex-1 items-center gap-12 py-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
+          <div className="media-note-page__hero min-w-0 max-w-xl">
             <div
               className="mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium"
               style={{
@@ -626,7 +627,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             </div>
           </div>
 
-          <div className="min-w-0 rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
+          <div className="media-note-page__panel min-w-0 rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
             {!job && !uploading ? (
               <>
                 <p className="text-lg font-semibold tracking-tight">

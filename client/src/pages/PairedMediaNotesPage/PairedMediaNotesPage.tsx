@@ -47,6 +47,7 @@ import {
   toUploadedMediaInput,
   VIDEO_ACCEPT,
 } from './paired-media-page.utils';
+import '../MediaNotePage/detail-pages-compact.css';
 
 const READINESS_RETRY_DELAY_MS = 1_200;
 
@@ -253,9 +254,9 @@ export default function PairedMediaNotesPage() {
     : job?.progress || 0;
 
   return (
-    <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#111315]">
-      <div className="mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10">
-        <header className="flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
+    <main className="paired-media-page min-h-screen overflow-auto bg-[#f6f7f5] text-[#111315]">
+      <div className="paired-media-page__container mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10">
+        <header className="paired-media-page__header flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-2xl bg-[#4d5dff] text-white">
               <Sparkles className="size-5" />
@@ -276,8 +277,8 @@ export default function PairedMediaNotesPage() {
           </Link>
         </header>
 
-        <section className="grid gap-8 py-9 lg:grid-cols-[.9fr_1.1fr]">
-          <div>
+        <section className="paired-media-page__layout grid gap-8 py-9 lg:grid-cols-[.9fr_1.1fr]">
+          <div className="paired-media-page__hero">
             <p className="text-sm font-semibold text-[#4d5dff]">
               双录制文件交叉验证
             </p>
@@ -313,7 +314,7 @@ export default function PairedMediaNotesPage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
+          <div className="paired-media-page__panel rounded-[2rem] border border-black/8 bg-white p-6 shadow-[0_28px_80px_rgba(35,30,24,0.1)] md:p-8">
             {!job && !uploading ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2">
