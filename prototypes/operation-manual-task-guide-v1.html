@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新手任务指引 | 多媒体笔记工作台</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #69778b;
+      --light: #99a5b5;
+      --line: #e2e8f0;
+      --blue: #3267f5;
+      --blue-soft: #edf3ff;
+      --green: #159b62;
+      --green-soft: #eaf8f1;
+      --orange: #e8753f;
+      --orange-soft: #fff1e9;
+      --purple: #7457e8;
+      --shadow: 0 16px 38px rgb(30 48 78 / 8%);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { border: 0; font: inherit; cursor: pointer; }
+    svg { display: block; }
+
+    .topbar {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .brand strong { display: block; font-size: 15px; }
+    .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .top-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+    .top-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+    .page {
+      width: min(1160px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+    .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--blue); font-size: 12px; font-weight: 800; }
+    .eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
+    h1 { margin: 9px 0 0; font-size: 29px; line-height: 1.2; letter-spacing: -0.035em; }
+    .intro p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .mode-switch { display: flex; gap: 5px; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .mode-switch button { padding: 8px 13px; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .mode-switch button.active { background: var(--blue-soft); color: #2159dc; }
+
+    .chooser { margin-top: 21px; }
+    .chooser-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+    .chooser-title strong { font-size: 13px; }
+    .chooser-title span { color: var(--light); font-size: 11px; }
+    .material-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; }
+    .material {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--muted);
+      text-align: left;
+      transition: border-color .16s ease, background .16s ease;
+    }
+    .material:hover { border-color: #c7d6f5; }
+    .material.active { border-color: #a9c0ff; background: #fbfdff; color: var(--ink); }
+    .material-icon {
+      flex: 0 0 auto;
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: #f1f4f8;
+      color: #7d8a9c;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .material.active .material-icon { background: var(--blue-soft); color: var(--blue); }
+    .material strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .material small { display: block; margin-top: 2px; color: var(--light); font-size: 10px; }
+
+    .guide {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, .86fr) minmax(440px, 1.14fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+    .guide-copy, .screen-demo {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      box-shadow: var(--shadow);
+    }
+    .guide-copy { padding: 22px 23px; }
+    .guide-label { display: inline-flex; align-items: center; gap: 6px; color: var(--blue); font-size: 11px; font-weight: 800; }
+    .guide-label i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+    h2 { margin: 8px 0 0; font-size: 22px; line-height: 1.3; letter-spacing: -0.03em; }
+    .guide-summary { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .steps { position: relative; display: grid; gap: 0; margin-top: 20px; }
+    .steps::before { content: ""; position: absolute; left: 16px; top: 20px; bottom: 20px; width: 1px; background: #d9e2ef; }
+    .step { position: relative; display: grid; grid-template-columns: 33px minmax(0, 1fr); gap: 11px; padding-bottom: 17px; }
+    .step:last-child { padding-bottom: 0; }
+    .step-num { position: relative; z-index: 1; width: 33px; height: 33px; display: grid; place-items: center; border-radius: 50%; background: var(--blue); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 4px var(--blue-soft); }
+    .step:last-child .step-num { background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+    .step h3 { margin: 1px 0 0; font-size: 13px; }
+    .step p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .finish { margin-top: 18px; padding: 11px 12px; border-radius: 8px; background: var(--green-soft); color: #2c7957; font-size: 11px; line-height: 1.55; }
+    .finish strong { color: #1f6849; }
+
+    .screen-demo { overflow: hidden; }
+    .window-bar { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 13px; border-bottom: 1px solid var(--line); background: #fafbfc; }
+    .window-name { display: flex; align-items: center; gap: 7px; color: #68768a; font-size: 10px; }
+    .window-name i { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-style: normal; font-weight: 800; }
+    .window-dots { display: flex; gap: 4px; }
+    .window-dots i { width: 5px; height: 5px; border-radius: 50%; background: #cbd4df; }
+    .mock-page { min-height: 414px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 15px; padding: 17px; background: #f7f7f5; }
+    .mock-copy { padding: 6px 2px; }
+    .mock-kicker { color: var(--blue); font-size: 9px; font-weight: 800; }
+    .mock-copy h3 { margin: 8px 0 0; font-size: 17px; line-height: 1.28; letter-spacing: -0.02em; }
+    .mock-copy p { margin: 7px 0 0; color: #7c8796; font-size: 9px; line-height: 1.55; }
+    .mock-process { display: flex; gap: 4px; margin-top: 15px; }
+    .mock-process i { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid #dfe5ec; border-radius: 6px; background: #fff; color: #a2acb9; font-style: normal; font-size: 8px; }
+    .mock-process i:first-child { border-color: #adc2ff; color: var(--blue); background: var(--blue-soft); }
+    .mock-card { position: relative; min-width: 0; padding: 15px; border: 1px solid #e0e5eb; border-radius: 12px; background: #fff; box-shadow: 0 10px 24px rgb(35 47 67 / 8%); }
+    .mock-card-title { font-size: 11px; font-weight: 800; }
+    .mock-card-hint { margin-top: 3px; color: #99a4b2; font-size: 8px; }
+    .upload-zone { position: relative; min-height: 126px; display: grid; place-items: center; margin-top: 12px; border: 1px dashed #ccd5e1; border-radius: 9px; background: #fafbfc; text-align: center; }
+    .upload-zone.dual { grid-template-columns: 1fr 1fr; gap: 7px; padding: 7px; border: 0; background: transparent; }
+    .upload-box { height: 112px; display: grid; place-items: center; border: 1px dashed #ccd5e1; border-radius: 8px; background: #fafbfc; }
+    .upload-icon { width: 29px; height: 29px; display: grid; place-items: center; margin: 0 auto; border-radius: 8px; background: var(--blue); color: #fff; font-size: 14px; }
+    .upload-zone strong, .upload-box strong { display: block; margin-top: 7px; font-size: 9px; }
+    .upload-zone small, .upload-box small { display: block; margin-top: 2px; color: #a0a9b6; font-size: 7px; }
+    .url-input { height: 34px; display: flex; align-items: center; margin-top: 12px; padding: 0 10px; border: 1px solid #d7dee8; border-radius: 7px; color: #9ba6b4; background: #fff; font-size: 8px; }
+    .style-label { margin-top: 12px; font-size: 9px; font-weight: 800; }
+    .style-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .style-option { padding: 8px; border: 1px solid #dde3eb; border-radius: 7px; font-size: 8px; }
+    .style-option.active { border-color: #a9c0ff; color: var(--blue); background: var(--blue-soft); }
+    .mock-button { height: 33px; display: grid; place-items: center; margin-top: 11px; border-radius: 7px; background: var(--blue); color: #fff; font-size: 9px; font-weight: 800; }
+    .callout { position: absolute; display: flex; align-items: center; gap: 5px; z-index: 2; color: #fff; font-size: 8px; font-weight: 800; white-space: nowrap; }
+    .callout b { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+    .callout span { padding: 4px 6px; border-radius: 5px; background: var(--ink); }
+    .c1 { top: 78px; right: 10px; }
+    .c2 { bottom: 78px; right: 10px; }
+    .c3 { bottom: 19px; right: 10px; }
+
+    .config-view { display: none; margin-top: 14px; grid-template-columns: .8fr 1.2fr; gap: 14px; }
+    .config-view.visible { display: grid; }
+    .config-intro, .checklist { padding: 22px 23px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: var(--shadow); }
+    .config-intro h2 { margin-top: 8px; }
+    .config-intro p { color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .config-tip { margin-top: 15px; padding: 11px 12px; border-radius: 8px; background: var(--orange-soft); color: #825337; font-size: 11px; line-height: 1.55; }
+    .checklist h3 { margin: 0; font-size: 14px; }
+    .check-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .check-row:last-child { border-bottom: 0; }
+    .check-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--blue-soft); color: var(--blue); font-weight: 800; }
+    .check-row strong { display: block; font-size: 12px; }
+    .check-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .check-state { color: var(--green); font-size: 10px; font-weight: 800; }
+
+    @media (max-width: 900px) {
+      .page { width: min(100% - 28px, 720px); padding-top: 20px; }
+      .intro { align-items: flex-start; flex-direction: column; }
+      .material-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .guide, .config-view.visible { grid-template-columns: 1fr; }
+      .screen-demo { order: -1; }
+    }
+    @media (max-width: 560px) {
+      .topbar { height: 60px; padding: 0 15px; }
+      .brand small, .top-state { display: none; }
+      .page { width: calc(100% - 20px); padding-top: 15px; }
+      h1 { font-size: 24px; }
+      .mode-switch { width: 100%; }
+      .mode-switch button { flex: 1; }
+      .material-grid { grid-template-columns: 1fr; }
+      .guide-copy { padding: 18px 16px; }
+      .mock-page { min-height: 380px; grid-template-columns: 1fr; }
+      .mock-copy { display: none; }
+      .config-intro, .checklist { padding: 18px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">M</span><span><strong>多媒体笔记工作台</strong><small>新用户任务指引</small></span></div>
+    <div class="top-state"><i></i>选择素材，照着步骤完成</div>
+  </header>
+
+  <main class="page">
+    <section class="intro">
+      <div><div class="eyebrow"><i></i>帮助中心 · 第一次使用</div><h1>你手里有什么素材？</h1><p>选择一种素材，我会告诉你进入页面后具体点哪里。</p></div>
+      <div class="mode-switch"><button class="active" data-mode="task">我要处理素材</button><button data-mode="config">任务无法开始</button></div>
+    </section>
+
+    <section class="chooser" data-task-only>
+      <div class="chooser-title"><strong>选择素材</strong><span>一次只看一条指引</span></div>
+      <div class="material-grid">
+        <button class="material active" data-scene="video"><span class="material-icon">▶</span><span><strong>本地视频</strong><small>课程 / 讲座 / 录屏</small></span></button>
+        <button class="material" data-scene="audio"><span class="material-icon">◉</span><span><strong>录音文件</strong><small>课堂 / 访谈 / 备忘</small></span></button>
+        <button class="material" data-scene="paired"><span class="material-icon">＋</span><span><strong>视频 + 录音</strong><small>同一场会议 / 培训</small></span></button>
+        <button class="material" data-scene="document"><span class="material-icon">▤</span><span><strong>文档资料</strong><small>PDF / Word / PPT</small></span></button>
+        <button class="material" data-scene="platform"><span class="material-icon">↗</span><span><strong>平台链接</strong><small>B站 / 抖音</small></span></button>
+      </div>
+    </section>
+
+    <section class="guide" data-task-only>
+      <article class="guide-copy">
+        <div class="guide-label"><i></i><span id="guide-label">本地视频指引</span></div>
+        <h2 id="guide-title">把本地视频变成学习笔记</h2>
+        <p class="guide-summary" id="guide-summary">适合课程、讲座和录屏。系统会提取声音、转成文字，再整理为笔记。</p>
+        <div class="steps" id="guide-steps"></div>
+        <div class="finish" id="guide-finish"><strong>完成标志：</strong>页面显示“笔记已经准备好”，并出现打开笔记按钮。</div>
+      </article>
+
+      <article class="screen-demo" aria-label="页面操作示意">
+        <div class="window-bar"><div class="window-name"><i>W</i><span id="window-name">本地视频工作台</span></div><div class="window-dots"><i></i><i></i><i></i></div></div>
+        <div class="mock-page">
+          <div class="mock-copy"><div class="mock-kicker" id="mock-kicker">本地视频工作台</div><h3 id="mock-title">把本地视频，变成一篇有结构的学习笔记。</h3><p id="mock-desc">上传课程、讲座或屏幕录制，系统会自动整理内容。</p><div class="mock-process"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i></div></div>
+          <div class="mock-card">
+            <div class="mock-card-title" id="mock-card-title">选择视频文件</div>
+            <div class="mock-card-hint" id="mock-card-hint">最多 10 个视频，累计不超过 10 GB</div>
+            <div id="mock-input"></div>
+            <div class="style-label">笔记风格</div>
+            <div class="style-row"><div class="style-option active">学习笔记</div><div class="style-option">会议纪要</div></div>
+            <div class="mock-button" id="mock-button">开始生成学习笔记</div>
+            <div class="callout c1"><b>1</b><span id="callout-1">上传文件</span></div>
+            <div class="callout c2"><b>2</b><span>选择风格</span></div>
+            <div class="callout c3"><b>3</b><span id="callout-3">开始生成</span></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="config-view" data-config-only>
+      <article class="config-intro"><div class="guide-label"><i></i>配置检查</div><h2>任务无法开始时，只检查这 3 项</h2><p>不用理解全部参数。页面按钮无法点击或提示“需要配置”时，再按右侧顺序检查。</p><div class="config-tip"><strong>先做什么：</strong>进入“参数配置 → 开始使用”，运行一次自动检测。系统会直接告诉你缺少哪一项。</div></article>
+      <article class="checklist"><h3>按顺序检查</h3><div class="check-row"><span class="check-icon">1</span><span><strong>处理能力是否就绪</strong><small>文档、音视频或平台链接对应能力应显示“已就绪”。</small></span><span class="check-state">第一步</span></div><div class="check-row"><span class="check-icon">2</span><span><strong>转录与总结模型是否可用</strong><small>音视频需要转录能力；所有任务都需要总结模型。</small></span><span class="check-state">第二步</span></div><div class="check-row"><span class="check-icon">3</span><span><strong>笔记输出位置是否有效</strong><small>确认当前启用的飞书或钉钉连接器可以写入。</small></span><span class="check-state">第三步</span></div></article>
+    </section>
+  </main>
+
+  <script>
+    const scenes = {
+      video: {
+        label: '本地视频指引', title: '把本地视频变成学习笔记',
+        summary: '适合课程、讲座和录屏。系统会提取声音、转成文字，再整理为笔记。',
+        steps: [['上传视频', '在右侧操作卡中拖入或选择本地视频。'], ['选择学习笔记', '需要保留 PPT 或图表时，再开启关键画面。'], ['点击开始生成', '等待转写、总结和写入全部完成。']],
+        finish: '页面显示“笔记已经准备好”，并出现打开笔记按钮。',
+        workspace: '本地视频工作台', mockTitle: '把本地视频，变成一篇有结构的学习笔记。',
+        desc: '上传课程、讲座或屏幕录制，系统会自动整理内容。', cardTitle: '选择视频文件', hint: '最多 10 个视频，累计不超过 10 GB', input: 'single', upload: '上传视频', button: '开始生成学习笔记'
+      },
+      audio: {
+        label: '录音文件指引', title: '把录音文件变成复习笔记',
+        summary: '这里处理的是已有录音文件，不会调用麦克风。适合课堂、访谈和语音备忘。',
+        steps: [['上传录音文件', '选择 MP3、M4A、WAV 等已有文件。'], ['选择笔记风格', '学习笔记强调复习；会议纪要强调决策和待办。'], ['点击开始生成', '完成后重点核对数字、术语和行动项。']],
+        finish: '页面显示“笔记已经准备好”，可以打开笔记或原始转写。',
+        workspace: '录音整理工作台', mockTitle: '让一段录音，沉淀成真正可复习的笔记。',
+        desc: '上传课堂录音、访谈或语音备忘，系统会转写并整理。', cardTitle: '选择录音文件', hint: '支持 MP3、M4A、WAV、AAC、FLAC、OGG', input: 'single', upload: '上传录音', button: '开始生成学习笔记'
+      },
+      paired: {
+        label: '双源内容指引', title: '把同场视频和录音合成一份笔记',
+        summary: '主视频提供画面，辅助录音补足声音。两份文件必须来自同一场会议或培训。',
+        steps: [['上传两份文件', '左侧放主视频，右侧放同场辅助录音。'], ['保持自动对齐', '只有明确知道起点偏差时，才使用手动偏移。'], ['开始交叉验证', '完成后核对画面、转写和差异提示。']],
+        finish: '页面显示“双源笔记已经准备好”，可以打开融合笔记。',
+        workspace: '双源会议 / 培训工作台', mockTitle: '把同一场内容的画面和声音，合成一份可核对的笔记。',
+        desc: '系统对齐两路声音，并结合视频关键画面生成融合时间线。', cardTitle: '选择双源文件', hint: '必须同时上传主视频和辅助录音', input: 'dual', upload: '上传两份文件', button: '开始双源交叉验证'
+      },
+      document: {
+        label: '文档资料指引', title: '把多份文档整理成知识资产',
+        summary: '适合书籍、报告和课件。系统会读取原文、解析结构，再融合为一篇笔记。',
+        steps: [['上传文档', '可以一次选择多份 PDF、Word、PPT、TXT 或 Markdown。'], ['选择学习笔记', '系统会按主题融合内容，并保留原文入口。'], ['点击开始生成', '完成后核对引用、数字和跨文档结论。']],
+        finish: '页面显示“笔记已经准备好”，可以打开知识笔记和原文。',
+        workspace: '文档学习工作台', mockTitle: '把多份文档，沉淀成一篇可回顾的知识资产。',
+        desc: '上传书籍、报告、论文或课程资料，系统会解析并融合原文。', cardTitle: '选择文档文件', hint: '最多 10 个文档，累计不超过 200 MB', input: 'single', upload: '上传文档', button: '开始生成学习笔记'
+      },
+      platform: {
+        label: '平台视频指引', title: '把平台视频链接变成学习笔记',
+        summary: '适合 B 站或抖音中的课程和演讲。系统先读取链接，再完成转写和总结。',
+        steps: [['选择平台并粘贴链接', '使用完整的视频 URL，不要只复制编号。'], ['按提示处理权限', '受限视频出现提示时，再选择已登录的本机浏览器。'], ['点击开始生成', '查看当前处理阶段，不要重复提交同一链接。']],
+        finish: '页面显示“笔记已经准备好”，可以打开笔记查看结果。',
+        workspace: '平台视频学习工作台', mockTitle: '把平台视频，整理成可回看的学习笔记。',
+        desc: '粘贴 B 站或抖音链接，系统会拉取内容并生成笔记。', cardTitle: '输入视频链接', hint: '请选择平台并粘贴完整链接', input: 'url', upload: '粘贴链接', button: '开始生成学习笔记'
+      }
+    };
+
+    const qs = (selector) => document.querySelector(selector);
+    const steps = qs('#guide-steps');
+    const mockInput = qs('#mock-input');
+
+    function renderScene(key) {
+      const scene = scenes[key];
+      qs('#guide-label').textContent = scene.label;
+      qs('#guide-title').textContent = scene.title;
+      qs('#guide-summary').textContent = scene.summary;
+      steps.innerHTML = scene.steps.map((step, index) => `<div class="step"><div class="step-num">${index + 1}</div><div><h3>${step[0]}</h3><p>${step[1]}</p></div></div>`).join('');
+      qs('#guide-finish').innerHTML = `<strong>完成标志：</strong>${scene.finish}`;
+      qs('#window-name').textContent = scene.workspace;
+      qs('#mock-kicker').textContent = scene.workspace;
+      qs('#mock-title').textContent = scene.mockTitle;
+      qs('#mock-desc').textContent = scene.desc;
+      qs('#mock-card-title').textContent = scene.cardTitle;
+      qs('#mock-card-hint').textContent = scene.hint;
+      qs('#mock-button').textContent = scene.button;
+      qs('#callout-1').textContent = scene.upload;
+      qs('#callout-3').textContent = scene.button.includes('交叉') ? '开始验证' : '开始生成';
+      if (scene.input === 'dual') {
+        mockInput.innerHTML = '<div class="upload-zone dual"><div class="upload-box"><div><div class="upload-icon">↑</div><strong>主视频</strong><small>提供画面和视频音轨</small></div></div><div class="upload-box"><div><div class="upload-icon">↑</div><strong>辅助录音</strong><small>提供更清晰的声音</small></div></div></div>';
+      } else if (scene.input === 'url') {
+        mockInput.innerHTML = '<div class="url-input">https://www.example.com/video/...</div>';
+      } else {
+        mockInput.innerHTML = `<div class="upload-zone"><div><div class="upload-icon">↑</div><strong>拖入文件，或点击选择</strong><small>${scene.hint}</small></div></div>`;
+      }
+    }
+
+    document.querySelectorAll('[data-scene]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-scene]').forEach((item) => item.classList.toggle('active', item === button));
+        renderScene(button.dataset.scene);
+      });
+    });
+
+    document.querySelectorAll('[data-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const config = button.dataset.mode === 'config';
+        document.querySelectorAll('[data-mode]').forEach((item) => item.classList.toggle('active', item === button));
+        document.querySelectorAll('[data-task-only]').forEach((item) => { item.style.display = config ? 'none' : ''; });
+        qs('[data-config-only]').classList.toggle('visible', config);
+      });
+    });
+
+    renderScene('video');
+  </script>
+</body>
+</html>
