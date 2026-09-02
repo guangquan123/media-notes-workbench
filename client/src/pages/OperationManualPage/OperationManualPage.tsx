@@ -462,34 +462,42 @@ const OperationManualPage = () => {
           </section>
         )}
 
-        <section className="manual-faq" aria-labelledby="manual-faq-title">
-          <div className="manual-faq__header">
-            <div className="manual-faq__heading">
-              <span className="manual-faq__badge">
-                <CircleHelp className="size-5" />
-              </span>
-              <span>
-                <strong id="manual-faq-title">遇到问题？先看这里</strong>
-                <small>大多数卡点都可以在下面找到答案</small>
-              </span>
+        {mode === 'config' && (
+          <section className="manual-faq" aria-labelledby="manual-faq-title">
+            <div className="manual-faq__header">
+              <div className="manual-faq__heading">
+                <span className="manual-faq__badge">
+                  <CircleHelp className="size-5" />
+                </span>
+                <span>
+                  <strong id="manual-faq-title">遇到问题？先看这里</strong>
+                  <small>大多数卡点都可以在下面找到答案</small>
+                </span>
+              </div>
+              <span className="manual-faq__flag">新用户高频问题</span>
             </div>
-            <span className="manual-faq__flag">新用户高频问题</span>
-          </div>
-          <div className="manual-faq__list">
-            {FAQS.map(
-              ({ answer, question }: { answer: string; question: string }) => (
-                <details
-                  className="manual-faq__item"
-                  key={question}
-                  open={question === FAQS[0].question}
-                >
-                  <summary>{question}</summary>
-                  <p>{answer}</p>
-                </details>
-              ),
-            )}
-          </div>
-        </section>
+            <div className="manual-faq__list">
+              {FAQS.map(
+                ({
+                  answer,
+                  question,
+                }: {
+                  answer: string;
+                  question: string;
+                }) => (
+                  <details
+                    className="manual-faq__item"
+                    key={question}
+                    open={question === FAQS[0].question}
+                  >
+                    <summary>{question}</summary>
+                    <p>{answer}</p>
+                  </details>
+                ),
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
