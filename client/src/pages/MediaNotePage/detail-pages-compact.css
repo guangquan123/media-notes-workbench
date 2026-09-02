@@ -1,99 +1,120 @@
-/* Detail-page-only layout calibration. No colors, copy, or interaction semantics are changed. */
+/* Detail-page-only layout calibration. Presentation only; workflow logic is unchanged. */
 .media-note-page,
 .paired-media-page {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow: visible;
 }
 
 .media-note-page__container,
 .paired-media-page__container {
   box-sizing: border-box;
-  height: 100%;
-  min-height: 0;
-  padding-top: 18px !important;
-  padding-bottom: 14px !important;
+  min-height: 100dvh;
+  padding-top: 22px !important;
+  padding-bottom: 28px !important;
 }
 
 .media-note-page__header,
 .paired-media-page__header {
   flex: 0 0 auto;
-  min-height: 54px;
-  padding-bottom: 12px !important;
+  min-height: 50px;
+  padding-bottom: 14px !important;
 }
 
 .media-note-page__layout,
 .paired-media-page__layout {
+  flex: none !important;
   min-height: 0;
   align-items: start !important;
-  gap: clamp(24px, 4vw, 56px) !important;
-  padding-top: 20px !important;
-  padding-bottom: 12px !important;
+  gap: clamp(32px, 4vw, 64px) !important;
+  padding-top: 28px !important;
+  padding-bottom: 10px !important;
 }
 
 .media-note-page__hero,
 .paired-media-page__hero {
-  padding-top: 6px;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .media-note-page__hero h1,
 .paired-media-page__hero h1 {
-  max-width: 13ch;
-  font-size: clamp(2.35rem, 4.4vw, 4.25rem) !important;
-  line-height: 1.05 !important;
+  max-width: 15ch;
+  font-size: clamp(2.05rem, 3.1vw, 3.25rem) !important;
+  line-height: 1.14 !important;
+  letter-spacing: -0.025em !important;
 }
 
 .media-note-page__hero > p:not(.inline-flex),
 .paired-media-page__hero > p:not(.inline-flex) {
   max-width: 38rem;
-  margin-top: 14px !important;
-  line-height: 1.6 !important;
+  margin-top: 16px !important;
+  font-size: 0.98rem;
+  line-height: 1.72 !important;
 }
 
 .media-note-page__hero > div:last-child,
 .paired-media-page__hero > div:last-child {
-  margin-top: 20px !important;
+  margin-top: 24px !important;
+}
+
+.media-note-page__hero > div:last-child > div,
+.paired-media-page__hero > div:last-child > div {
+  min-width: 0;
+  padding: 11px 8px !important;
+  border-radius: 14px !important;
 }
 
 .media-note-page__panel,
 .paired-media-page__panel {
+  align-self: start;
+  min-width: 0;
   min-height: 0;
-  max-height: calc(100dvh - 110px);
-  overflow-y: auto;
-  padding: 20px !important;
-  border-radius: 24px !important;
-  scrollbar-width: thin;
+  max-height: none;
+  overflow: visible;
+  padding: 24px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 46px rgba(35, 30, 24, 0.08) !important;
 }
 
 .media-note-page__panel > .mt-7 {
-  margin-top: 16px !important;
+  width: 100%;
+  margin-top: 18px !important;
 }
 
 .media-note-page__panel > .mt-5,
 .paired-media-page__panel > .mt-5 {
-  margin-top: 14px !important;
+  margin-top: 16px !important;
 }
 
 .media-note-page__panel > .mt-6,
 .paired-media-page__panel > .mt-6 {
-  margin-top: 16px !important;
+  margin-top: 18px !important;
+}
+
+.media-note-page__panel > div[role='presentation'],
+.media-note-page__panel > div[tabindex] {
+  width: 100%;
+  min-height: 180px;
 }
 
 .paired-media-page__panel > .grid {
-  gap: 12px !important;
+  gap: 14px !important;
 }
 
 .paired-media-page__panel > .grid:first-child > div {
-  padding: 12px !important;
+  min-width: 0;
+  padding: 14px !important;
 }
 
 .paired-media-page__panel > .grid:first-child > div > div:last-child {
+  min-height: 148px;
   margin-top: 10px !important;
-  padding-top: 16px !important;
-  padding-bottom: 16px !important;
+  padding-top: 18px !important;
+  padding-bottom: 18px !important;
 }
 
 .paired-media-page__panel .rounded-2xl.bg-\[\#f7f7f5\] {
-  padding: 12px !important;
+  padding: 14px !important;
 }
 
 .paired-media-page__panel .min-h-\[500px\] {
@@ -101,29 +122,22 @@
 }
 
 @media (max-width: 1023px) {
-  .media-note-page,
-  .paired-media-page {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
-  }
-
   .media-note-page__container,
   .paired-media-page__container {
-    height: auto;
     min-height: 100dvh;
   }
 
   .media-note-page__layout,
   .paired-media-page__layout {
     align-items: stretch !important;
-    padding-top: 18px !important;
+    padding-top: 24px !important;
   }
+}
 
-  .media-note-page__panel,
-  .paired-media-page__panel {
-    max-height: none;
-    overflow: visible;
+@media (min-width: 1024px) {
+  .media-note-page__layout,
+  .paired-media-page__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   }
 }
 
@@ -131,7 +145,8 @@
   .media-note-page__container,
   .paired-media-page__container {
     padding-inline: 16px !important;
-    padding-top: 12px !important;
+    padding-top: 14px !important;
+    padding-bottom: 20px !important;
   }
 
   .media-note-page__header,
@@ -142,19 +157,20 @@
 
   .media-note-page__layout,
   .paired-media-page__layout {
-    gap: 20px !important;
+    gap: 24px !important;
+    padding-top: 22px !important;
   }
 
   .media-note-page__hero h1,
   .paired-media-page__hero h1 {
     max-width: none;
-    font-size: 2.5rem !important;
+    font-size: clamp(2rem, 9vw, 2.55rem) !important;
   }
 
   .media-note-page__panel,
   .paired-media-page__panel {
-    padding: 16px !important;
-    border-radius: 20px !important;
+    padding: 18px !important;
+    border-radius: 18px !important;
   }
 }
 
