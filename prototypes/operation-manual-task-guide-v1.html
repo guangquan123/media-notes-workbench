@@ -190,12 +190,47 @@
     .check-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
     .check-state { color: var(--green); font-size: 10px; font-weight: 800; }
 
+    .faq-section {
+      margin-top: 16px;
+      padding: 18px 20px 20px;
+      border: 1px solid #f0d8c9;
+      border-radius: 13px;
+      background: linear-gradient(110deg, #fff8f3 0%, #fff 68%);
+      box-shadow: 0 10px 26px rgb(127 75 40 / 7%);
+    }
+    .faq-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .faq-heading { display: flex; align-items: center; gap: 10px; }
+    .faq-badge {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 900;
+    }
+    .faq-heading > span:last-child { display: block; }
+    .faq-heading strong { display: block; font-size: 15px; }
+    .faq-heading > span:last-child > span { display: block; margin-top: 2px; color: #9a745e; font-size: 11px; }
+    .faq-flag { padding: 5px 8px; border-radius: 6px; background: var(--orange-soft); color: #a65d36; font-size: 10px; font-weight: 800; }
+    .faq-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 14px; }
+    .faq-item { overflow: hidden; border: 1px solid #f0e2d9; border-radius: 9px; background: #fff; }
+    .faq-item summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; color: #3f4c60; font-size: 12px; font-weight: 750; cursor: pointer; list-style: none; }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: "+"; color: var(--orange); font-size: 16px; font-weight: 500; line-height: 1; }
+    .faq-item[open] summary { color: #8f4f2e; background: #fffaf7; }
+    .faq-item[open] summary::after { content: "−"; }
+    .faq-answer { padding: 0 12px 12px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+
     @media (max-width: 900px) {
       .page { width: min(100% - 28px, 720px); padding-top: 20px; }
       .intro { align-items: flex-start; flex-direction: column; }
       .material-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .guide, .config-view.visible { grid-template-columns: 1fr; }
       .screen-demo { order: -1; }
+      .faq-list { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 560px) {
       .topbar { height: 60px; padding: 0 15px; }
@@ -209,6 +244,9 @@
       .mock-page { min-height: 380px; grid-template-columns: 1fr; }
       .mock-copy { display: none; }
       .config-intro, .checklist { padding: 18px 16px; }
+      .faq-section { padding: 16px 13px; }
+      .faq-header { align-items: flex-start; flex-direction: column; gap: 8px; }
+      .faq-list { grid-template-columns: 1fr; margin-top: 11px; }
     }
   </style>
 </head>
@@ -261,6 +299,19 @@
           </div>
         </div>
       </article>
+    </section>
+
+    <section class="faq-section">
+      <div class="faq-header">
+        <div class="faq-heading"><span class="faq-badge">?</span><span><strong>遇到问题？先看这里</strong><span>大多数卡点都可以在下面找到答案</span></span></div>
+        <span class="faq-flag">新用户高频问题</span>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item" open><summary>为什么按钮不能点击？</summary><div class="faq-answer">通常是还没有选择文件，或对应的处理能力尚未就绪。切换到“任务无法开始”可检查 3 项配置。</div></details>
+        <details class="faq-item"><summary>上传完成后为什么还没出笔记？</summary><div class="faq-answer">上传只是第一步，还要等待转写、总结和写入。看到“笔记已经准备好”才算完成。</div></details>
+        <details class="faq-item"><summary>录音文件和实时录音有什么区别？</summary><div class="faq-answer">录音文件页只处理已有音频文件，不调用麦克风；实时录音是另一条功能流程。</div></details>
+        <details class="faq-item"><summary>生成的内容需要人工核对吗？</summary><div class="faq-answer">需要。尤其检查数字、术语、引用和行动项；原始转写会保留在转化记录中供回看。</div></details>
+      </div>
     </section>
 
     <section class="config-view" data-config-only>
