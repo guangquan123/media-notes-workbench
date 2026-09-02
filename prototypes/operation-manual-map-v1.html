@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>操作地图 | 多媒体笔记工作台</title>
+    <style>
+      :root {
+        --ink: #182235;
+        --muted: #718096;
+        --subtle: #9aa7b8;
+        --line: #e5eaf1;
+        --panel: #ffffff;
+        --canvas: #f5f7fa;
+        --blue: #3267f5;
+        --blue-soft: #edf3ff;
+        --green: #18a66a;
+        --green-soft: #eaf9f1;
+        --orange: #e87945;
+        --orange-soft: #fff3eb;
+        --purple: #7657e9;
+        --purple-soft: #f1efff;
+        --shadow: 0 14px 36px rgba(25, 44, 72, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+      html { background: var(--canvas); }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, a { font: inherit; }
+      button { border: 0; cursor: pointer; }
+      a { color: inherit; text-decoration: none; }
+
+      .topbar {
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 42px;
+        background: rgba(255, 255, 255, 0.94);
+        border-bottom: 1px solid var(--line);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand-mark {
+        width: 36px; height: 36px; display: grid; place-items: center;
+        color: white; background: var(--ink); border-radius: 10px;
+      }
+      .brand-mark svg { width: 19px; height: 19px; }
+      .brand-copy strong { display: block; font-size: 15px; letter-spacing: -0.01em; }
+      .brand-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+      .topbar-actions { display: flex; align-items: center; gap: 10px; }
+      .crumb { color: var(--subtle); font-size: 12px; }
+      .back {
+        display: inline-flex; align-items: center; gap: 7px;
+        height: 34px; padding: 0 13px; border: 1px solid var(--line);
+        border-radius: 8px; color: #536176; background: white;
+      }
+      .back svg { width: 15px; height: 15px; }
+
+      .shell {
+        width: min(1280px, calc(100% - 56px));
+        min-height: calc(100vh - 72px);
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 224px minmax(0, 1fr);
+        gap: 28px;
+        padding: 28px 0 38px;
+      }
+
+      .side {
+        align-self: start;
+        position: sticky;
+        top: 20px;
+        padding: 18px 14px 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 5px 18px rgba(30, 50, 80, 0.04);
+      }
+      .side-label { padding: 0 8px 12px; color: var(--subtle); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+      .side-switch { display: grid; gap: 7px; }
+      .side-switch button {
+        width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 10px;
+        color: #657388; background: transparent; border-radius: 9px; text-align: left;
+      }
+      .side-switch button:hover { background: #f6f8fb; color: var(--ink); }
+      .side-switch button.active { color: #1f57dc; background: var(--blue-soft); font-weight: 700; }
+      .side-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #f3f5f8; }
+      .active .side-icon { background: white; color: var(--blue); }
+      .side-icon svg { width: 16px; height: 16px; }
+      .side-note { margin: 18px 8px 0; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.7; }
+      .side-note strong { display: block; margin-bottom: 3px; color: var(--ink); font-size: 12px; }
+      .side-note span { color: var(--blue); font-weight: 700; }
+
+      .main { min-width: 0; }
+      .page-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin: 2px 0 20px; }
+      .eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--blue); font-size: 12px; font-weight: 750; }
+      .eyebrow-dot { width: 7px; height: 7px; background: var(--blue); border-radius: 50%; box-shadow: 0 0 0 4px var(--blue-soft); }
+      h1 { margin: 9px 0 0; font-size: 30px; line-height: 1.18; letter-spacing: -0.035em; }
+      .intro-copy { max-width: 610px; margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+      .intro-meta { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding-bottom: 3px; color: var(--muted); font-size: 12px; }
+      .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
+
+      .map-panel { padding: 22px 24px 25px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+      .map-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-bottom: 17px; border-bottom: 1px solid var(--line); }
+      .map-title { display: flex; align-items: center; gap: 10px; }
+      .map-title-icon { width: 34px; height: 34px; display: grid; place-items: center; color: var(--blue); background: var(--blue-soft); border-radius: 9px; }
+      .map-title-icon svg { width: 18px; height: 18px; }
+      .map-title strong { display: block; font-size: 16px; }
+      .map-title span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+      .map-legend { display: flex; align-items: center; gap: 14px; color: var(--subtle); font-size: 11px; }
+      .legend { display: inline-flex; align-items: center; gap: 5px; }
+      .legend i { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--green); }
+      .legend i.gray { background: #cbd4df; }
+
+      .scene-list { position: relative; display: grid; gap: 0; padding: 24px 4px 4px; }
+      .scene-list::before { content: ""; position: absolute; left: 25px; top: 46px; bottom: 44px; width: 1px; background: #dce4ef; }
+      .scene { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; padding-bottom: 14px; }
+      .scene:last-child { padding-bottom: 0; }
+      .scene-node { position: relative; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; color: #8492a5; background: white; border: 1px solid #dce4ef; border-radius: 50%; font-size: 13px; font-weight: 750; }
+      .scene.current .scene-node { color: white; background: var(--blue); border-color: var(--blue); box-shadow: 0 0 0 5px var(--blue-soft); }
+      .scene-card { min-width: 0; padding: 15px 17px 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+      .scene-card:hover { border-color: #c8d7f7; box-shadow: 0 6px 16px rgba(48, 92, 166, .08); transform: translateY(-1px); }
+      .scene.current .scene-card { border-color: #bcd0ff; background: #fbfdff; box-shadow: 0 5px 16px rgba(50, 103, 245, .07); }
+      .scene-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .scene-top h3 { margin: 0; font-size: 15px; letter-spacing: -0.015em; }
+      .scene-tag { flex: 0 0 auto; padding: 4px 7px; color: var(--blue); background: var(--blue-soft); border-radius: 5px; font-size: 11px; font-weight: 700; }
+      .scene-card p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .scene-bottom { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 11px; padding-top: 10px; border-top: 1px solid #eef1f5; }
+      .scene-steps { display: flex; flex-wrap: wrap; gap: 7px 13px; color: #69778b; font-size: 11px; }
+      .scene-steps span::before { content: "✓"; margin-right: 4px; color: var(--green); font-weight: 800; }
+      .scene-link { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--blue); font-size: 12px; font-weight: 700; }
+      .scene-link svg { width: 14px; height: 14px; }
+
+      .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 22px; }
+      .config-card { display: flex; flex-direction: column; min-height: 178px; padding: 16px 17px 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+      .config-card:hover { border-color: #c8d7f7; box-shadow: 0 6px 16px rgba(48, 92, 166, .08); transform: translateY(-1px); }
+      .config-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+      .config-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; }
+      .config-icon svg { width: 17px; height: 17px; }
+      .config-card:nth-child(1) .config-icon { color: var(--blue); background: var(--blue-soft); }
+      .config-card:nth-child(2) .config-icon { color: var(--purple); background: var(--purple-soft); }
+      .config-card:nth-child(3) .config-icon { color: var(--orange); background: var(--orange-soft); }
+      .config-card:nth-child(4) .config-icon { color: var(--green); background: var(--green-soft); }
+      .config-status { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 11px; font-weight: 700; }
+      .config-status i { width: 6px; height: 6px; background: var(--green); border-radius: 50%; }
+      .config-card h3 { margin: 15px 0 0; font-size: 15px; }
+      .config-card p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+      .config-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 13px; color: var(--subtle); font-size: 11px; }
+      .config-link { display: inline-flex; align-items: center; gap: 5px; color: var(--blue); font-weight: 700; }
+      .config-link svg { width: 14px; height: 14px; }
+
+      .tip { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px 14px; color: #54647a; background: #f8fafc; border: 1px solid #edf1f5; border-radius: 9px; font-size: 12px; line-height: 1.6; }
+      .tip svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; color: var(--blue); }
+
+      @media (max-width: 900px) {
+        .topbar { padding: 0 20px; }
+        .shell { width: min(100% - 32px, 680px); grid-template-columns: 1fr; gap: 18px; padding-top: 18px; }
+        .side { position: static; padding: 12px; }
+        .side-label { padding-bottom: 8px; }
+        .side-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .side-note { display: none; }
+        .page-intro { align-items: flex-start; flex-direction: column; gap: 8px; }
+        .intro-meta { padding-bottom: 0; }
+      }
+      @media (max-width: 620px) {
+        .topbar { height: 62px; }
+        .brand-copy span, .crumb { display: none; }
+        .shell { width: calc(100% - 24px); min-height: calc(100vh - 62px); padding: 15px 0 24px; }
+        h1 { font-size: 25px; }
+        .map-panel { padding: 17px 14px 18px; border-radius: 12px; }
+        .map-header { align-items: flex-start; flex-direction: column; gap: 11px; }
+        .map-legend { padding-left: 44px; }
+        .scene-list { padding: 18px 0 0; }
+        .scene-list::before { left: 21px; top: 39px; bottom: 36px; }
+        .scene { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding-bottom: 10px; }
+        .scene-node { width: 36px; height: 36px; font-size: 12px; }
+        .scene-card { padding: 13px 12px 12px; }
+        .scene-top { flex-direction: column; gap: 7px; }
+        .scene-tag { align-self: flex-start; }
+        .scene-bottom { align-items: flex-start; flex-direction: column; gap: 9px; }
+        .config-grid { grid-template-columns: 1fr; padding-top: 17px; }
+        .config-card { min-height: 155px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v17H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v17h4.5A2.5 2.5 0 0 1 20 22z"/><path d="M8 7h1M8 11h1M15 7h1M15 11h1"/></svg>
+        </span>
+        <span class="brand-copy"><strong>多媒体笔记工作台</strong><span>把资料整理成可复用的知识</span></span>
+      </div>
+      <div class="topbar-actions"><span class="crumb">帮助中心 / 操作地图</span><a class="back" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>返回入口</a></div>
+    </header>
+
+    <div class="shell">
+      <aside class="side">
+        <div class="side-label">操作地图</div>
+        <div class="side-switch" role="tablist" aria-label="操作手册分类">
+          <button class="active" data-view="scenes" role="tab" aria-selected="true">
+            <span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h14M5 12h10M5 18h14"/><circle cx="3.5" cy="6" r=".8" fill="currentColor"/><circle cx="3.5" cy="12" r=".8" fill="currentColor"/><circle cx="3.5" cy="18" r=".8" fill="currentColor"/></svg></span>
+            <span>场景操作</span>
+          </button>
+          <button data-view="config" role="tab" aria-selected="false">
+            <span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg></span>
+            <span>配置管理</span>
+          </button>
+        </div>
+        <div class="side-note"><strong>当前建议路径</strong>先完成首次配置，再从最接近素材的场景开始。<br /><span>4 个场景 · 4 组配置</span></div>
+      </aside>
+
+      <main class="main">
+        <section class="page-intro">
+          <div><div class="eyebrow"><i class="eyebrow-dot"></i>帮助中心 · 快速找到下一步</div><h1>不用读完手册，沿着地图完成任务。</h1><p class="intro-copy">先判断你现在要做的是“处理一份素材”，还是“调整工作台设置”。每张卡只保留开始前要知道的关键信息。</p></div>
+          <div class="intro-meta"><i class="status-dot"></i>稳定版 · 2025.06</div>
+        </section>
+
+        <section class="map-panel" data-panel="scenes">
+          <div class="map-header">
+            <div class="map-title"><span class="map-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span><div><strong>场景操作</strong><span>从素材进入，到笔记交付的 4 条常用路径</span></div></div>
+            <div class="map-legend"><span class="legend"><i></i>推荐入口</span><span class="legend"><i class="gray"></i>可选路径</span></div>
+          </div>
+          <div class="scene-list">
+            <article class="scene current"><div class="scene-node">01</div><div class="scene-card"><div class="scene-top"><h3>我有一份课程、讲座或录屏</h3><span class="scene-tag">最常用</span></div><p>把本地视频变成一篇有结构的学习笔记，必要时保留关键画面。</p><div class="scene-bottom"><div class="scene-steps"><span>选择本地视频</span><span>选笔记风格</span><span>开始生成</span></div><a class="scene-link" href="#">进入本地视频 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></div></article>
+            <article class="scene"><div class="scene-node">02</div><div class="scene-card"><div class="scene-top"><h3>我有一段录音文件</h3><span class="scene-tag">录音文件</span></div><p>适合课堂录音、访谈或语音备忘，输出重点、结构和可复习内容。</p><div class="scene-bottom"><div class="scene-steps"><span>上传录音文件</span><span>选择学习笔记</span><span>打开结果</span></div><a class="scene-link" href="#">进入录音文件 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></div></article>
+            <article class="scene"><div class="scene-node">03</div><div class="scene-card"><div class="scene-top"><h3>画面和声音来自同一场会议</h3><span class="scene-tag">双源校验</span></div><p>主视频提供画面，辅助录音补足语义；系统会对齐两路内容并保留差异。</p><div class="scene-bottom"><div class="scene-steps"><span>上传两份文件</span><span>自动对齐</span><span>核对冲突</span></div><a class="scene-link" href="#">进入双源会议 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></div></article>
+            <article class="scene"><div class="scene-node">04</div><div class="scene-card"><div class="scene-top"><h3>我想整理书籍、报告或课件</h3><span class="scene-tag">多份文档</span></div><p>上传多份文档，解析原文并融合成一篇可回顾、可追溯的知识资产。</p><div class="scene-bottom"><div class="scene-steps"><span>选择文档</span><span>确认格式</span><span>生成知识笔记</span></div><a class="scene-link" href="#">进入文档学习 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></div></article>
+          </div>
+          <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>处理完成后，统一到<strong>转化记录</strong>核对状态、打开笔记或继续处理；平台视频受限时，再按页面提示补充本机浏览器登录态。</span></div>
+        </section>
+
+        <section class="map-panel" data-panel="config" hidden>
+          <div class="map-header">
+            <div class="map-title"><span class="map-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg></span><div><strong>配置管理</strong><span>只在需要时调整；日常处理不必重复配置</span></div></div>
+            <div class="map-legend"><span class="legend"><i></i>已就绪</span><span class="legend"><i class="gray"></i>按需调整</span></div>
+          </div>
+          <div class="config-grid">
+            <article class="config-card"><div class="config-head"><span class="config-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></span><span class="config-status"><i></i>首次必做</span></div><h3>开始使用 · 环境检测</h3><p>确认文档、本地音视频、平台链接、总结模型和输出位置是否可用。</p><div class="config-foot"><span>参数配置</span><a class="config-link" href="#">去检查 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></article>
+            <article class="config-card"><div class="config-head"><span class="config-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M5 12h14M5 17h14"/><circle cx="8" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="10" cy="17" r="2"/></svg></span><span class="config-status"><i></i>输出相关</span></div><h3>连接器 · 笔记写到哪里</h3><p>启用飞书或钉钉，并确认当前任务会写入哪个目标位置。</p><div class="config-foot"><span>连接器设置</span><a class="config-link" href="#">去设置 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></article>
+            <article class="config-card"><div class="config-head"><span class="config-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><path d="M8 5v4M15 10v4M11 15v4"/></svg></span><span class="config-status"><i></i>能力相关</span></div><h3>模型服务与转录</h3><p>维护转录模型、总结模型和腾讯 ASR 参数；处理页会显示实际提供者。</p><div class="config-foot"><span>模型与转录</span><a class="config-link" href="#">去维护 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></article>
+            <article class="config-card"><div class="config-head"><span class="config-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="config-status"><i></i>内容相关</span></div><h3>提示词模板 · 输出风格</h3><p>分别维护学习笔记和会议纪要模板。保存草稿后，发布版本才会用于新任务。</p><div class="config-foot"><span>模板管理</span><a class="config-link" href="#">去管理 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></article>
+          </div>
+          <div class="tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>配置只影响后续新任务。切换连接器不会迁移历史笔记；外部模型和截图 AI 开启前，请确认素材已获授权。</span></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const buttons = [...document.querySelectorAll('[data-view]')];
+      const panels = [...document.querySelectorAll('[data-panel]')];
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const view = button.dataset.view;
+          buttons.forEach((item) => {
+            const active = item === button;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+          panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== view; });
+        });
+      });
+    </script>
+  </body>
+</html>
