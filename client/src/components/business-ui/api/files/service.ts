@@ -16,7 +16,8 @@ import {
 import { calculateUploadedBytes } from '@/utils/upload-progress';
 
 const MEDIA_UPLOAD_PART_SIZE = 32 * 1024 * 1024;
-const MEDIA_UPLOAD_MAX_ATTEMPTS = 3;
+const MEDIA_UPLOAD_MAX_RETRIES = 3;
+const MEDIA_UPLOAD_MAX_ATTEMPTS = MEDIA_UPLOAD_MAX_RETRIES + 1;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
 const MEDIA_UPLOAD_CONCURRENCY = 2;
 
@@ -54,7 +55,10 @@ function throwIfUploadAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw createUploadAbortError();
 }
 
-function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+function waitForUploadRetry(
+  delayMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     throwIfUploadAborted(signal);
     const handleAbort = (): void => {
@@ -69,9 +73,7 @@ function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void
   });
 }
 
-export function toStoredSourceObject(
-  file: UploadFileData,
-): StoredSourceObject {
+export function toStoredSourceObject(file: UploadFileData): StoredSourceObject {
   return {
     bucketId: file.bucketId,
     filePath: file.filePath,
@@ -80,20 +82,37 @@ export function toStoredSourceObject(
   };
 }
 
-async function uploadFileLocal(file: File): Promise<UploadFileData> {
+async function uploadFileLocal(
+  file: File,
+  options: MediaUploadOptions,
+): Promise<UploadFileData> {
   const formData = new FormData();
-  formData.append("file", file, file.name);
+  formData.append('file', file, file.name);
   // eslint-disable-next-line no-restricted-syntax -- local multipart upload uses native fetch
-  const response = await fetch(
-    resolveLocalBackendRequestPath(
-      window.location.pathname,
-      '/api/local-uploads',
+  const response = await runWithUploadDeadline(
+    fetch(
+      resolveLocalBackendRequestPath(
+        window.location.pathname,
+        '/api/local-uploads',
+      ),
+      { method: 'POST', body: formData, signal: options.signal },
     ),
-    { method: 'POST', body: formData },
+    options.signal,
+    MEDIA_UPLOAD_PART_TIMEOUT_MS,
   );
   if (!response.ok) throw new Error(`本地上传失败 HTTP ${response.status}`);
-  const data = (await response.json()) as { id: string; url: string; fileSize: number };
-  return { id: data.id, filePath: data.id, bucketId: "local", fileSize: data.fileSize, url: data.url };
+  const data = (await response.json()) as {
+    id: string;
+    url: string;
+    fileSize: number;
+  };
+  return {
+    id: data.id,
+    filePath: data.id,
+    bucketId: 'local',
+    fileSize: data.fileSize,
+    url: data.url,
+  };
 }
 export async function uploadFile(
   file: File,
@@ -101,7 +120,8 @@ export async function uploadFile(
   options: MediaUploadOptions = {},
 ): Promise<UploadFileData> {
   if (isLocalRuntime()) {
-    const uploaded = await uploadFileLocal(file);
+    throwIfUploadAborted(options.signal);
+    const uploaded = await uploadFileLocal(file, options);
     onPartProgress?.(file.size);
     return uploaded;
   }
@@ -153,9 +173,19 @@ export async function uploadMediaFile(
   options: MediaUploadOptions = {},
 ): Promise<UploadFileData[]> {
   if (isLocalRuntime()) {
-    const uploaded = await uploadFileLocal(file);
-    onProgress?.({ currentPart: 1, totalParts: 1, totalBytes: file.size, uploadedBytes: file.size });
-    return [uploaded];
+    const upload: UploadFileData = await uploadMediaPart(
+      file,
+      (uploadedBytes: number) =>
+        onProgress?.({
+          currentPart: 1,
+          totalParts: 1,
+          totalBytes: file.size,
+          uploadedBytes,
+        }),
+      options,
+      { fileName: file.name, partNumber: 1, totalParts: 1 },
+    );
+    return [upload];
   }
   throwIfUploadAborted(options.signal);
   const startedAt: number = performance.now();
@@ -273,7 +303,7 @@ async function uploadMediaPart(
       if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) {
         throw createMediaUploadPartError(error, {
           ...context,
-          attemptCount: attempt,
+          attemptCount: attempt - 1,
         });
       }
       await waitForUploadRetry(
@@ -300,9 +330,8 @@ export async function deleteUploadedFiles(
   files: readonly Pick<UploadFileData, 'bucketId' | 'filePath'>[],
 ): Promise<void> {
   await Promise.all(
-    files.map(
-      (file: Pick<UploadFileData, 'bucketId' | 'filePath'>) =>
-        deleteUploadedFile(file),
+    files.map((file: Pick<UploadFileData, 'bucketId' | 'filePath'>) =>
+      deleteUploadedFile(file),
     ),
   );
 }
