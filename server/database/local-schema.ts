@@ -117,6 +117,9 @@ CREATE TABLE IF NOT EXISTS note_conversion_records (
   error text,
   raw_document_url text,
   raw_transcript text,
+  transcription_model varchar(255),
+  transcription_provider_name varchar(255),
+  summary_generation_json text,
   note_style varchar(32),
   prompt_version_id uuid,
   prompt_content text,
@@ -143,6 +146,10 @@ CREATE TABLE IF NOT EXISTS note_conversion_records (
   _created_at timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   _updated_at timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE note_conversion_records
+  ADD COLUMN IF NOT EXISTS transcription_model varchar(255),
+  ADD COLUMN IF NOT EXISTS transcription_provider_name varchar(255),
+  ADD COLUMN IF NOT EXISTS summary_generation_json text;
 CREATE UNIQUE INDEX IF NOT EXISTS note_conversion_records_job_id_key
   ON note_conversion_records(job_id);
 CREATE INDEX IF NOT EXISTS note_conversion_records_owner_completed_idx
