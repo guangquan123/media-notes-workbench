@@ -1,6 +1,7 @@
 'use client';
 import { getDataloom } from '@lark-apaas/client-toolkit/dataloom';
 import { logger } from '@lark-apaas/client-toolkit/logger';
+import { getAppInfo } from '@lark-apaas/client-toolkit';
 import { isLocalRuntime } from '@/lib/runtime';
 import { resolveLocalBackendRequestPath } from '@/lib/local-http';
 import { getDefaultBucketId } from '@lark-apaas/client-toolkit/tools/storage';
@@ -20,6 +21,7 @@ const MEDIA_UPLOAD_MAX_RETRIES = 3;
 const MEDIA_UPLOAD_MAX_ATTEMPTS = MEDIA_UPLOAD_MAX_RETRIES + 1;
 const MEDIA_UPLOAD_RETRY_DELAY_MS = 1500;
 const MEDIA_UPLOAD_CONCURRENCY = 2;
+const PLATFORM_METADATA_MAX_ATTEMPTS = 3;
 
 export interface UploadFileData {
   id: string;
@@ -114,6 +116,37 @@ async function uploadFileLocal(
     url: data.url,
   };
 }
+
+async function getPlatformBucketId(signal?: AbortSignal): Promise<string> {
+  let bucketId: string | undefined = getDefaultBucketId();
+  if (bucketId) return bucketId;
+
+  // getDataloom can resolve even when the initial metadata request failed.
+  // Refresh metadata before allowing the SDK to build an /undefined URL.
+  for (
+    let attempt = 1;
+    attempt <= PLATFORM_METADATA_MAX_ATTEMPTS && !bucketId;
+    attempt += 1
+  ) {
+    throwIfUploadAborted(signal);
+    if (attempt > 1) {
+      await waitForUploadRetry(
+        (attempt - 1) * MEDIA_UPLOAD_RETRY_DELAY_MS,
+        signal,
+      );
+    }
+    await runWithUploadDeadline(getAppInfo(true), signal);
+    bucketId = getDefaultBucketId();
+  }
+
+  if (!bucketId) {
+    const error = new Error('存储服务初始化失败，请刷新页面后重新上传');
+    error.name = 'UploadStorageNotReadyError';
+    throw error;
+  }
+  return bucketId;
+}
+
 export async function uploadFile(
   file: File,
   onPartProgress?: (uploadedBytes: number) => void,
@@ -127,7 +160,7 @@ export async function uploadFile(
   }
   throwIfUploadAborted(options.signal);
   const dataloom = await runWithUploadDeadline(getDataloom(), options.signal);
-  const bucketId: string = getDefaultBucketId();
+  const bucketId: string = await getPlatformBucketId(options.signal);
   const bucket = dataloom.storage.from(bucketId);
   onPartProgress?.(0);
   const result = await runWithUploadDeadline(
