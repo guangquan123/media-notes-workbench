@@ -253,7 +253,10 @@ function start() {
       return;
     }
     const servedPath = hasStaticFile ? filePath : indexFile;
-    response.writeHead(200, { 'content-type': contentType(servedPath) });
+    response.writeHead(200, {
+      'content-type': contentType(servedPath),
+      ...(servedPath === indexFile ? { 'cache-control': 'no-store' } : {}),
+    });
     if (servedPath === indexFile) response.end(indexHtml);
     else fs.createReadStream(servedPath).pipe(response);
   });
