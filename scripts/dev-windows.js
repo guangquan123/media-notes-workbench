@@ -533,6 +533,21 @@ function latestFileMtime(rootPath) {
     }, stat.mtimeMs);
 }
 
+function getStaticClientBundlePath() {
+  const fallbackIndex = path.join(clientOutputPath, 'static-fallback-index.html');
+  if (!fs.existsSync(fallbackIndex)) return null;
+  const html = fs.readFileSync(fallbackIndex, 'utf8');
+  const bundleMatch = html.match(/\/assets\/(index-[^"']+\.js)/u);
+  if (!bundleMatch) return null;
+  return path.join(clientOutputPath, 'assets', bundleMatch[1]);
+}
+
+function isLocalClientBundle() {
+  const bundlePath = getStaticClientBundlePath();
+  if (!bundlePath || !fs.existsSync(bundlePath)) return false;
+  return fs.readFileSync(bundlePath, 'utf8').includes('/api/local-uploads');
+}
+
 function isClientBuildCurrent() {
   const outputMtime = Math.max(
     latestFileMtime(path.join(clientOutputPath, 'assets')),
@@ -544,7 +559,11 @@ function isClientBuildCurrent() {
     latestFileMtime(path.join(rootDir, 'shared')),
     latestFileMtime(path.join(rootDir, 'vite.config.ts')),
   );
-  return outputMtime > 0 && outputMtime >= sourceMtime;
+  return (
+    outputMtime > 0 &&
+    outputMtime >= sourceMtime &&
+    isLocalClientBundle()
+  );
 }
 
 async function ensureClientBuild() {

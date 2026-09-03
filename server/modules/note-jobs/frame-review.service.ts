@@ -122,7 +122,15 @@ export class FrameReviewService {
     jobId: string,
     input: {
       draftMarkdown?: string | null;
-      job?: Pick<NoteJob, 'message' | 'progress' | 'stage'>;
+      job?: Pick<
+        NoteJob,
+        | 'message'
+        | 'progress'
+        | 'stage'
+        | 'summaryGeneration'
+        | 'transcriptionModel'
+        | 'transcriptionProviderName'
+      >;
       options?: NoteVisualOptions;
       summary?: VisualPipelineSummary;
     },
@@ -134,6 +142,11 @@ export class FrameReviewService {
         draftMarkdown: input.draftMarkdown,
         progress: input.job?.progress,
         statusMessage: input.job?.message,
+        transcriptionModel: input.job?.transcriptionModel,
+        transcriptionProviderName: input.job?.transcriptionProviderName,
+        summaryGenerationJson: input.job?.summaryGeneration
+          ? JSON.stringify(input.job.summaryGeneration)
+          : undefined,
         visualOptionsJson: input.options
           ? JSON.stringify(input.options)
           : undefined,

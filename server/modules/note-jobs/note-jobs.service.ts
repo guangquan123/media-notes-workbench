@@ -1015,6 +1015,7 @@ export class NoteJobsService implements OnModuleInit {
           modelName: summaryResult.modelName,
           provider: summaryResult.provider,
           qualityScore: summaryResult.quality.score,
+          qualityWarnings: summaryResult.quality.failedChecks,
           stage: 'reviewing',
         },
       });

@@ -31,6 +31,7 @@ import type {
   NoteStyle,
   NoteProcessingStatus,
   RetainedNoteSource,
+  SummaryGenerationInfo,
   TaskSyncStatus,
 } from '@shared/api.interface';
 import {
@@ -71,6 +72,9 @@ interface ConversionRecordRow {
   completedAt: Date | null;
   rawDocumentUrl: string | null;
   rawTranscript: string | null;
+  transcriptionModel: string | null;
+  transcriptionProviderName: string | null;
+  summaryGenerationJson: string | null;
   documentUrl: string | null;
   noteStyle: string | null;
   promptContent: string | null;
@@ -147,6 +151,58 @@ interface HistoryListInput {
 
 const INTERRUPTED_JOB_STATUS_MESSAGE =
   '服务重启导致处理任务中断，请重新提交';
+
+function parseSummaryGeneration(
+  value: string | null,
+): SummaryGenerationInfo | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return undefined;
+    }
+    const record: Record<string, unknown> = parsed as Record<string, unknown>;
+    const stages: readonly SummaryGenerationInfo['stage'][] = [
+      'preparing',
+      'generating',
+      'extracting',
+      'structuring',
+      'reviewing',
+      'repairing',
+      'completed',
+      'fallback',
+    ];
+    if (
+      typeof record.modelName !== 'string' ||
+      (record.provider !== 'external_model' && record.provider !== 'builtin') ||
+      typeof record.stage !== 'string' ||
+      !stages.includes(record.stage as SummaryGenerationInfo['stage'])
+    ) {
+      return undefined;
+    }
+    const qualityWarnings: string[] | undefined = Array.isArray(
+      record.qualityWarnings,
+    )
+      ? record.qualityWarnings.filter(
+          (warning: unknown): warning is string => typeof warning === 'string',
+        )
+      : undefined;
+    return {
+      attempt:
+        typeof record.attempt === 'number' ? record.attempt : undefined,
+      modelName: record.modelName,
+      provider: record.provider,
+      qualityScore:
+        typeof record.qualityScore === 'number'
+          ? record.qualityScore
+          : undefined,
+      qualityWarnings,
+      stage: record.stage as SummaryGenerationInfo['stage'],
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 @Injectable()
 export class NoteHistoryService {
@@ -380,6 +436,10 @@ export class NoteHistoryService {
         completedAt: noteConversionRecords.completedAt,
         rawDocumentUrl: noteConversionRecords.rawDocumentUrl,
         rawTranscript: noteConversionRecords.rawTranscript,
+        transcriptionModel: noteConversionRecords.transcriptionModel,
+        transcriptionProviderName:
+          noteConversionRecords.transcriptionProviderName,
+        summaryGenerationJson: noteConversionRecords.summaryGenerationJson,
         documentUrl: noteConversionRecords.documentUrl,
         noteStyle: noteConversionRecords.noteStyle,
         promptContent: noteConversionRecords.promptContent,
@@ -424,6 +484,9 @@ export class NoteHistoryService {
           completedAt: row.completedAt?.toISOString() || null,
           rawDocumentUrl: row.rawDocumentUrl,
           rawTranscriptAvailable: Boolean(row.rawTranscript?.trim()),
+          transcriptionModel: row.transcriptionModel,
+          transcriptionProviderName: row.transcriptionProviderName,
+          summaryGeneration: parseSummaryGeneration(row.summaryGenerationJson),
           documentUrl: row.documentUrl,
           noteStyle: this.toNoteStyle(row.noteStyle),
           promptContent: row.promptContent,

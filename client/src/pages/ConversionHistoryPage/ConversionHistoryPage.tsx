@@ -73,6 +73,7 @@ import {
   getSourceAssetCopy,
 } from './conversion-history-source.utils';
 import { getVisualOptionsCopy } from './conversion-history-visual.utils';
+import { getQualityWarningCopy } from './conversion-history-quality.utils';
 import { useHistoryReprocessing } from './useHistoryReprocessing';
 
 const PAGE_SIZE = 10;
@@ -681,6 +682,9 @@ export default function ConversionHistoryPage() {
                   const visualOptionsCopy = getVisualOptionsCopy(
                     record.visualOptions,
                   );
+                  const qualityWarningCopy = getQualityWarningCopy(
+                    record.summaryGeneration,
+                  );
                   const canReprocessImages: boolean =
                     canFullReprocess && visualOptionsCopy.enabled;
                   const canDeleteSource: boolean =
@@ -781,6 +785,36 @@ export default function ConversionHistoryPage() {
                         <h2 className="mt-1.5 truncate text-base font-semibold">
                           {record.title}
                         </h2>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-black/55">
+                          <span>
+                            转录模型：{record.transcriptionModel || '未记录'}
+                            {record.transcriptionProviderName
+                              ? ` · ${record.transcriptionProviderName}`
+                              : ''}
+                          </span>
+                          <span>
+                            总结模型：
+                            {record.summaryGeneration?.modelName || '未记录'}
+                            {record.summaryGeneration?.provider
+                              ? ` · ${record.summaryGeneration.provider === 'builtin' ? '内置模型' : '外部模型'}`
+                              : ''}
+                          </span>
+                        </div>
+                        {qualityWarningCopy ? (
+                          <div className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <TriangleAlert className="size-3.5" />
+                              质量预警：{qualityWarningCopy.score} 分（低于 90）
+                            </div>
+                            <ul className="mt-1.5 list-disc space-y-1 pl-5 text-amber-800">
+                              {qualityWarningCopy.reasons.map(
+                                (reason: string) => (
+                                  <li key={reason}>{reason}</li>
+                                ),
+                              )}
+                            </ul>
+                          </div>
+                        ) : null}
                         {record.status === 'processing' ? (
                           <div className="mt-2.5 max-w-2xl rounded-lg bg-[#f5f7fb] px-3 py-2">
                             <div className="flex items-center justify-between gap-3 text-xs text-black/55">

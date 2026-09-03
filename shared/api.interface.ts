@@ -776,6 +776,12 @@ export interface NoteConversionRecord {
   completedAt: string | null;
   rawDocumentUrl: string | null;
   rawTranscriptAvailable: boolean;
+  /** 创建任务时固化的实际转录模型标识。 */
+  transcriptionModel: string | null;
+  /** 创建任务时固化的实际转录服务名称。 */
+  transcriptionProviderName: string | null;
+  /** 总结模型与质量检查结果的任务快照。 */
+  summaryGeneration?: SummaryGenerationInfo;
   documentUrl: string | null;
   noteStyle: NoteStyle | null;
   promptContent: string | null;
