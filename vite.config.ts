@@ -60,6 +60,9 @@ export default defineConfig({
   },
   define: {
     'process.env.CLIENT_BASE_PATH': JSON.stringify(clientBasePath),
+    'import.meta.env.VITE_RUNTIME': JSON.stringify(
+      process.env.VITE_RUNTIME || '',
+    ),
   },
   optimizeDeps: {
     noDiscovery: stableMode,
@@ -67,6 +70,9 @@ export default defineConfig({
     esbuildOptions: {
       define: {
         'process.env.CLIENT_BASE_PATH': JSON.stringify(clientBasePath),
+        'import.meta.env.VITE_RUNTIME': JSON.stringify(
+          process.env.VITE_RUNTIME || '',
+        ),
       },
     },
   },
