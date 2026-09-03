@@ -92,6 +92,7 @@ const viteCliPath = path.join(
 );
 const serverEntryPath = path.join(rootDir, 'dist', 'server', 'main.js');
 const clientIndexPath = path.join(rootDir, 'dist', 'client', 'index.html');
+const clientOutputPath = path.join(rootDir, 'dist', 'client');
 const staticClientPath = path.join(rootDir, 'scripts', 'static-client.js');
 const { inspectApplicationReadiness } = require('./application-readiness.js');
 const { ensureLocalRuntimeConfig } = require('./local-runtime-config.js');
@@ -520,6 +521,80 @@ async function runBuild() {
   }
 }
 
+function latestFileMtime(rootPath) {
+  if (!fs.existsSync(rootPath)) return 0;
+  const stat = fs.statSync(rootPath);
+  if (stat.isFile()) return stat.mtimeMs;
+  return fs
+    .readdirSync(rootPath, { withFileTypes: true })
+    .reduce((latest, entry) => {
+      const entryPath = path.join(rootPath, entry.name);
+      return Math.max(latest, latestFileMtime(entryPath));
+    }, stat.mtimeMs);
+}
+
+function isClientBuildCurrent() {
+  const outputMtime = Math.max(
+    latestFileMtime(path.join(clientOutputPath, 'assets')),
+    latestFileMtime(path.join(clientOutputPath, 'static-fallback-index.html')),
+  );
+  const sourceMtime = Math.max(
+    latestFileMtime(path.join(rootDir, 'client', 'src')),
+    latestFileMtime(path.join(rootDir, 'client', 'index.html')),
+    latestFileMtime(path.join(rootDir, 'shared')),
+    latestFileMtime(path.join(rootDir, 'vite.config.ts')),
+  );
+  return outputMtime > 0 && outputMtime >= sourceMtime;
+}
+
+async function ensureClientBuild() {
+  if (isClientBuildCurrent()) {
+    writeLine('[dev-windows] 客户端静态产物已是最新，跳过构建');
+    return;
+  }
+
+  const buildAttempts = 2;
+  let lastError;
+  for (let attempt = 1; attempt <= buildAttempts; attempt += 1) {
+    writeLine(`[dev-windows] 构建客户端（${attempt}/${buildAttempts}）...`);
+    try {
+      const build = startNodeProcess(
+        'build-client',
+        [
+          viteCliPath,
+          'build',
+          '--config',
+          'vite.config.ts',
+          '--configLoader',
+          'native',
+        ],
+        {
+          NODE_ENV: 'production',
+          MIAODA_LOCAL_DEV: '1',
+          VITE_RUNTIME: 'local',
+          VITE_STABLE_MODE: 'true',
+        },
+        false,
+      );
+      const result = await waitForExit(build);
+      if (result.code !== 0) {
+        throw new Error(
+          `客户端构建失败，退出码: ${result.code ?? result.signal ?? 'unknown'}`,
+        );
+      }
+      if (!isClientBuildCurrent()) {
+        throw new Error('客户端构建完成但产物仍落后于源码');
+      }
+      writeLine('[dev-windows] 客户端构建完成');
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < buildAttempts) await delay(2000);
+    }
+  }
+  throw lastError || new Error('客户端构建失败');
+}
+
 function canConnect(host, port) {
   return new Promise((resolve) => {
     const socket = net.createConnection({ host, port });
@@ -759,6 +834,11 @@ async function main() {
   } else {
     startupStage = '后端构建失败';
     await runBuild();
+  }
+
+  if (useStaticClient && !skipBuild) {
+    startupStage = '前端构建失败';
+    await ensureClientBuild();
   }
 
   startupStage = '后端启动失败';
