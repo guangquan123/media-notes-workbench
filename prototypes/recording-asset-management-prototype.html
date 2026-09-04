@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="录音资产持久化与记录管理交互原型" />
+  <title>录音记录 · 录音资产管理原型</title>
+  <style>
+    :root {
+      --ink: #172026;
+      --ink-soft: #34424a;
+      --muted: #748087;
+      --muted-2: #9aa4a8;
+      --bg: #f3f6f4;
+      --surface: #ffffff;
+      --surface-2: #f8faf9;
+      --line: #e2e9e5;
+      --line-strong: #cfdad4;
+      --teal: #0f8b76;
+      --teal-dark: #086554;
+      --teal-soft: #e8f6f1;
+      --blue: #3267d6;
+      --blue-soft: #eef3ff;
+      --amber: #a26816;
+      --amber-soft: #fff4df;
+      --red: #b84e52;
+      --red-soft: #fff0ef;
+      --nav: #1c2529;
+      --nav-2: #253137;
+      --nav-text: #d7e2de;
+      --radius: 10px;
+      --shadow: 0 18px 40px rgba(25, 48, 42, .08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { font-size: 14px; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .app { display: grid; grid-template-columns: 238px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { display: flex; flex-direction: column; padding: 22px 16px 18px; background: var(--nav); color: var(--nav-text); }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 25px; }
+    .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--teal); color: #fff; }
+    .brand strong { color: #fff; font-size: 15px; letter-spacing: .02em; }
+    .brand small { display: block; margin-top: 3px; color: #8fa29c; font-size: 11px; }
+    .nav-label { padding: 0 10px 9px; color: #7f9490; font-size: 11px; letter-spacing: .1em; }
+    .nav { display: grid; gap: 4px; }
+    .nav button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 10px; border: 0; border-radius: 8px; background: transparent; color: #aebfba; text-align: left; }
+    .nav button:hover { background: var(--nav-2); color: #fff; }
+    .nav button.active { background: #314640; color: #fff; box-shadow: inset 3px 0 0 var(--teal); }
+    .nav .icon { width: 17px; height: 17px; }
+    .nav button span { flex: 1; }
+    .nav .count { display: inline-grid; place-items: center; min-width: 21px; height: 20px; padding: 0 5px; border-radius: 99px; background: #40504d; color: #dbe7e1; font-size: 11px; }
+    .sidebar-spacer { flex: 1; }
+    .storage-mini { padding: 13px; border: 1px solid #3a4a4a; border-radius: 9px; background: #202e31; }
+    .storage-mini-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .storage-mini-head strong { font-size: 12px; }
+    .storage-mini .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #42b795; box-shadow: 0 0 0 4px rgba(66,183,149,.12); }
+    .storage-mini p { margin: 8px 0 10px; color: #94a8a2; font-size: 11px; line-height: 1.45; }
+    .storage-mini button { width: 100%; padding: 8px 9px; border: 1px solid #51645f; border-radius: 7px; background: transparent; color: #dce9e4; font-size: 12px; }
+    .storage-mini button:hover { border-color: #85b7a8; background: #2a3a3b; }
+    .sidebar-foot { margin-top: 16px; padding: 0 10px; color: #7f9490; font-size: 11px; }
+    .main { min-width: 0; padding: 26px 34px 42px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; max-width: 1420px; margin: 0 auto; }
+    .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .crumb strong { color: var(--ink-soft); font-weight: 700; }
+    .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-top: 17px; }
+    h1 { margin: 0; font-size: clamp(25px, 2.2vw, 32px); letter-spacing: -.035em; line-height: 1.1; }
+    .head-copy { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+    .head-actions { display: flex; align-items: center; gap: 8px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-weight: 650; white-space: nowrap; }
+    .btn:hover { border-color: #9fb5ac; background: #fbfdfc; }
+    .btn.primary { border-color: var(--teal); background: var(--teal); color: #fff; }
+    .btn.primary:hover { border-color: var(--teal-dark); background: var(--teal-dark); }
+    .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .btn.ghost:hover { border-color: var(--line); background: var(--surface); color: var(--ink-soft); }
+    .icon { width: 16px; height: 16px; }
+    .overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1420px; margin: 25px auto 0; }
+    .metric { padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .metric-label { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+    .metric-label .icon { color: #7f9f95; }
+    .metric strong { display: block; margin-top: 9px; font-size: 24px; letter-spacing: -.03em; }
+    .metric small { display: block; margin-top: 5px; color: var(--muted-2); font-size: 11px; }
+    .focus { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 12px; max-width: 1420px; margin: 13px auto 0; }
+    .focus-main { display: flex; align-items: center; gap: 16px; min-height: 96px; padding: 18px 19px; border: 1px solid #bde2d5; border-radius: var(--radius); background: var(--teal-soft); }
+    .focus-main .focus-icon { display: grid; place-items: center; flex: 0 0 auto; width: 43px; height: 43px; border-radius: 12px; background: #c9eee2; color: var(--teal-dark); }
+    .focus-main h2 { margin: 0; font-size: 16px; }
+    .focus-main p { margin: 6px 0 0; color: #49776b; font-size: 12px; line-height: 1.4; }
+    .focus-main .btn { margin-left: auto; border-color: #92cfbe; background: rgba(255,255,255,.7); color: var(--teal-dark); }
+    .focus-main .btn:hover { background: #fff; }
+    .focus-side { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 96px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .focus-side p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .mini-ring { display: grid; place-items: center; width: 44px; height: 44px; border: 5px solid #d9eee7; border-top-color: var(--teal); border-right-color: var(--teal); border-radius: 50%; color: var(--teal-dark); font-size: 11px; font-weight: 800; }
+    .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(370px, .75fr); gap: 16px; max-width: 1420px; margin: 18px auto 0; align-items: start; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 18px; border-bottom: 1px solid var(--line); }
+    .panel-title { font-size: 15px; font-weight: 760; }
+    .panel-subtitle { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .filter { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+    .search { position: relative; flex: 1; min-width: 140px; }
+    .search .icon { position: absolute; top: 10px; left: 10px; color: #8d9b96; }
+    .search input, .select { width: 100%; height: 35px; padding: 0 10px 0 33px; border: 1px solid var(--line-strong); border-radius: 7px; outline: none; background: #fff; color: var(--ink); }
+    .select { width: 132px; padding-left: 10px; color: var(--ink-soft); }
+    .search input:focus, .select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(15,139,118,.1); }
+    .records { display: grid; }
+    .record { display: grid; grid-template-columns: 43px minmax(0, 1fr) auto; gap: 13px; align-items: start; padding: 16px 17px; border-bottom: 1px solid var(--line); transition: background .16s ease; }
+    .record:last-child { border-bottom: 0; }
+    .record:hover { background: #fbfdfc; }
+    .record.selected { background: #f0faf6; box-shadow: inset 3px 0 0 var(--teal); }
+    .record-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: var(--blue-soft); color: var(--blue); }
+    .record.selected .record-icon { background: #d4f1e8; color: var(--teal-dark); }
+    .record-main { min-width: 0; }
+    .record-title { margin: 1px 0 0; overflow: hidden; font-size: 14px; font-weight: 760; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+    .record-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .meta-item .icon { width: 13px; height: 13px; color: #8ba49b; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 21px; padding: 0 7px; border-radius: 5px; background: #f1f4f2; color: #67736e; font-size: 11px; }
+    .chip.saved { background: var(--teal-soft); color: var(--teal-dark); }
+    .chip.pending { background: var(--amber-soft); color: var(--amber); }
+    .chip.failed { background: var(--red-soft); color: var(--red); }
+    .chip.processing { background: var(--blue-soft); color: var(--blue); }
+    .record-actions { display: flex; align-items: center; gap: 6px; padding-top: 2px; }
+    .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: #687671; }
+    .icon-btn:hover { border-color: #9fb5ac; color: var(--teal-dark); }
+    .list-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+    .detail { position: sticky; top: 20px; }
+    .detail-head { align-items: flex-start; }
+    .detail-head .btn { min-height: 30px; padding: 0 9px; font-size: 12px; }
+    .detail-body { padding: 18px; }
+    .detail-title { margin: 0; font-size: 18px; letter-spacing: -.02em; line-height: 1.3; }
+    .detail-sub { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .player { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); }
+    .wave { display: flex; align-items: center; gap: 3px; height: 44px; }
+    .wave i { display: block; width: 4px; border-radius: 5px; background: #8bcbb9; }
+    .wave i:nth-child(3n) { background: #32a98e; }
+    .wave i:nth-child(4n) { background: #c1e3da; }
+    .player-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .play { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: var(--teal); color: #fff; }
+    .play:hover { background: var(--teal-dark); }
+    .scrub { flex: 1; height: 4px; overflow: hidden; border-radius: 99px; background: #d6e5e0; }
+    .scrub i { display: block; width: 31%; height: 100%; background: var(--teal); }
+    .time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .detail-section { margin-top: 20px; }
+    .section-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .path-box { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #bde2d5; border-radius: 8px; background: var(--teal-soft); }
+    .path-box .icon { flex: 0 0 auto; color: var(--teal-dark); }
+    .path-text { min-width: 0; flex: 1; }
+    .path-text strong { display: block; overflow: hidden; color: var(--teal-dark); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .path-text small { display: block; margin-top: 4px; color: #5b8277; font-size: 11px; }
+    .path-state { display: inline-flex; align-items: center; gap: 4px; color: var(--teal-dark); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .path-state .icon { width: 13px; height: 13px; }
+    .timeline { display: grid; gap: 0; }
+    .timeline-item { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; padding-bottom: 15px; }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-item::before { position: absolute; top: 19px; left: 8px; width: 1px; height: calc(100% - 6px); background: var(--line-strong); content: ""; }
+    .timeline-item:last-child::before { display: none; }
+    .timeline-node { position: relative; z-index: 1; display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--line-strong); border-radius: 50%; background: #fff; color: var(--muted-2); }
+    .timeline-node.done { border-color: #9ed4c4; background: var(--teal-soft); color: var(--teal-dark); }
+    .timeline-copy strong { display: block; font-size: 12px; }
+    .timeline-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .timeline-time { color: var(--muted-2); font-size: 11px; }
+    .detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
+    .detail-actions .btn { width: 100%; }
+    .detail-actions .wide { grid-column: 1 / -1; }
+    .modal-backdrop { display: none; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; padding: 20px; background: rgba(17, 26, 24, .48); }
+    .modal-backdrop.open { display: flex; }
+    .modal { width: min(520px, 100%); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px 21px 14px; }
+    .modal-head h2 { margin: 0; font-size: 18px; }
+    .modal-head p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .modal-close { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
+    .modal-close:hover { background: var(--surface-2); color: var(--ink); }
+    .modal-body { padding: 0 21px 20px; }
+    .field { display: grid; gap: 7px; margin-top: 15px; }
+    .field label { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+    .field input { width: 100%; height: 38px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 7px; outline: none; color: var(--ink); }
+    .field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(15,139,118,.1); }
+    .field-note { color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .modal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+    .modal-row strong { display: block; font-size: 12px; }
+    .modal-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .switch { position: relative; width: 38px; height: 22px; border: 0; border-radius: 99px; background: #b8c5c0; }
+    .switch::after { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; content: ""; transition: .16s ease; }
+    .switch.on { background: var(--teal); }
+    .switch.on::after { left: 19px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 19px; }
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 40; max-width: min(360px, calc(100vw - 44px)); padding: 11px 14px; border: 1px solid #b6ddd1; border-radius: 8px; background: #effaf6; color: var(--teal-dark); box-shadow: var(--shadow); font-size: 12px; opacity: 0; transform: translateY(10px); pointer-events: none; transition: .18s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1120px) {
+      .app { grid-template-columns: 208px minmax(0, 1fr); }
+      .main { padding: 24px 22px 38px; }
+      .content-grid { grid-template-columns: 1fr; }
+      .detail { position: static; }
+    }
+    @media (max-width: 760px) {
+      .app { display: block; }
+      .sidebar { position: sticky; top: 0; z-index: 10; display: block; padding: 10px 12px; }
+      .brand { display: inline-flex; padding: 0; }
+      .brand small, .nav-label, .storage-mini, .sidebar-foot, .sidebar-spacer { display: none; }
+      .nav { display: inline-flex; vertical-align: middle; margin-left: 16px; }
+      .nav button { width: auto; padding: 9px; }
+      .nav button span, .nav .count { display: none; }
+      .main { padding: 19px 13px 34px; }
+      .head { align-items: flex-start; flex-direction: column; gap: 13px; }
+      .head-actions { width: 100%; }
+      .head-actions .btn.primary { flex: 1; }
+      .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 18px; }
+      .focus { grid-template-columns: 1fr; }
+      .focus-main { align-items: flex-start; flex-wrap: wrap; }
+      .focus-main .btn { margin-left: 59px; }
+      .filter { align-items: stretch; flex-wrap: wrap; }
+      .search { flex-basis: 100%; }
+      .select { flex: 1; width: auto; }
+      .record { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; padding: 14px 12px; }
+      .record-icon { width: 38px; height: 38px; }
+      .record-title { white-space: normal; }
+      .record-actions { grid-column: 2; justify-content: flex-start; }
+      .list-foot { align-items: flex-start; flex-direction: column; }
+      .detail-actions { grid-template-columns: 1fr; }
+      .detail-actions .wide { grid-column: auto; }
+    }
+    @media (max-width: 430px) {
+      .brand strong { font-size: 13px; }
+      .nav { margin-left: 8px; }
+      .head-copy { font-size: 13px; }
+      .metric strong { font-size: 21px; }
+      .focus-main .btn { margin-left: 0; }
+      .focus-main { gap: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><i data-lucide="audio-lines" class="icon"></i></div>
+        <div><strong>声迹工作台</strong><small>Media Notes Workbench</small></div>
+      </div>
+      <div class="nav-label">工作区</div>
+      <nav class="nav" aria-label="主导航">
+        <button type="button" data-nav="工作台"><i data-lucide="layout-dashboard" class="icon"></i><span>工作台</span></button>
+        <button type="button" data-nav="录音笔记"><i data-lucide="mic-2" class="icon"></i><span>录音笔记</span></button>
+        <button class="active" type="button" data-nav="录音记录"><i data-lucide="library" class="icon"></i><span>录音记录</span><b class="count">3</b></button>
+        <button type="button" data-nav="转化记录"><i data-lucide="list-checks" class="icon"></i><span>转化记录</span></button>
+        <button type="button" data-nav="设置"><i data-lucide="settings-2" class="icon"></i><span>设置</span></button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <section class="storage-mini" aria-label="本地存储状态">
+        <div class="storage-mini-head"><strong>本地归档</strong><i class="status-dot" aria-hidden="true"></i></div>
+        <p id="miniPath">D:\\录音归档\\2026</p>
+        <button type="button" id="openStorageFromSide">管理存储位置</button>
+      </section>
+      <div class="sidebar-foot">本地模式 · 自动保存已开启</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="crumb"><span>工作台</span><span>/</span><strong>录音记录</strong></div>
+        <button class="btn ghost" type="button" data-toast="已刷新录音记录"><i data-lucide="refresh-cw" class="icon"></i>刷新</button>
+      </div>
+
+      <header class="head">
+        <div>
+          <h1>录音记录</h1>
+          <p class="head-copy">先保存每一段声音，再决定什么时候把它变成笔记。</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn" type="button" id="openStorage"><i data-lucide="folder-cog" class="icon"></i>本地目录</button>
+          <button class="btn primary" type="button" data-toast="原型演示：进入新录音"><i data-lucide="mic" class="icon"></i>开始录音</button>
+        </div>
+      </header>
+
+      <section class="overview" aria-label="录音概览">
+        <article class="metric"><div class="metric-label"><span>全部录音</span><i data-lucide="library" class="icon"></i></div><strong>28</strong><small>本月新增 6 条</small></article>
+        <article class="metric"><div class="metric-label"><span>未处理</span><i data-lucide="clock-3" class="icon"></i></div><strong>3</strong><small>最早一条是 2 天前</small></article>
+        <article class="metric"><div class="metric-label"><span>已归档</span><i data-lucide="hard-drive-download" class="icon"></i></div><strong>25</strong><small>本地目录可访问</small></article>
+        <article class="metric"><div class="metric-label"><span>占用空间</span><i data-lucide="database" class="icon"></i></div><strong>1.8 GB</strong><small>剩余空间 86 GB</small></article>
+      </section>
+
+      <section class="focus" aria-label="待处理提示">
+        <div class="focus-main">
+          <div class="focus-icon"><i data-lucide="inbox" class="icon"></i></div>
+          <div><h2>还有 3 条录音没有处理</h2><p>源文件已经保存，不会因为暂时不处理而丢失。</p></div>
+          <button class="btn" type="button" id="showPending">查看待处理</button>
+        </div>
+        <div class="focus-side"><div><strong>本地归档状态</strong><p>最近一次归档 · 今天 14:32</p></div><div class="mini-ring">86%</div></div>
+      </section>
+
+      <div class="content-grid">
+        <section class="panel" aria-labelledby="recordsTitle">
+          <div class="panel-head">
+            <div><div class="panel-title" id="recordsTitle">全部录音</div><div class="panel-subtitle" id="resultSummary">按最近更新时间排序 · 28 条</div></div>
+            <button class="btn ghost" type="button" data-toast="原型演示：批量管理录音"><i data-lucide="list-checks" class="icon"></i>批量管理</button>
+          </div>
+          <div class="filter">
+            <label class="search"><i data-lucide="search" class="icon"></i><input id="keyword" type="search" placeholder="搜索录音标题或文件名" /></label>
+            <select class="select" id="statusFilter" aria-label="处理状态"><option value="all">全部状态</option><option value="pending">未处理</option><option value="processed">已生成笔记</option><option value="failed">处理失败</option></select>
+            <select class="select" id="storageFilter" aria-label="保存状态"><option value="all">全部保存状态</option><option value="archived">已归档</option><option value="pendingArchive">待归档</option></select>
+          </div>
+          <div class="records" id="records">
+            <article class="record selected" data-id="interview" data-status="pending" data-storage="archived" data-search="客户访谈 需求梳理 2026 09 03">
+              <div class="record-icon"><i data-lucide="mic-2" class="icon"></i></div>
+              <div class="record-main"><h3 class="record-title">客户访谈：需求梳理与下阶段计划</h3><div class="record-meta"><span class="meta-item"><i data-lucide="calendar-days" class="icon"></i>今天 14:18</span><span class="meta-item"><i data-lucide="clock-3" class="icon"></i>42 分 18 秒</span><span class="meta-item"><i data-lucide="file-audio" class="icon"></i>68.4 MB</span></div><div class="chips"><span class="chip saved"><i data-lucide="check" class="icon"></i>已归档</span><span class="chip pending">未处理</span><span class="chip">麦克风录音</span></div></div>
+              <div class="record-actions"><button class="icon-btn" type="button" aria-label="播放客户访谈" data-toast="原型演示：播放录音"><i data-lucide="play" class="icon"></i></button><button class="icon-btn" type="button" aria-label="更多操作" data-toast="原型演示：打开更多操作"><i data-lucide="more-horizontal" class="icon"></i></button></div>
+            </article>
+            <article class="record" data-id="meeting" data-status="processed" data-storage="archived" data-search="产品周会 迭代评审 2026 09 02">
+              <div class="record-icon"><i data-lucide="mic-2" class="icon"></i></div>
+              <div class="record-main"><h3 class="record-title">产品周会：迭代评审与风险同步</h3><div class="record-meta"><span class="meta-item"><i data-lucide="calendar-days" class="icon"></i>昨天 10:06</span><span class="meta-item"><i data-lucide="clock-3" class="icon"></i>58 分 04 秒</span><span class="meta-item"><i data-lucide="file-audio" class="icon"></i>92.1 MB</span></div><div class="chips"><span class="chip saved"><i data-lucide="check" class="icon"></i>已归档</span><span class="chip saved">已生成笔记</span><span class="chip">会议纪要 · V2</span></div></div>
+              <div class="record-actions"><button class="icon-btn" type="button" aria-label="播放产品周会" data-toast="原型演示：播放录音"><i data-lucide="play" class="icon"></i></button><button class="icon-btn" type="button" aria-label="更多操作" data-toast="原型演示：打开更多操作"><i data-lucide="more-horizontal" class="icon"></i></button></div>
+            </article>
+            <article class="record" data-id="class" data-status="pending" data-storage="pendingArchive" data-search="数据治理课程 第三讲 2026 09 01">
+              <div class="record-icon"><i data-lucide="mic-2" class="icon"></i></div>
+              <div class="record-main"><h3 class="record-title">数据治理课程 · 第三讲：质量规则设计</h3><div class="record-meta"><span class="meta-item"><i data-lucide="calendar-days" class="icon"></i>9 月 1 日 19:40</span><span class="meta-item"><i data-lucide="clock-3" class="icon"></i>1 小时 12 分</span><span class="meta-item"><i data-lucide="file-audio" class="icon"></i>144.8 MB</span></div><div class="chips"><span class="chip pending"><i data-lucide="triangle-alert" class="icon"></i>待归档</span><span class="chip pending">未处理</span><span class="chip">麦克风录音</span></div></div>
+              <div class="record-actions"><button class="icon-btn" type="button" aria-label="播放数据治理课程" data-toast="原型演示：播放录音"><i data-lucide="play" class="icon"></i></button><button class="icon-btn" type="button" aria-label="更多操作" data-toast="原型演示：打开更多操作"><i data-lucide="more-horizontal" class="icon"></i></button></div>
+            </article>
+            <article class="record" data-id="research" data-status="failed" data-storage="archived" data-search="用户调研 访谈记录 2026 08 29">
+              <div class="record-icon"><i data-lucide="mic-2" class="icon"></i></div>
+              <div class="record-main"><h3 class="record-title">用户调研访谈记录（3 位受访者）</h3><div class="record-meta"><span class="meta-item"><i data-lucide="calendar-days" class="icon"></i>8 月 29 日 15:12</span><span class="meta-item"><i data-lucide="clock-3" class="icon"></i>36 分 51 秒</span><span class="meta-item"><i data-lucide="file-audio" class="icon"></i>51.7 MB</span></div><div class="chips"><span class="chip saved"><i data-lucide="check" class="icon"></i>已归档</span><span class="chip failed"><i data-lucide="x" class="icon"></i>处理失败</span><span class="chip">上次使用：腾讯 ASR</span></div></div>
+              <div class="record-actions"><button class="icon-btn" type="button" aria-label="播放用户调研访谈" data-toast="原型演示：播放录音"><i data-lucide="play" class="icon"></i></button><button class="icon-btn" type="button" aria-label="更多操作" data-toast="原型演示：打开更多操作"><i data-lucide="more-horizontal" class="icon"></i></button></div>
+            </article>
+          </div>
+          <div class="list-foot"><span id="visibleCount">显示 4 条 · 已加载最近记录</span><button class="btn ghost" type="button" data-toast="原型演示：加载更多记录">加载更多 <i data-lucide="arrow-down" class="icon"></i></button></div>
+        </section>
+
+        <aside class="panel detail" id="detail" aria-labelledby="detailTitle">
+          <div class="panel-head detail-head"><div><div class="panel-title">录音详情</div><div class="panel-subtitle">源文件和处理结果分开保留</div></div><button class="btn ghost" type="button" data-toast="原型演示：编辑录音标题"><i data-lucide="pencil" class="icon"></i>编辑</button></div>
+          <div class="detail-body">
+            <h2 class="detail-title" id="detailTitle">客户访谈：需求梳理与下阶段计划</h2>
+            <div class="detail-sub"><span>今天 14:18 创建</span><span>42 分 18 秒</span><span>麦克风录音</span></div>
+            <div class="player" aria-label="音频播放器"><div class="wave" aria-hidden="true" id="wave"></div><div class="player-line"><button class="play" type="button" id="playButton" aria-label="播放"><i data-lucide="play" class="icon"></i></button><div class="scrub"><i></i></div><span class="time">13:08 / 42:18</span></div></div>
+
+            <section class="detail-section"><div class="section-label"><span>保存位置</span><button class="btn ghost" type="button" id="rearchive" style="min-height:24px;padding:0 5px;font-size:11px">重新归档</button></div><div class="path-box"><i data-lucide="folder-check" class="icon"></i><div class="path-text"><strong id="detailPath">D:\\录音归档\\2026\\09\\客户访谈_需求梳理.m4a</strong><small>应用内副本 + 本地归档副本</small></div><span class="path-state"><i data-lucide="check-circle-2" class="icon"></i>已归档</span></div></section>
+
+            <section class="detail-section"><div class="section-label"><span>处理历史</span><span>2 个版本</span></div><div class="timeline"><div class="timeline-item"><div class="timeline-node done"><i data-lucide="check" class="icon" style="width:11px;height:11px"></i></div><div class="timeline-copy"><strong>录音已保存</strong><small>应用内副本已写入，随后完成本地归档</small></div><span class="timeline-time">14:19</span></div><div class="timeline-item"><div class="timeline-node"><i data-lucide="minus" class="icon" style="width:11px;height:11px"></i></div><div class="timeline-copy"><strong>等待处理</strong><small>选择转写方式后，可生成会议纪要或学习笔记</small></div><span class="timeline-time">现在</span></div></div></section>
+
+            <div class="detail-actions"><button class="btn primary wide" type="button" id="startProcess"><i data-lucide="sparkles" class="icon"></i>开始转写并生成笔记</button><button class="btn" type="button" data-toast="原型演示：下载原始录音"><i data-lucide="download" class="icon"></i>下载录音</button><button class="btn" type="button" data-toast="原型演示：打开更多处理选项"><i data-lucide="more-horizontal" class="icon"></i>更多操作</button></div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="storageModal" role="dialog" aria-modal="true" aria-labelledby="storageTitle">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="storageTitle">本地录音存储</h2><p>录音会先保存到应用内，再复制到你授权的电脑目录。</p></div><button class="modal-close" type="button" id="closeStorage" aria-label="关闭"><i data-lucide="x" class="icon"></i></button></div>
+      <div class="modal-body"><div class="field"><label for="pathInput">归档目录</label><input id="pathInput" value="D:\\录音归档\\2026" /><span class="field-note">目录不可用时，录音仍保留在应用内，并在记录中标记为“待归档”。</span></div><div class="modal-row"><div><strong>录音完成后自动归档</strong><small id="autoSaveCopy">开启 · 复制到目录并保留应用内副本</small></div><button class="switch on" id="autoSave" type="button" aria-pressed="true" aria-label="切换自动归档"></button></div><div class="modal-row"><div><strong>归档前检查磁盘空间</strong><small>空间不足时暂停归档，不影响录音保存</small></div><button class="switch on" type="button" aria-pressed="true" aria-label="切换磁盘空间检查"></button></div><div class="modal-actions"><button class="btn" type="button" id="testPath"><i data-lucide="scan-check" class="icon"></i>测试目录</button><button class="btn primary" type="button" id="saveStorage"><i data-lucide="save" class="icon"></i>保存设置</button></div></div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    const toast = document.getElementById('toast');
+    const modal = document.getElementById('storageModal');
+    let toastTimer;
+
+    function refreshIcons() {
+      if (window.lucide) window.lucide.createIcons();
+    }
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1900);
+    }
+    function openStorage() { modal.classList.add('open'); document.getElementById('pathInput').focus(); }
+    function closeStorage() { modal.classList.remove('open'); }
+
+    const wave = document.getElementById('wave');
+    [18, 28, 12, 34, 23, 39, 17, 29, 43, 22, 14, 33, 26, 37, 18, 30, 42, 25, 16, 36, 30, 20, 44, 27, 13, 32, 22, 38, 18, 31, 24, 42, 28, 14, 35, 21, 39, 25, 17, 30, 22, 36, 18, 29, 41, 24, 14, 34, 27, 38, 18, 31, 23, 43, 26, 16, 33, 22, 37, 17, 29, 40, 24, 14, 34, 20, 31, 18, 38, 27, 16, 35, 22, 42].forEach((height) => { const bar = document.createElement('i'); bar.style.height = height + '%'; wave.appendChild(bar); });
+
+    document.getElementById('openStorage').addEventListener('click', openStorage);
+    document.getElementById('openStorageFromSide').addEventListener('click', openStorage);
+    document.getElementById('closeStorage').addEventListener('click', closeStorage);
+    modal.addEventListener('click', (event) => { if (event.target === modal) closeStorage(); });
+    document.getElementById('saveStorage').addEventListener('click', () => {
+      const path = document.getElementById('pathInput').value.trim() || '未设置目录';
+      document.getElementById('miniPath').textContent = path;
+      document.getElementById('detailPath').textContent = path + '\\09\\客户访谈_需求梳理.m4a';
+      closeStorage();
+      showToast('本地归档设置已保存');
+    });
+    document.getElementById('testPath').addEventListener('click', () => showToast('目录可写，剩余空间 86 GB'));
+    document.getElementById('rearchive').addEventListener('click', () => showToast('已加入归档队列，完成后会更新状态'));
+    document.getElementById('playButton').addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      const playing = button.dataset.playing === 'true';
+      button.dataset.playing = String(!playing);
+      button.innerHTML = '<i data-lucide="' + (playing ? 'play' : 'pause') + '" class="icon"></i>';
+      showToast(playing ? '播放已暂停' : '正在播放录音');
+      refreshIcons();
+    });
+    document.getElementById('startProcess').addEventListener('click', () => {
+      document.getElementById('startProcess').innerHTML = '<i data-lucide="loader-circle" class="icon"></i>已创建转写任务';
+      document.getElementById('startProcess').disabled = true;
+      showToast('已创建转写任务，录音源文件保持不变');
+      refreshIcons();
+    });
+    document.querySelectorAll('[data-toast]').forEach((button) => button.addEventListener('click', () => showToast(button.dataset.toast)));
+    document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-nav]').forEach((item) => item.classList.remove('active'));
+      button.classList.add('active');
+      showToast('原型演示：切换到' + button.dataset.nav);
+    }));
+    document.querySelectorAll('.record').forEach((record) => record.addEventListener('click', (event) => {
+      if (event.target.closest('.record-actions')) return;
+      document.querySelectorAll('.record').forEach((item) => item.classList.remove('selected'));
+      record.classList.add('selected');
+      const title = record.querySelector('.record-title').textContent;
+      document.getElementById('detailTitle').textContent = title;
+      showToast('已打开录音详情');
+    }));
+
+    const keyword = document.getElementById('keyword');
+    const statusFilter = document.getElementById('statusFilter');
+    const storageFilter = document.getElementById('storageFilter');
+    function applyFilters() {
+      const query = keyword.value.trim().toLowerCase();
+      let visible = 0;
+      document.querySelectorAll('.record').forEach((record) => {
+        const matchesQuery = !query || record.dataset.search.includes(query);
+        const matchesStatus = statusFilter.value === 'all' || record.dataset.status === statusFilter.value;
+        const matchesStorage = storageFilter.value === 'all' || record.dataset.storage === storageFilter.value;
+        const show = matchesQuery && matchesStatus && matchesStorage;
+        record.style.display = show ? 'grid' : 'none';
+        if (show) visible += 1;
+      });
+      document.getElementById('visibleCount').textContent = '当前显示 ' + visible + ' 条 · 已加载最近记录';
+      document.getElementById('resultSummary').textContent = query || statusFilter.value !== 'all' || storageFilter.value !== 'all' ? '筛选结果 · ' + visible + ' 条' : '按最近更新时间排序 · 28 条';
+    }
+    [keyword, statusFilter, storageFilter].forEach((control) => control.addEventListener('input', applyFilters));
+    document.getElementById('showPending').addEventListener('click', () => { statusFilter.value = 'pending'; applyFilters(); showToast('已筛选出 2 条未处理录音'); });
+    document.getElementById('autoSave').addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      const enabled = button.classList.toggle('on');
+      button.setAttribute('aria-pressed', String(enabled));
+      document.getElementById('autoSaveCopy').textContent = enabled ? '开启 · 复制到目录并保留应用内副本' : '关闭 · 仅保存到应用内';
+    });
+    refreshIcons();
+  </script>
+</body>
+</html>
