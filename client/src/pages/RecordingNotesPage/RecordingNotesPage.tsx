@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   ArrowLeft,
+  History,
   Mic2,
   XCircle,
 } from 'lucide-react';
@@ -357,15 +358,26 @@ export default function RecordingNotesPage() {
       rms: 0,
       silentForMs: 0,
     });
+    let storageChecked: boolean = storageReady;
     try {
+      if (!storageReady) {
+        await checkRecordingStorage();
+        storageChecked = true;
+        setStorageReady(true);
+      }
       const nextPreparation: RecorderPreparation = await recorder.prepare(audioProfile);
       setPreparation(nextPreparation);
       toast.success('麦克风已连接，请说一句话完成声音测试');
     } catch (prepareError: unknown) {
+      if (!storageChecked) {
+        setStorageReady(false);
+      }
       const message: string =
-        prepareError instanceof DOMException
+        !storageChecked
+          ? '录音保护存储未就绪，请刷新页面后重试'
+          : prepareError instanceof DOMException
           ? getMicrophoneErrorMessage(prepareError)
-          : getErrorMessage(prepareError);
+            : getErrorMessage(prepareError);
       setError(message);
       toast.error(message);
     } finally {
@@ -382,7 +394,14 @@ export default function RecordingNotesPage() {
       toast.error('录音保护存储未就绪，暂不能开始录音');
       return;
     }
-    if (!preparation) await prepareMicrophone();
+    // Preparing the stream is asynchronous and state updates are committed on
+    // the next render. Do not continue with the stale `canStart` value from
+    // this render; let the user complete the live voice check, then click once
+    // more after the button is visibly enabled.
+    if (!preparation) {
+      await prepareMicrophone();
+      return;
+    }
     if (!canStart) {
       toast.error('请先完成麦克风声音测试，并确认声音输入清晰');
       return;
@@ -638,7 +657,7 @@ export default function RecordingNotesPage() {
     });
   };
 
-  const signalWidth: number = Math.min(100, Math.max(2, metrics.rms * 320));
+  const signalWidth: number = Math.min(100, Math.max(2, metrics.rms * 600));
   const qualityColor: string =
     qualityLevel === 'good'
       ? 'text-emerald-700'
@@ -668,6 +687,13 @@ export default function RecordingNotesPage() {
           >
             <ArrowLeft className="size-4" />
             返回入口
+          </Link>
+          <Link
+            className="inline-flex items-center gap-2 rounded-md border border-black/10 bg-white/75 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-emerald-300 hover:text-emerald-700"
+            to="/recording-library"
+          >
+            <History className="size-4" />
+            录音记录
           </Link>
         </header>
 

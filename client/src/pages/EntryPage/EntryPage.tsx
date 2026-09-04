@@ -5,6 +5,7 @@ import {
   FileText,
   FileVideo,
   History,
+  Mic2,
   ScanSearch,
   Settings2,
   type LucideIcon,
@@ -139,6 +140,10 @@ export default function EntryPage() {
               <History className="size-4" />
               转化记录
             </Link>
+            <Link to="/recording-library">
+              <Mic2 className="size-4" />
+              录音记录
+            </Link>
             <Link to="/operation-manual">
               <BookOpenText className="size-4" />
               操作手册
@@ -161,7 +166,27 @@ export default function EntryPage() {
         </section>
 
         <section className="entry-workspace" aria-label="素材入口">
-          <FeatureCardItem featured item={primaryCard} />
+          <div className="entry-primary-stack">
+            <Link
+              aria-label="直接录音，自动整理成笔记"
+              className="entry-direct-record"
+              to="/recording-notes"
+            >
+              <span className="entry-direct-record__icon" aria-hidden="true">
+                <Mic2 className="size-5" />
+              </span>
+              <span className="entry-direct-record__copy">
+                <small>实时录音</small>
+                <strong>直接录音，自动整理成笔记</strong>
+                <span>会议、课堂和访谈，点击即可开始</span>
+              </span>
+              <span className="entry-direct-record__cta">
+                开始录音
+                <ArrowRight aria-hidden="true" className="size-4" />
+              </span>
+            </Link>
+            <FeatureCardItem featured item={primaryCard} />
+          </div>
           <div className="entry-secondary-grid">
             {secondaryCards.map((item: FeatureCard) => (
               <FeatureCardItem item={item} key={item.href} />

@@ -13,6 +13,7 @@ import NoteTemplatesComparePage from './pages/NoteTemplatesComparePage/NoteTempl
 import OperationManualPage from './pages/OperationManualPage/OperationManualPage';
 import PdfNotesPage from './pages/PdfNotesPage/PdfNotesPage';
 import RecordingNotesPage from './pages/RecordingNotesPage/RecordingNotesPage';
+import RecordingLibraryPage from './pages/RecordingLibraryPage/RecordingLibraryPage';
 import HomePage from './pages/HomePage/HomePage';
 import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
 import AiModelSettingsPage from './pages/AiModelSettingsPage/AiModelSettingsPage';
@@ -27,6 +28,7 @@ const RoutesComponent = () => {
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />
         <Route path="recording-notes" element={<RecordingNotesPage />} />
+        <Route path="recording-library" element={<RecordingLibraryPage />} />
         <Route path="paired-media-notes" element={<PairedMediaNotesPage />} />
         <Route path="document-notes" element={<PdfNotesPage />} />
         <Route path="pdf-notes" element={<PdfNotesPage />} />
