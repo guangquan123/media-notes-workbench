@@ -533,13 +533,21 @@ function latestFileMtime(rootPath) {
     }, stat.mtimeMs);
 }
 
-function getStaticClientBundlePath() {
+function getStaticClientAssetPaths() {
   const fallbackIndex = path.join(clientOutputPath, 'static-fallback-index.html');
   if (!fs.existsSync(fallbackIndex)) return null;
   const html = fs.readFileSync(fallbackIndex, 'utf8');
   const bundleMatch = html.match(/\/assets\/(index-[^"']+\.js)/u);
-  if (!bundleMatch) return null;
-  return path.join(clientOutputPath, 'assets', bundleMatch[1]);
+  const cssMatch = html.match(/\/assets\/(index-[^"']+\.css)/u);
+  if (!bundleMatch || !cssMatch) return null;
+  return {
+    bundlePath: path.join(clientOutputPath, 'assets', bundleMatch[1]),
+    cssPath: path.join(clientOutputPath, 'assets', cssMatch[1]),
+  };
+}
+
+function getStaticClientBundlePath() {
+  return getStaticClientAssetPaths()?.bundlePath || null;
 }
 
 function isLocalClientBundle() {
@@ -549,9 +557,17 @@ function isLocalClientBundle() {
 }
 
 function isClientBuildCurrent() {
-  const outputMtime = Math.max(
-    latestFileMtime(path.join(clientOutputPath, 'assets')),
-    latestFileMtime(path.join(clientOutputPath, 'static-fallback-index.html')),
+  const assets = getStaticClientAssetPaths();
+  if (
+    !assets ||
+    !fs.existsSync(assets.bundlePath) ||
+    !fs.existsSync(assets.cssPath)
+  ) {
+    return false;
+  }
+  const outputMtime = Math.min(
+    fs.statSync(assets.bundlePath).mtimeMs,
+    fs.statSync(assets.cssPath).mtimeMs,
   );
   const sourceMtime = Math.max(
     latestFileMtime(path.join(rootDir, 'client', 'src')),
