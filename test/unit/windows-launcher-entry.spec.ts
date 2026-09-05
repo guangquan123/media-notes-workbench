@@ -81,12 +81,19 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain("process.platform === 'win32'");
     expect(devWindows).toContain("!process.argv.includes('--vite-client')");
     expect(devWindows).toContain('Windows 稳定模式使用静态前端资源');
+    expect(devWindows).toContain('isServerBuildCurrent');
+    expect(devWindows).toContain('后端构建产物已是最新，跳过构建');
+    expect(devWindows).toContain('[clientIndexPath, fallbackIndex]');
+    expect(devWindows).toContain(
+      '.sort((left, right) => right.outputMtime - left.outputMtime)',
+    );
+    expect(devWindows).toContain(
+      'if (!useStaticClient) fs.rmSync(clientIndexPath, { force: true })',
+    );
     expect(devWindows).toContain('await waitForApplicationReady(client, 8000)');
     expect(devWindows).toContain('前端页面验证失败，切换到静态前端兜底服务');
     expect(devWindows).toContain('await waitForApplicationReady(null, 15000)');
-    expect(devWindows).toContain(
-      'const runtimeUrl = `${appUrl}api/runtime`;',
-    );
+    expect(devWindows).toContain('const runtimeUrl = `${appUrl}api/runtime`;');
     expect(devWindows).toContain(
       'const readinessUrl = `${appUrl}api/note-jobs/readiness`;',
     );

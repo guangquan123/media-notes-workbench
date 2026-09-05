@@ -537,20 +537,58 @@ function latestFileMtime(rootPath) {
     }, stat.mtimeMs);
 }
 
+function isServerBuildCurrent() {
+  if (!fs.existsSync(serverEntryPath)) return false;
+  const outputMtime = latestFileMtime(path.join(rootDir, 'dist', 'server'));
+  const sourceMtime = Math.max(
+    latestFileMtime(path.join(rootDir, 'server')),
+    latestFileMtime(path.join(rootDir, 'shared')),
+    latestFileMtime(path.join(rootDir, 'nest-cli.json')),
+    latestFileMtime(path.join(rootDir, 'tsconfig.node.json')),
+  );
+  return outputMtime >= sourceMtime;
+}
+
+async function ensureServerBuild() {
+  if (isServerBuildCurrent()) {
+    writeLine('[dev-windows] 后端构建产物已是最新，跳过构建');
+    return;
+  }
+  await runBuild();
+}
+
 function getStaticClientAssetPaths() {
   const fallbackIndex = path.join(
     clientOutputPath,
     'static-fallback-index.html',
   );
-  if (!fs.existsSync(fallbackIndex)) return null;
-  const html = fs.readFileSync(fallbackIndex, 'utf8');
-  const bundleMatch = html.match(/\/assets\/(index-[^"']+\.js)/u);
-  const cssMatch = html.match(/\/assets\/(index-[^"']+\.css)/u);
-  if (!bundleMatch || !cssMatch) return null;
-  return {
-    bundlePath: path.join(clientOutputPath, 'assets', bundleMatch[1]),
-    cssPath: path.join(clientOutputPath, 'assets', cssMatch[1]),
-  };
+  return (
+    [clientIndexPath, fallbackIndex]
+      .filter((indexPath) => fs.existsSync(indexPath))
+      .map((indexPath) => {
+        const html = fs.readFileSync(indexPath, 'utf8');
+        const bundleMatch = html.match(/\/assets\/(index-[^"']+\.js)/u);
+        const cssMatch = html.match(/\/assets\/(index-[^"']+\.css)/u);
+        if (!bundleMatch || !cssMatch) return null;
+        const bundlePath = path.join(
+          clientOutputPath,
+          'assets',
+          bundleMatch[1],
+        );
+        const cssPath = path.join(clientOutputPath, 'assets', cssMatch[1]);
+        if (!fs.existsSync(bundlePath) || !fs.existsSync(cssPath)) return null;
+        return {
+          bundlePath,
+          cssPath,
+          outputMtime: Math.min(
+            fs.statSync(bundlePath).mtimeMs,
+            fs.statSync(cssPath).mtimeMs,
+          ),
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => right.outputMtime - left.outputMtime)[0] ?? null
+  );
 }
 
 function getStaticClientBundlePath() {
@@ -889,7 +927,7 @@ async function main() {
     writeLine('[dev-windows] 使用已构建的后端入口');
   } else {
     startupStage = '后端构建失败';
-    await runBuild();
+    await ensureServerBuild();
   }
 
   if (useStaticClient && !skipBuild) {
@@ -915,7 +953,7 @@ async function main() {
 
   // 生产构建会把带哈希资源地址的 HTML 写入 dist/client/index.html。
   // Vite 开发服务启动前必须移除它，否则会返回旧入口并出现 HTTP 200 白屏。
-  fs.rmSync(clientIndexPath, { force: true });
+  if (!useStaticClient) fs.rmSync(clientIndexPath, { force: true });
   startupStage = '前端启动失败';
   const clientStartAttempts = 3;
   const clientPortTimeoutMs = 15000;
