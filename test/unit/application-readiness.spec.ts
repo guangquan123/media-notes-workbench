@@ -1,6 +1,7 @@
 const {
   extractEntryResources,
   inspectApplicationReadiness,
+  isBackendServiceReady,
   isApplicationReady,
   isRuntimeStatusReady,
   isSystemReadinessReady,
@@ -15,6 +16,10 @@ const {
     runtimeUrl: string;
     request: (url: string) => Promise<HttpResponse>;
   }) => Promise<{ ready: boolean; reason: string }>;
+  isBackendServiceReady: (
+    runtimeResponse: HttpResponse,
+    readinessResponse: HttpResponse,
+  ) => boolean;
   isApplicationReady: (input: {
     pageUrl: string;
     readinessUrl: string;
@@ -110,6 +115,37 @@ describe('Windows application readiness', () => {
         contentType: 'text/html',
         body: JSON.stringify(readiness),
       }),
+    ).toBe(false);
+  });
+
+  it('recognizes a reusable backend only when both readiness endpoints are valid', () => {
+    expect(
+      isBackendServiceReady(
+        {
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(runtime),
+        },
+        {
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(readiness),
+        },
+      ),
+    ).toBe(true);
+    expect(
+      isBackendServiceReady(
+        {
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(runtime),
+        },
+        {
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify(readiness),
+        },
+      ),
     ).toBe(false);
   });
 

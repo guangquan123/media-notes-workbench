@@ -94,7 +94,10 @@ const serverEntryPath = path.join(rootDir, 'dist', 'server', 'main.js');
 const clientIndexPath = path.join(rootDir, 'dist', 'client', 'index.html');
 const clientOutputPath = path.join(rootDir, 'dist', 'client');
 const staticClientPath = path.join(rootDir, 'scripts', 'static-client.js');
-const { inspectApplicationReadiness } = require('./application-readiness.js');
+const {
+  inspectApplicationReadiness,
+  isBackendServiceReady,
+} = require('./application-readiness.js');
 const { ensureLocalRuntimeConfig } = require('./local-runtime-config.js');
 const {
   inspectWindowsLauncherProcess,
@@ -258,6 +261,7 @@ let staticClientServer = null;
 let shuttingDown = false;
 let startupStage = '准备启动';
 let startupCompleted = false;
+let backendAlreadyRunning = false;
 
 function parsePort(rawValue, fallback, name) {
   const port = Number.parseInt(rawValue || String(fallback), 10);
@@ -534,7 +538,10 @@ function latestFileMtime(rootPath) {
 }
 
 function getStaticClientAssetPaths() {
-  const fallbackIndex = path.join(clientOutputPath, 'static-fallback-index.html');
+  const fallbackIndex = path.join(
+    clientOutputPath,
+    'static-fallback-index.html',
+  );
   if (!fs.existsSync(fallbackIndex)) return null;
   const html = fs.readFileSync(fallbackIndex, 'utf8');
   const bundleMatch = html.match(/\/assets\/(index-[^"']+\.js)/u);
@@ -575,11 +582,7 @@ function isClientBuildCurrent() {
     latestFileMtime(path.join(rootDir, 'shared')),
     latestFileMtime(path.join(rootDir, 'vite.config.ts')),
   );
-  return (
-    outputMtime > 0 &&
-    outputMtime >= sourceMtime &&
-    isLocalClientBundle()
-  );
+  return outputMtime > 0 && outputMtime >= sourceMtime && isLocalClientBundle();
 }
 
 async function ensureClientBuild() {
@@ -709,6 +712,17 @@ function requestHttp(target, timeoutMs = 2500) {
       resolve({ status: 0, contentType: '', headers: {}, body: '' }),
     );
   });
+}
+
+async function probeExistingBackend() {
+  const [runtime, readiness] = await Promise.all([
+    requestHttp(`http://${serverHost}:${serverPort}/api/runtime`),
+    requestHttp(
+      `http://${serverHost}:${serverPort}/api/note-jobs/readiness`,
+      12000,
+    ),
+  ]);
+  return isBackendServiceReady(runtime, readiness);
 }
 
 async function waitForStaticClientReady(server, instanceToken) {
@@ -843,6 +857,13 @@ async function main() {
     ['前端', clientHost, clientPort],
   ]) {
     if (await canConnect(pHost, pPort)) {
+      if (pName === '后端' && (await probeExistingBackend())) {
+        backendAlreadyRunning = true;
+        writeLine(
+          `[dev-windows] 检测到已就绪后端 ${serverHost}:${serverPort}，复用现有服务并继续启动前端`,
+        );
+        continue;
+      }
       throw new Error(
         `${pName} 端口 ${pHost}:${pPort} 已被占用。先运行 npm run stop，或执行: netstat -ano | findstr :${pPort} 查占用进程后结束它`,
       );
@@ -881,11 +902,15 @@ async function main() {
   writeLine(
     '[dev-windows] 冷启动可能需要 1-2 分钟（杀毒软件实时扫描），请等待「项目已启动」提示，勿重复启动',
   );
-  process.env.NODE_ENV = 'development';
-  process.env.SERVER_HOST = serverHost;
-  process.env.SERVER_PORT = String(serverPort);
-  require(serverEntryPath);
-  await waitForPort('后端', serverHost, serverPort, null);
+  if (backendAlreadyRunning) {
+    writeLine('[dev-windows] 使用已就绪的后端进程，不重复绑定后端端口');
+  } else {
+    process.env.NODE_ENV = 'development';
+    process.env.SERVER_HOST = serverHost;
+    process.env.SERVER_PORT = String(serverPort);
+    require(serverEntryPath);
+    await waitForPort('后端', serverHost, serverPort, null);
+  }
   writeLine(`[dev-windows] 后端端口已就绪: ${serverHost}:${serverPort}`);
 
   // 生产构建会把带哈希资源地址的 HTML 写入 dist/client/index.html。

@@ -62,6 +62,13 @@ function isSystemReadinessReady(response) {
   }
 }
 
+function isBackendServiceReady(runtimeResponse, readinessResponse) {
+  return (
+    isRuntimeStatusReady(runtimeResponse) &&
+    isSystemReadinessReady(readinessResponse)
+  );
+}
+
 function extractEntryResources(response, pageUrl) {
   if (
     !isSuccessful(response) ||
@@ -162,6 +169,7 @@ module.exports = {
   extractEntryResources,
   inspectApplicationReadiness,
   isApplicationReady,
+  isBackendServiceReady,
   isEntryResourceReady,
   isRuntimeStatusReady,
   isSystemReadinessReady,
