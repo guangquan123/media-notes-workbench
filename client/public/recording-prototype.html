@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#eef2f6" />
+    <title>实时录音笔记 · 交互原型</title>
+    <style>
+      :root {
+        --canvas: #eef2f6;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --ink: #152238;
+        --muted: #718096;
+        --line: #dfe7f1;
+        --blue: #2563eb;
+        --blue-dark: #1648b8;
+        --blue-soft: #eef4ff;
+        --green: #10a957;
+        --green-soft: #effbf4;
+        --amber: #c27b13;
+        --amber-soft: #fff8e9;
+        --red: #c94545;
+        --red-soft: #fff4f4;
+        --shadow: 0 18px 42px rgb(15 35 60 / 8%);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      .app-shell { min-height: 100vh; }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        min-height: 66px;
+        padding: 0 36px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand-mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--ink);
+        color: white;
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .brand strong, .brand span { display: block; }
+      .brand strong { font-size: 15px; }
+      .brand span { margin-top: 2px; color: var(--muted); font-size: 12px; }
+      .top-actions { display: flex; gap: 8px; }
+      .ghost-button, .outline-button, .primary-button, .danger-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 700;
+        transition: .18s ease;
+      }
+      .ghost-button { border-color: transparent; background: transparent; color: var(--muted); }
+      .ghost-button:hover { background: var(--surface-soft); color: var(--ink); }
+      .outline-button { border-color: #d7e0eb; background: var(--surface); color: #526277; }
+      .outline-button:hover { border-color: #99b8ef; color: var(--blue); background: var(--blue-soft); }
+      .primary-button { background: var(--blue); color: white; box-shadow: 0 8px 18px rgb(37 99 235 / 18%); }
+      .primary-button:hover { background: var(--blue-dark); }
+      .primary-button:disabled, .outline-button:disabled { cursor: not-allowed; opacity: .48; }
+      .danger-button { border-color: #efc1c1; background: var(--red-soft); color: var(--red); }
+
+      .content { width: min(1220px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 48px; }
+      .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+      .eyebrow { margin: 0 0 6px; color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { margin-bottom: 6px; font-size: clamp(24px, 3vw, 34px); line-height: 1.15; letter-spacing: -.035em; }
+      h2 { margin-bottom: 5px; font-size: 19px; letter-spacing: -.02em; }
+      h3 { margin-bottom: 4px; font-size: 15px; }
+      .page-heading p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 14px; }
+      .prototype-badge { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #b7caf0; border-radius: 999px; background: var(--blue-soft); padding: 7px 11px; color: #315da8; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+      .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 18px; align-items: start; }
+      .surface { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+      .main-surface { min-height: 640px; padding: 22px 26px 26px; }
+      .side-surface { padding: 18px; box-shadow: 0 9px 24px rgb(15 35 60 / 6%); }
+      .step-rail { display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr; align-items: center; max-width: 650px; margin: 0 auto 26px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 13px; background: #fbfcfe; }
+      .step { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #8491a2; font-size: 12px; font-weight: 700; }
+      .step-node { display: grid; width: 29px; height: 29px; place-items: center; border: 1px solid #d9e1eb; border-radius: 50%; background: #f6f8fb; font-size: 12px; }
+      .step.current { color: var(--blue); }
+      .step.current .step-node { border-color: var(--blue); background: var(--blue); color: white; box-shadow: 0 0 0 5px rgb(37 99 235 / 12%); }
+      .step.done { color: var(--green); }
+      .step.done .step-node { border-color: var(--green); background: var(--green); color: white; }
+      .step-arrow { color: #c7d0dc; text-align: center; font-size: 19px; }
+      .step-arrow.done { color: var(--green); }
+
+      .view { display: none; }
+      .view.active { display: block; }
+      .setup-grid { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 16px; }
+      .module { border: 1px solid var(--line); border-radius: 12px; background: #fbfcff; padding: 17px; }
+      .module-header { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e7edf4; }
+      .module-header p { margin: 0; color: var(--muted); font-size: 12px; }
+      .module-header h2 { margin: 3px 0 0; }
+      .status-pill { align-self: flex-start; border-radius: 999px; background: var(--green-soft); padding: 5px 9px; color: var(--green); font-size: 11px; font-weight: 800; white-space: nowrap; }
+      .source-list { display: grid; gap: 9px; margin-top: 14px; }
+      .source-card { display: flex; align-items: flex-start; gap: 11px; width: 100%; border: 1px solid #dfe7f1; border-radius: 10px; background: var(--surface); padding: 12px; text-align: left; color: var(--ink); }
+      .source-card:hover { border-color: #9bb9ec; }
+      .source-card.selected { border-color: var(--blue); background: var(--blue-soft); box-shadow: inset 0 0 0 1px rgb(37 99 235 / 15%); }
+      .source-icon { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 8px; background: #edf2f8; color: #49647f; font-size: 17px; }
+      .source-card.selected .source-icon { background: white; color: var(--blue); }
+      .source-card strong, .source-card small { display: block; }
+      .source-card strong { font-size: 13px; }
+      .source-card small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+      .source-check { margin-left: auto; color: var(--blue); font-size: 16px; opacity: 0; }
+      .source-card.selected .source-check { opacity: 1; }
+      .device-row { display: grid; grid-template-columns: 1fr auto; gap: 9px; align-items: end; margin-top: 13px; }
+      .field { display: grid; gap: 6px; }
+      .field label { color: #526277; font-size: 12px; font-weight: 800; }
+      select, input[type="text"] { width: 100%; height: 40px; border: 1px solid #d8e1eb; border-radius: 8px; background: white; padding: 0 11px; color: var(--ink); outline: none; }
+      select:focus, input[type="text"]:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb(37 99 235 / 12%); }
+      .refresh { width: 40px; padding: 0; }
+      .test-panel { margin-top: 16px; border: 1px dashed #b9cbe6; border-radius: 11px; background: #f5f8ff; padding: 14px; }
+      .test-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .test-head strong { font-size: 13px; }
+      .test-head span { color: var(--muted); font-size: 11px; }
+      .meter { display: flex; align-items: center; gap: 3px; height: 37px; margin-top: 11px; border-radius: 8px; background: white; padding: 0 9px; }
+      .meter i { display: block; width: 5px; height: 8px; border-radius: 4px; background: #dbe5f2; transition: height .22s, background .22s; }
+      .meter i.on { background: var(--green); }
+      .meter i.warn { background: #efad35; }
+      .test-result { display: flex; align-items: center; gap: 7px; margin-top: 9px; color: var(--green); font-size: 12px; font-weight: 700; }
+      .test-result.warning { color: var(--amber); }
+      .config-fields { display: grid; gap: 13px; margin-top: 16px; }
+      .radio-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+      .radio-button { border: 1px solid #d8e1eb; border-radius: 8px; background: white; padding: 9px 7px; color: #526277; font-size: 11px; font-weight: 700; text-align: center; }
+      .radio-button.selected { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
+      .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 2px; }
+      .switch-row strong { display: block; font-size: 12px; }
+      .switch-row small { display: block; color: var(--muted); font-size: 11px; }
+      .switch { position: relative; width: 38px; height: 22px; flex: none; border: 0; border-radius: 999px; background: #cfd8e4; padding: 0; }
+      .switch::after { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: white; content: ""; transition: .18s; }
+      .switch.on { background: var(--green); }
+      .switch.on::after { left: 19px; }
+      .title-field { margin-top: 17px; }
+      .privacy-note { display: flex; gap: 7px; margin: 14px 0 0; color: var(--muted); font-size: 11px; }
+      .setup-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 19px; padding-top: 16px; border-top: 1px solid #e5ebf3; }
+      .setup-actions p { margin: 0; color: var(--muted); font-size: 12px; }
+      .setup-actions .primary-button { min-width: 184px; }
+
+      .recording-view { max-width: 850px; margin: 0 auto; text-align: center; }
+      .live-status { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #b8d0ff; border-radius: 999px; background: var(--blue-soft); padding: 7px 11px; color: var(--blue); font-size: 12px; font-weight: 800; }
+      .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 5px rgb(37 99 235 / 13%); }
+      .recording-title { margin: 20px 0 4px; font-size: clamp(26px, 4vw, 40px); letter-spacing: -.04em; }
+      .recording-subtitle { margin: 0; color: var(--muted); font-size: 13px; }
+      .timer { margin: 25px 0 20px; font-variant-numeric: tabular-nums; font-size: clamp(48px, 9vw, 76px); font-weight: 800; letter-spacing: -.06em; }
+      .track-board { display: grid; gap: 10px; max-width: 740px; margin: 0 auto; text-align: left; }
+      .track-row { display: grid; grid-template-columns: 148px minmax(0, 1fr) 66px; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); padding: 10px 12px; }
+      .track-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .track-label b { font-size: 12px; }
+      .track-label small { display: block; color: var(--muted); font-size: 10px; }
+      .track-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: white; color: var(--blue); }
+      .track-wave { display: flex; align-items: center; gap: 3px; height: 32px; overflow: hidden; }
+      .track-wave i { display: block; width: 4px; flex: 1; max-width: 9px; border-radius: 4px; background: #c9d8ef; }
+      .track-wave i.active { background: #6f9df0; }
+      .track-level { color: #55708e; font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+      .live-warning { display: flex; align-items: flex-start; gap: 8px; max-width: 740px; margin: 14px auto 0; border: 1px solid #f1d79e; border-radius: 9px; background: var(--amber-soft); padding: 10px 12px; color: #875918; font-size: 12px; text-align: left; }
+      .recording-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; max-width: 740px; margin: 16px auto 0; }
+      .meta-item { border: 1px solid var(--line); border-radius: 9px; background: white; padding: 9px; text-align: left; }
+      .meta-item small, .meta-item strong { display: block; }
+      .meta-item small { color: var(--muted); font-size: 10px; }
+      .meta-item strong { margin-top: 2px; font-size: 12px; }
+      .recording-actions { display: flex; justify-content: center; gap: 9px; margin-top: 24px; }
+
+      .review-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); gap: 17px; }
+      .audio-card { border: 1px solid var(--line); border-radius: 12px; background: #fbfcfe; padding: 17px; }
+      .audio-toolbar { display: flex; align-items: center; gap: 13px; }
+      .play-button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--blue); color: white; font-size: 18px; }
+      .audio-toolbar strong { display: block; font-size: 13px; }
+      .audio-toolbar small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+      .waveform { display: flex; align-items: center; gap: 3px; height: 74px; margin-top: 20px; border-radius: 9px; background: #f0f4fa; padding: 0 12px; }
+      .waveform i { display: block; width: 4px; flex: 1; max-width: 10px; border-radius: 4px; background: #b7c8e1; }
+      .waveform i.mark { background: var(--blue); }
+      .timeline { display: flex; justify-content: space-between; margin-top: 7px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+      .quality-list { display: grid; gap: 9px; margin-top: 16px; }
+      .quality-item { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #d8efdf; border-radius: 9px; background: var(--green-soft); padding: 10px; color: #267449; font-size: 12px; }
+      .quality-item.warning { border-color: #f2dda8; background: var(--amber-soft); color: #875918; }
+      .review-side { display: grid; align-content: start; gap: 12px; }
+      .review-side .module { background: #fbfcff; }
+      .marker-list { display: grid; gap: 8px; margin-top: 12px; }
+      .marker { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #e7edf4; padding-bottom: 8px; font-size: 12px; }
+      .marker:last-child { border-bottom: 0; padding-bottom: 0; }
+      .marker time { color: var(--blue); font-variant-numeric: tabular-nums; font-weight: 800; }
+      .marker span { color: #526277; text-align: right; }
+      .review-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+
+      .processing { max-width: 700px; margin: 40px auto 0; text-align: center; }
+      .processing-icon { display: grid; width: 60px; height: 60px; place-items: center; margin: 0 auto 18px; border-radius: 17px; background: var(--blue-soft); color: var(--blue); font-size: 26px; }
+      .processing p { color: var(--muted); font-size: 13px; }
+      .progress-track { height: 9px; margin: 23px 0 9px; overflow: hidden; border-radius: 999px; background: #e5edf8; }
+      .progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width .35s ease; }
+      .processing-footer { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+      .done-message { display: none; margin-top: 22px; border: 1px solid #b9e8c9; border-radius: 10px; background: var(--green-soft); padding: 13px; color: #267449; font-size: 13px; font-weight: 700; }
+      .done-message.show { display: block; }
+
+      .side-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #e7edf4; }
+      .side-title h2 { margin: 0; font-size: 15px; }
+      .side-title span { color: var(--muted); font-size: 11px; }
+      .recent-list { display: grid; gap: 11px; margin-top: 14px; }
+      .recent-item { display: flex; align-items: flex-start; gap: 9px; }
+      .recent-icon { display: grid; width: 29px; height: 29px; flex: none; place-items: center; border-radius: 8px; background: #f0f4fa; color: var(--blue); font-size: 14px; }
+      .recent-item strong, .recent-item small { display: block; }
+      .recent-item strong { overflow: hidden; color: #334155; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .recent-item small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+      .side-tip { margin-top: 17px; border: 1px solid #dce8fb; border-radius: 9px; background: #f5f8ff; padding: 11px; color: #496582; font-size: 11px; }
+      .side-tip strong { display: block; margin-bottom: 4px; color: #315d9e; font-size: 12px; }
+
+      .toast { position: fixed; right: 22px; bottom: 22px; z-index: 10; max-width: 320px; transform: translateY(18px); border: 1px solid #b9e8c9; border-radius: 9px; background: white; padding: 11px 14px; color: #267449; box-shadow: 0 12px 26px rgb(15 35 60 / 14%); font-size: 12px; font-weight: 700; opacity: 0; pointer-events: none; transition: .22s ease; }
+      .toast.show { transform: translateY(0); opacity: 1; }
+
+      @media (max-width: 980px) {
+        .workspace { grid-template-columns: 1fr; }
+        .side-surface { display: none; }
+      }
+      @media (max-width: 720px) {
+        .topbar { min-height: 58px; padding: 0 16px; }
+        .top-actions .ghost-button:first-child { display: none; }
+        .content { width: min(100% - 24px, 640px); padding-top: 18px; }
+        .page-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+        .main-surface { padding: 14px; }
+        .step-rail { margin-bottom: 16px; padding: 7px 8px; }
+        .setup-grid, .review-layout { grid-template-columns: 1fr; }
+        .setup-actions { align-items: stretch; flex-direction: column; }
+        .setup-actions .primary-button { width: 100%; }
+        .track-row { grid-template-columns: 112px minmax(0, 1fr) 48px; gap: 8px; }
+        .recording-meta { grid-template-columns: 1fr; }
+        .recording-actions { flex-wrap: wrap; }
+        .recording-actions button { flex: 1 1 125px; }
+      }
+      @media (max-width: 420px) {
+        h1 { font-size: 24px; }
+        .topbar .brand span { display: none; }
+        .source-card { padding: 10px; }
+        .radio-row { grid-template-columns: 1fr; }
+        .device-row { grid-template-columns: 1fr; }
+        .refresh { width: 100%; }
+        .track-row { grid-template-columns: 1fr 54px; }
+        .track-wave { grid-column: 1 / -1; grid-row: 2; }
+        .track-level { grid-column: 2; grid-row: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">●</span>
+          <span><strong>实时录音笔记</strong><span>录音、试听、转录、整理</span></span>
+        </div>
+        <div class="top-actions">
+          <button class="ghost-button" type="button" data-toast="录音记录入口（原型占位）">↗ 录音记录</button>
+          <button class="outline-button" type="button" data-toast="已切换到帮助中心（原型占位）">? 帮助</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Recording workspace · Prototype</p>
+            <h1>让一段录音，沉淀成真正可复习的笔记。</h1>
+            <p>先确认录什么，再开始录。录音会持续保存，转写失败也不会丢失原始内容。</p>
+          </div>
+          <span class="prototype-badge">● 交互原型 · 录音功能增强</span>
+        </div>
+
+        <div class="workspace">
+          <section class="surface main-surface">
+            <nav class="step-rail" aria-label="录音流程">
+              <div class="step current" data-step="setup"><span class="step-node">1</span><span>准备</span></div>
+              <span class="step-arrow">›</span>
+              <div class="step" data-step="recording"><span class="step-node">2</span><span>录音</span></div>
+              <span class="step-arrow">›</span>
+              <div class="step" data-step="review"><span class="step-node">3</span><span>确认</span></div>
+            </nav>
+
+            <section class="view active" id="setup-view">
+              <div class="setup-grid">
+                <section class="module">
+                  <div class="module-header">
+                    <div><p>录制来源</p><h2>这次要录什么？</h2></div>
+                    <span class="status-pill">已准备</span>
+                  </div>
+                  <div class="source-list" role="group" aria-label="录音来源">
+                    <button class="source-card selected" type="button" data-mode="mic">
+                      <span class="source-icon">♩</span><span><strong>麦克风</strong><small>内置麦克风 · 录制现场声音</small></span><span class="source-check">✓</span>
+                    </button>
+                    <button class="source-card" type="button" data-mode="system">
+                      <span class="source-icon">◉</span><span><strong>电脑声音</strong><small>蓝牙耳机 · 录制系统播放</small></span><span class="source-check">✓</span>
+                    </button>
+                    <button class="source-card" type="button" data-mode="both">
+                      <span class="source-icon">◎</span><span><strong>麦克风 + 电脑声音</strong><small>独立双轨 · 可分别调整音量</small></span><span class="source-check">✓</span>
+                    </button>
+                  </div>
+                  <div class="device-row">
+                    <div class="field"><label for="input-device">麦克风输入</label><select id="input-device"><option>内置麦克风（默认）</option><option>USB 电容麦克风</option><option>会议耳机麦克风</option></select></div>
+                    <button class="outline-button refresh" type="button" data-toast="已重新扫描音频设备">↻</button>
+                  </div>
+                  <div class="device-row" id="output-row">
+                    <div class="field"><label for="output-device">电脑声音输出</label><select id="output-device"><option>蓝牙耳机（当前播放设备）</option><option>扬声器（Realtek Audio）</option><option>USB 声卡输出</option></select></div>
+                    <button class="outline-button refresh" type="button" data-toast="已重新扫描播放设备">↻</button>
+                  </div>
+                  <div class="test-panel">
+                    <div class="test-head"><div><strong>录音前声音测试</strong><span> 说一句话或播放测试音</span></div><button class="outline-button" id="test-button" type="button">开始测试</button></div>
+                    <div class="meter" id="setup-meter" aria-label="录音前音量检测"></div>
+                    <div class="test-result" id="test-result">○ 尚未测试声音</div>
+                  </div>
+                </section>
+
+                <section class="module">
+                  <div class="module-header"><div><p>录音设置</p><h2>把这段录音准备好</h2></div><span class="status-pill">1 / 2</span></div>
+                  <div class="field title-field"><label for="record-title">录音标题</label><input id="record-title" type="text" value="产品周会 · 2026-09-05" maxlength="80" /></div>
+                  <div class="config-fields">
+                    <div class="field"><label>录音质量</label><div class="radio-row" role="group"><button class="radio-button selected" type="button">会议清晰</button><button class="radio-button" type="button">高保真</button><button class="radio-button" type="button">省空间</button></div></div>
+                    <div class="field"><label for="note-type">完成后生成</label><select id="note-type"><option>会议纪要</option><option>学习笔记</option><option>访谈摘要</option></select></div>
+                    <div class="switch-row"><div><strong>录完自动转写</strong><small>录音保存后自动进入处理队列</small></div><button class="switch on" type="button" aria-pressed="true"></button></div>
+                    <div class="switch-row"><div><strong>保存独立轨道</strong><small>麦克风、电脑声音、混合轨道各保留一份</small></div><button class="switch on" type="button" aria-pressed="true"></button></div>
+                  </div>
+                  <p class="privacy-note">▣ 录音完成前仅保存在本机会话 · 预计可录 06:42:18 · 不会静默切换设备</p>
+                </section>
+              </div>
+              <div class="setup-actions"><p id="setup-hint">建议先完成声音测试，确认两条音轨都有输入。</p><button class="primary-button" id="start-button" type="button">● 开始录音</button></div>
+            </section>
+
+            <section class="view" id="recording-view">
+              <div class="recording-view">
+                <span class="live-status"><span class="live-dot"></span><span id="record-state-label">正在录音</span></span>
+                <h2 class="recording-title" id="live-title">产品周会 · 2026-09-05</h2>
+                <p class="recording-subtitle">麦克风 + 电脑声音 · 独立双轨 · 本地持续保存</p>
+                <div class="timer" id="timer">00:00:00</div>
+                <div class="track-board">
+                  <div class="track-row"><div class="track-label"><span class="track-icon">♩</span><span><b>麦克风</b><small>内置麦克风</small></span></div><div class="track-wave" data-live-wave="mic"></div><span class="track-level" id="mic-level">-18 dB</span></div>
+                  <div class="track-row"><div class="track-label"><span class="track-icon">◉</span><span><b>电脑声音</b><small>蓝牙耳机输出</small></span></div><div class="track-wave" data-live-wave="system"></div><span class="track-level" id="system-level">-24 dB</span></div>
+                </div>
+                <div class="live-warning">! 已启用掉音检测与恢复保护。若设备断开，录音会自动暂停，已经写入的内容不会丢失。</div>
+                <div class="recording-meta"><div class="meta-item"><small>已写入</small><strong id="written-meta">12 个分片 · 2.4 MB</strong></div><div class="meta-item"><small>当前状态</small><strong id="quality-meta">声音输入稳定</strong></div><div class="meta-item"><small>重点标记</small><strong id="marker-meta">0 个</strong></div></div>
+                <div class="recording-actions"><button class="outline-button" id="marker-button" type="button">⚑ 标记重点</button><button class="outline-button" id="pause-button" type="button">Ⅱ 暂停</button><button class="primary-button" id="finish-button" type="button">■ 完成录音</button></div>
+              </div>
+            </section>
+
+            <section class="view" id="review-view">
+              <div class="module-header"><div><p>录音完成 · 已保存</p><h2>先试听，再转成笔记</h2></div><span class="status-pill">完整性检查通过</span></div>
+              <div class="review-layout" style="margin-top: 17px;">
+                <div>
+                  <div class="audio-card"><div class="audio-toolbar"><button class="play-button" id="play-button" type="button">▶</button><div><strong id="review-title">产品周会 · 2026-09-05</strong><small>00:18:42 · 麦克风 + 电脑声音 · 3 个轨道</small></div></div><div class="waveform" id="review-waveform"></div><div class="timeline"><span>00:00:00</span><span id="review-duration">00:18:42</span></div></div>
+                  <div class="quality-list"><div class="quality-item">✓ 声音已检测到，麦克风和电脑声音均有有效输入。</div><div class="quality-item warning">! 00:06:18 附近检测到短暂音量偏低，建议回听确认。</div></div>
+                </div>
+                <div class="review-side"><div class="module"><div class="module-header"><div><p>时间标记</p><h3>重点回看</h3></div><span class="status-pill">3 个</span></div><div class="marker-list" id="review-markers"></div></div><div class="module"><div class="field"><label for="review-note-type">笔记类型</label><select id="review-note-type"><option>会议纪要</option><option>学习笔记</option><option>访谈摘要</option></select></div><p class="privacy-note">▣ 原始三轨会保留在录音记录中</p></div></div>
+              </div>
+              <div class="review-actions"><button class="outline-button" id="redone-button" type="button">↻ 重新录音</button><button class="primary-button" id="convert-button" type="button">✦ 开始转写并生成笔记</button></div>
+            </section>
+
+            <section class="view" id="processing-view">
+              <div class="processing"><div class="processing-icon">◌</div><p class="eyebrow">Processing</p><h2 id="processing-title">正在把录音整理成笔记</h2><p id="processing-copy">录音已保存。现在进行安全上传和语音转写，关闭页面也不会丢失源文件。</p><div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div><div class="processing-footer"><span id="processing-stage">准备录音文件</span><strong id="progress-value">0%</strong></div><div class="done-message" id="done-message">✓ 笔记已经准备好 · 可打开总结笔记或查看原始转录</div><div class="recording-actions"><button class="outline-button" id="restart-button" type="button">再录一段</button><button class="primary-button" id="open-note-button" type="button" data-toast="笔记详情入口（原型占位）">↗ 打开总结笔记</button></div></div>
+            </section>
+          </section>
+
+          <aside class="surface side-surface"><div class="side-title"><h2>最近录音</h2><span>3 条</span></div><div class="recent-list"><div class="recent-item"><span class="recent-icon">●</span><span><strong>产品周会 · 2026-09-05</strong><small>未处理 · 18:42 · 双轨</small></span></div><div class="recent-item"><span class="recent-icon">✓</span><span><strong>用户访谈 · 2026-09-04</strong><small>已生成笔记 · 42:16</small></span></div><div class="recent-item"><span class="recent-icon">!</span><span><strong>课程录音 · 2026-09-03</strong><small>待重试 · 系统声音</small></span></div></div><div class="side-tip"><strong>录音小提示</strong>使用耳机监听时，选择“电脑声音”即可直接采集耳机输出；双轨模式更适合会议和在线课程。</div></aside>
+        </div>
+      </main>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <script>
+      const state = { mode: 'mic', phase: 'setup', seconds: 0, paused: false, tested: false, markers: [] };
+      const $ = (id) => document.getElementById(id);
+      const views = ['setup', 'recording', 'review', 'processing'];
+      let timerId = null;
+      let meterId = null;
+      let progressId = null;
+      const toast = (message) => { const el = $('toast'); el.textContent = message; el.classList.add('show'); window.clearTimeout(toast.timer); toast.timer = window.setTimeout(() => el.classList.remove('show'), 2300); };
+      const formatTime = (seconds) => { const h = String(Math.floor(seconds / 3600)).padStart(2, '0'); const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0'); const s = String(seconds % 60).padStart(2, '0'); return `${h}:${m}:${s}`; };
+      const fillBars = (container, count, activeClass = 'on') => { container.innerHTML = ''; for (let i = 0; i < count; i += 1) { const bar = document.createElement('i'); bar.className = activeClass; bar.style.height = `${8 + ((i * 7) % 17)}px`; container.appendChild(bar); } };
+      fillBars($('setup-meter'), 30);
+      fillBars(document.querySelector('[data-live-wave="mic"]'), 34, 'active');
+      fillBars(document.querySelector('[data-live-wave="system"]'), 34, 'active');
+      fillBars($('review-waveform'), 46);
+
+      const setPhase = (phase) => { state.phase = phase; views.forEach((name) => $(`${name}-view`).classList.toggle('active', name === phase)); const current = phase === 'setup' ? 0 : phase === 'recording' ? 1 : 2; document.querySelectorAll('.step').forEach((step, index) => { step.classList.toggle('current', index === current); step.classList.toggle('done', index < current); }); document.querySelectorAll('.step-arrow').forEach((arrow, index) => arrow.classList.toggle('done', index < current)); };
+      const updateTimer = () => { $('timer').textContent = formatTime(state.seconds); $('written-meta').textContent = `${Math.max(1, Math.ceil(state.seconds / 5))} 个分片 · ${(2.4 + state.seconds * .015).toFixed(1)} MB`; };
+      const startTicker = () => { window.clearInterval(timerId); timerId = window.setInterval(() => { if (!state.paused) { state.seconds += 1; updateTimer(); } }, 1000); window.clearInterval(meterId); meterId = window.setInterval(() => { document.querySelectorAll('.track-wave i').forEach((bar) => { bar.style.height = `${8 + Math.round(Math.random() * 20)}px`; }); $('mic-level').textContent = `${-24 + Math.round(Math.random() * 8)} dB`; $('system-level').textContent = `${-30 + Math.round(Math.random() * 9)} dB`; }, 320); };
+      const stopTicker = () => { window.clearInterval(timerId); window.clearInterval(meterId); };
+
+      document.querySelectorAll('.source-card').forEach((card) => card.addEventListener('click', () => { state.mode = card.dataset.mode; document.querySelectorAll('.source-card').forEach((item) => item.classList.toggle('selected', item === card)); $('output-row').style.opacity = state.mode === 'mic' ? '.48' : '1'; $('setup-hint').textContent = state.mode === 'mic' ? '建议先完成声音测试，确认麦克风输入正常。' : '建议先完成声音测试，确认两条音轨都有输入。'; }));
+      $('test-button').addEventListener('click', () => { state.tested = true; $('test-button').textContent = '重新测试'; $('test-result').textContent = '✓ 已检测到声音 · 峰值 -8 dB · 没有削波'; $('test-result').classList.remove('warning'); document.querySelectorAll('#setup-meter i').forEach((bar, i) => { bar.classList.toggle('on', i < 24); bar.style.height = `${10 + ((i * 7) % 18)}px`; }); toast('声音测试通过，可以开始录音'); });
+      document.querySelectorAll('.radio-button').forEach((button) => button.addEventListener('click', () => { button.parentElement.querySelectorAll('.radio-button').forEach((item) => item.classList.toggle('selected', item === button)); }));
+      document.querySelectorAll('.switch').forEach((button) => button.addEventListener('click', () => { const on = button.classList.toggle('on'); button.setAttribute('aria-pressed', String(on)); }));
+      $('start-button').addEventListener('click', () => { if (!state.tested) { toast('请先完成声音测试，确认录音来源正常'); $('test-button').focus(); return; } $('live-title').textContent = $('record-title').value || '未命名录音'; state.seconds = 0; state.paused = false; $('pause-button').textContent = 'Ⅱ 暂停'; $('record-state-label').textContent = '正在录音'; updateTimer(); setPhase('recording'); startTicker(); toast('录音已开始，系统会持续保存当前内容'); });
+      $('pause-button').addEventListener('click', () => { state.paused = !state.paused; $('pause-button').textContent = state.paused ? '▶ 继续' : 'Ⅱ 暂停'; $('record-state-label').textContent = state.paused ? '录音已暂停' : '正在录音'; $('quality-meta').textContent = state.paused ? '已暂停，内容已保存' : '声音输入稳定'; toast(state.paused ? '录音已暂停，已写入内容保留' : '已继续录音'); });
+      $('marker-button').addEventListener('click', () => { state.markers.push({ time: formatTime(state.seconds), label: state.markers.length === 0 ? '需求范围确认' : state.markers.length === 1 ? '行动项待确认' : '补充说明' }); $('marker-meta').textContent = `${state.markers.length} 个`; toast(`已标记 ${formatTime(state.seconds)} · 可在试听时回看`); });
+      $('finish-button').addEventListener('click', () => { stopTicker(); $('review-title').textContent = $('live-title').textContent; $('review-duration').textContent = formatTime(state.seconds); const markers = state.markers.length ? state.markers : [{ time: '00:04:12', label: '需求范围确认' }, { time: '00:09:31', label: '行动项待确认' }, { time: '00:16:05', label: '补充说明' }]; $('review-markers').innerHTML = markers.map((marker) => `<div class="marker"><time>${marker.time}</time><span>${marker.label}</span></div>`).join(''); setPhase('review'); toast('录音已保存，可以试听或开始转写'); });
+      $('redone-button').addEventListener('click', () => { state.seconds = 0; state.markers = []; state.tested = false; $('test-result').textContent = '○ 尚未测试声音'; document.querySelectorAll('#setup-meter i').forEach((bar) => { bar.classList.remove('on'); bar.style.height = '8px'; }); setPhase('setup'); toast('已回到录音准备'); });
+      $('play-button').addEventListener('click', () => { const playing = $('play-button').textContent === '▶'; $('play-button').textContent = playing ? 'Ⅱ' : '▶'; toast(playing ? '正在试听混合轨道' : '已暂停试听'); });
+      $('convert-button').addEventListener('click', () => { setPhase('processing'); $('progress-bar').style.width = '0%'; $('progress-value').textContent = '0%'; $('done-message').classList.remove('show'); let value = 0; window.clearInterval(progressId); progressId = window.setInterval(() => { value = Math.min(100, value + 7); $('progress-bar').style.width = `${value}%`; $('progress-value').textContent = `${value}%`; $('processing-stage').textContent = value < 25 ? '安全上传' : value < 66 ? '语音转文字' : value < 90 ? '生成笔记' : '写入当前连接器'; if (value === 100) { window.clearInterval(progressId); $('processing-title').textContent = '笔记已经准备好'; $('processing-copy').textContent = '原始转录和录音文件都已保留，可从录音记录继续回看。'; $('done-message').classList.add('show'); toast('笔记生成完成'); } }, 380); });
+      $('restart-button').addEventListener('click', () => { setPhase('setup'); toast('已回到录音准备'); });
+      document.querySelectorAll('[data-toast]').forEach((button) => button.addEventListener('click', () => toast(button.dataset.toast)));
+    </script>
+  </body>
+</html>
