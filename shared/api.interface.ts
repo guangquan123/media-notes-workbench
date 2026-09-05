@@ -131,6 +131,83 @@ export interface UploadedMediaInput {
   storage?: StoredSourceObject;
 }
 
+export type RecordingAssetSource = 'microphone' | 'file_import';
+export type RecordingAssetStorageStatus =
+  | 'app_only'
+  | 'pending_archive'
+  | 'archived'
+  | 'archive_failed';
+export type RecordingAssetProcessingStatus =
+  | 'unprocessed'
+  | 'processing'
+  | 'processed'
+  | 'failed';
+
+export interface RecordingAsset {
+  id: string;
+  title: string;
+  source: RecordingAssetSource;
+  mimeType: string;
+  fileName: string;
+  durationMs: number | null;
+  fileSize: number;
+  capturedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  storageStatus: RecordingAssetStorageStatus;
+  processingStatus: RecordingAssetProcessingStatus;
+  media: UploadedMediaInput;
+  archivePath?: string;
+  archiveError?: string;
+  deletedAt?: string | null;
+  linkedJobIds?: string[];
+}
+
+export interface RecordingAssetListResponse {
+  items: RecordingAsset[];
+  totalItems: number;
+}
+
+export interface RecordingAssetDetailResponse {
+  item: RecordingAsset;
+}
+
+export interface CreateRecordingAssetRequest {
+  title?: string;
+  source: RecordingAssetSource;
+  mimeType: string;
+  fileName: string;
+  durationMs?: number | null;
+  fileSize: number;
+  capturedAt?: string;
+  media: UploadedMediaInput;
+}
+
+export interface UpdateRecordingAssetRequest {
+  title?: string;
+  processingStatus?: RecordingAssetProcessingStatus;
+  linkedJobIds?: string[];
+}
+
+export interface RecordingStorageSettings {
+  autoArchive: boolean;
+  archivePath: string;
+  checkDiskSpace: boolean;
+  updatedAt: string;
+}
+
+export interface UpdateRecordingStorageSettingsRequest {
+  autoArchive: boolean;
+  archivePath: string;
+  checkDiskSpace: boolean;
+}
+
+export interface RecordingAssetArchiveResponse {
+  item: RecordingAsset;
+  archived: boolean;
+  message: string;
+}
+
 export interface UploadedMediaPart {
   downloadUrl: string;
   fileSize: number;

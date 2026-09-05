@@ -66,6 +66,14 @@ import type {
   MediaCleanupSettings,
   RunMediaCleanupRequest,
   UpdateMediaCleanupSettingsRequest,
+  CreateRecordingAssetRequest,
+  RecordingAsset,
+  RecordingAssetArchiveResponse,
+  RecordingAssetDetailResponse,
+  RecordingAssetListResponse,
+  RecordingStorageSettings,
+  UpdateRecordingAssetRequest,
+  UpdateRecordingStorageSettingsRequest,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -805,3 +813,96 @@ export async function runMediaCleanup(
   });
   return response.data;
 }
+
+export async function getRecordingAssets(
+  keyword?: string,
+): Promise<RecordingAssetListResponse> {
+  const response = await axiosForBackend({
+    url: '/api/recording-assets',
+    method: 'GET',
+    params: keyword?.trim() ? { keyword: keyword.trim() } : undefined,
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getRecordingAsset(
+  id: string,
+): Promise<RecordingAssetDetailResponse> {
+  const response = await axiosForBackend({
+    url: `/api/recording-assets/${id}`,
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function createRecordingAsset(
+  input: CreateRecordingAssetRequest,
+): Promise<RecordingAssetDetailResponse> {
+  const response = await axiosForBackend({
+    url: '/api/recording-assets',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateRecordingAsset(
+  id: string,
+  input: UpdateRecordingAssetRequest,
+): Promise<RecordingAssetDetailResponse> {
+  const response = await axiosForBackend({
+    url: `/api/recording-assets/${id}`,
+    method: 'PATCH',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function archiveRecordingAsset(
+  id: string,
+): Promise<RecordingAssetArchiveResponse> {
+  const response = await axiosForBackend({
+    url: `/api/recording-assets/${id}/archive`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function deleteRecordingAsset(
+  id: string,
+): Promise<RecordingAssetDetailResponse> {
+  const response = await axiosForBackend({
+    url: `/api/recording-assets/${id}`,
+    method: 'DELETE',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getRecordingStorageSettings(): Promise<RecordingStorageSettings> {
+  const response = await axiosForBackend({
+    url: '/api/recording-assets/settings',
+    method: 'GET',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateRecordingStorageSettings(
+  input: UpdateRecordingStorageSettingsRequest,
+): Promise<RecordingStorageSettings> {
+  const response = await axiosForBackend({
+    url: '/api/recording-assets/settings',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export type { RecordingAsset };

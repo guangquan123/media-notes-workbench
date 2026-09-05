@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 
 import {
   cancelNoteJob,
+  createRecordingAsset,
   createNoteJob,
   getConnectorSettings,
   getNoteJob,
@@ -123,13 +124,11 @@ const PAGE_COPY: Record<MediaNotePageProps['sourceType'], PageCopy> = {
     accept: {
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
-        '.docx',
-      ],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        ['.docx'],
       'application/vnd.ms-powerpoint': ['.ppt'],
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
-        '.pptx',
-      ],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        ['.pptx'],
       'text/plain': ['.txt'],
       'text/markdown': ['.md', '.markdown'],
     },
@@ -152,7 +151,11 @@ const MEDIA_PROCESS_STAGES = [
 ] as const;
 
 const getLogicalStage = (stage?: string) => {
-  if (['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(stage || '')) {
+  if (
+    ['extracting-frames', 'uploading-frames', 'analyzing-frames'].includes(
+      stage || '',
+    )
+  ) {
     return 'extracting-frames';
   }
   return stage;
@@ -201,11 +204,7 @@ function isCancelledRequest(error: unknown, signal: AbortSignal): boolean {
 export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const copy: PageCopy = PAGE_COPY[sourceType];
   const sourceLabel: string =
-    sourceType === 'video'
-      ? '视频'
-      : sourceType === 'audio'
-        ? '录音'
-        : '文档';
+    sourceType === 'video' ? '视频' : sourceType === 'audio' ? '录音' : '文档';
   const MediaIcon =
     sourceType === 'video'
       ? FileVideo
@@ -219,7 +218,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   });
   const [job, setJob] = useState<NoteJob | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
-  const [activeConnector, setActiveConnector] = useState<ConnectorType | null>(null);
+  const [activeConnector, setActiveConnector] = useState<ConnectorType | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -239,17 +240,17 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       : MEDIA_PROCESS_STAGES.filter(
           ([stage]) => stage !== 'extracting-frames' || showVisualStage,
         );
-  const processStages: ReadonlyArray<readonly [string, string]> = baseProcessStages.map(
-    ([stage, label]): readonly [string, string] =>
+  const processStages: ReadonlyArray<readonly [string, string]> =
+    baseProcessStages.map(([stage, label]): readonly [string, string] =>
       stage === 'publishing'
         ? [stage, currentConnector ? connectorCopy.publishingLabel : '保存笔记']
         : [stage, label],
-  );
+    );
   const running: boolean = Boolean(
     job &&
-      !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
-        job.stage,
-      ),
+    !['completed', 'cancelled', 'failed', 'awaiting-frame-review'].includes(
+      job.stage,
+    ),
   );
   const selectedFileSize: number = files.reduce(
     (total: number, item: File) => total + item.size,
@@ -264,8 +265,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
   const dropzone = useDropzone({
     accept: copy.accept,
     maxFiles,
-    maxSize:
-      sourceType === 'document' ? MAX_DOCUMENT_FILE_SIZE : MAX_FILE_SIZE,
+    maxSize: sourceType === 'document' ? MAX_DOCUMENT_FILE_SIZE : MAX_FILE_SIZE,
     disabled: submitting,
     onDropAccepted: (acceptedFiles: File[]) => {
       const nextFiles: File[] = [...files, ...acceptedFiles];
@@ -431,6 +431,20 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
               : undefined,
         };
       });
+      if (sourceType === 'audio') {
+        await Promise.all(
+          mediaItems.map((media, index) =>
+            createRecordingAsset({
+              fileName: media.fileName,
+              fileSize: media.fileSize,
+              media,
+              mimeType: media.mimeType,
+              source: 'file_import',
+              title: files[index].name.replace(/\.[^.]+$/u, ''),
+            }),
+          ),
+        );
+      }
       const created: NoteJob = await createNoteJob({
         sourceType,
         noteStyle,
@@ -498,7 +512,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       }
     } catch (error: unknown) {
       const responseError = error as {
-        response?: { data?: { error?: { message?: string }; message?: string } };
+        response?: {
+          data?: { error?: { message?: string }; message?: string };
+        };
       };
       toast.error(
         responseError.response?.data?.error?.message ||
@@ -584,7 +600,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             </p>
             <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-6">
               {processStages.map(([stage, label], index) => {
-                const currentStage = uploading ? 'uploading' : getLogicalStage(job?.stage);
+                const currentStage = uploading
+                  ? 'uploading'
+                  : getLogicalStage(job?.stage);
                 const currentIndex = processStages.findIndex(
                   (entry: readonly [string, string]) =>
                     entry[0] === currentStage,
@@ -758,7 +776,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                           ? '笔记已经准备好'
                           : job?.stage === 'cancelled'
                             ? '处理已停止'
-                          : `正在处理${sourceLabel}`}
+                            : `正在处理${sourceLabel}`}
                       </p>
                       <p
                         className="mt-1 truncate text-sm text-black/45"
@@ -883,15 +901,17 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                     </Button>
                   )}
                   {job &&
-                    ['completed', 'cancelled', 'failed'].includes(job.stage) && (
-                    <Button
-                      className="h-11 w-full rounded-xl"
-                      onClick={reset}
-                      variant="outline"
-                    >
-                      再处理一个文件
-                    </Button>
-                  )}
+                    ['completed', 'cancelled', 'failed'].includes(
+                      job.stage,
+                    ) && (
+                      <Button
+                        className="h-11 w-full rounded-xl"
+                        onClick={reset}
+                        variant="outline"
+                      >
+                        再处理一个文件
+                      </Button>
+                    )}
                 </div>
               </div>
             )}
@@ -916,7 +936,9 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelling}>继续处理</AlertDialogCancel>
+            <AlertDialogCancel disabled={cancelling}>
+              继续处理
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 text-white hover:bg-red-700"
               disabled={cancelling}

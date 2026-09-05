@@ -5,6 +5,7 @@ import {
   Cable,
   Layers3,
   HardDrive,
+  Mic2,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -14,6 +15,7 @@ import NoteTemplatesPage from '@/pages/NoteTemplatesPage/NoteTemplatesPage';
 import ConnectorSettingsPage from '@/pages/ConnectorSettingsPage/ConnectorSettingsPage';
 import AiModelSettingsPage from '@/pages/AiModelSettingsPage/AiModelSettingsPage';
 import MediaCleanupSettingsPage from '@/pages/MediaCleanupSettingsPage/MediaCleanupSettingsPage';
+import RecordingStorageSettings from './RecordingStorageSettings';
 import SetupOverview from './SetupOverview';
 
 type SettingsSection =
@@ -24,6 +26,7 @@ type SettingsSection =
   | 'prompts'
   | 'setup'
   | 'storage'
+  | 'recordings'
   /** @deprecated 旧自检链接会映射到 ai。 */
   | 'transcription';
 
@@ -65,6 +68,12 @@ const SETTINGS_SECTIONS: readonly SettingsSectionOption[] = [
     description: '盘点媒体占用，并配置定时或手工清理。',
     icon: HardDrive,
   },
+  {
+    value: 'recordings',
+    label: '录音存储',
+    description: '设置录音记录和本地归档目录。',
+    icon: Mic2,
+  },
 ];
 
 function getSelectedSection(section: string | null): SettingsSection {
@@ -73,7 +82,8 @@ function getSelectedSection(section: string | null): SettingsSection {
     section === 'prompts' ||
     section === 'setup' ||
     section === 'connectors' ||
-    section === 'storage'
+    section === 'storage' ||
+    section === 'recordings'
   ) {
     return section;
   }
@@ -176,6 +186,7 @@ export default function SettingsPage() {
                 <ConnectorSettingsPage embedded />
               )}
               {selectedSection === 'storage' && <MediaCleanupSettingsPage />}
+              {selectedSection === 'recordings' && <RecordingStorageSettings />}
             </section>
           </div>
         </div>

@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
-import {
-  ArrowLeft,
-  History,
-  Mic2,
-  XCircle,
-} from 'lucide-react';
+import { ArrowLeft, History, Mic2, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import {
   cancelNoteJob,
+  createRecordingAsset,
   createNoteJob,
   getNoteJob,
   getReadiness,
+  updateRecordingAsset,
 } from '@/api';
 import {
   deleteUploadedFiles,
@@ -61,7 +58,12 @@ import {
   SetupPanel,
 } from './RecordingPanels';
 
-type RecordingPhase = 'setup' | 'recording' | 'paused' | 'review' | 'processing';
+type RecordingPhase =
+  | 'setup'
+  | 'recording'
+  | 'paused'
+  | 'review'
+  | 'processing';
 type QualityLevel = 'good' | 'warning' | 'poor';
 
 function getErrorMessage(error: unknown): string {
@@ -79,15 +81,21 @@ function getQualityCopy(level: QualityLevel): {
   if (level === 'warning') {
     return { description: '建议靠近麦克风并避免敲击桌面', label: '需要留意' };
   }
-  return { description: '暂未确认有效声音，请先说话测试', label: '未检测到声音' };
+  return {
+    description: '暂未确认有效声音，请先说话测试',
+    label: '未检测到声音',
+  };
 }
 
 export default function RecordingNotesPage() {
   const [phase, setPhase] = useState<RecordingPhase>('setup');
   const [title, setTitle] = useState<string>(getDefaultRecordingTitle());
   const [noteStyle, setNoteStyle] = useState<NoteStyle>('meeting');
-  const [audioProfile, setAudioProfile] = useState<RecordingAudioProfile>(DEFAULT_RECORDING_AUDIO_PROFILE);
-  const [languageMode, setLanguageMode] = useState<TranscriptionLanguageMode>('auto');
+  const [audioProfile, setAudioProfile] = useState<RecordingAudioProfile>(
+    DEFAULT_RECORDING_AUDIO_PROFILE,
+  );
+  const [languageMode, setLanguageMode] =
+    useState<TranscriptionLanguageMode>('auto');
   const [hotwords, setHotwords] = useState<string>('');
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
   const [preparation, setPreparation] = useState<RecorderPreparation | null>(
@@ -109,11 +117,13 @@ export default function RecordingNotesPage() {
   const [chunkCount, setChunkCount] = useState<number>(0);
   const [recordingFile, setRecordingFile] = useState<File | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingAssetMedia, setRecordingAssetMedia] =
+    useState<UploadedMediaInput | null>(null);
+  const [recordingAssetId, setRecordingAssetId] = useState<string | null>(null);
   const [integrityCheck, setIntegrityCheck] =
     useState<RecordingIntegrityCheck | null>(null);
   const [integrityChecking, setIntegrityChecking] = useState<boolean>(false);
-  const [integrityConfirmed, setIntegrityConfirmed] =
-    useState<boolean>(false);
+  const [integrityConfirmed, setIntegrityConfirmed] = useState<boolean>(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState<boolean>(false);
   const [recoverable, setRecoverable] = useState<RecoverableRecording | null>(
@@ -161,7 +171,36 @@ export default function RecordingNotesPage() {
       if (nextIntegrityCheck.status === 'failed') {
         toast.error('录音文件完整性检查未通过，请重新录音');
       } else {
-        toast.success('录音已保存并完成完整性检查，请先试听确认');
+        const uploads: UploadFileData[] = await uploadMediaFile(file);
+        const media: UploadedMediaInput = {
+          downloadUrl: uploads[0].url,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type || result.mimeType,
+          storage:
+            uploads.length === 1 ? toStoredSourceObject(uploads[0]) : undefined,
+          parts:
+            uploads.length > 1
+              ? uploads.map((part: UploadFileData) => ({
+                  downloadUrl: part.url,
+                  fileSize: part.fileSize,
+                  storage: toStoredSourceObject(part),
+                }))
+              : undefined,
+        };
+        const asset = await createRecordingAsset({
+          capturedAt: new Date().toISOString(),
+          durationMs: result.durationMs,
+          fileName: file.name,
+          fileSize: file.size,
+          media,
+          mimeType: file.type || result.mimeType,
+          source: 'microphone',
+          title,
+        });
+        setRecordingAssetId(asset.item.id);
+        setRecordingAssetMedia(asset.item.media);
+        toast.success('录音已保存到录音记录，请先试听确认');
       }
     } finally {
       setIntegrityChecking(false);
@@ -229,17 +268,17 @@ export default function RecordingNotesPage() {
     !preparing;
   const canConvert: boolean = Boolean(
     recordingFile &&
-      durationMs >= MIN_RECORDING_DURATION_MS &&
-      recordingBytes > 0 &&
-      chunkCount > 0 &&
-      !integrityChecking &&
-      Boolean(
-        integrityCheck &&
-          (integrityCheck.status === 'passed' ||
-            (integrityCheck.status === 'review' && integrityConfirmed)),
-      ) &&
-      !uploading &&
-      !running,
+    durationMs >= MIN_RECORDING_DURATION_MS &&
+    recordingBytes > 0 &&
+    chunkCount > 0 &&
+    !integrityChecking &&
+    Boolean(
+      integrityCheck &&
+      (integrityCheck.status === 'passed' ||
+        (integrityCheck.status === 'review' && integrityConfirmed)),
+    ) &&
+    !uploading &&
+    !running,
   );
 
   useEffect(() => {
@@ -365,19 +404,19 @@ export default function RecordingNotesPage() {
         storageChecked = true;
         setStorageReady(true);
       }
-      const nextPreparation: RecorderPreparation = await recorder.prepare(audioProfile);
+      const nextPreparation: RecorderPreparation =
+        await recorder.prepare(audioProfile);
       setPreparation(nextPreparation);
       toast.success('麦克风已连接，请说一句话完成声音测试');
     } catch (prepareError: unknown) {
       if (!storageChecked) {
         setStorageReady(false);
       }
-      const message: string =
-        !storageChecked
-          ? '录音保护存储未就绪，请刷新页面后重试'
-          : prepareError instanceof DOMException
+      const message: string = !storageChecked
+        ? '录音保护存储未就绪，请刷新页面后重试'
+        : prepareError instanceof DOMException
           ? getMicrophoneErrorMessage(prepareError)
-            : getErrorMessage(prepareError);
+          : getErrorMessage(prepareError);
       setError(message);
       toast.error(message);
     } finally {
@@ -409,6 +448,8 @@ export default function RecordingNotesPage() {
     setError(null);
     setRecordingBytes(0);
     setChunkCount(0);
+    setRecordingAssetId(null);
+    setRecordingAssetMedia(null);
     setDurationMs(0);
     handledResultSessionRef.current = null;
     try {
@@ -469,7 +510,8 @@ export default function RecordingNotesPage() {
     const file: File = new File([recoverable.blob], fileName, {
       type: recoverable.mimeType,
     });
-    if (latestObjectUrlRef.current) URL.revokeObjectURL(latestObjectUrlRef.current);
+    if (latestObjectUrlRef.current)
+      URL.revokeObjectURL(latestObjectUrlRef.current);
     latestObjectUrlRef.current = URL.createObjectURL(file);
     setRecordingUrl(latestObjectUrlRef.current);
     setRecordingFile(file);
@@ -503,9 +545,11 @@ export default function RecordingNotesPage() {
   };
 
   const discardRecording = async (): Promise<void> => {
-    const id: string | undefined = recoverable?.sessionId || sessionId || undefined;
+    const id: string | undefined =
+      recoverable?.sessionId || sessionId || undefined;
     if (id) await deleteStoredRecording(id).catch(() => undefined);
-    if (latestObjectUrlRef.current) URL.revokeObjectURL(latestObjectUrlRef.current);
+    if (latestObjectUrlRef.current)
+      URL.revokeObjectURL(latestObjectUrlRef.current);
     latestObjectUrlRef.current = null;
     setRecoverable(null);
     setRecordingFile(null);
@@ -537,43 +581,61 @@ export default function RecordingNotesPage() {
     uploadAbortRef.current = controller;
     let uploaded: UploadFileData[] = [];
     try {
-      const uploads: UploadFileData[] = await uploadMediaFile(
-        recordingFile,
-        (progress: MediaUploadProgress) => {
-          setUploadProgress(
-            Math.round((progress.uploadedBytes / Math.max(progress.totalBytes, 1)) * 100),
-          );
-        },
-        { signal: controller.signal },
-      );
-      uploaded = uploads;
-      const media: UploadedMediaInput = {
-        downloadUrl: uploads[0].url,
-        fileName: recordingFile.name,
-        fileSize: recordingFile.size,
-        mimeType: recordingFile.type || 'audio/webm',
-        storage:
-          uploads.length === 1 ? toStoredSourceObject(uploads[0]) : undefined,
-        parts:
-          uploads.length > 1
-            ? uploads.map((part: UploadFileData) => ({
-                downloadUrl: part.url,
-                fileSize: part.fileSize,
-                storage: toStoredSourceObject(part),
-              }))
-            : undefined,
-      };
+      let media: UploadedMediaInput;
+      if (recordingAssetMedia) {
+        media = recordingAssetMedia;
+      } else {
+        const uploads: UploadFileData[] = await uploadMediaFile(
+          recordingFile,
+          (progress: MediaUploadProgress) => {
+            setUploadProgress(
+              Math.round(
+                (progress.uploadedBytes / Math.max(progress.totalBytes, 1)) *
+                  100,
+              ),
+            );
+          },
+          { signal: controller.signal },
+        );
+        uploaded = uploads;
+        media = {
+          downloadUrl: uploads[0].url,
+          fileName: recordingFile.name,
+          fileSize: recordingFile.size,
+          mimeType: recordingFile.type || 'audio/webm',
+          storage:
+            uploads.length === 1 ? toStoredSourceObject(uploads[0]) : undefined,
+          parts:
+            uploads.length > 1
+              ? uploads.map((part: UploadFileData) => ({
+                  downloadUrl: part.url,
+                  fileSize: part.fileSize,
+                  storage: toStoredSourceObject(part),
+                }))
+              : undefined,
+        };
+      }
       const created: NoteJob = await createNoteJob({
         mediaItems: [media],
         noteStyle,
         sourceType: 'audio',
         transcriptionOptions: {
           languageMode,
-          hotwords: hotwords.split(/[,，\n]/u).map((item) => item.trim()).filter(Boolean).slice(0, 128),
+          hotwords: hotwords
+            .split(/[,，\n]/u)
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 128),
         },
         visualOptions: { mode: 'disabled' },
       });
       setJob(created);
+      if (recordingAssetId) {
+        await updateRecordingAsset(recordingAssetId, {
+          processingStatus: created.stage === 'failed' ? 'failed' : 'processed',
+          linkedJobIds: [created.id],
+        }).catch(() => undefined);
+      }
       if (created.stage === 'failed') {
         const message: string = created.error || '转化失败，录音文件仍然保留';
         setError(message);
@@ -586,7 +648,8 @@ export default function RecordingNotesPage() {
         toast.success('录音已提交，正在生成笔记');
       }
     } catch (convertError: unknown) {
-      if (uploaded.length > 0) await deleteUploadedFiles(uploaded).catch(() => undefined);
+      if (uploaded.length > 0)
+        await deleteUploadedFiles(uploaded).catch(() => undefined);
       const message: string = getErrorMessage(convertError);
       setError(message);
       setPhase('review');
@@ -642,7 +705,13 @@ export default function RecordingNotesPage() {
     setPreparation(null);
     setAdvancedOpen(false);
     setDeviceState({ muted: false, state: 'checking' });
-    setMetrics({ clipCount: 0, inputDetected: false, peak: 0, rms: 0, silentForMs: 0 });
+    setMetrics({
+      clipCount: 0,
+      inputDetected: false,
+      peak: 0,
+      rms: 0,
+      silentForMs: 0,
+    });
   };
 
   const resetMicrophoneCheck = (): void => {
@@ -716,7 +785,9 @@ export default function RecordingNotesPage() {
                   setAudioProfile(value);
                   resetMicrophoneCheck();
                 }}
-                onAdvancedToggle={() => setAdvancedOpen((open: boolean) => !open)}
+                onAdvancedToggle={() =>
+                  setAdvancedOpen((open: boolean) => !open)
+                }
                 onHotwordsChange={setHotwords}
                 onLanguageModeChange={setLanguageMode}
                 onNoteStyleChange={setNoteStyle}
