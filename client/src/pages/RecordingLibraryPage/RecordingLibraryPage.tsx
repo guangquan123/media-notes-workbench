@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -192,9 +193,11 @@ export default function RecordingLibraryPage() {
           item.id === response.item.id ? response.item : item,
         ),
       );
-      response.archived
-        ? toast.success(response.message)
-        : toast.warning(response.message);
+      if (response.archived) {
+        toast.success(response.message);
+      } else {
+        toast.warning(response.message);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '归档失败');
     } finally {
@@ -445,9 +448,10 @@ export default function RecordingLibraryPage() {
                     {formatDate(selected.capturedAt)} ·{' '}
                     {formatDuration(selected.durationMs)} · {selected.fileName}
                   </p>
-                  <audio
-                    className="mt-4 w-full"
-                    controls
+                  <RecordingAudioPlayer
+                    className="mt-4"
+                    ariaLabel={`${selected.title}录音完整播放`}
+                    durationMs={selected.durationMs}
                     src={selected.media.downloadUrl}
                   />
                   <div className="mt-4 flex items-center gap-2">

@@ -1,10 +1,23 @@
-import { Controller, Get, Param, Post, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
-import { createReadStream, existsSync, mkdirSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import {
+  resolveByteRange,
+  type ByteRange,
+} from './local-uploads.utils';
 
 const uploadsDir = join(process.cwd(), 'data', 'uploads');
 
@@ -49,13 +62,35 @@ export class LocalUploadsController {
   }
 
   @Get(':id')
-  download(@Param('id') id: string, @Res() res: Response): void {
+  download(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): void {
     const filePath = join(uploadsDir, id);
     if (!existsSync(filePath)) {
       res.status(404).send('not found');
       return;
     }
+    const fileSize: number = statSync(filePath).size;
+    const range: string | undefined = req.headers.range;
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', 'application/octet-stream');
-    createReadStream(filePath).pipe(res);
+    if (!range) {
+      res.setHeader('Content-Length', fileSize);
+      createReadStream(filePath).pipe(res);
+      return;
+    }
+
+    const resolvedRange: ByteRange | null = resolveByteRange(range, fileSize);
+    if (!resolvedRange) {
+      res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).send();
+      return;
+    }
+    const { end, start } = resolvedRange;
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader('Content-Length', end - start + 1);
+    createReadStream(filePath, { start, end }).pipe(res);
   }
 }

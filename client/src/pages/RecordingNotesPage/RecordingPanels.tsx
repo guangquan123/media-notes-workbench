@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import NoteStyleSelector from '@/components/NoteStyleSelector';
+import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -591,12 +592,10 @@ export function ReviewPanel({
         <CheckCircle2 className="size-9 text-emerald-600" />
       </div>
       <div className="recording-review-panel__player mt-8 rounded-xl border border-black/8 bg-[#fbfdfc] p-5">
-        <audio
-          aria-label="录音试听"
-          className="w-full"
-          controls
-          preload="metadata"
-          src={recordingUrl || undefined}
+        <RecordingAudioPlayer
+          ariaLabel="录音完整播放"
+          durationMs={durationMs}
+          src={recordingUrl}
         />
         <div className="mt-4 grid gap-3 text-xs text-black/55 sm:grid-cols-3">
           <StatusLine
