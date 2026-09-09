@@ -1019,6 +1019,84 @@ ${longList}
     expect(result.failedChecks.join('\n')).toContain('额外一级模块');
   });
 
+  it('allows meeting supporting sections outside the three content modules', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'meeting',
+      note: `# 项目周会纪要
+
+## 会议基本信息
+主题：接口进度。
+## 会议结论摘要
+暂无明确结论。
+## 一、会议议程
+接口进度。
+## 二、会议内容
+会议讨论接口进度。[S01]
+## 三、会后待办
+暂无明确待办。
+## 原文归档
+[查看完整原文](https://example.com/source)
+`,
+      sourceText: '会议讨论接口进度，暂未形成明确结论。',
+    });
+
+    expect(result.unexpectedSections).toEqual([]);
+  });
+
+  it('does not allow similarly named meeting supporting sections', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'meeting',
+      note: `# 项目周会纪要
+## 一、会议议程
+接口进度。
+## 二、会议内容
+会议讨论接口进度。[S01]
+## 三、会后待办
+暂无明确待办。
+## 会议基本信息补充
+不应作为标准模块。`,
+      sourceText: '会议讨论接口进度，暂未形成明确结论。',
+    });
+
+    expect(result.unexpectedSections).toContain('会议基本信息补充');
+  });
+
+  it('rejects unresolved placeholders as a hard failure', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'meeting',
+      note: `# 项目周会纪要
+
+## 一、会议议程
+接口进度。
+## 二、会议内容
+形成 N 项核心议定。[S01]
+## 三、会后待办
+暂无明确待办。`,
+      sourceText: '会议讨论接口进度，暂未形成明确结论。',
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failedChecks.join('\n')).toContain('未替换占位符');
+  });
+
+  it('ignores placeholders in the system source archive', () => {
+    const result = assessNoteQuality({
+      noteStyle: 'meeting',
+      note: `# 项目周会纪要
+## 一、会议议程
+接口进度。
+## 二、会议内容
+会议讨论接口进度。[S01]
+## 三、会后待办
+暂无明确待办。
+## 原文归档
+原文示例：N 项、TODO。`,
+      sourceText: '会议讨论接口进度，暂未形成明确结论。',
+    });
+
+    expect(result.failedChecks.join('\n')).not.toContain('未替换占位符');
+  });
+
   it('rejects a meeting note that drops disagreements and risks', () => {
     const result = assessNoteQuality({
       evidenceLedger: [

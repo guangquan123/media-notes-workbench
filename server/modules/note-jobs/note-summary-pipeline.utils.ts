@@ -849,17 +849,44 @@ function getUnexpectedMeetingSections(note: string): string[] {
       section.aliases.map((alias: string): string => normalizeHeading(alias)),
   );
   const sections: string[] = [];
-  const headingPattern: RegExp = /^##\s+(.+)$/gmu;
+  const allowedSupportingSections: readonly string[] = [
+    '会议基本信息',
+    '会议结论摘要',
+    '原文归档',
+  ];
+  const headingPattern: RegExp = /^(#{2})\s+(.+)$/gmu;
   for (const match of note.matchAll(headingPattern)) {
-    const rawHeading: string | undefined = match[1];
+    const rawHeading: string | undefined = match[2];
     if (!rawHeading) continue;
     const normalized: string = normalizeHeading(rawHeading);
     const expected: boolean = expectedAliases.some((alias: string): boolean =>
       normalized.includes(alias),
     );
-    if (!expected) sections.push(rawHeading.replace(/[*_`]/gu, '').trim());
+    const supporting: boolean = allowedSupportingSections.some(
+      (section: string): boolean => normalized === section,
+    );
+    if (!expected && !supporting) {
+      sections.push(rawHeading.replace(/[*_`]/gu, '').trim());
+    }
   }
   return sections;
+}
+
+function findUnresolvedPlaceholders(note: string): string[] {
+  const placeholders: string[] = [];
+  const body: string = note.split(/^##\s+原文归档\s*$/mu, 1)[0] || note;
+  const patterns: readonly RegExp[] = [
+    /N\s*项/gu,
+    /\b(?:TBD|TODO|FIXME)\b/giu,
+    /\[待填写\]|\[待补充\]|\{\{[^}]+\}\}/gu,
+  ];
+  for (const pattern of patterns) {
+    for (const match of body.matchAll(pattern)) {
+      const value: string | undefined = match[0];
+      if (value && !placeholders.includes(value)) placeholders.push(value);
+    }
+  }
+  return placeholders;
 }
 
 function extractSignificantNumbers(text: string): Set<string> {
@@ -1794,6 +1821,7 @@ export function assessNoteQuality(
   const noteLength: number = input.note.trim().length;
   const traceable: boolean = hasTraceabilitySignal(input.note);
   const overlongParagraph: boolean = hasOverlongParagraph(input.note);
+  const unresolvedPlaceholders: string[] = findUnresolvedPlaceholders(input.note);
   const requiredSectionCount: number =
     input.noteStyle === 'meeting'
       ? MEETING_REQUIRED_SECTIONS.length
@@ -1880,6 +1908,11 @@ export function assessNoteQuality(
   if (overlongParagraph) {
     failedChecks.push('存在超过 600 字的长段落，需要按观点或步骤拆分');
   }
+  if (unresolvedPlaceholders.length > 0) {
+    failedChecks.push(
+      `存在未替换占位符：${unresolvedPlaceholders.join('、')}；发布前必须清除`,
+    );
+  }
 
   const hasHardFailure: boolean =
     missingSections.length > 0 ||
@@ -1892,7 +1925,8 @@ export function assessNoteQuality(
     missingVisualUrls.length > 0 ||
     (sourceNumbers.size >= 3 && numberCoverage < 0.7) ||
     (evidenceLedger.trim().length >= 1_000 && noteLength < minimumLength) ||
-    !traceable;
+    !traceable ||
+    unresolvedPlaceholders.length > 0;
   return {
     evidenceCoverage,
     evidenceGroundingCoverage,

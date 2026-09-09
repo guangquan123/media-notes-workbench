@@ -17,7 +17,6 @@ import {
 import { toast } from 'sonner';
 import { resolveAppUrl } from '@lark-apaas/client-toolkit/utils/resolveAppUrl';
 import { Button } from '@/components/ui/button';
-import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -502,135 +501,26 @@ export default function RecordingLibraryPage() {
                           </Badge>
                         </span>
                       </span>
-                      <Play className="size-4 text-black/35" />
+                      <Play
+                        className="size-4 text-black/35"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          navigate(`/recording-library/${asset.id}`);
+                        }}
+                      />
                     </button>
                   ))}
                 </div>
               )}
             </section>
-            <aside className="rounded-lg border bg-white p-4 lg:sticky lg:top-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">录音详情</h2>
-                {selected && (
-                  <Button
-                    aria-label="重命名录音"
-                    onClick={() => {
-                      setRenameTitle(selected.title);
-                      setRenameOpen(true);
-                    }}
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                )}
+            <aside className="flex items-center justify-center rounded-lg border border-dashed bg-white p-6 text-center lg:sticky lg:top-4">
+              <div>
+                <FileAudio className="mx-auto size-8 text-blue-600" />
+                <h2 className="mt-3 font-semibold">选择播放，进入完整播放器</h2>
+                <p className="mt-2 text-sm text-black/45">
+                  播放、转写、下载和归档操作将在独立页面完成。
+                </p>
               </div>
-              {selected ? (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold">{selected.title}</h3>
-                  <p className="mt-1 text-xs text-black/45">
-                    {formatDate(selected.capturedAt)} ·{' '}
-                    {formatDuration(selected.durationMs)} · {selected.fileName}
-                  </p>
-                  <RecordingAudioPlayer
-                    className="mt-4"
-                    ariaLabel={`${selected.title}录音完整播放`}
-                    durationMs={selected.durationMs}
-                    src={resolvePlayableUrl(selected)}
-                  />
-                  <div className="mt-4 flex items-center gap-2">
-                    <Badge>{processingLabels[selected.processingStatus]}</Badge>
-                    <Badge variant="outline">
-                      {storageLabels[selected.storageStatus]}
-                    </Badge>
-                    <Badge variant="outline">
-                      {
-                        playableLabels[
-                          selected.playableStatus || 'pending'
-                        ]
-                      }
-                    </Badge>
-                  </div>
-                  <div className="mt-5 grid gap-2">
-                    <Button
-                      disabled={
-                        busy || selected.processingStatus === 'processing'
-                      }
-                      onClick={() => void processSelected()}
-                    >
-                      <LoaderCircle
-                        className={`size-4 ${busy ? 'animate-spin' : 'hidden'}`}
-                      />
-                      {selected.processingStatus === 'failed'
-                        ? '重新处理'
-                        : '转写并生成笔记'}
-                    </Button>
-                    {selected.storageStatus !== 'archived' && (
-                      <Button
-                        disabled={busy}
-                        onClick={() => void archiveSelected()}
-                        variant="outline"
-                      >
-                        <HardDrive className="size-4" />
-                        归档到本地目录
-                      </Button>
-                    )}
-                    {selected.playableStatus === 'ready' && selected.playableUrl ? (
-                      <Button asChild variant="outline">
-                        <a
-                          download={selected.playableFileName}
-                          href={`${resolvePlayableUrl(selected)}?download=1`}
-                        >
-                          <Download className="size-4" />
-                          下载 M4A
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        disabled={
-                          busy || selected.playableStatus === 'converting'
-                        }
-                        onClick={() => void requestPlayable()}
-                        variant="outline"
-                      >
-                        <LoaderCircle
-                          className={`size-4 ${selected.playableStatus === 'converting' ? 'animate-spin' : 'hidden'}`}
-                        />
-                        {selected.playableStatus === 'failed'
-                          ? '重试生成 M4A'
-                          : '准备通用 M4A'}
-                      </Button>
-                    )}
-                    <Button asChild size="sm" variant="ghost">
-                      <a
-                        download={selected.fileName}
-                        href={selected.media.downloadUrl}
-                      >
-                        下载原始录音
-                      </a>
-                    </Button>
-                  </div>
-                  {selected.playableError && (
-                    <p className="mt-3 text-xs text-amber-700">
-                      M4A 生成失败：{selected.playableError}。原始录音仍可使用。
-                    </p>
-                  )}
-                  {selected.archiveError && (
-                    <p className="mt-3 text-xs text-red-700">
-                      归档失败：{selected.archiveError}
-                    </p>
-                  )}
-                  <p className="mt-4 break-all text-xs text-black/40">
-                    {selected.archivePath ||
-                      settings?.archivePath ||
-                      '尚未设置归档目录'}
-                  </p>
-                </div>
-              ) : (
-                <div className="py-12 text-center text-sm text-black/45">
-                  选择一条录音查看详情
-                </div>
-              )}
             </aside>
           </div>
         </section>

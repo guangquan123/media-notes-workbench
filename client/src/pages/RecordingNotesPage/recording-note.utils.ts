@@ -3,6 +3,71 @@ export const SIGNAL_RMS_THRESHOLD = 0.018;
 export const SILENCE_WARNING_MS = 12_000;
 
 export type RecordingAudioProfile = 'fidelity' | 'clarity' | 'noisy';
+export type RecordingCaptureMode = 'microphone' | 'system' | 'mixed';
+
+export interface RecordingCaptureModeDefinition {
+  connectionStep: string;
+  errorFallback: string;
+  idleDescription: string;
+  label: string;
+  permissionDescription: string;
+  signalStep: string;
+  successDescription: string;
+  waitingDescription: string;
+}
+
+export const DEFAULT_RECORDING_CAPTURE_MODE: RecordingCaptureMode =
+  'microphone';
+
+const RECORDING_CAPTURE_MODE_DEFINITIONS: Record<
+  RecordingCaptureMode,
+  RecordingCaptureModeDefinition
+> = {
+  microphone: {
+    connectionStep: '连接麦克风',
+    errorFallback: '请允许浏览器访问麦克风后重新检测。',
+    idleDescription: '正式录音前必须完成设备和声音测试。',
+    label: '仅麦克风',
+    permissionDescription: '请在浏览器弹窗中允许麦克风访问。',
+    signalStep: '说一句话',
+    successDescription: '麦克风连接正常，录音时会持续显示声音状态。',
+    waitingDescription: '正在监听，音量条有绿色波动即表示声音输入正常。',
+  },
+  system: {
+    connectionStep: '选择共享音频',
+    errorFallback: '请选择支持音频共享的标签页或窗口，并勾选共享音频后重试。',
+    idleDescription: '通过浏览器共享音频录制电脑中的会议或媒体声音。',
+    label: '电脑声音',
+    permissionDescription: '请在共享窗口中选择音频来源，并勾选“共享音频”。',
+    signalStep: '播放一段声音',
+    successDescription: '共享音频已连接，录音文件只会保存声音，不会保存画面。',
+    waitingDescription: '播放一段电脑声音，音量条有绿色波动即表示输入正常。',
+  },
+  mixed: {
+    connectionStep: '连接两路声音',
+    errorFallback: '请同时允许麦克风和共享音频，并确认两路都有声音输入。',
+    idleDescription: '同时录下现场发言与电脑声音，并输出一份混合录音。',
+    label: '双源混合',
+    permissionDescription: '请允许麦克风，并在共享窗口中选择音频来源、勾选共享音频。',
+    signalStep: '分别测试两路',
+    successDescription: '两路声音已连接，录音时会混合保存为一份音频文件。',
+    waitingDescription: '请说一句话并播放一段电脑声音，确认两路音量都有波动。',
+  },
+};
+
+export function getRecordingCaptureModeDefinition(
+  mode: RecordingCaptureMode,
+): RecordingCaptureModeDefinition {
+  return RECORDING_CAPTURE_MODE_DEFINITIONS[mode];
+}
+
+export function getRecordingAssetSource(
+  mode: RecordingCaptureMode,
+): import('@shared/api.interface').RecordingAssetSource {
+  if (mode === 'system') return 'system_audio';
+  if (mode === 'mixed') return 'mixed_audio';
+  return 'microphone';
+}
 
 export const DEFAULT_RECORDING_AUDIO_PROFILE: RecordingAudioProfile = 'fidelity';
 
@@ -47,7 +112,7 @@ export function getSupportedRecordingMimeType(): string | null {
   );
 }
 
-export function calculateAudioLevel(samples: Uint8Array): {
+export function calculateAudioLevel(samples: Uint8Array<ArrayBufferLike>): {
   peak: number;
   rms: number;
 } {

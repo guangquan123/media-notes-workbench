@@ -1,4 +1,7 @@
+import type { RecordingCaptureMode } from './recording-note.utils';
+
 interface StoredRecordingSession {
+  captureMode?: RecordingCaptureMode;
   createdAt: number;
   durationMs: number;
   id: string;
@@ -17,6 +20,7 @@ interface StoredRecordingChunk {
 
 export interface RecoverableRecording {
   blob: Blob;
+  captureMode: RecordingCaptureMode;
   chunkCount: number;
   durationMs: number;
   interrupted: boolean;
@@ -29,6 +33,12 @@ const DATABASE_NAME = 'media-notes-recordings';
 const DATABASE_VERSION = 1;
 const SESSION_STORE = 'sessions';
 const CHUNK_STORE = 'chunks';
+const memorySessions = new Map<string, StoredRecordingSession>();
+const memoryChunks = new Map<string, StoredRecordingChunk>();
+
+function hasIndexedDb(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.indexedDB);
+}
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -58,6 +68,7 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 export async function checkRecordingStorage(): Promise<void> {
+  if (!hasIndexedDb()) return;
   const database: IDBDatabase = await openDatabase();
   database.close();
 }
@@ -82,6 +93,17 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 export async function startStoredRecording(
   session: Omit<StoredRecordingSession, 'createdAt' | 'durationMs' | 'status' | 'updatedAt'>,
 ): Promise<void> {
+  if (!hasIndexedDb()) {
+    const now: number = Date.now();
+    memorySessions.set(session.id, {
+      ...session,
+      createdAt: now,
+      durationMs: 0,
+      status: 'recording',
+      updatedAt: now,
+    });
+    return;
+  }
   const database: IDBDatabase = await openDatabase();
   const transaction: IDBTransaction = database.transaction(
     SESSION_STORE,
@@ -106,6 +128,23 @@ export async function appendStoredRecordingChunk(input: {
   index: number;
   sessionId: string;
 }): Promise<void> {
+  if (!hasIndexedDb()) {
+    memoryChunks.set(`${input.sessionId}:${String(input.index).padStart(8, '0')}`, {
+      blob: input.blob,
+      id: `${input.sessionId}:${String(input.index).padStart(8, '0')}`,
+      index: input.index,
+      sessionId: input.sessionId,
+    });
+    const session: StoredRecordingSession | undefined = memorySessions.get(input.sessionId);
+    if (session) {
+      memorySessions.set(input.sessionId, {
+        ...session,
+        durationMs: input.durationMs,
+        updatedAt: Date.now(),
+      });
+    }
+    return;
+  }
   const database: IDBDatabase = await openDatabase();
   const chunkTransaction: IDBTransaction = database.transaction(
     CHUNK_STORE,
@@ -152,6 +191,18 @@ export async function finishStoredRecording(
   sessionId: string,
   durationMs: number,
 ): Promise<void> {
+  if (!hasIndexedDb()) {
+    const session: StoredRecordingSession | undefined = memorySessions.get(sessionId);
+    if (session) {
+      memorySessions.set(sessionId, {
+        ...session,
+        durationMs,
+        status: 'complete',
+        updatedAt: Date.now(),
+      });
+    }
+    return;
+  }
   const database: IDBDatabase = await openDatabase();
   const readTransaction: IDBTransaction = database.transaction(
     SESSION_STORE,
@@ -180,6 +231,33 @@ export async function finishStoredRecording(
 }
 
 export async function loadLatestStoredRecording(): Promise<RecoverableRecording | null> {
+  if (!hasIndexedDb()) {
+    const session: StoredRecordingSession | undefined = [...memorySessions.values()].sort(
+      (left: StoredRecordingSession, right: StoredRecordingSession) =>
+        right.updatedAt - left.updatedAt,
+    )[0];
+    if (!session) return null;
+    const chunks: StoredRecordingChunk[] = [...memoryChunks.values()]
+      .filter((chunk: StoredRecordingChunk) => chunk.sessionId === session.id)
+      .sort(
+        (left: StoredRecordingChunk, right: StoredRecordingChunk) =>
+          left.index - right.index,
+      );
+    if (chunks.length === 0) return null;
+    return {
+      blob: new Blob(
+        chunks.map((chunk: StoredRecordingChunk) => chunk.blob),
+        { type: session.mimeType },
+      ),
+      captureMode: session.captureMode || 'microphone',
+      chunkCount: chunks.length,
+      durationMs: session.durationMs,
+      interrupted: session.status === 'recording',
+      mimeType: session.mimeType,
+      sessionId: session.id,
+      title: session.title,
+    };
+  }
   const database: IDBDatabase = await openDatabase();
   const sessionTransaction: IDBTransaction = database.transaction(
     SESSION_STORE,
@@ -223,6 +301,7 @@ export async function loadLatestStoredRecording(): Promise<RecoverableRecording 
       orderedChunks.map((chunk: StoredRecordingChunk) => chunk.blob),
       { type: session.mimeType },
     ),
+    captureMode: session.captureMode || 'microphone',
     chunkCount: orderedChunks.length,
     durationMs: session.durationMs,
     interrupted: session.status === 'recording',
@@ -233,6 +312,13 @@ export async function loadLatestStoredRecording(): Promise<RecoverableRecording 
 }
 
 export async function deleteStoredRecording(sessionId: string): Promise<void> {
+  if (!hasIndexedDb()) {
+    memorySessions.delete(sessionId);
+    for (const [chunkId, chunk] of memoryChunks) {
+      if (chunk.sessionId === sessionId) memoryChunks.delete(chunkId);
+    }
+    return;
+  }
   const database: IDBDatabase = await openDatabase();
   const transaction: IDBTransaction = database.transaction(
     [SESSION_STORE, CHUNK_STORE],

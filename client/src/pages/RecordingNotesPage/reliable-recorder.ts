@@ -5,12 +5,24 @@ import {
 } from './recording-storage';
 import {
   buildRecordingAudioConstraints,
-  DEFAULT_RECORDING_AUDIO_PROFILE,
   calculateAudioLevel,
+  DEFAULT_RECORDING_AUDIO_PROFILE,
+  DEFAULT_RECORDING_CAPTURE_MODE,
+  getRecordingCaptureModeDefinition,
   getSupportedRecordingMimeType,
   SIGNAL_RMS_THRESHOLD,
   type RecordingAudioProfile,
+  type RecordingCaptureMode,
 } from './recording-note.utils';
+
+type RecorderInput = 'microphone' | 'system';
+
+export interface RecorderSourceMetrics {
+  inputDetected: boolean;
+  peak: number;
+  rms: number;
+  silentForMs: number;
+}
 
 export interface RecorderMetrics {
   clipCount: number;
@@ -18,6 +30,7 @@ export interface RecorderMetrics {
   peak: number;
   rms: number;
   silentForMs: number;
+  sources: Partial<Record<RecorderInput, RecorderSourceMetrics>>;
 }
 
 export interface RecorderDeviceState {
@@ -27,6 +40,7 @@ export interface RecorderDeviceState {
 
 export interface RecordingResult {
   bytes: number;
+  captureMode: RecordingCaptureMode;
   chunkCount: number;
   durationMs: number;
   file: File;
@@ -46,11 +60,14 @@ export interface ReliableRecorderEvents {
 export interface RecorderPreparation {
   audioProfile: RecordingAudioProfile;
   autoGainControl: boolean | null;
+  captureMode: RecordingCaptureMode;
   channelCount: number;
   deviceLabel: string;
   echoCancellation: boolean | null;
+  microphoneLabel?: string;
   noiseSuppression: boolean | null;
   sampleRate: number | null;
+  systemAudioLabel?: string;
 }
 
 function createSessionId(): string {
@@ -60,30 +77,43 @@ function createSessionId(): string {
   return `recording-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function getRequiredInputs(mode: RecordingCaptureMode): RecorderInput[] {
+  if (mode === 'microphone') return ['microphone'];
+  if (mode === 'system') return ['system'];
+  return ['microphone', 'system'];
+}
+
+function stopStream(stream: MediaStream | null): void {
+  stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+}
+
 export class ReliableRecorder {
   private readonly events: ReliableRecorderEvents;
   private audioContext: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
+  private audioProfile: RecordingAudioProfile = DEFAULT_RECORDING_AUDIO_PROFILE;
+  private captureMode: RecordingCaptureMode = DEFAULT_RECORDING_CAPTURE_MODE;
   private chunks: Blob[] = [];
   private chunkCount = 0;
   private clipCount = 0;
-  private deviceState: RecorderDeviceState = {
-    muted: false,
-    state: 'checking',
-  };
-  private lastSignalAt = 0;
+  private deviceState: RecorderDeviceState = { muted: false, state: 'checking' };
+  private microphoneStream: MediaStream | null = null;
   private monitorFrame: number | null = null;
-  private recorder: MediaRecorder | null = null;
-  private sessionId: string | null = null;
-  private startedAt = 0;
+  private outputStream: MediaStream | null = null;
   private pausedAt = 0;
   private pausedDurationMs = 0;
-  private audioProfile: RecordingAudioProfile = DEFAULT_RECORDING_AUDIO_PROFILE;
-  private storageQueue: Promise<void> = Promise.resolve();
+  private recorder: MediaRecorder | null = null;
+  private sessionId: string | null = null;
+  private sourceAnalysers: Partial<Record<RecorderInput, AnalyserNode>> = {};
+  private sourceLastSignals: Record<RecorderInput, number> = {
+    microphone: 0,
+    system: 0,
+  };
+  private startedAt = 0;
   private storageFailed = false;
-  private stream: MediaStream | null = null;
+  private storageQueue: Promise<void> = Promise.resolve();
   private stopPromise: Promise<RecordingResult> | null = null;
   private stopped = false;
+  private systemAudioStream: MediaStream | null = null;
 
   constructor(events: ReliableRecorderEvents) {
     this.events = events;
@@ -91,83 +121,50 @@ export class ReliableRecorder {
 
   public async prepare(
     profile: RecordingAudioProfile = DEFAULT_RECORDING_AUDIO_PROFILE,
+    captureMode: RecordingCaptureMode = DEFAULT_RECORDING_CAPTURE_MODE,
   ): Promise<RecorderPreparation> {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('当前浏览器不支持麦克风录音，请使用最新版 Chrome、Edge 或 Safari');
-    }
-    if (this.stream?.active && this.audioProfile === profile) {
+    this.assertCaptureSupport(captureMode);
+    if (
+      this.outputStream?.active &&
+      this.audioProfile === profile &&
+      this.captureMode === captureMode
+    ) {
       return this.getPreparation();
     }
-    this.events.onDeviceState({ muted: false, state: 'checking' });
-    if (this.stream?.active) {
-      const track = this.stream.getAudioTracks()[0];
-      if (track) {
-        try {
-          await track.applyConstraints(buildRecordingAudioConstraints(profile));
-          this.audioProfile = profile;
-          return this.getPreparation();
-        } catch {
-          this.stream.getTracks().forEach((current) => current.stop());
-          this.stream = null;
-        }
-      } else {
-        this.stream.getTracks().forEach((current) => current.stop());
-        this.stream = null;
-      }
-    }
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: buildRecordingAudioConstraints(profile),
-    });
-    this.audioProfile = profile;
-    const track: MediaStreamTrack | undefined = this.stream.getAudioTracks()[0];
-    if (!track) throw new Error('没有获得有效的麦克风音轨');
-    if (track.readyState !== 'live') {
-      throw new Error('麦克风音轨未处于可采集状态，请重新授权设备');
-    }
-    track.onended = () => {
-      if (this.stopped) return;
-      this.setDeviceState({ muted: false, state: 'ended' });
-      this.events.onError(new Error('麦克风连接已断开，当前录音已停止采集'));
-      if (this.recorder?.state === 'recording' || this.recorder?.state === 'paused') {
-        void this.stop()
-          .then((result: RecordingResult) => {
-            this.events.onAutoStop?.(result);
-          })
-          .catch((error: unknown) => {
-            this.events.onError(
-              error instanceof Error
-                ? error
-                : new Error('麦克风断开后无法保存录音'),
-            );
-          });
-      }
-    };
-    track.onmute = () => {
-      this.setDeviceState({ muted: true, state: 'muted' });
-      if (this.recorder?.state === 'recording') {
-        this.recorder.pause();
-        this.events.onError(
-          new Error('麦克风被系统静音，录音已自动暂停，请恢复设备后继续'),
-        );
-      }
-    };
-    track.onunmute = () => this.setDeviceState({ muted: false, state: 'ready' });
-    this.audioContext = new AudioContext();
-    await this.audioContext.resume();
-    const source: MediaStreamAudioSourceNode =
-      this.audioContext.createMediaStreamSource(this.stream);
-    this.analyser = this.audioContext.createAnalyser();
-    this.analyser.fftSize = 2_048;
-    source.connect(this.analyser);
+    this.release();
     this.stopped = false;
-    this.startMonitoring();
-    this.setDeviceState({ muted: false, state: 'ready' });
-    return this.getPreparation();
+    this.audioProfile = profile;
+    this.captureMode = captureMode;
+    this.sourceLastSignals = { microphone: 0, system: 0 };
+    this.events.onDeviceState({ muted: false, state: 'checking' });
+    try {
+      if (captureMode !== 'system') {
+        this.microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: buildRecordingAudioConstraints(profile),
+        });
+        this.assertAudioTrack(this.microphoneStream, '麦克风');
+      }
+      if (captureMode !== 'microphone') {
+        this.systemAudioStream = await navigator.mediaDevices.getDisplayMedia({
+          audio: true,
+          video: true,
+        });
+        this.assertAudioTrack(this.systemAudioStream, '共享音频');
+      }
+      await this.createMixedOutput();
+      this.setDeviceState({ muted: false, state: 'ready' });
+      return this.getPreparation();
+    } catch (error: unknown) {
+      this.release();
+      throw error;
+    }
   }
 
   public async start(title: string): Promise<void> {
-    if (!this.stream?.active || !this.analyser) await this.prepare();
-    if (!this.stream) throw new Error('麦克风尚未准备好');
+    if (!this.outputStream?.active || !this.hasAllRequiredTracks()) {
+      await this.prepare(this.audioProfile, this.captureMode);
+    }
+    if (!this.outputStream) throw new Error('声音输入尚未准备好');
     const mimeType: string | null = getSupportedRecordingMimeType();
     if (!mimeType) throw new Error('当前浏览器不支持可用的录音格式');
     this.chunks = [];
@@ -176,13 +173,14 @@ export class ReliableRecorder {
     this.storageFailed = false;
     this.storageQueue = Promise.resolve();
     this.sessionId = createSessionId();
-    this.lastSignalAt = 0;
+    this.sourceLastSignals = { microphone: 0, system: 0 };
     this.startedAt = Date.now();
     this.pausedAt = 0;
     this.pausedDurationMs = 0;
     this.stopped = false;
     try {
       await startStoredRecording({
+        captureMode: this.captureMode,
         id: this.sessionId,
         mimeType,
         title,
@@ -196,7 +194,7 @@ export class ReliableRecorder {
           : '录音保护存储不可用，已阻止开始录音',
       );
     }
-    this.recorder = new MediaRecorder(this.stream, {
+    this.recorder = new MediaRecorder(this.outputStream, {
       audioBitsPerSecond: 128_000,
       mimeType,
     });
@@ -210,25 +208,7 @@ export class ReliableRecorder {
         0,
       );
       this.events.onChunk(bytes, this.chunkCount);
-      if (!this.storageFailed) {
-        const sessionId: string = this.sessionId;
-        this.storageQueue = this.storageQueue
-          .then(async () => {
-            await appendStoredRecordingChunk({
-              blob: event.data,
-              durationMs: this.getDurationMs(),
-              index,
-              sessionId,
-            });
-          })
-          .catch(() => {
-            this.storageFailed = true;
-            if (this.recorder?.state === 'recording') {
-              this.recorder.pause();
-            }
-            this.events.onStorageWarning();
-          });
-      }
+      this.persistChunk(event.data, index);
     };
     this.recorder.onerror = () => {
       if (this.recorder?.state === 'recording') this.recorder.pause();
@@ -267,9 +247,7 @@ export class ReliableRecorder {
           try {
             const durationMs: number = this.getDurationMs();
             await this.storageQueue;
-            if (!this.storageFailed) {
-              await finishStoredRecording(sessionId, durationMs);
-            }
+            if (!this.storageFailed) await finishStoredRecording(sessionId, durationMs);
             const mimeType: string = recorder.mimeType || 'audio/webm';
             const file: File = new File(this.chunks, 'recording.webm', {
               type: mimeType,
@@ -277,6 +255,7 @@ export class ReliableRecorder {
             this.stopped = true;
             resolve({
               bytes: file.size,
+              captureMode: this.captureMode,
               chunkCount: this.chunkCount,
               durationMs,
               file,
@@ -287,23 +266,18 @@ export class ReliableRecorder {
             reject(error instanceof Error ? error : new Error('录音保存失败'));
           }
         };
-        recorder.onstop = () => {
-          void finish();
-        };
+        recorder.onstop = () => void finish();
         if (recorder.state === 'paused') recorder.resume();
         recorder.requestData();
         recorder.stop();
       },
     );
     this.stopPromise = promise;
-    promise.then(
-      () => {
+    promise
+      .finally(() => {
         if (this.stopPromise === promise) this.stopPromise = null;
-      },
-      () => {
-        if (this.stopPromise === promise) this.stopPromise = null;
-      },
-    );
+      })
+      .catch(() => undefined);
     return promise;
   }
 
@@ -317,10 +291,16 @@ export class ReliableRecorder {
     this.stopped = true;
     if (this.monitorFrame !== null) cancelAnimationFrame(this.monitorFrame);
     this.monitorFrame = null;
-    this.stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-    this.stream = null;
-    this.analyser?.disconnect();
-    this.analyser = null;
+    stopStream(this.microphoneStream);
+    stopStream(this.systemAudioStream);
+    this.microphoneStream = null;
+    this.systemAudioStream = null;
+    stopStream(this.outputStream);
+    this.outputStream = null;
+    Object.values(this.sourceAnalysers).forEach(
+      (analyser: AnalyserNode | undefined) => analyser?.disconnect(),
+    );
+    this.sourceAnalysers = {};
     if (this.audioContext) void this.audioContext.close();
     this.audioContext = null;
   }
@@ -329,18 +309,122 @@ export class ReliableRecorder {
     return this.deviceState;
   }
 
+  private assertCaptureSupport(captureMode: RecordingCaptureMode): void {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('当前浏览器不支持麦克风录音，请使用最新版 Chrome、Edge 或 Safari');
+    }
+    if (captureMode !== 'microphone' && !navigator.mediaDevices.getDisplayMedia) {
+      throw new Error('当前浏览器不支持共享音频录制，请使用最新版 Chrome 或 Edge');
+    }
+    if (typeof AudioContext === 'undefined') {
+      throw new Error('当前浏览器不支持声音混音处理，请使用最新版 Chrome、Edge 或 Safari');
+    }
+  }
+
+  private assertAudioTrack(stream: MediaStream, name: string): void {
+    const track: MediaStreamTrack | undefined = stream.getAudioTracks()[0];
+    if (!track) {
+      throw new Error(`${name}未提供音频。请重新选择支持音频共享的来源，并勾选共享音频。`);
+    }
+    if (track.readyState !== 'live') {
+      throw new Error(`${name}音轨未处于可采集状态，请重新授权设备`);
+    }
+  }
+
+  private async createMixedOutput(): Promise<void> {
+    const context: AudioContext = new AudioContext();
+    try {
+      await context.resume();
+      const destination: MediaStreamAudioDestinationNode = context.createMediaStreamDestination();
+      const inputs: RecorderInput[] = getRequiredInputs(this.captureMode);
+      inputs.forEach((input: RecorderInput) => {
+        const stream: MediaStream | null =
+          input === 'microphone' ? this.microphoneStream : this.systemAudioStream;
+        if (!stream) throw new Error('声音输入尚未准备好');
+        const source: MediaStreamAudioSourceNode = context.createMediaStreamSource(stream);
+        const analyser: AnalyserNode = context.createAnalyser();
+        analyser.fftSize = 2_048;
+        source.connect(analyser);
+        source.connect(destination);
+        this.sourceAnalysers[input] = analyser;
+        const track: MediaStreamTrack | undefined = stream.getAudioTracks()[0];
+        if (track) this.attachTrackLifecycle(track, input);
+      });
+      this.audioContext = context;
+      this.outputStream = destination.stream;
+      this.startMonitoring();
+    } catch (error: unknown) {
+      await context.close().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private attachTrackLifecycle(track: MediaStreamTrack, input: RecorderInput): void {
+    const definition = getRecordingCaptureModeDefinition(this.captureMode);
+    const inputLabel: string = input === 'microphone' ? '麦克风' : '共享音频';
+    track.onended = () => {
+      if (this.stopped) return;
+      this.setDeviceState({ muted: false, state: 'ended' });
+      this.events.onError(new Error(`${inputLabel}连接已断开，当前${definition.label}已停止采集`));
+      this.stopAfterInputFailure(`${inputLabel}断开后无法保存录音`);
+    };
+    track.onmute = () => {
+      if (this.stopped) return;
+      this.setDeviceState({ muted: true, state: 'muted' });
+      if (this.recorder?.state === 'recording') this.recorder.pause();
+      this.events.onError(new Error(`${inputLabel}被系统静音，录音已自动暂停，请恢复后继续`));
+    };
+    track.onunmute = () => {
+      if (!this.stopped) this.setDeviceState({ muted: false, state: 'ready' });
+    };
+  }
+
   private getPreparation(): RecorderPreparation {
-    const track: MediaStreamTrack | undefined = this.stream?.getAudioTracks()[0];
-    const settings: MediaTrackSettings = track?.getSettings() || {};
+    const microphoneTrack: MediaStreamTrack | undefined = this.microphoneStream?.getAudioTracks()[0];
+    const systemTrack: MediaStreamTrack | undefined = this.systemAudioStream?.getAudioTracks()[0];
+    const settings: MediaTrackSettings = microphoneTrack?.getSettings() || {};
+    const labels: string[] = [microphoneTrack?.label, systemTrack?.label].filter(
+      (label: string | undefined): label is string => Boolean(label),
+    );
     return {
       audioProfile: this.audioProfile,
       autoGainControl: settings.autoGainControl ?? null,
+      captureMode: this.captureMode,
       channelCount: settings.channelCount || 1,
-      deviceLabel: track?.label || '默认麦克风',
+      deviceLabel: labels.join(' + ') || getRecordingCaptureModeDefinition(this.captureMode).label,
       echoCancellation: settings.echoCancellation ?? null,
+      microphoneLabel: microphoneTrack?.label || undefined,
       noiseSuppression: settings.noiseSuppression ?? null,
       sampleRate: settings.sampleRate || this.audioContext?.sampleRate || null,
+      systemAudioLabel: systemTrack?.label || undefined,
     };
+  }
+
+  private hasAllRequiredTracks(): boolean {
+    return getRequiredInputs(this.captureMode).every((input: RecorderInput) => {
+      const stream: MediaStream | null =
+        input === 'microphone' ? this.microphoneStream : this.systemAudioStream;
+      return Boolean(stream?.active && stream.getAudioTracks()[0]?.readyState === 'live');
+    });
+  }
+
+  private persistChunk(blob: Blob, index: number): void {
+    if (this.storageFailed || !this.sessionId) return;
+    const sessionId: string = this.sessionId;
+    this.storageQueue = this.storageQueue
+      .then(async () => {
+        await appendStoredRecordingChunk({
+          blob,
+          durationMs: this.getDurationMs(),
+          index,
+          sessionId,
+        });
+      })
+      .catch(() => {
+        this.storageFailed = true;
+        if (this.recorder?.state === 'recording') this.recorder.pause();
+        this.events.onStorageWarning();
+      });
   }
 
   private setDeviceState(state: RecorderDeviceState): void {
@@ -349,26 +433,60 @@ export class ReliableRecorder {
   }
 
   private startMonitoring(): void {
-    if (!this.analyser) return;
-    const samples: Uint8Array<ArrayBuffer> = new Uint8Array(
-      this.analyser.fftSize,
-    ) as Uint8Array<ArrayBuffer>;
+    const inputs: RecorderInput[] = getRequiredInputs(this.captureMode);
+    const samples: Partial<Record<RecorderInput, Uint8Array<ArrayBuffer>>> = {};
+    inputs.forEach((input: RecorderInput) => {
+      const analyser: AnalyserNode | undefined = this.sourceAnalysers[input];
+      if (analyser) samples[input] = new Uint8Array(analyser.fftSize);
+    });
     const monitor = (): void => {
-      if (!this.analyser) return;
-      this.analyser.getByteTimeDomainData(samples);
-      const { peak, rms } = calculateAudioLevel(samples);
+      if (!this.audioContext || this.stopped) return;
       const now: number = Date.now();
-      if (rms >= SIGNAL_RMS_THRESHOLD) this.lastSignalAt = now;
-      if (peak >= 0.98) this.clipCount += 1;
+      const sourceMetrics: Partial<Record<RecorderInput, RecorderSourceMetrics>> = {};
+      let combinedPeak = 0;
+      let combinedRms = 0;
+      inputs.forEach((input: RecorderInput) => {
+        const analyser: AnalyserNode | undefined = this.sourceAnalysers[input];
+        const inputSamples: Uint8Array<ArrayBuffer> | undefined = samples[input];
+        if (!analyser || !inputSamples) return;
+        analyser.getByteTimeDomainData(inputSamples);
+        const { peak, rms } = calculateAudioLevel(inputSamples);
+        if (rms >= SIGNAL_RMS_THRESHOLD) this.sourceLastSignals[input] = now;
+        combinedPeak = Math.max(combinedPeak, peak);
+        combinedRms = Math.max(combinedRms, rms);
+        sourceMetrics[input] = {
+          inputDetected: this.sourceLastSignals[input] > 0,
+          peak,
+          rms,
+          silentForMs: this.sourceLastSignals[input] > 0 ? now - this.sourceLastSignals[input] : 0,
+        };
+      });
+      const inputDetected: boolean = inputs.every(
+        (input: RecorderInput) => sourceMetrics[input]?.inputDetected === true,
+      );
+      const silentForMs: number = inputDetected
+        ? Math.max(...inputs.map((input: RecorderInput) => sourceMetrics[input]?.silentForMs || 0))
+        : 0;
+      if (combinedPeak >= 0.98) this.clipCount += 1;
       this.events.onMetrics({
         clipCount: this.clipCount,
-        inputDetected: this.lastSignalAt > 0,
-        peak,
-        rms,
-        silentForMs: this.lastSignalAt > 0 ? now - this.lastSignalAt : 0,
+        inputDetected,
+        peak: combinedPeak,
+        rms: combinedRms,
+        silentForMs,
+        sources: sourceMetrics,
       });
       this.monitorFrame = requestAnimationFrame(monitor);
     };
     monitor();
+  }
+
+  private stopAfterInputFailure(errorPrefix: string): void {
+    if (this.recorder?.state !== 'recording' && this.recorder?.state !== 'paused') return;
+    void this.stop()
+      .then((result: RecordingResult) => this.events.onAutoStop?.(result))
+      .catch((error: unknown) => {
+        this.events.onError(error instanceof Error ? error : new Error(errorPrefix));
+      });
   }
 }

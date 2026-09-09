@@ -28,11 +28,14 @@ import type {
 import {
   buildRecordingFileName,
   DEFAULT_RECORDING_AUDIO_PROFILE,
+  DEFAULT_RECORDING_CAPTURE_MODE,
+  getRecordingAssetSource,
+  getRecordingCaptureModeDefinition,
   getDefaultRecordingTitle,
-  getMicrophoneErrorMessage,
   MIN_RECORDING_DURATION_MS,
   SILENCE_WARNING_MS,
   type RecordingAudioProfile,
+  type RecordingCaptureMode,
   type RecordingIntegrityCheck,
   validateRecordingFile,
 } from './recording-note.utils';
@@ -94,6 +97,9 @@ export default function RecordingNotesPage() {
   const [audioProfile, setAudioProfile] = useState<RecordingAudioProfile>(
     DEFAULT_RECORDING_AUDIO_PROFILE,
   );
+  const [captureMode, setCaptureMode] = useState<RecordingCaptureMode>(
+    DEFAULT_RECORDING_CAPTURE_MODE,
+  );
   const [languageMode, setLanguageMode] =
     useState<TranscriptionLanguageMode>('auto');
   const [hotwords, setHotwords] = useState<string>('');
@@ -111,6 +117,7 @@ export default function RecordingNotesPage() {
     peak: 0,
     rms: 0,
     silentForMs: 0,
+    sources: {},
   });
   const [durationMs, setDurationMs] = useState<number>(0);
   const [recordingBytes, setRecordingBytes] = useState<number>(0);
@@ -195,7 +202,7 @@ export default function RecordingNotesPage() {
           fileSize: file.size,
           media,
           mimeType: file.type || result.mimeType,
-          source: 'microphone',
+          source: getRecordingAssetSource(result.captureMode),
           title,
         });
         setRecordingAssetId(asset.item.id);
@@ -396,6 +403,7 @@ export default function RecordingNotesPage() {
       peak: 0,
       rms: 0,
       silentForMs: 0,
+      sources: {},
     });
     let storageChecked: boolean = storageReady;
     try {
@@ -405,18 +413,18 @@ export default function RecordingNotesPage() {
         setStorageReady(true);
       }
       const nextPreparation: RecorderPreparation =
-        await recorder.prepare(audioProfile);
+        await recorder.prepare(audioProfile, captureMode);
       setPreparation(nextPreparation);
-      toast.success('麦克风已连接，请说一句话完成声音测试');
+      toast.success(
+        `${getRecordingCaptureModeDefinition(captureMode).label}已连接，请完成声音测试`,
+      );
     } catch (prepareError: unknown) {
       if (!storageChecked) {
         setStorageReady(false);
       }
       const message: string = !storageChecked
         ? '录音保护存储未就绪，请刷新页面后重试'
-        : prepareError instanceof DOMException
-          ? getMicrophoneErrorMessage(prepareError)
-          : getErrorMessage(prepareError);
+        : getErrorMessage(prepareError);
       setError(message);
       toast.error(message);
     } finally {
@@ -442,7 +450,7 @@ export default function RecordingNotesPage() {
       return;
     }
     if (!canStart) {
-      toast.error('请先完成麦克风声音测试，并确认声音输入清晰');
+      toast.error('请先完成声音测试，并确认所选来源都有清晰输入');
       return;
     }
     setError(null);
@@ -455,7 +463,7 @@ export default function RecordingNotesPage() {
     try {
       await recorder.start(title);
       setPhase('recording');
-      toast.success('录音已开始，页面会持续检查声音和设备状态');
+      toast.success('录音已开始，页面会持续检查声音来源和设备状态');
     } catch (startError: unknown) {
       const message: string = getErrorMessage(startError);
       setError(message);
@@ -474,7 +482,7 @@ export default function RecordingNotesPage() {
       return;
     }
     if (deviceState.state !== 'ready') {
-      toast.error('麦克风当前不可用，请重新检测设备');
+      toast.error('声音来源当前不可用，请重新检测设备');
       return;
     }
     recorder.resume();
@@ -517,6 +525,7 @@ export default function RecordingNotesPage() {
     setRecordingFile(file);
     setSessionId(recoverable.sessionId);
     setTitle(recoverable.title);
+    setCaptureMode(recoverable.captureMode);
     setDurationMs(recoverable.durationMs);
     setRecordingBytes(file.size);
     setChunkCount(recoverable.chunkCount);
@@ -711,10 +720,12 @@ export default function RecordingNotesPage() {
       peak: 0,
       rms: 0,
       silentForMs: 0,
+      sources: {},
     });
   };
 
   const resetMicrophoneCheck = (): void => {
+    recorder.release();
     setPreparation(null);
     setDeviceState({ muted: false, state: 'checking' });
     setMetrics({
@@ -723,6 +734,7 @@ export default function RecordingNotesPage() {
       peak: 0,
       rms: 0,
       silentForMs: 0,
+      sources: {},
     });
   };
 
@@ -772,6 +784,7 @@ export default function RecordingNotesPage() {
             {phase === 'setup' && (
               <SetupPanel
                 audioProfile={audioProfile}
+                captureMode={captureMode}
                 advancedOpen={advancedOpen}
                 canStart={canStart}
                 deviceState={deviceState}
@@ -783,6 +796,11 @@ export default function RecordingNotesPage() {
                 onDiscardRecovery={() => void discardRecording()}
                 onAudioProfileChange={(value: RecordingAudioProfile) => {
                   setAudioProfile(value);
+                  resetMicrophoneCheck();
+                }}
+                onCaptureModeChange={(value: RecordingCaptureMode) => {
+                  if (value === captureMode) return;
+                  setCaptureMode(value);
                   resetMicrophoneCheck();
                 }}
                 onAdvancedToggle={() =>

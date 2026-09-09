@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   FileAudio,
   FilePenLine,
@@ -42,6 +43,8 @@ import {
   type RecordingAudioProfile,
   formatRecordingBytes,
   formatRecordingDuration,
+  getRecordingCaptureModeDefinition,
+  type RecordingCaptureMode,
   type RecordingIntegrityCheck,
 } from './recording-note.utils';
 import {
@@ -62,6 +65,7 @@ interface SetupPanelProps {
   audioProfile: RecordingAudioProfile;
   advancedOpen: boolean;
   canStart: boolean;
+  captureMode: RecordingCaptureMode;
   deviceState: RecorderDeviceState;
   error: string | null;
   hotwords: string;
@@ -70,6 +74,7 @@ interface SetupPanelProps {
   noteStyle: NoteStyle;
   onDiscardRecovery: () => void;
   onAudioProfileChange: (value: RecordingAudioProfile) => void;
+  onCaptureModeChange: (value: RecordingCaptureMode) => void;
   onAdvancedToggle: () => void;
   onHotwordsChange: (value: string) => void;
   onLanguageModeChange: (value: TranscriptionLanguageMode) => void;
@@ -136,13 +141,19 @@ export function RecordingStepRail({ phase }: { phase: RecordingStepPhase }) {
   return (
     <nav aria-label={`当前步骤：${['准备', '录音', '确认'][activeStep]}`} className="recording-step-rail">
       {['准备', '录音', '确认'].map((label: string, index: number) => (
-        <div className="recording-step" key={label}>
-          <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
-            {index < activeStep ? <Check className="size-4" /> : index + 1}
-          </span>
-          <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
-          {index < 2 && <i className={index < activeStep ? 'is-done' : ''} aria-hidden="true" />}
-        </div>
+        <Fragment key={label}>
+          <div className={`recording-step ${index < activeStep ? 'is-done' : ''}`}>
+            <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
+              {index < activeStep ? <Check className="size-4" /> : index + 1}
+            </span>
+            <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
+          </div>
+          {index < 2 && (
+            <span className={`recording-step-arrow ${index < activeStep ? 'is-done' : ''}`} aria-hidden="true">
+              <ChevronRight className="size-5" />
+            </span>
+          )}
+        </Fragment>
       ))}
     </nav>
   );
@@ -152,6 +163,7 @@ export function SetupPanel({
   audioProfile,
   advancedOpen,
   canStart,
+  captureMode,
   deviceState,
   error,
   hotwords,
@@ -160,6 +172,7 @@ export function SetupPanel({
   noteStyle,
   onDiscardRecovery,
   onAudioProfileChange,
+  onCaptureModeChange,
   onAdvancedToggle,
   onHotwordsChange,
   onLanguageModeChange,
@@ -174,70 +187,53 @@ export function SetupPanel({
   storageReady,
   title,
 }: SetupPanelProps) {
+  const captureDefinition = getRecordingCaptureModeDefinition(captureMode);
+  const micSignalReady: boolean =
+    metrics.inputDetected && deviceState.state === 'ready';
   const micState: 'idle' | 'checking' | 'listening' | 'success' | 'error' =
     preparing
       ? 'checking'
       : ['error', 'ended', 'muted'].includes(deviceState.state)
         ? 'error'
-        : metrics.inputDetected
+        : micSignalReady
           ? 'success'
           : preparation
             ? 'listening'
             : 'idle';
   const micStep: number =
     micState === 'success' ? 2 : micState === 'listening' ? 1 : 0;
-  const meterPercent: number = Math.min(100, Math.max(0, metrics.rms * 320));
+  const meterPercent: number = Math.min(100, Math.max(0, metrics.rms * 600));
   const meterActiveBars: number = Math.round((meterPercent / 100) * 30);
   const micTitle: string = {
-    idle: '先检测麦克风',
-    checking: '正在连接麦克风…',
-    listening: '请说一句话测试',
-    success: '声音已检测到，可以开始录音',
-    error: '麦克风暂时不可用',
+    idle: `先检测${captureDefinition.label}`,
+    checking: `正在连接${captureDefinition.label}…`,
+    listening: captureDefinition.signalStep,
+    success: canStart
+      ? '声音已检测到，可以开始录音'
+      : recoverable
+        ? '声音已检测到，请先处理上次录音'
+        : !storageReady
+          ? '声音已检测到，正在准备录音…'
+          : '声音已检测到，请稍候…',
+    error: `${captureDefinition.label}暂时不可用`,
   }[micState];
   const micDescription: string = {
-    idle: '正式录音前必须完成设备和声音测试。',
-    checking: '请在浏览器弹窗中允许麦克风访问。',
-    listening: '说话时观察音量条，出现绿色波动就说明工作正常。',
-    success: '设备连接正常，录音时会持续显示声音状态。',
-    error: error || '请允许浏览器访问麦克风后重新检测。',
+    idle: captureDefinition.idleDescription,
+    checking: captureDefinition.permissionDescription,
+    listening: captureDefinition.waitingDescription,
+    success: captureDefinition.successDescription,
+    error: error || captureDefinition.errorFallback,
   }[micState];
-  const micTone: string =
-    micState === 'success'
-      ? 'border-emerald-200 bg-emerald-50/60'
-      : micState === 'error'
-        ? 'border-red-200 bg-red-50/60'
-        : micState === 'listening' || micState === 'checking'
-          ? 'border-blue-200 bg-blue-50/50'
-          : 'border-amber-200 bg-amber-50/60';
+  const micTone: string = `recording-mic-test--${micState}`;
   const micButtonLabel: string =
     micState === 'checking'
-      ? '正在检测麦克风'
+      ? `正在检测${captureDefinition.label}`
       : micState === 'idle'
-        ? '检测麦克风'
+        ? `检测${captureDefinition.label}`
         : '重新检测';
 
   return (
     <div className="recording-setup">
-      <div className="recording-intro">
-        <div>
-          <p className="recording-kicker">录音笔记</p>
-          <h1>开始一段新录音</h1>
-          <p>设置标题，先完成麦克风检测，再开始录音。</p>
-        </div>
-        <span className="recording-intro__icon" aria-hidden="true">
-          <Mic2 className="size-6" />
-        </span>
-      </div>
-
-      <div className="recording-required" role="note">
-        <span className="recording-required__number">1</span>
-        <div>
-          <strong>录音前必须检测麦克风</strong>
-          <span>确认设备已连接并能听到声音，检测通过后才会解锁开始录音。</span>
-        </div>
-      </div>
-
       {recoverable && (
         <div className="recording-recovery" role="alert">
           <div>
@@ -251,10 +247,10 @@ export function SetupPanel({
         </div>
       )}
 
-      <section className={`recording-mic-test ${micTone}`}>
+      <section className={`recording-mic-test ${micTone}`} data-mic-state={micState}>
         <div className="recording-mic-test__header">
           <div>
-            <p className="recording-section-label">麦克风检测</p>
+            <p className="recording-section-label">声音检测</p>
             <h2 aria-live="polite">{micTitle}</h2>
             <p>{micDescription}</p>
           </div>
@@ -270,8 +266,8 @@ export function SetupPanel({
           </Button>
         </div>
 
-        <div className="recording-mic-steps" aria-label="麦克风检测进度">
-          {['连接设备', '说一句话', '可以开始'].map((label: string, index: number) => (
+        <div className="recording-mic-steps" aria-label="声音检测进度">
+          {[captureDefinition.connectionStep, captureDefinition.signalStep, '可以开始'].map((label: string, index: number) => (
             <div className="recording-mic-step" key={label}>
               <span
                 className={`recording-mic-step__node ${
@@ -285,11 +281,11 @@ export function SetupPanel({
                 <small>
                   {index === 0
                     ? micStep > 0
-                      ? '设备已连接'
+                      ? '来源已连接'
                       : '等待连接'
                     : index === 1
                       ? micStep > 1
-                        ? '声音输入正常'
+                        ? '所选声音输入正常'
                         : micStep === 1
                           ? '正在监听声音'
                           : '待完成'
@@ -305,7 +301,10 @@ export function SetupPanel({
           ))}
         </div>
 
-        <div className="recording-meter-row">
+        <div
+          aria-live="polite"
+          className={`recording-meter-row ${micSignalReady ? 'is-detected' : ''}`}
+        >
           <span className="recording-meter-label"><Mic2 className="size-5" />实时音量</span>
           <div className="recording-meter" aria-label={`实时音量 ${Math.round(meterPercent)}%`}>
             {Array.from({ length: 30 }, (_, index: number) => (
@@ -317,7 +316,14 @@ export function SetupPanel({
             ))}
           </div>
           <span className={`recording-meter-status ${micState === 'success' ? 'is-success' : ''}`}>
-            {micState === 'success' ? '声音正常' : micState === 'listening' ? '监听中' : '等待输入'}
+            {micState === 'success'
+              ? '已检测到声音'
+              : micState === 'listening'
+                ? '正在监听'
+                : '等待输入'}
+          </span>
+          <span className="recording-meter-level" aria-label={`当前音量 ${Math.round(meterPercent)}%`}>
+            {Math.round(meterPercent)}%
           </span>
         </div>
         {micState === 'listening' && (
@@ -331,65 +337,103 @@ export function SetupPanel({
         )}
       </section>
 
-      <div className="recording-form-grid">
-        <label className="recording-field">
-          <span>录音标题</span>
-          <div className="recording-input-wrap">
-            <FilePenLine className="size-4" />
-            <Input
-              aria-label="录音标题"
-              className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-              maxLength={80}
-              onChange={(event) => onTitleChange(event.target.value)}
-              value={title}
-            />
-            <small>{title.length}/80</small>
+      <section className="recording-config-panel" aria-labelledby="recording-config-title">
+        <div className="recording-config-heading">
+          <div>
+            <p className="recording-section-label">录音设置</p>
+            <h2 id="recording-config-title">先把这段录音准备好</h2>
           </div>
-        </label>
-        <div className="recording-field">
-          <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
+          <span className="recording-config-count">1 / 2</span>
         </div>
-      </div>
 
-      <button
-        aria-expanded={advancedOpen}
-        className="recording-advanced-toggle"
-        onClick={onAdvancedToggle}
-        type="button"
-      >
-        <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
-        {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-      </button>
-      {advancedOpen && <div className="recording-advanced-panel">
-        <label className="recording-field">
-          <span>录音模式</span>
-          <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
-            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
-              <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
-              <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="recording-field">
-          <span>语言模式</span>
-          <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
-            <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">自动识别（推荐）</SelectItem>
-              <SelectItem value="mandarin">普通话</SelectItem>
-              <SelectItem value="sichuan">四川话增强</SelectItem>
-              <SelectItem value="cantonese">粤语</SelectItem>
-              <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="recording-field recording-field--full">
-          <span>词表（可选）</span>
-          <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
-        </label>
-      </div>}
+        <div className="recording-form-grid">
+          <label className="recording-field">
+            <span>录音标题</span>
+            <div className="recording-input-wrap">
+              <FilePenLine className="size-4" />
+              <Input
+                aria-label="录音标题"
+                className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                maxLength={80}
+                onChange={(event) => onTitleChange(event.target.value)}
+                value={title}
+              />
+              <small>{title.length}/80</small>
+            </div>
+          </label>
+          <div className="recording-field">
+            <NoteStyleSelector value={noteStyle} onChange={onNoteStyleChange} />
+          </div>
+        </div>
+
+        <button
+          aria-expanded={advancedOpen}
+          className="recording-advanced-toggle"
+          onClick={onAdvancedToggle}
+          type="button"
+        >
+          <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
+          {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
+        {advancedOpen && <div className="recording-advanced-panel">
+          <div className="recording-field recording-field--full">
+            <span>录音来源</span>
+            <div className="recording-capture-options" role="radiogroup" aria-label="录音来源">
+              {(['microphone', 'system', 'mixed'] as RecordingCaptureMode[]).map((mode: RecordingCaptureMode) => {
+                const definition = getRecordingCaptureModeDefinition(mode);
+                const selected: boolean = captureMode === mode;
+                return (
+                  <Button
+                    aria-checked={selected}
+                    className={`recording-capture-option ${selected ? 'is-selected' : ''}`}
+                    key={mode}
+                    onClick={() => onCaptureModeChange(mode)}
+                    role="radio"
+                    type="button"
+                    variant="outline"
+                  >
+                    {mode === 'system' ? <Volume2 className="size-4" /> : <Mic2 className="size-4" />}
+                    {definition.label}
+                  </Button>
+                );
+              })}
+            </div>
+            {captureMode !== 'microphone' && (
+              <small className="recording-capture-note">
+                通过浏览器共享音频获取；共享窗口中需勾选“共享音频”，录音不会保存画面。
+              </small>
+            )}
+          </div>
+          <label className="recording-field">
+            <span>录音模式</span>
+            <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
+              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
+                <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
+                <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="recording-field">
+            <span>语言模式</span>
+            <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
+              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">自动识别（推荐）</SelectItem>
+                <SelectItem value="mandarin">普通话</SelectItem>
+                <SelectItem value="sichuan">四川话增强</SelectItem>
+                <SelectItem value="cantonese">粤语</SelectItem>
+                <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="recording-field recording-field--full">
+            <span>词表（可选）</span>
+            <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
+          </label>
+        </div>}
+      </section>
 
       <div className="recording-primary-action">
         <Button
@@ -405,19 +449,20 @@ export function SetupPanel({
           {canStart
             ? '准备完成，可以开始录音'
             : micState === 'idle'
-              ? '请先点击上方“检测麦克风”'
+              ? `请先点击上方“检测${captureDefinition.label}”`
               : micState === 'checking'
                 ? '正在连接设备，请稍候…'
                 : micState === 'listening'
                   ? '请说一句话，确认有声音输入'
-                  : micState === 'error'
-                    ? '麦克风不可用，请重新检测'
+                : micState === 'error'
+                  ? `${captureDefinition.label}不可用，请重新检测`
+                  : recoverable
+                    ? '请先恢复或丢弃上次未完成的录音'
                     : storageReady
                       ? '检测通过后才可开始录音'
                       : '录音保护存储未就绪，暂不能开始'}
         </p>
       </div>
-      <p className="recording-privacy"><ShieldCheck className="size-4" />录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p>
       {!storageReady && <p className="recording-storage-error"><AlertTriangle className="size-4" />录音保护存储不可用，暂不允许开始录音。</p>}
     </div>
   );

@@ -2,6 +2,8 @@ import {
   buildRecordingAudioConstraints,
   buildRecordingFileName,
   DEFAULT_RECORDING_AUDIO_PROFILE,
+  getRecordingAssetSource,
+  getRecordingCaptureModeDefinition,
   validateRecordingFile,
 } from '../../client/src/pages/RecordingNotesPage/recording-note.utils';
 
@@ -116,5 +118,21 @@ describe('recording note integrity helpers', () => {
       echoCancellation: true,
       noiseSuppression: true,
     });
+  });
+
+  it('keeps computer-audio capture copy explicit about browser sharing', () => {
+    expect(getRecordingCaptureModeDefinition('system')).toMatchObject({
+      label: '电脑声音',
+      connectionStep: '选择共享音频',
+    });
+    expect(getRecordingCaptureModeDefinition('system').permissionDescription).toContain(
+      '共享音频',
+    );
+  });
+
+  it('maps each capture mode to its persisted recording source', () => {
+    expect(getRecordingAssetSource('microphone')).toBe('microphone');
+    expect(getRecordingAssetSource('system')).toBe('system_audio');
+    expect(getRecordingAssetSource('mixed')).toBe('mixed_audio');
   });
 });
