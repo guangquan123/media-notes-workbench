@@ -3,19 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Archive,
   ArrowLeft,
-  Download,
   FileAudio,
   FolderCog,
-  HardDrive,
-  LoaderCircle,
   Mic2,
-  Pencil,
   Play,
   RefreshCw,
   Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { resolveAppUrl } from '@lark-apaas/client-toolkit/utils/resolveAppUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -36,21 +31,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  archiveRecordingAsset,
-  createNoteJob,
-  getNoteJob,
-  getRecordingAsset,
   getRecordingAssets,
   getRecordingStorageSettings,
-  requestPlayableRecording,
   repairLegacyRecordingArchives,
-  updateRecordingAsset,
   updateRecordingStorageSettings,
 } from '@/api';
 import type {
   RecordingAsset,
   RecordingAssetProcessingStatus,
-  RecordingPlayableStatus,
   RecordingAssetStorageStatus,
   RecordingStorageSettings,
 } from '@shared/api.interface';
@@ -66,12 +54,6 @@ const storageLabels: Record<RecordingAssetStorageStatus, string> = {
   pending_archive: '待归档',
   archived: '已归档',
   archive_failed: '归档失败',
-};
-const playableLabels: Record<RecordingPlayableStatus, string> = {
-  pending: '等待通用 M4A',
-  converting: '正在准备 M4A',
-  ready: 'M4A 可播放',
-  failed: 'M4A 生成失败',
 };
 
 function formatDuration(durationMs: number | null): string {
@@ -91,12 +73,6 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function resolvePlayableUrl(asset: RecordingAsset): string {
-  return asset.playableUrl
-    ? resolveAppUrl(asset.playableUrl)
-    : asset.media.downloadUrl;
-}
-
 export default function RecordingLibraryPage() {
   const navigate = useNavigate();
   const [assets, setAssets] = useState<RecordingAsset[]>([]);
@@ -106,8 +82,6 @@ export default function RecordingLibraryPage() {
   const [storageFilter, setStorageFilter] = useState('all');
   const [settings, setSettings] = useState<RecordingStorageSettings>();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameTitle, setRenameTitle] = useState('');
   const [draftSettings, setDraftSettings] =
     useState<RecordingStorageSettings>();
   const [loading, setLoading] = useState(true);
@@ -138,38 +112,16 @@ export default function RecordingLibraryPage() {
     void refresh();
   }, []);
 
-  useEffect(() => {
-    const processing = assets.filter(
-      (item) =>
-        item.processingStatus === 'processing' && item.linkedJobIds?.length,
-    );
-    if (processing.length === 0) return undefined;
-    const timer = window.setInterval(() => {
-      void Promise.all(
-        processing.map(async (item) => {
-          const jobId = item.linkedJobIds?.[item.linkedJobIds.length - 1];
-          if (!jobId) return;
-          const job = await getNoteJob(jobId).catch(() => undefined);
-          if (!job || !['completed', 'failed'].includes(job.stage)) return;
-          const nextStatus: RecordingAssetProcessingStatus =
-            job.stage === 'completed' ? 'processed' : 'failed';
-          const response = await updateRecordingAsset(item.id, {
-            processingStatus: nextStatus,
-          });
-          setAssets((current) =>
-            current.map((candidate) =>
-              candidate.id === response.item.id ? response.item : candidate,
-            ),
-          );
-        }),
-      );
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [assets]);
 
   const visibleAssets = useMemo(
     () =>
-      assets.filter((asset) => {
+      [...assets]
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt).getTime() -
+            new Date(left.createdAt).getTime(),
+        )
+        .filter((asset) => {
         const text = `${asset.title} ${asset.fileName}`.toLowerCase();
         return (
           (!keyword.trim() || text.includes(keyword.trim().toLowerCase())) &&
@@ -177,7 +129,7 @@ export default function RecordingLibraryPage() {
             asset.processingStatus === processingFilter) &&
           (storageFilter === 'all' || asset.storageStatus === storageFilter)
         );
-      }),
+        }),
     [assets, keyword, processingFilter, storageFilter],
   );
   const selected =
@@ -189,78 +141,6 @@ export default function RecordingLibraryPage() {
     Boolean(item.archivePath && /\.bin$/iu.test(item.archivePath)),
   ).length;
 
-  useEffect(() => {
-    if (
-      !selected ||
-      !['pending', 'converting'].includes(selected.playableStatus || 'pending')
-    ) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      void getRecordingAsset(selected.id)
-        .then((response) => {
-          setAssets((current) =>
-            current.map((item) =>
-              item.id === response.item.id ? response.item : item,
-            ),
-          );
-        })
-        .catch(() => undefined);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [selected?.id, selected?.playableStatus]);
-
-  const updateSelected = async (input: {
-    title?: string;
-    processingStatus?: RecordingAssetProcessingStatus;
-  }): Promise<RecordingAsset | undefined> => {
-    if (!selected) return undefined;
-    const response = await updateRecordingAsset(selected.id, input);
-    setAssets((items) =>
-      items.map((item) =>
-        item.id === response.item.id ? response.item : item,
-      ),
-    );
-    return response.item;
-  };
-  const archiveSelected = async (): Promise<void> => {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      const response = await archiveRecordingAsset(selected.id);
-      setAssets((items) =>
-        items.map((item) =>
-          item.id === response.item.id ? response.item : item,
-        ),
-      );
-      if (response.archived) {
-        toast.success(response.message);
-      } else {
-        toast.warning(response.message);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '归档失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const requestPlayable = async (): Promise<void> => {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      const response = await requestPlayableRecording(selected.id);
-      setAssets((items) =>
-        items.map((item) =>
-          item.id === response.item.id ? response.item : item,
-        ),
-      );
-      toast.success('正在后台准备通用 M4A，原始录音可继续播放');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'M4A 生成请求失败');
-    } finally {
-      setBusy(false);
-    }
-  };
   const repairLegacyArchives = async (): Promise<void> => {
     setBusy(true);
     try {
@@ -273,33 +153,6 @@ export default function RecordingLibraryPage() {
       await refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '历史录音修复启动失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const processSelected = async (): Promise<void> => {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      await updateSelected({ processingStatus: 'processing' });
-      const job = await createNoteJob({
-        sourceType: 'audio',
-        noteStyle: 'meeting',
-        mediaItems: [selected.media],
-        visualOptions: { mode: 'disabled' },
-      });
-      await updateSelected({
-        processingStatus: job.stage === 'failed' ? 'failed' : 'processing',
-      });
-      toast.success(
-        job.stage === 'failed' ? '处理失败，录音仍可重试' : '已创建转写任务',
-      );
-      navigate(`/conversion-history?jobId=${job.id}`);
-    } catch (error) {
-      await updateSelected({ processingStatus: 'failed' }).catch(
-        () => undefined,
-      );
-      toast.error(error instanceof Error ? error.message : '处理失败');
     } finally {
       setBusy(false);
     }
@@ -583,37 +436,6 @@ export default function RecordingLibraryPage() {
           <DialogFooter>
             <Button disabled={busy} onClick={() => void saveSettings()}>
               保存设置
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog onOpenChange={setRenameOpen} open={renameOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>重命名录音</DialogTitle>
-            <DialogDescription>
-              只修改记录标题，不会改动原始录音文件。
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            aria-label="录音标题"
-            onChange={(event) => setRenameTitle(event.target.value)}
-            value={renameTitle}
-          />
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                setRenameOpen(false);
-                void updateSelected({ title: renameTitle })
-                  .then(() => toast.success('标题已更新'))
-                  .catch((error: unknown) =>
-                    toast.error(
-                      error instanceof Error ? error.message : '标题更新失败',
-                    ),
-                  );
-              }}
-            >
-              保存标题
             </Button>
           </DialogFooter>
         </DialogContent>

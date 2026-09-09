@@ -2427,3 +2427,6 @@ body {
     gap: 6px;
   }
 }
+.recording-player-page [class*='md:grid-cols-'] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}

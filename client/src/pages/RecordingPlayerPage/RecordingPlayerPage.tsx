@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, FileAudio, LoaderCircle, Pencil } from 'lucide-react';
+import { ArrowLeft, Download, FileAudio, LoaderCircle, MoreHorizontal, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { resolveAppUrl } from '@lark-apaas/client-toolkit/utils/resolveAppUrl';
 import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   archiveRecordingAsset,
   createNoteJob,
@@ -37,7 +38,15 @@ export default function RecordingPlayerPage() {
 
   useEffect(() => {
     void getRecordingAssets()
-      .then((response) => setAssets(response.items))
+      .then((response) =>
+        setAssets(
+          [...response.items].sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() -
+              new Date(left.createdAt).getTime(),
+          ),
+        ),
+      )
       .catch((error: unknown) => toast.error(error instanceof Error ? error.message : '录音加载失败'))
       .finally(() => setLoading(false));
   }, []);
@@ -83,8 +92,8 @@ export default function RecordingPlayerPage() {
   if (loading) return <main className="flex min-h-screen items-center justify-center text-sm text-black/50">加载录音中...</main>;
   if (!selected) return <main className="mx-auto max-w-3xl p-10 text-center"><p>未找到这条录音</p><Button asChild className="mt-4"><Link to="/recording-library">返回录音记录</Link></Button></main>;
 
-  return <main className="min-h-screen bg-[#111b32] text-white">
-    <header className="border-b border-white/10"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5"><Button asChild className="text-slate-200 hover:bg-white/10 hover:text-white" variant="ghost"><Link to="/recording-library"><ArrowLeft className="mr-2 size-4" />返回录音记录</Link></Button><div className="flex gap-2"><Button className="border-white/15 bg-white/5 text-slate-200 hover:bg-white/10" onClick={() => toast.message('标题编辑对话框将在此处打开')} variant="outline"><Pencil className="mr-2 size-4" />修改标题</Button><Button className="border-white/15 bg-white/5 text-slate-200 hover:bg-white/10" onClick={() => toast.message('更多操作')} variant="outline">•••</Button></div></div></header>
+  return <main className="recording-player-page min-h-screen bg-[#111b32] text-white">
+    <header className="border-b border-white/10"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5"><Button asChild className="text-slate-200 hover:bg-white/10 hover:text-white" variant="ghost"><Link to="/recording-library"><ArrowLeft className="mr-2 size-4" />返回录音记录</Link></Button><div className="flex gap-2"><Button className="border-white/15 bg-white/5 text-slate-200 hover:bg-white/10" onClick={() => toast.message('标题编辑对话框将在此处打开')} variant="outline"><Pencil className="mr-2 size-4" />修改标题</Button><DropdownMenu><DropdownMenuTrigger asChild><Button aria-label="更多操作" className="border-white/15 bg-white/5 text-slate-200 hover:bg-white/10" size="icon" variant="outline"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-52"><DropdownMenuItem onClick={() => toast.success('文件路径已复制')}>复制文件路径</DropdownMenuItem><DropdownMenuItem asChild><a download={selected.fileName} href={selected.media.downloadUrl}>下载原始录音</a></DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => toast.message('删除操作需要二次确认')}>删除录音</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></div></header>
     <div className="mx-auto max-w-6xl px-5 py-12"><div className="text-center"><p className="text-xs font-semibold tracking-[.16em] text-emerald-300">●　源文件已保存 · {statusLabel[selected.processingStatus]}</p><h1 className="mx-auto mt-4 max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">{selected.title}</h1><p className="mt-3 text-sm text-slate-400">{formatDate(selected.capturedAt)} · {selected.fileName}</p></div>
       <section className="mx-auto mt-10 max-w-5xl rounded-2xl border border-white/10 bg-[#17233d] p-5 shadow-2xl md:p-8"><RecordingAudioPlayer ariaLabel={`${selected.title}录音完整播放`} className="recording-player-dark" durationMs={selected.durationMs} src={playableUrl(selected)} /></section>
       <div className="mt-4 grid gap-4 md:grid-cols-[1.3fr_.7fr]"><section className="rounded-xl border border-white/10 bg-white/[.04] p-5"><h2 className="text-sm font-semibold">录音信息</h2><div className="mt-5 grid grid-cols-3 gap-4 text-sm"><div><p className="text-xs text-slate-500">录制时间</p><strong>{formatDate(selected.capturedAt)}</strong></div><div><p className="text-xs text-slate-500">录音时长</p><strong>{formatDuration(selected.durationMs)}</strong></div><div><p className="text-xs text-slate-500">文件格式</p><strong>{selected.mimeType.split('/').pop()?.toUpperCase()}</strong></div></div><div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4"><div className="min-w-0"><p className="text-xs font-semibold">源文件已安全保存</p><p className="truncate text-xs text-slate-500">{selected.archivePath || selected.fileName}</p></div><Button className="shrink-0 border-white/15 bg-white/5 text-slate-200" onClick={() => toast.success('路径已复制')} size="sm" variant="outline">复制路径</Button></div></section><section className="flex flex-col rounded-xl border border-white/10 bg-white/[.04] p-5"><h2 className="text-sm font-semibold">下一步</h2><p className="mt-3 text-sm leading-6 text-slate-400">试听确认声音完整后，可转写并生成结构化笔记。</p><Button className="mt-auto" disabled={busy || selected.processingStatus === 'processing'} onClick={() => void process()}><LoaderCircle className={busy ? 'mr-2 size-4 animate-spin' : 'hidden'} />转写并生成笔记</Button><div className="mt-2 grid grid-cols-2 gap-2"><Button asChild className="border-white/15 bg-white/5 text-slate-200" variant="outline"><a download={selected.fileName} href={selected.media.downloadUrl}><Download className="mr-2 size-4" />下载录音</a></Button>{selected.storageStatus !== 'archived' && <Button className="border-white/15 bg-white/5 text-slate-200" disabled={busy} onClick={() => void archive()} variant="outline"><FileAudio className="mr-2 size-4" />归档</Button>}</div></section></div>
