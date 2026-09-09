@@ -9,15 +9,18 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
-import type { Request } from 'express';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import type { Request, Response } from 'express';
 import type {
   CreateRecordingAssetRequest,
   UpdateRecordingAssetRequest,
   UpdateRecordingStorageSettingsRequest,
 } from '@shared/api.interface';
 import { RecordingAssetsService } from './recording-assets.service';
+import { resolveByteRange, type ByteRange } from '../local-uploads/local-uploads.utils';
 
 interface AuthenticatedRequest extends Request {
   userContext: { userId: string };
@@ -52,6 +55,56 @@ export class RecordingAssetsController {
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.get(req.userContext.userId, id);
+  }
+
+  @NeedLogin()
+  @Post(':id/playable')
+  requestPlayable(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.service.requestPlayable(req.userContext.userId, id);
+  }
+
+  @NeedLogin()
+  @Post('repair-archives')
+  repairArchives(@Req() req: AuthenticatedRequest) {
+    return this.service.repairLegacyArchives(req.userContext.userId);
+  }
+
+  @NeedLogin()
+  @Get(':id/playable')
+  async playable(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('download') download: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const playable = await this.service.getPlayableFile(req.userContext.userId, id);
+    if (!existsSync(playable.path)) {
+      res.status(404).send('not found');
+      return;
+    }
+    const fileSize = statSync(playable.path).size;
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', 'audio/mp4');
+    if (download === '1') {
+      const fileName = encodeURIComponent(playable.fileName);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${fileName}`);
+    }
+    const range = req.headers.range;
+    if (!range) {
+      res.setHeader('Content-Length', fileSize);
+      createReadStream(playable.path).pipe(res);
+      return;
+    }
+    const resolvedRange: ByteRange | null = resolveByteRange(range, fileSize);
+    if (!resolvedRange) {
+      res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).send();
+      return;
+    }
+    const { end, start } = resolvedRange;
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader('Content-Length', end - start + 1);
+    createReadStream(playable.path, { start, end }).pipe(res);
   }
 
   @NeedLogin()

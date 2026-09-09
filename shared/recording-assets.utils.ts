@@ -14,8 +14,13 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'audio/webm': 'webm',
 };
 
-function archiveExtension(mimeType: string): string {
-  return MIME_EXTENSIONS[mimeType.toLowerCase()] || 'bin';
+export function normalizeAudioMimeType(mimeType: string): string {
+  const normalized = mimeType.split(';', 1)[0]?.trim().toLowerCase() || '';
+  return normalized === 'audio/x-m4a' ? 'audio/mp4' : normalized;
+}
+
+export function archiveExtension(mimeType: string): string {
+  return MIME_EXTENSIONS[normalizeAudioMimeType(mimeType)] || 'bin';
 }
 
 function safeTitle(title: string): string {

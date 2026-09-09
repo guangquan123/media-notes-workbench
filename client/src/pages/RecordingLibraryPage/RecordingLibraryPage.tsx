@@ -15,6 +15,7 @@ import {
   Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { resolveAppUrl } from '@lark-apaas/client-toolkit/utils/resolveAppUrl';
 import { Button } from '@/components/ui/button';
 import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { Input } from '@/components/ui/input';
@@ -39,14 +40,18 @@ import {
   archiveRecordingAsset,
   createNoteJob,
   getNoteJob,
+  getRecordingAsset,
   getRecordingAssets,
   getRecordingStorageSettings,
+  requestPlayableRecording,
+  repairLegacyRecordingArchives,
   updateRecordingAsset,
   updateRecordingStorageSettings,
 } from '@/api';
 import type {
   RecordingAsset,
   RecordingAssetProcessingStatus,
+  RecordingPlayableStatus,
   RecordingAssetStorageStatus,
   RecordingStorageSettings,
 } from '@shared/api.interface';
@@ -62,6 +67,12 @@ const storageLabels: Record<RecordingAssetStorageStatus, string> = {
   pending_archive: '待归档',
   archived: '已归档',
   archive_failed: '归档失败',
+};
+const playableLabels: Record<RecordingPlayableStatus, string> = {
+  pending: '等待通用 M4A',
+  converting: '正在准备 M4A',
+  ready: 'M4A 可播放',
+  failed: 'M4A 生成失败',
 };
 
 function formatDuration(durationMs: number | null): string {
@@ -79,6 +90,12 @@ function formatDate(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function resolvePlayableUrl(asset: RecordingAsset): string {
+  return asset.playableUrl
+    ? resolveAppUrl(asset.playableUrl)
+    : asset.media.downloadUrl;
 }
 
 export default function RecordingLibraryPage() {
@@ -169,6 +186,30 @@ export default function RecordingLibraryPage() {
   const pendingCount = assets.filter(
     (item) => item.processingStatus === 'unprocessed',
   ).length;
+  const legacyBinCount = assets.filter((item) =>
+    Boolean(item.archivePath && /\.bin$/iu.test(item.archivePath)),
+  ).length;
+
+  useEffect(() => {
+    if (
+      !selected ||
+      !['pending', 'converting'].includes(selected.playableStatus || 'pending')
+    ) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void getRecordingAsset(selected.id)
+        .then((response) => {
+          setAssets((current) =>
+            current.map((item) =>
+              item.id === response.item.id ? response.item : item,
+            ),
+          );
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [selected?.id, selected?.playableStatus]);
 
   const updateSelected = async (input: {
     title?: string;
@@ -200,6 +241,39 @@ export default function RecordingLibraryPage() {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '归档失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const requestPlayable = async (): Promise<void> => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const response = await requestPlayableRecording(selected.id);
+      setAssets((items) =>
+        items.map((item) =>
+          item.id === response.item.id ? response.item : item,
+        ),
+      );
+      toast.success('正在后台准备通用 M4A，原始录音可继续播放');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'M4A 生成请求失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const repairLegacyArchives = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      const response = await repairLegacyRecordingArchives();
+      if (response.queued === 0) {
+        toast.message('没有需要修复的历史归档文件');
+        return;
+      }
+      toast.success(`已开始修复 ${response.queued} 条历史录音`);
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '历史录音修复启动失败');
     } finally {
       setBusy(false);
     }
@@ -295,6 +369,16 @@ export default function RecordingLibraryPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              {legacyBinCount > 0 && (
+                <Button
+                  disabled={busy}
+                  onClick={() => void repairLegacyArchives()}
+                  variant="outline"
+                >
+                  <FileAudio className="size-4" />
+                  修复 {legacyBinCount} 条历史录音
+                </Button>
+              )}
               <Button onClick={() => setSettingsOpen(true)} variant="outline">
                 <FolderCog className="size-4" />
                 本地归档设置
@@ -452,12 +536,19 @@ export default function RecordingLibraryPage() {
                     className="mt-4"
                     ariaLabel={`${selected.title}录音完整播放`}
                     durationMs={selected.durationMs}
-                    src={selected.media.downloadUrl}
+                    src={resolvePlayableUrl(selected)}
                   />
                   <div className="mt-4 flex items-center gap-2">
                     <Badge>{processingLabels[selected.processingStatus]}</Badge>
                     <Badge variant="outline">
                       {storageLabels[selected.storageStatus]}
+                    </Badge>
+                    <Badge variant="outline">
+                      {
+                        playableLabels[
+                          selected.playableStatus || 'pending'
+                        ]
+                      }
                     </Badge>
                   </div>
                   <div className="mt-5 grid gap-2">
@@ -484,16 +575,46 @@ export default function RecordingLibraryPage() {
                         归档到本地目录
                       </Button>
                     )}
-                    <Button asChild variant="outline">
+                    {selected.playableStatus === 'ready' && selected.playableUrl ? (
+                      <Button asChild variant="outline">
+                        <a
+                          download={selected.playableFileName}
+                          href={`${resolvePlayableUrl(selected)}?download=1`}
+                        >
+                          <Download className="size-4" />
+                          下载 M4A
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled={
+                          busy || selected.playableStatus === 'converting'
+                        }
+                        onClick={() => void requestPlayable()}
+                        variant="outline"
+                      >
+                        <LoaderCircle
+                          className={`size-4 ${selected.playableStatus === 'converting' ? 'animate-spin' : 'hidden'}`}
+                        />
+                        {selected.playableStatus === 'failed'
+                          ? '重试生成 M4A'
+                          : '准备通用 M4A'}
+                      </Button>
+                    )}
+                    <Button asChild size="sm" variant="ghost">
                       <a
                         download={selected.fileName}
                         href={selected.media.downloadUrl}
                       >
-                        <Download className="size-4" />
-                        下载录音
+                        下载原始录音
                       </a>
                     </Button>
                   </div>
+                  {selected.playableError && (
+                    <p className="mt-3 text-xs text-amber-700">
+                      M4A 生成失败：{selected.playableError}。原始录音仍可使用。
+                    </p>
+                  )}
                   {selected.archiveError && (
                     <p className="mt-3 text-xs text-red-700">
                       归档失败：{selected.archiveError}

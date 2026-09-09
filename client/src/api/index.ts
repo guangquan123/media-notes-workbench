@@ -69,6 +69,7 @@ import type {
   CreateRecordingAssetRequest,
   RecordingAsset,
   RecordingAssetArchiveResponse,
+  RecordingArchiveRepairResponse,
   RecordingAssetDetailResponse,
   RecordingAssetListResponse,
   RecordingStorageSettings,
@@ -867,6 +868,26 @@ export async function archiveRecordingAsset(
 ): Promise<RecordingAssetArchiveResponse> {
   const response = await axiosForBackend({
     url: `/api/recording-assets/${id}/archive`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function requestPlayableRecording(
+  id: string,
+): Promise<RecordingAssetDetailResponse> {
+  const response = await axiosForBackend({
+    url: `/api/recording-assets/${id}/playable`,
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function repairLegacyRecordingArchives(): Promise<RecordingArchiveRepairResponse> {
+  const response = await axiosForBackend({
+    url: '/api/recording-assets/repair-archives',
     method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });

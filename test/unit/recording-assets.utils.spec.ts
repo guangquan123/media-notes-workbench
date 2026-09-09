@@ -1,6 +1,7 @@
 import {
   buildRecordingArchiveFileName,
   filterRecordingAssets,
+  normalizeAudioMimeType,
   sortRecordingAssets,
 } from '@shared/recording-assets.utils';
 import type {
@@ -132,6 +133,19 @@ describe('recording-assets.utils', () => {
         'asset1234',
       ),
     ).toBe('2026-09-04_14-18_语音备忘_asset1234.m4a');
+  });
+
+  it('normalizes codec parameters and the common m4a MIME alias', () => {
+    expect(normalizeAudioMimeType('audio/webm;codecs=opus')).toBe('audio/webm');
+    expect(normalizeAudioMimeType('audio/x-m4a')).toBe('audio/mp4');
+    expect(
+      buildRecordingArchiveFileName(
+        '语音备忘',
+        '2026-09-04T06:18:00.000Z',
+        'audio/webm;codecs=opus',
+        'asset1234',
+      ),
+    ).toBe('2026-09-04_14-18_语音备忘_asset1234.webm');
   });
 
   it('falls back to a safe title when the title is blank', () => {

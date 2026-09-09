@@ -142,6 +142,11 @@ export type RecordingAssetProcessingStatus =
   | 'processing'
   | 'processed'
   | 'failed';
+export type RecordingPlayableStatus =
+  | 'pending'
+  | 'converting'
+  | 'ready'
+  | 'failed';
 
 export interface RecordingAsset {
   id: string;
@@ -157,6 +162,13 @@ export interface RecordingAsset {
   storageStatus: RecordingAssetStorageStatus;
   processingStatus: RecordingAssetProcessingStatus;
   media: UploadedMediaInput;
+  playableStatus?: RecordingPlayableStatus;
+  playableFileName?: string;
+  playableFileSize?: number;
+  playableMimeType?: string;
+  playableDurationMs?: number;
+  playableError?: string;
+  playableUrl?: string;
   archivePath?: string;
   archiveError?: string;
   deletedAt?: string | null;
@@ -206,6 +218,11 @@ export interface RecordingAssetArchiveResponse {
   item: RecordingAsset;
   archived: boolean;
   message: string;
+}
+
+export interface RecordingArchiveRepairResponse {
+  queued: number;
+  total: number;
 }
 
 export interface UploadedMediaPart {
