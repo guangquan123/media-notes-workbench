@@ -51,6 +51,7 @@ interface MediaUploadPartContext {
   fileName: string;
   partNumber: number;
   totalParts: number;
+  wrapPartError?: boolean;
 }
 
 function throwIfUploadAborted(signal?: AbortSignal): void {
@@ -216,7 +217,14 @@ export async function uploadMediaFile(
           uploadedBytes,
         }),
       options,
-      { fileName: file.name, partNumber: 1, totalParts: 1 },
+      {
+        fileName: file.name,
+        partNumber: 1,
+        totalParts: 1,
+        // The local backend receives the complete recording in one request.
+        // Preserve retries but surface the real HTTP or connection reason.
+        wrapPartError: false,
+      },
     );
     return [upload];
   }
@@ -334,6 +342,7 @@ async function uploadMediaPart(
     } catch (error) {
       if (options.signal?.aborted) throw createUploadAbortError();
       if (attempt === MEDIA_UPLOAD_MAX_ATTEMPTS) {
+        if (context.wrapPartError === false) throw error;
         throw createMediaUploadPartError(error, {
           ...context,
           attemptCount: attempt - 1,

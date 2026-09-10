@@ -2430,3 +2430,95 @@ body {
 .recording-player-page [class*='md:grid-cols-'] {
   grid-template-columns: minmax(0, 1fr) !important;
 }
+
+/* Keep the desktop recording workflow inside the viewport and use the full
+   working area. Small screens retain natural document scrolling. */
+@media (min-width: 861px) {
+  .recording-notes-page__container > section {
+    display: flex;
+    overflow: auto;
+    padding-bottom: 8px;
+  }
+
+  .recording-notes-page__surface {
+    display: flex;
+    width: 100%;
+    min-height: 0;
+    flex-direction: column;
+    align-self: flex-start;
+  }
+
+  .recording-notes-page__surface > :not(.recording-step-rail) {
+    min-height: 0;
+  }
+
+  .recording-live-panel,
+  .recording-review-panel {
+    margin-block: 0;
+  }
+
+  .recording-review-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 12px 20px;
+    align-items: start;
+  }
+
+  .recording-review-panel > * {
+    min-width: 0;
+    margin-top: 0;
+  }
+
+  .recording-review-panel__header,
+  .recording-review-panel__actions {
+    grid-column: 1 / -1;
+  }
+
+  .recording-review-panel__player {
+    grid-column: 1;
+    grid-row: 2 / span 3;
+  }
+
+  .recording-live-panel > .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .recording-notes-page__container > header {
+    flex-shrink: 0;
+  }
+}
+
+@media (min-width: 861px) and (max-height: 800px) {
+  .recording-notes-page__surface {
+    padding-block: 10px;
+  }
+
+  .recording-config-panel .recording-advanced-panel {
+    gap: 8px 12px;
+  }
+
+  .recording-config-panel .recording-field {
+    gap: 5px;
+  }
+
+  .recording-config-panel .recording-advanced-panel input,
+  .recording-config-panel .recording-advanced-panel button {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .recording-config-panel .recording-form-grid {
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .recording-config-panel .recording-advanced-toggle {
+    margin-top: 8px;
+    padding-block: 8px;
+  }
+
+  .recording-step-rail {
+    margin-bottom: 8px;
+    padding-block: 4px;
+  }
+}

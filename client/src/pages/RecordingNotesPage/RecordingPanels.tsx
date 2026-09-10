@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatFileSize } from '@/utils/file-size';
 import {
   getSmartPlaybackSummary,
   type RecordingAudioAnalysis,
@@ -45,7 +44,6 @@ import type { NoteJob, NoteStyle } from '@shared/api.interface';
 import type { TranscriptionLanguageMode } from '@shared/api.interface';
 import {
   type RecordingAudioProfile,
-  formatRecordingBytes,
   formatRecordingDuration,
   getRecordingCaptureModeDefinition,
   type RecordingCaptureMode,
@@ -95,7 +93,6 @@ interface SetupPanelProps {
 }
 
 interface RecordingPanelProps {
-  chunkCount: number;
   deviceState: RecorderDeviceState;
   durationMs: number;
   metrics: RecorderMetrics;
@@ -106,7 +103,6 @@ interface RecordingPanelProps {
   qualityColor: string;
   qualityDescription: string;
   qualityLabel: string;
-  recordingBytes: number;
   signalWidth: number;
   storageReady: boolean;
   stopping: boolean;
@@ -116,7 +112,6 @@ interface RecordingPanelProps {
 interface ReviewPanelProps {
   audioAnalysis: RecordingAudioAnalysis | null;
   canConvert: boolean;
-  chunkCount: number;
   durationMs: number;
   integrityCheck: RecordingIntegrityCheck | null;
   integrityConfirmed: boolean;
@@ -125,7 +120,6 @@ interface ReviewPanelProps {
   onDownloadBackup: () => void;
   onIntegrityConfirm: (checked: boolean) => void;
   onReset: () => void;
-  recordingFile: File;
   recordingUrl: string | null;
 }
 
@@ -488,7 +482,6 @@ export function SetupPanel({
 }
 
 export function RecordingPanel({
-  chunkCount,
   deviceState,
   durationMs,
   metrics,
@@ -499,7 +492,6 @@ export function RecordingPanel({
   qualityColor,
   qualityDescription,
   qualityLabel,
-  recordingBytes,
   signalWidth,
   storageReady,
   stopping,
@@ -553,7 +545,7 @@ export function RecordingPanel({
           <span>{qualityDescription}</span>
         </div>
       </section>
-      <div className="mt-6 grid gap-3 sm:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <StatusLine
           label="设备"
           value={
@@ -564,10 +556,7 @@ export function RecordingPanel({
                 : '异常'
           }
         />
-        <StatusLine
-          label="已写入"
-          value={`${chunkCount} 个分片 · ${formatRecordingBytes(recordingBytes)}`}
-        />
+        <StatusLine label="时长" value={formatRecordingDuration(durationMs)} />
         <StatusLine
           label="静音时长"
           value={
@@ -628,7 +617,6 @@ export function RecordingPanel({
 export function ReviewPanel({
   audioAnalysis,
   canConvert,
-  chunkCount,
   durationMs,
   integrityCheck,
   integrityConfirmed,
@@ -637,7 +625,6 @@ export function ReviewPanel({
   onDownloadBackup,
   onIntegrityConfirm,
   onReset,
-  recordingFile,
   recordingUrl,
 }: ReviewPanelProps) {
   const [smartPlayback, setSmartPlayback] = useState<boolean>(true);
@@ -669,13 +656,11 @@ export function ReviewPanel({
           smartPlayback={smartPlayback && canUseSmartPlayback}
           src={recordingUrl}
         />
-        <div className="mt-4 grid gap-3 text-xs text-black/55 sm:grid-cols-3">
+        <div className="mt-4 text-xs text-black/55">
           <StatusLine
             label="时长"
             value={formatRecordingDuration(durationMs)}
           />
-          <StatusLine label="文件" value={formatFileSize(recordingFile.size)} />
-          <StatusLine label="数据分片" value={`${chunkCount} 个`} />
         </div>
       </div>
       {audioAnalysis?.status === 'ready' && (

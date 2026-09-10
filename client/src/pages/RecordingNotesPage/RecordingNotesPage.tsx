@@ -838,7 +838,6 @@ export default function RecordingNotesPage() {
 
             {(phase === 'recording' || phase === 'paused') && (
               <RecordingPanel
-                chunkCount={chunkCount}
                 deviceState={deviceState}
                 durationMs={durationMs}
                 metrics={metrics}
@@ -849,7 +848,6 @@ export default function RecordingNotesPage() {
                 qualityColor={qualityColor}
                 qualityDescription={qualityCopy.description}
                 qualityLabel={qualityCopy.label}
-                recordingBytes={recordingBytes}
                 signalWidth={signalWidth}
                 storageReady={storageReady}
                 stopping={stopping}
@@ -860,7 +858,6 @@ export default function RecordingNotesPage() {
             {phase === 'review' && recordingFile && (
               <ReviewPanel
                 canConvert={canConvert}
-                chunkCount={chunkCount}
                 durationMs={durationMs}
                 integrityCheck={integrityCheck}
                 integrityConfirmed={integrityConfirmed}
@@ -870,7 +867,6 @@ export default function RecordingNotesPage() {
                 onDownloadBackup={downloadBackup}
                 onIntegrityConfirm={setIntegrityConfirmed}
                 onReset={() => void resetPage()}
-                recordingFile={recordingFile}
                 recordingUrl={recordingUrl}
               />
             )}

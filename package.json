@@ -200,6 +200,7 @@
   "scripts": {
     "build": "./scripts/build.sh",
     "build:client": "vite build --config vite.config.ts",
+    "build:client:local": "cross-env MIAODA_LOCAL_DEV=1 VITE_RUNTIME=local CLIENT_BASE_PATH=/app/app_179bn4jet6k vite build --config vite.config.ts",
     "build:prod": "npm run build:server && npm run build:client",
     "build:server": "nest build",
     "dev": "./scripts/dev.sh",
