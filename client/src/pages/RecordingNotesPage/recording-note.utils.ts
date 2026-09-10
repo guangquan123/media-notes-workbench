@@ -69,7 +69,7 @@ export function getRecordingAssetSource(
   return 'microphone';
 }
 
-export const DEFAULT_RECORDING_AUDIO_PROFILE: RecordingAudioProfile = 'fidelity';
+export const DEFAULT_RECORDING_AUDIO_PROFILE: RecordingAudioProfile = 'clarity';
 
 export function buildRecordingAudioConstraints(
   profile: RecordingAudioProfile = DEFAULT_RECORDING_AUDIO_PROFILE,

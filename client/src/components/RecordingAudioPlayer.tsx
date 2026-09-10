@@ -13,11 +13,17 @@ import {
   type CSSProperties,
   type FC,
 } from 'react';
+import {
+  findSmartPlaybackSkip,
+  type SmartPlaybackSkipSegment,
+} from '@/utils/recording-audio-analysis';
 
 interface RecordingAudioPlayerProps {
   ariaLabel?: string;
   className?: string;
   durationMs?: number | null;
+  skipSegments?: SmartPlaybackSkipSegment[];
+  smartPlayback?: boolean;
   src: string | null;
 }
 
@@ -45,9 +51,12 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
   ariaLabel = '录音播放器',
   className = '',
   durationMs,
+  skipSegments = [],
+  smartPlayback = false,
   src,
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const smartSkipTimerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(
@@ -55,6 +64,7 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
   );
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [lastSmartSkip, setLastSmartSkip] = useState<string | null>(null);
 
   useEffect(() => {
     const audio: HTMLAudioElement | null = audioRef.current;
@@ -64,12 +74,34 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
     setIsPlaying(false);
     setCurrentTime(0);
     setHasError(false);
+    setLastSmartSkip(null);
     setDuration(durationMs && durationMs > 0 ? durationMs / 1_000 : 0);
+    if (smartSkipTimerRef.current !== null) {
+      window.clearTimeout(smartSkipTimerRef.current);
+      smartSkipTimerRef.current = null;
+    }
   }, [durationMs, src]);
+
+  useEffect(
+    () => () => {
+      if (smartSkipTimerRef.current !== null) {
+        window.clearTimeout(smartSkipTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const cancelPendingSmartSkip = (): void => {
+    if (smartSkipTimerRef.current !== null) {
+      window.clearTimeout(smartSkipTimerRef.current);
+      smartSkipTimerRef.current = null;
+    }
+  };
 
   const togglePlayback = (): void => {
     const audio: HTMLAudioElement | null = audioRef.current;
     if (!audio || !src) return;
+    cancelPendingSmartSkip();
     if (audio.paused) {
       void audio.play().catch(() => setHasError(true));
       return;
@@ -80,6 +112,7 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
   const seekBy = (offsetSeconds: number): void => {
     const audio: HTMLAudioElement | null = audioRef.current;
     if (!audio) return;
+    cancelPendingSmartSkip();
     const maxTime: number = Number.isFinite(audio.duration)
       ? audio.duration
       : duration;
@@ -94,6 +127,7 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
     const nextTime: number = Number(event.target.value);
     const audio: HTMLAudioElement | null = audioRef.current;
     if (!audio || !Number.isFinite(nextTime)) return;
+    cancelPendingSmartSkip();
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
   };
@@ -103,6 +137,28 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
     if (!Number.isFinite(nextRate)) return;
     setPlaybackRate(nextRate);
     if (audioRef.current) audioRef.current.playbackRate = nextRate;
+  };
+
+  const skipQuietSegment = (sourcePositionMs: number): void => {
+    const audio: HTMLAudioElement | null = audioRef.current;
+    if (!audio || !smartPlayback || audio.paused) return;
+    const segment: SmartPlaybackSkipSegment | null = findSmartPlaybackSkip(
+      sourcePositionMs,
+      skipSegments,
+    );
+    if (!segment || smartSkipTimerRef.current !== null) return;
+    audio.pause();
+    setLastSmartSkip(
+      `已跳过 ${formatTime(segment.sourceEndMs / 1_000 - segment.sourceStartMs / 1_000)} 安静片段`,
+    );
+    smartSkipTimerRef.current = window.setTimeout(() => {
+      const currentAudio: HTMLAudioElement | null = audioRef.current;
+      if (!currentAudio) return;
+      currentAudio.currentTime = segment.sourceEndMs / 1_000;
+      setCurrentTime(currentAudio.currentTime);
+      smartSkipTimerRef.current = null;
+      void currentAudio.play().catch(() => setHasError(true));
+    }, 650);
   };
 
   const progressMax: number = Math.max(duration, 0.01);
@@ -140,9 +196,10 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
         }}
         onPause={() => setIsPlaying(false)}
         onPlay={() => setIsPlaying(true)}
-        onTimeUpdate={(event) =>
-          setCurrentTime(event.currentTarget.currentTime)
-        }
+        onTimeUpdate={(event) => {
+          setCurrentTime(event.currentTarget.currentTime);
+          skipQuietSegment(event.currentTarget.currentTime * 1_000);
+        }}
         preload="metadata"
         ref={audioRef}
         src={src || undefined}
@@ -211,6 +268,11 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
       {hasError && (
         <p className="recording-audio-player__error" role="alert">
           音频加载失败，请检查文件是否仍可访问。
+        </p>
+      )}
+      {lastSmartSkip && (
+        <p aria-live="polite" className="sr-only">
+          {lastSmartSkip}
         </p>
       )}
     </div>

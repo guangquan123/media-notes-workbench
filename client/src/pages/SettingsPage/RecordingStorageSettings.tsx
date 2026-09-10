@@ -8,10 +8,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import type { RecordingStorageSettings } from '@shared/api.interface';
+import type { RecordingStorageSettings as RecordingStorageSettingsData } from '@shared/api.interface';
 
 export default function RecordingStorageSettings() {
-  const [settings, setSettings] = useState<RecordingStorageSettings | null>(
+  const [settings, setSettings] = useState<RecordingStorageSettingsData | null>(
     null,
   );
   const [saving, setSaving] = useState(false);

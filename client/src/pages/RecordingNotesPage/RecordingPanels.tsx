@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -37,6 +37,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatFileSize } from '@/utils/file-size';
+import {
+  getSmartPlaybackSummary,
+  type RecordingAudioAnalysis,
+} from '@/utils/recording-audio-analysis';
 import type { NoteJob, NoteStyle } from '@shared/api.interface';
 import type { TranscriptionLanguageMode } from '@shared/api.interface';
 import {
@@ -110,6 +114,7 @@ interface RecordingPanelProps {
 }
 
 interface ReviewPanelProps {
+  audioAnalysis: RecordingAudioAnalysis | null;
   canConvert: boolean;
   chunkCount: number;
   durationMs: number;
@@ -231,6 +236,17 @@ export function SetupPanel({
       : micState === 'idle'
         ? `检测${captureDefinition.label}`
         : '重新检测';
+  const processingCopy: string | null = !preparation
+    ? null
+    : captureMode === 'system'
+      ? '电脑声音按浏览器共享来源录制，不会套用麦克风降噪。'
+      : audioProfile === 'fidelity'
+        ? '原声保留：未请求浏览器降噪、回声消除或自动增益。'
+        : preparation.noiseSuppression && preparation.echoCancellation
+          ? audioProfile === 'noisy' && preparation.autoGainControl
+            ? '强噪增强已生效：浏览器已启用降噪、回声消除和自动增益。'
+            : '会议清晰已生效：浏览器已启用降噪和回声消除。'
+          : '当前设备未完整支持所选声音优化，已使用兼容录音模式。';
 
   return (
     <div className="recording-setup">
@@ -334,6 +350,9 @@ export function SetupPanel({
         )}
         {preparation?.deviceLabel && micState === 'success' && (
           <p className="recording-device-copy">当前设备：{preparation.deviceLabel}</p>
+        )}
+        {processingCopy && (
+          <p className="recording-device-copy">声音优化：{processingCopy}</p>
         )}
       </section>
 
@@ -607,6 +626,7 @@ export function RecordingPanel({
 }
 
 export function ReviewPanel({
+  audioAnalysis,
   canConvert,
   chunkCount,
   durationMs,
@@ -620,6 +640,11 @@ export function ReviewPanel({
   recordingFile,
   recordingUrl,
 }: ReviewPanelProps) {
+  const [smartPlayback, setSmartPlayback] = useState<boolean>(true);
+  const segments = audioAnalysis?.compressibleSegments || [];
+  const smartSummary = getSmartPlaybackSummary(durationMs, segments);
+  const canUseSmartPlayback: boolean =
+    audioAnalysis?.status === 'ready' && segments.length > 0;
   return (
     <div className="recording-review-panel">
       <div className="recording-review-panel__header flex items-start justify-between gap-4">
@@ -638,8 +663,10 @@ export function ReviewPanel({
       </div>
       <div className="recording-review-panel__player mt-8 rounded-xl border border-black/8 bg-[#fbfdfc] p-5">
         <RecordingAudioPlayer
-          ariaLabel="录音完整播放"
+          ariaLabel={smartPlayback && canUseSmartPlayback ? '录音智能播放' : '录音完整播放'}
           durationMs={durationMs}
+          skipSegments={segments}
+          smartPlayback={smartPlayback && canUseSmartPlayback}
           src={recordingUrl}
         />
         <div className="mt-4 grid gap-3 text-xs text-black/55 sm:grid-cols-3">
@@ -651,6 +678,48 @@ export function ReviewPanel({
           <StatusLine label="数据分片" value={`${chunkCount} 个`} />
         </div>
       </div>
+      {audioAnalysis?.status === 'ready' && (
+        <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 text-sm leading-6 text-emerald-950">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">智能播放</p>
+              <p className="mt-1 text-xs text-emerald-900/75">
+                {canUseSmartPlayback
+                  ? `已发现 ${segments.length} 段可安全压缩的安静片段，预计节省 ${formatRecordingDuration(smartSummary.savedDurationMs)}。`
+                  : '未发现可安全压缩的长安静片段，完整录音会保持不变。'}
+              </p>
+            </div>
+            {canUseSmartPlayback && (
+              <Button
+                className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100"
+                onClick={() => setSmartPlayback((enabled: boolean) => !enabled)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {smartPlayback ? '切换完整播放' : '启用智能播放'}
+              </Button>
+            )}
+          </div>
+          {canUseSmartPlayback && (
+            <p className="mt-3 text-xs text-emerald-900/75">
+              {smartPlayback
+                ? `当前为智能播放，原始时长 ${formatRecordingDuration(durationMs)}，预计回听 ${formatRecordingDuration(smartSummary.smartDurationMs)}。`
+                : '当前为完整播放，所有安静片段均会保留。'}
+            </p>
+          )}
+          {audioAnalysis.hasMonitoringGaps && (
+            <p className="mt-3 text-xs text-amber-800">
+              录音监测曾短暂中断；系统仅处理连续低活动片段，其余内容已完整保留。
+            </p>
+          )}
+        </div>
+      )}
+      {audioAnalysis?.status === 'unavailable' && (
+        <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+          本次未生成智能播放建议，完整录音仍可正常试听和转为笔记。
+        </p>
+      )}
       <div className="recording-review-panel__notice mt-6 rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-blue-950">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-blue-700" />

@@ -14,6 +14,7 @@ import {
   type RecordingAudioProfile,
   type RecordingCaptureMode,
 } from './recording-note.utils';
+import type { AudioActivityFrame } from '@/utils/recording-audio-analysis';
 
 type RecorderInput = 'microphone' | 'system';
 
@@ -39,6 +40,7 @@ export interface RecorderDeviceState {
 }
 
 export interface RecordingResult {
+  activityFrames: AudioActivityFrame[];
   bytes: number;
   captureMode: RecordingCaptureMode;
   chunkCount: number;
@@ -88,6 +90,7 @@ function stopStream(stream: MediaStream | null): void {
 }
 
 export class ReliableRecorder {
+  private activityFrames: AudioActivityFrame[] = [];
   private readonly events: ReliableRecorderEvents;
   private audioContext: AudioContext | null = null;
   private audioProfile: RecordingAudioProfile = DEFAULT_RECORDING_AUDIO_PROFILE;
@@ -99,6 +102,7 @@ export class ReliableRecorder {
   private microphoneStream: MediaStream | null = null;
   private monitorFrame: number | null = null;
   private outputStream: MediaStream | null = null;
+  private lastActivityFrameAt = 0;
   private pausedAt = 0;
   private pausedDurationMs = 0;
   private recorder: MediaRecorder | null = null;
@@ -168,6 +172,7 @@ export class ReliableRecorder {
     const mimeType: string | null = getSupportedRecordingMimeType();
     if (!mimeType) throw new Error('当前浏览器不支持可用的录音格式');
     this.chunks = [];
+    this.activityFrames = [];
     this.chunkCount = 0;
     this.clipCount = 0;
     this.storageFailed = false;
@@ -177,6 +182,7 @@ export class ReliableRecorder {
     this.startedAt = Date.now();
     this.pausedAt = 0;
     this.pausedDurationMs = 0;
+    this.lastActivityFrameAt = 0;
     this.stopped = false;
     try {
       await startStoredRecording({
@@ -211,7 +217,7 @@ export class ReliableRecorder {
       this.persistChunk(event.data, index);
     };
     this.recorder.onerror = () => {
-      if (this.recorder?.state === 'recording') this.recorder.pause();
+      this.pause();
       this.events.onError(new Error('浏览器录音器发生错误，已停止继续采集'));
     };
     this.recorder.start(1_000);
@@ -228,8 +234,7 @@ export class ReliableRecorder {
 
   public resume(): void {
     if (this.recorder?.state !== 'paused') return;
-    if (this.pausedAt > 0) this.pausedDurationMs += Date.now() - this.pausedAt;
-    this.pausedAt = 0;
+    this.finishPause();
     this.recorder.resume();
   }
 
@@ -254,6 +259,7 @@ export class ReliableRecorder {
             });
             this.stopped = true;
             resolve({
+              activityFrames: this.activityFrames,
               bytes: file.size,
               captureMode: this.captureMode,
               chunkCount: this.chunkCount,
@@ -267,7 +273,10 @@ export class ReliableRecorder {
           }
         };
         recorder.onstop = () => void finish();
-        if (recorder.state === 'paused') recorder.resume();
+        if (recorder.state === 'paused') {
+          this.finishPause();
+          recorder.resume();
+        }
         recorder.requestData();
         recorder.stop();
       },
@@ -371,7 +380,7 @@ export class ReliableRecorder {
     track.onmute = () => {
       if (this.stopped) return;
       this.setDeviceState({ muted: true, state: 'muted' });
-      if (this.recorder?.state === 'recording') this.recorder.pause();
+      this.pause();
       this.events.onError(new Error(`${inputLabel}被系统静音，录音已自动暂停，请恢复后继续`));
     };
     track.onunmute = () => {
@@ -422,7 +431,7 @@ export class ReliableRecorder {
       })
       .catch(() => {
         this.storageFailed = true;
-        if (this.recorder?.state === 'recording') this.recorder.pause();
+        this.pause();
         this.events.onStorageWarning();
       });
   }
@@ -468,6 +477,7 @@ export class ReliableRecorder {
         ? Math.max(...inputs.map((input: RecorderInput) => sourceMetrics[input]?.silentForMs || 0))
         : 0;
       if (combinedPeak >= 0.98) this.clipCount += 1;
+      this.captureActivityFrame(now, combinedPeak, combinedRms);
       this.events.onMetrics({
         clipCount: this.clipCount,
         inputDetected,
@@ -488,5 +498,28 @@ export class ReliableRecorder {
       .catch((error: unknown) => {
         this.events.onError(error instanceof Error ? error : new Error(errorPrefix));
       });
+  }
+
+  private captureActivityFrame(
+    now: number,
+    peak: number,
+    rms: number,
+  ): void {
+    if (this.recorder?.state !== 'recording') return;
+    if (now - this.lastActivityFrameAt < 250) return;
+    const endMs: number = this.getDurationMs();
+    const previous: AudioActivityFrame | undefined = this.activityFrames.at(-1);
+    const startMs: number = previous
+      ? previous.endMs
+      : Math.max(0, endMs - 250);
+    if (endMs <= startMs) return;
+    this.activityFrames.push({ endMs, peak, rms, startMs });
+    this.lastActivityFrameAt = now;
+  }
+
+  private finishPause(): void {
+    if (this.pausedAt <= 0) return;
+    this.pausedDurationMs += Date.now() - this.pausedAt;
+    this.pausedAt = 0;
   }
 }

@@ -60,6 +60,10 @@ import {
   RecordingStepRail,
   SetupPanel,
 } from './RecordingPanels';
+import {
+  buildConservativeAudioAnalysis,
+  type RecordingAudioAnalysis,
+} from '@/utils/recording-audio-analysis';
 
 type RecordingPhase =
   | 'setup'
@@ -124,6 +128,8 @@ export default function RecordingNotesPage() {
   const [chunkCount, setChunkCount] = useState<number>(0);
   const [recordingFile, setRecordingFile] = useState<File | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [audioAnalysis, setAudioAnalysis] =
+    useState<RecordingAudioAnalysis | null>(null);
   const [recordingAssetMedia, setRecordingAssetMedia] =
     useState<UploadedMediaInput | null>(null);
   const [recordingAssetId, setRecordingAssetId] = useState<string | null>(null);
@@ -171,6 +177,13 @@ export default function RecordingNotesPage() {
     setDurationMs(result.durationMs);
     setRecordingBytes(result.bytes);
     setChunkCount(result.chunkCount);
+    setAudioAnalysis(
+      buildConservativeAudioAnalysis({
+        captureMode: result.captureMode,
+        durationMs: result.durationMs,
+        frames: result.activityFrames,
+      }),
+    );
     try {
       const nextIntegrityCheck: RecordingIntegrityCheck =
         await validateRecordingFile(file, result.durationMs);
@@ -456,6 +469,7 @@ export default function RecordingNotesPage() {
     setError(null);
     setRecordingBytes(0);
     setChunkCount(0);
+    setAudioAnalysis(null);
     setRecordingAssetId(null);
     setRecordingAssetMedia(null);
     setDurationMs(0);
@@ -529,6 +543,7 @@ export default function RecordingNotesPage() {
     setDurationMs(recoverable.durationMs);
     setRecordingBytes(file.size);
     setChunkCount(recoverable.chunkCount);
+    setAudioAnalysis(null);
     setRecoverable(null);
     setPhase('review');
     setIntegrityChecking(true);
@@ -850,6 +865,7 @@ export default function RecordingNotesPage() {
                 integrityCheck={integrityCheck}
                 integrityConfirmed={integrityConfirmed}
                 integrityChecking={integrityChecking}
+                audioAnalysis={audioAnalysis}
                 onConvert={() => void convertToNote()}
                 onDownloadBackup={downloadBackup}
                 onIntegrityConfirm={setIntegrityConfirmed}

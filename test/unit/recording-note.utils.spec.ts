@@ -94,11 +94,11 @@ describe('recording note integrity helpers', () => {
     );
   });
 
-  it('uses a fidelity-first capture profile so dialect tones are not aggressively processed', () => {
+  it('uses meeting clarity by default to reduce ordinary background noise and echo', () => {
     expect(buildRecordingAudioConstraints(DEFAULT_RECORDING_AUDIO_PROFILE)).toMatchObject({
       autoGainControl: false,
-      echoCancellation: false,
-      noiseSuppression: false,
+      echoCancellation: true,
+      noiseSuppression: true,
       channelCount: { ideal: 1 },
       sampleRate: { ideal: 48_000 },
     });
