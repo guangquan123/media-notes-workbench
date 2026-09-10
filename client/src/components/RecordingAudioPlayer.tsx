@@ -91,6 +91,12 @@ const RecordingAudioPlayer: FC<RecordingAudioPlayerProps> = ({
     [],
   );
 
+  useEffect(() => {
+    if (smartSkipTimerRef.current === null) return;
+    window.clearTimeout(smartSkipTimerRef.current);
+    smartSkipTimerRef.current = null;
+  }, [skipSegments, smartPlayback]);
+
   const cancelPendingSmartSkip = (): void => {
     if (smartSkipTimerRef.current !== null) {
       window.clearTimeout(smartSkipTimerRef.current);
