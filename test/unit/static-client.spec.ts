@@ -34,6 +34,64 @@ describe('static client backend proxy path', () => {
     ).toBe('/app/app_abc/assets/index.js');
   });
 
+  it('serves root deployments with absolute asset paths instead of protocol-relative URLs', async () => {
+    const originalClientPort = process.env.CLIENT_DEV_PORT;
+    const originalBasePath = process.env.CLIENT_BASE_PATH;
+    process.env.CLIENT_DEV_PORT = '0';
+    process.env.CLIENT_BASE_PATH = '/';
+
+    let start: () => {
+      ready: Promise<unknown>;
+      close: (callback: () => void) => void;
+      address: () => { port: number } | string | null;
+    };
+    jest.isolateModules(() => {
+      ({ start } = require('../../scripts/static-client.js'));
+    });
+
+    const server = start();
+    await server.ready;
+    const address = server.address();
+    expect(address).not.toBeNull();
+    expect(typeof address).not.toBe('string');
+    const port = (address as { port: number }).port;
+    const body = await new Promise<string>((resolve, reject) => {
+      const request = get(`http://127.0.0.1:${port}/`, (response) => {
+        let html = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          html += chunk;
+        });
+        response.on('end', () => resolve(html));
+      });
+      request.once('error', reject);
+    });
+    expect(body).toContain('src="/assets/');
+    expect(body).toContain('href="/assets/');
+    expect(body).not.toContain('src="//assets/');
+    expect(body).not.toContain('href="//assets/');
+
+    for (const assetPath of body.match(/(?:src|href)="(\/assets\/[^\"]+)"/g) || []) {
+      const assetUrl = assetPath.slice(assetPath.indexOf('"') + 1, -1);
+      await new Promise<void>((resolve, reject) => {
+        const request = get(`http://127.0.0.1:${port}${assetUrl}`, (response) => {
+          response.resume();
+          response.on('end', () => {
+            if (response.statusCode === 200) resolve();
+            else reject(new Error(`${assetUrl} returned ${response.statusCode}`));
+          });
+        });
+        request.once('error', reject);
+      });
+    }
+
+    await new Promise<void>((resolve) => server.close(resolve));
+    if (originalClientPort === undefined) delete process.env.CLIENT_DEV_PORT;
+    else process.env.CLIENT_DEV_PORT = originalClientPort;
+    if (originalBasePath === undefined) delete process.env.CLIENT_BASE_PATH;
+    else process.env.CLIENT_BASE_PATH = originalBasePath;
+  });
+
   it('confirms that the listener belongs to the current static fallback instance', async () => {
     const originalPort = process.env.CLIENT_DEV_PORT;
     const originalToken = process.env.STATIC_CLIENT_INSTANCE_TOKEN;

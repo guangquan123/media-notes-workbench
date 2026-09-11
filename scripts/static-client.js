@@ -104,6 +104,7 @@ function isBackendApiPath(pathname) {
 }
 
 function buildFallbackIndex() {
+  const urlBasePath = basePath === '/' ? '' : basePath;
   const assetFiles = fs
     .readdirSync(assetRoot)
     .filter((fileName) => /^index-[^/]+\.js$/.test(fileName))
@@ -130,13 +131,13 @@ function buildFallbackIndex() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="media-notes-static-fallback" content="1" />
     <title>多媒体笔记工作台</title>
-    <link rel="icon" href="${basePath}/favicon.svg?v=5" type="image/svg+xml" />
-    <link rel="stylesheet" href="${basePath}/assets/${cssFiles[0].fileName}" />
+    <link rel="icon" href="${urlBasePath}/favicon.svg?v=5" type="image/svg+xml" />
+    <link rel="stylesheet" href="${urlBasePath}/assets/${cssFiles[0].fileName}" />
     <script>window.__BASENAME__=${JSON.stringify(basePath)};</script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="${basePath}/assets/${assetFiles[0].fileName}"></script>
+    <script type="module" src="${urlBasePath}/assets/${assetFiles[0].fileName}"></script>
   </body>
 </html>
 `;
@@ -253,7 +254,7 @@ function start() {
       );
       return;
     }
-    const basePrefix = `${basePath}/`;
+    const basePrefix = basePath === '/' ? '/' : `${basePath}/`;
     if (
       requestUrl.pathname !== basePath &&
       !requestUrl.pathname.startsWith(basePrefix)
@@ -262,7 +263,8 @@ function start() {
       response.end('Not found');
       return;
     }
-    const requestRelativePath = requestUrl.pathname.slice(basePath.length);
+    const requestRelativePath =
+      basePath === '/' ? requestUrl.pathname : requestUrl.pathname.slice(basePath.length);
     const { filePath, isAsset } = resolveStaticRequest(requestRelativePath);
     const hasStaticFile =
       filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile();
@@ -284,7 +286,7 @@ function start() {
     server.once('error', reject);
     server.once('listening', () => {
       process.stdout.write(
-        `[static-client] listening at http://${host}:${port}${basePath}/\n`,
+        `[static-client] listening at http://${host}:${port}${basePath === '/' ? '/' : `${basePath}/`}\n`,
       );
       resolve(server);
     });
