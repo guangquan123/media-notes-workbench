@@ -6,13 +6,28 @@ const dotenv = require('dotenv');
 const { inspectWindowsLauncherProcess } = require('./launcher-process.js');
 
 const rootDir = path.resolve(process.env.WORKBENCH_APP_ROOT || process.cwd());
-const stateDir = path.resolve(
-  process.env.WORKBENCH_STATE_DIR || path.join(rootDir, 'pids'),
-);
-const pidPath = path.join(stateDir, 'dev-local.pid');
+if (!process.env.WORKBENCH_HOME && process.env.WORKBENCH_INSTALLED !== '1') {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || rootDir,
+    'MediaNotesWorkbench',
+    'dev',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+const runtimePaths = applyRuntimePathEnvironment(process.env, {
+  cwd: rootDir,
+});
+const stateDir = runtimePaths.stateDir;
+const currentPidPath = path.join(stateDir, 'dev-local.pid');
+const legacyPidPath = path.join(rootDir, 'pids', 'dev-local.pid');
+const pidPath = fs.existsSync(currentPidPath) || process.env.WORKBENCH_INSTALLED === '1'
+  ? currentPidPath
+  : legacyPidPath;
 const envConfig = [
   path.join(rootDir, '.env'),
   path.join(rootDir, '.env.local'),
+  path.join(runtimePaths.configDir, '.env'),
+  path.join(runtimePaths.configDir, '.env.local'),
 ].reduce((merged, filePath) => {
   if (!fs.existsSync(filePath)) return merged;
   return { ...merged, ...dotenv.parse(fs.readFileSync(filePath)) };

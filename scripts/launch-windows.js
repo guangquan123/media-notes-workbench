@@ -5,12 +5,22 @@ const { writeLauncherFailure } = require('./launcher-status.js');
 
 const script = path.resolve(__dirname, 'dev-windows.js');
 const root = path.resolve(__dirname, '..');
+if (!process.env.WORKBENCH_HOME) {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || root,
+    'MediaNotesWorkbench',
+    'dev',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+const runtimePaths = applyRuntimePathEnvironment(process.env, { cwd: root });
 let child;
 
 try {
   child = spawn(process.execPath, [script], {
     cwd: root,
     detached: true,
+    env: { ...process.env },
     stdio: 'ignore',
     windowsHide: true,
   });
@@ -38,5 +48,7 @@ child.once('error', () => {
 });
 child.unref();
 console.log('[launch-windows] 已后台启动 Windows 开发服务，PID', child.pid);
-console.log('[launch-windows] 请稍后访问项目地址，日志 logs/dev.std.log');
+console.log(
+  `[launch-windows] 请稍后访问项目地址，日志 ${path.join(runtimePaths.logDir, 'dev.std.log')}`,
+);
 process.exit(0);

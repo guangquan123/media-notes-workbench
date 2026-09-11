@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveRuntimePaths } = require('./runtime-paths.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -30,7 +31,7 @@ function writeLauncherFailure({
   detail,
   suggestion,
 }) {
-  const pidDir = path.join(rootDir, 'pids');
+  const pidDir = resolveRuntimePaths({ cwd: rootDir }).stateDir;
   const operationTokenPath = path.join(pidDir, 'launcher-operation.token');
   const failurePath = path.join(pidDir, 'launcher-failure.json');
   let operationToken = '';

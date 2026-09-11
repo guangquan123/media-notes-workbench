@@ -18,11 +18,62 @@ const useStaticClient =
   process.platform === 'win32' && !process.argv.includes('--vite-client');
 process.chdir(rootDir);
 
+require('dotenv').config({ path: path.join(rootDir, '.env.local') });
+require('dotenv').config({ path: path.join(rootDir, '.env') });
+if (!process.env.WORKBENCH_HOME) {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || rootDir,
+    'MediaNotesWorkbench',
+    process.env.WORKBENCH_INSTALLED === '1' ? '' : 'dev',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+let runtimePaths = applyRuntimePathEnvironment(process.env, {
+  cwd: rootDir,
+});
+const { migrateLocalRuntime } = require('./migrate-local-runtime.js');
+const legacyRoot = path.resolve(
+  process.env.WORKBENCH_LEGACY_ROOT ||
+    (process.env.WORKBENCH_INSTALLED === '1'
+      ? process.env.WORKBENCH_HOME
+      : rootDir),
+);
+try {
+  const migration = migrateLocalRuntime({
+    sourceRoot: legacyRoot,
+    targetPaths: runtimePaths,
+  });
+  if (migration.status === 'conflict') {
+    throw new Error(migration.conflicts.join('；'));
+  }
+} catch (error) {
+  process.stderr.write(
+    `[dev-windows] 数据目录迁移未完成，将继续使用旧目录: ${
+      error instanceof Error ? error.message : String(error)
+    }\n`,
+  );
+  const fallbackRoot = legacyRoot;
+  process.env.WORKBENCH_HOME = fallbackRoot;
+  process.env.WORKBENCH_CONFIG_DIR = process.env.WORKBENCH_INSTALLED === '1'
+    ? path.join(fallbackRoot, 'config')
+    : fallbackRoot;
+  process.env.WORKBENCH_DATA_DIR = process.env.WORKBENCH_INSTALLED === '1'
+    ? fallbackRoot
+    : path.join(fallbackRoot, 'data');
+  process.env.WORKBENCH_CACHE_DIR = path.join(fallbackRoot, '.tmp');
+  process.env.LOG_DIR = path.join(fallbackRoot, 'logs');
+  process.env.WORKBENCH_STATE_DIR = process.env.WORKBENCH_INSTALLED === '1'
+    ? path.join(fallbackRoot, 'runtime-state')
+    : path.join(fallbackRoot, 'pids');
+  runtimePaths = applyRuntimePathEnvironment(process.env, { cwd: rootDir });
+}
+require('dotenv').config({ path: path.join(runtimePaths.configDir, '.env.local') });
+
 const logDir = path.resolve(
-  process.env.LOG_DIR || path.join(rootDir, 'logs'),
+  runtimePaths.logDir,
 );
 const pidDir = path.resolve(
-  process.env.WORKBENCH_STATE_DIR || path.join(rootDir, 'pids'),
+  runtimePaths.stateDir,
 );
 const pidPath = path.join(pidDir, 'dev-local.pid');
 const launcherOperationTokenPath = path.join(
@@ -45,9 +96,6 @@ function readLauncherOperationToken() {
     return '';
   }
 }
-
-require('dotenv').config({ path: path.join(rootDir, '.env.local') });
-require('dotenv').config({ path: path.join(rootDir, '.env') });
 
 const wingetLinks = path.join(
   process.env.LOCALAPPDATA || '',

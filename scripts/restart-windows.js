@@ -4,6 +4,15 @@ const path = require('node:path');
 const { writeLauncherFailure } = require('./launcher-status.js');
 
 const root = path.resolve(__dirname, '..');
+if (!process.env.WORKBENCH_HOME) {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || root,
+    'MediaNotesWorkbench',
+    'dev',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+applyRuntimePathEnvironment(process.env, { cwd: root });
 
 function failRestart(stage, message, detail, suggestion) {
   console.error('[restart-windows] ' + message);

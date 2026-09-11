@@ -163,7 +163,10 @@ http://localhost:8081/app/app_179bn4jet6k/
 ~~~
 
 端口和子路径以 `.env.local` 中的 `SERVER_PORT`、`CLIENT_DEV_PORT`、`CLIENT_BASE_PATH` 为准。
-服务日志写入 `logs/dev.std.log`，进程状态写入 `pids/`，这两个目录不应提交。
+安装版和 Windows 本地启动器会把可变内容写入 `%LOCALAPPDATA%\MediaNotesWorkbench\`（源码开发版为其
+`dev` 子目录），并分为 `data/`、`config/`、`cache/`、`logs/`、`runtime/`。代码目录不会再生成运行时
+数据库、上传文件或进程状态。已有旧目录会在首次启动时只复制迁移，旧目录保留用于回滚；详见
+[本地运行目录说明](docs/runtime-data-layout.md)。
 
 停止或重启本项目：
 
@@ -200,7 +203,7 @@ dws auth status --format json
 3. 绑定时已有消息只作为基线，之后的新链接才会进入队列。服务每 30 秒检查一次，也可以在页面手动同步。
 4. 任务结果仍在“视频学习笔记”和“转化记录”中查看。
 
-绑定信息和已处理消息 ID 只保存在本机 `.media-inbox-state.json`，电脑需要保持本机服务和飞书 CLI 授权状态。
+绑定信息和已处理消息 ID 只保存在本机运行目录的 `config/.media-inbox-state.json`，电脑需要保持本机服务和飞书 CLI 授权状态。
 
 ## 可追溯性与合规
 

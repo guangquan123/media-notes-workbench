@@ -9,13 +9,23 @@ const { spawn } = require('node:child_process');
 const appRoot = path.resolve(
   process.env.WORKBENCH_APP_ROOT || path.resolve(__dirname, '..'),
 );
-const dataRoot = path.resolve(
-  process.env.WORKBENCH_DATA_DIR ||
-    path.join(process.env.LOCALAPPDATA || appRoot, 'MediaNotesWorkbench'),
-);
-const configDir = path.join(dataRoot, 'config');
-const stateDir = path.join(dataRoot, 'runtime-state');
-const logDir = path.join(dataRoot, 'logs');
+process.env.WORKBENCH_APP_ROOT = appRoot;
+process.env.WORKBENCH_INSTALLED = '1';
+if (!process.env.WORKBENCH_HOME) {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || appRoot,
+    'MediaNotesWorkbench',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+const runtimePaths = applyRuntimePathEnvironment(process.env, {
+  cwd: appRoot,
+});
+const dataRoot = runtimePaths.dataDir;
+const configDir = runtimePaths.configDir;
+const stateDir = runtimePaths.stateDir;
+const logDir = runtimePaths.logDir;
+const cacheDir = runtimePaths.cacheDir;
 const runtimeNode = path.join(appRoot, 'runtime', 'node.exe');
 const serverScript = path.join(appRoot, 'scripts', 'dev-windows.js');
 const clientHost = process.env.CLIENT_DEV_HOST || '127.0.0.1';
@@ -25,7 +35,7 @@ const clientBasePath =
 const appUrl = `http://${clientHost}:${clientPort}${clientBasePath}/`;
 
 function ensureDirectories() {
-  for (const directory of [dataRoot, configDir, stateDir, logDir]) {
+  for (const directory of [dataRoot, configDir, cacheDir, stateDir, logDir]) {
     fs.mkdirSync(directory, { recursive: true });
   }
 }
@@ -93,8 +103,10 @@ async function main() {
       SERVER_HOST: process.env.SERVER_HOST || '127.0.0.1',
       SERVER_PORT: process.env.SERVER_PORT || '3000',
       WORKBENCH_APP_ROOT: appRoot,
+      WORKBENCH_CACHE_DIR: cacheDir,
       WORKBENCH_CONFIG_DIR: configDir,
       WORKBENCH_DATA_DIR: dataRoot,
+      WORKBENCH_HOME: runtimePaths.homeDir,
       WORKBENCH_INSTALLED: '1',
       WORKBENCH_STATE_DIR: stateDir,
     },

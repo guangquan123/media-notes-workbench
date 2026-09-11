@@ -161,6 +161,10 @@
   var shell = null;
   var fso = null;
   var root = ".";
+  var runtimeHome = ".";
+  var configRoot = ".";
+  var stateRoot = ".";
+  var logRoot = ".";
   var config = { serverHost: "127.0.0.1", serverPort: "3000", clientHost: "127.0.0.1", clientPort: "8081", basePath: "" };
   var steps = [];
   var currentStep = -1;
@@ -182,6 +186,36 @@
 
   try { shell = new ActiveXObject("WScript.Shell"); } catch (e) {}
   try { fso = new ActiveXObject("Scripting.FileSystemObject"); root = fso.GetAbsolutePathName("."); } catch (e) {}
+  function expandedEnvironmentPath(name) {
+    try {
+      var value = shell ? shell.ExpandEnvironmentStrings("%" + name + "%") : "";
+      return value && value !== "%" + name + "%" ? value : "";
+    } catch (e) { return ""; }
+  }
+  function ensureFolder(folderPath) {
+    if (!fso || !folderPath || fso.FolderExists(folderPath)) return;
+    var parent = fso.GetParentFolderName(folderPath);
+    if (parent && !fso.FolderExists(parent)) ensureFolder(parent);
+    if (!fso.FolderExists(folderPath)) fso.CreateFolder(folderPath);
+  }
+  function initializeRuntimePaths() {
+    var configuredHome = expandedEnvironmentPath("WORKBENCH_HOME");
+    var localAppData = expandedEnvironmentPath("LOCALAPPDATA");
+    runtimeHome = configuredHome || fso.BuildPath(localAppData || root, "MediaNotesWorkbench\\dev");
+    configRoot = expandedEnvironmentPath("WORKBENCH_CONFIG_DIR") || fso.BuildPath(runtimeHome, "config");
+    stateRoot = expandedEnvironmentPath("WORKBENCH_STATE_DIR") || fso.BuildPath(runtimeHome, "runtime");
+    logRoot = expandedEnvironmentPath("LOG_DIR") || fso.BuildPath(runtimeHome, "logs");
+    ensureFolder(stateRoot);
+    ensureFolder(logRoot);
+    try {
+      var environment = shell.Environment("PROCESS");
+      environment("WORKBENCH_HOME") = runtimeHome;
+      environment("WORKBENCH_CONFIG_DIR") = configRoot;
+      environment("WORKBENCH_STATE_DIR") = stateRoot;
+      environment("LOG_DIR") = logRoot;
+    } catch (e) {}
+  }
+  try { initializeRuntimePaths(); } catch (e) { stateRoot = root + "\\pids"; logRoot = root + "\\logs"; }
   function normalizeAction(value) {
     var normalized = String(value || "").replace(/^\s+|\s+$/g, "").toLowerCase();
     return /^(start|stop|restart)$/.test(normalized) ? normalized : "";
@@ -200,11 +234,11 @@
   }
   try { action = resolveLauncherAction(); } catch (e) { action = ""; }
 
-  function readEnvFile(name) {
+  function readEnvFileAt(basePath, name) {
     var values = {};
     if (!fso) return values;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, name), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(basePath, name), 1, false, 0);
       while (!file.AtEndOfStream) {
         var line = file.ReadLine().replace(/^\s+|\s+$/g, "");
         if (!line || line.charAt(0) === "#") continue;
@@ -218,12 +252,15 @@
     } catch (e) {}
     return values;
   }
+  function readEnvFile(name) { return readEnvFileAt(root, name); }
 
   function loadConfig() {
     var values = readEnvFile(".env");
     var local = readEnvFile(".env.local");
+    var external = readEnvFileAt(configRoot, ".env.local");
     var key;
     for (key in local) values[key] = local[key];
+    for (key in external) values[key] = external[key];
     config.serverHost = values.SERVER_HOST || config.serverHost;
     config.serverPort = values.SERVER_PORT || config.serverPort;
     config.clientHost = values.CLIENT_DEV_HOST || config.clientHost;
@@ -268,7 +305,7 @@
   function readPid() {
     if (!fso) return 0;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\dev-local.pid"), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "dev-local.pid"), 1, false, 0);
       var value = parseInt(file.ReadAll().replace(/^\s+|\s+$/g, ""), 10);
       file.Close();
       return isNaN(value) ? 0 : value;
@@ -335,13 +372,13 @@
   }
   function readLogTail() {
     if (!fso) return "";
-    try { var file = fso.OpenTextFile(fso.BuildPath(root, "logs\\dev.std.log"), 1, false, 0); var text = file.ReadAll(); file.Close(); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
+    try { var file = fso.OpenTextFile(fso.BuildPath(logRoot, "dev.std.log"), 1, false, 0); var text = file.ReadAll(); file.Close(); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
   }
   function createOperationToken() {
     if (!fso) return "";
     try {
       var token = String(new Date().getTime()) + "-" + String(Math.floor(Math.random() * 1000000));
-      var file = fso.CreateTextFile(fso.BuildPath(root, "pids\\launcher-operation.token"), true, false);
+      var file = fso.CreateTextFile(fso.BuildPath(stateRoot, "launcher-operation.token"), true, false);
       file.Write(token);
       file.Close();
       return token;
@@ -350,7 +387,7 @@
   function restartReadyTokenMatches() {
     if (!fso || !operationToken) return false;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-ready.token"), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-ready.token"), 1, false, 0);
       var token = file.ReadAll().replace(/^\s+|\s+$/g, "");
       file.Close();
       return token === operationToken;
@@ -359,7 +396,7 @@
   function launcherUiReadyTokenMatches() {
     if (!fso || !operationToken) return false;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-ui-ready.token"), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-ui-ready.token"), 1, false, 0);
       var token = file.ReadAll().replace(/^\s+|\s+$/g, "");
       file.Close();
       return token === operationToken;
@@ -368,7 +405,7 @@
   function readLauncherFailure() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-failure.json"), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-failure.json"), 1, false, 0);
       var value = window.JSON.parse(file.ReadAll());
       file.Close();
       if (!value || value.operationToken !== operationToken) return null;
@@ -378,7 +415,7 @@
   function readLauncherProgress() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-progress.json"), 1, false, 0);
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-progress.json"), 1, false, 0);
       var value = window.JSON.parse(file.ReadAll());
       file.Close();
       if (!value || value.operationToken !== operationToken) return null;
@@ -393,7 +430,7 @@
     sections.push("可点击“查看日志”查看完整信息。");
     return sections.join("\n\n");
   }
-  function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(root, "logs\\dev.std.log")), 1, false); } catch (e) {} } }
+  function openLog() { if (shell) { try { shell.Run("notepad.exe " + quote(fso.BuildPath(logRoot, "dev.std.log")), 1, false); } catch (e) {} } }
   function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
   function openWorkbench() { if (shell) { try { var separator = workbenchUrl().indexOf("?") >= 0 ? "&" : "?"; var target = workbenchUrl() + separator + "launcherReadyToken=" + encodeURIComponent(operationToken); browserOpenedAt = new Date().getTime(); shell.Run("explorer.exe " + quote(target), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }

@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveRuntimePaths } = require('./runtime-paths.js');
 
 const DEFAULT_LOCAL_RUNTIME_CONFIG = {
   mode: 'local',
@@ -45,7 +46,16 @@ function readExistingLocalRuntimeConfig(configPath) {
 }
 
 function ensureLocalRuntimeConfig(rootDir, options = {}) {
-  const configDir = options.configDir || process.env.WORKBENCH_CONFIG_DIR || rootDir;
+  const environment = options.env || process.env;
+  const paths = resolveRuntimePaths({ cwd: rootDir, env: environment });
+  const usesSeparatedPaths = Boolean(
+    options.configDir ||
+      environment.WORKBENCH_CONFIG_DIR ||
+      environment.WORKBENCH_HOME ||
+      environment.WORKBENCH_INSTALLED === '1',
+  );
+  const configDir = options.configDir || environment.WORKBENCH_CONFIG_DIR ||
+    (usesSeparatedPaths ? paths.configDir : rootDir);
   fs.mkdirSync(configDir, { recursive: true });
   const configPath = path.join(configDir, '.runtime-config.json');
 
@@ -54,10 +64,8 @@ function ensureLocalRuntimeConfig(rootDir, options = {}) {
     return { configPath, created: false };
   }
 
-  const dataDir = path.resolve(
-    process.env.WORKBENCH_DATA_DIR || path.join(rootDir, 'data'),
-  );
-  const runtimeConfig = options.configDir || process.env.WORKBENCH_CONFIG_DIR
+  const dataDir = usesSeparatedPaths ? paths.dataDir : path.join(rootDir, 'data');
+  const runtimeConfig = usesSeparatedPaths
     ? {
         ...DEFAULT_LOCAL_RUNTIME_CONFIG,
         database: { kind: 'sqlite', file: path.join(dataDir, 'workbench.sqlite') },

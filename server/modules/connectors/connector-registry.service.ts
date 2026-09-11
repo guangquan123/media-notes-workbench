@@ -58,10 +58,9 @@ export class ConnectorRegistryService {
         ? undefined
         : feishuAuthService;
     this.dingTalkAuthService = dingTalkAuthService;
-    this.configPath = join(
-      testBaseDir || process.cwd(),
-      '.connector-config.json',
-    );
+    this.configPath = testBaseDir
+      ? join(testBaseDir, '.connector-config.json')
+      : getLocalConfigPath('.connector-config.json');
   }
 
   async getSettings(): Promise<ConnectorSettingsResponse> {

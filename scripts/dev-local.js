@@ -4,7 +4,7 @@
 // Stack: nestjs-react-fullstack
 //
 // 流程:
-//   1. env pull —— 拉沙箱身份/凭证到 .env.local
+//   1. env pull —— 拉沙箱身份/凭证到外部运行目录的 .env.local
 //   2. action-plugin init —— 装 user app 在 package.json.actionPlugins 里声明的插件
 //   3. skills sync —— 同步当前 stack 的 agent skills
 //   4. dotenv 加载 .env / .env.local 到 process.env（含 SUDA_WEBUSER 适配）
@@ -26,7 +26,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execSync, spawn, spawnSync } = require('node:child_process');
 
-process.chdir(path.resolve(__dirname, '..'));
+const rootDir = path.resolve(__dirname, '..');
+process.chdir(rootDir);
+
+if (!process.env.WORKBENCH_HOME) {
+  process.env.WORKBENCH_HOME = path.join(
+    process.env.LOCALAPPDATA || rootDir,
+    'MediaNotesWorkbench',
+    'dev',
+  );
+}
+const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+let runtimePaths = applyRuntimePathEnvironment(process.env, {
+  cwd: rootDir,
+});
+const { migrateLocalRuntime } = require('./migrate-local-runtime.js');
+let activeRuntimePaths = runtimePaths;
 
 function warn(msg) {
   if (process.stderr.isTTY) process.stderr.write(`\x1b[33mWARNING: ${msg}\x1b[0m\n`);
@@ -38,9 +53,32 @@ process.env.MIAODA_LOCAL_DEV = '1';
 process.env.VITE_RUNTIME = 'local';
 
 // 先建 logs/,防止任何步骤(尤其是 spawn 子进程前的 shell redirect)因父目录不存在挂掉
-const LOG_DIR = process.env.LOG_DIR || 'logs';
+try {
+  const migration = migrateLocalRuntime({
+    sourceRoot: process.env.WORKBENCH_LEGACY_ROOT || rootDir,
+    targetPaths: activeRuntimePaths,
+  });
+  if (migration.status === 'conflict') {
+    throw new Error(migration.conflicts.join('；'));
+  }
+} catch (error) {
+  process.stderr.write(
+    `[dev-local] 数据目录迁移未完成，将继续使用旧目录: ${
+      error instanceof Error ? error.message : String(error)
+    }\n`,
+  );
+  process.env.WORKBENCH_HOME = rootDir;
+  process.env.WORKBENCH_CONFIG_DIR = rootDir;
+  process.env.WORKBENCH_DATA_DIR = path.join(rootDir, 'data');
+  process.env.WORKBENCH_CACHE_DIR = path.join(rootDir, '.tmp');
+  process.env.LOG_DIR = path.join(rootDir, 'logs');
+  process.env.WORKBENCH_STATE_DIR = path.join(rootDir, 'pids');
+  activeRuntimePaths = applyRuntimePathEnvironment(process.env, { cwd: rootDir });
+}
+
+const LOG_DIR = activeRuntimePaths.logDir;
 fs.mkdirSync(LOG_DIR, { recursive: true });
-const PID_DIR = 'pids';
+const PID_DIR = activeRuntimePaths.stateDir;
 const PID_PATH = path.join(PID_DIR, 'dev-local.pid');
 fs.mkdirSync(PID_DIR, { recursive: true });
 
@@ -99,11 +137,26 @@ if (hasLarkCli) {
     /* meta.json 不存在或非法 JSON */
   }
   if (appId) {
-    const r = spawnSync('lark-cli', ['apps', '+env-pull', '--app-id', appId, '--as', 'user'], {
-      stdio: 'inherit',
-      windowsHide: process.platform === 'win32',
-    });
-    if (r.status !== 0) warn('env pull 失败，继续按 .env.local 现状启动');
+    fs.mkdirSync(activeRuntimePaths.configDir, { recursive: true });
+    const r = spawnSync(
+      'lark-cli',
+      [
+        'apps',
+        '+env-pull',
+        '--app-id',
+        appId,
+        '--as',
+        'user',
+        '--project-path',
+        activeRuntimePaths.configDir,
+      ],
+      {
+        cwd: activeRuntimePaths.configDir,
+        stdio: 'inherit',
+        windowsHide: process.platform === 'win32',
+      },
+    );
+    if (r.status !== 0) warn('env pull 失败，继续按外部配置目录现状启动');
   } else {
     warn('.spark/meta.json 缺 app_id，请先跑 `miaoda app init --app-id <id>`');
   }
@@ -141,6 +194,19 @@ try {
 // shell env 已在 process.env，两次 config 都不会覆盖。
 console.log('[dev-local] (4/5) loading .env / .env.local...');
 const dotenv = require('dotenv');
+const sourceLocalEnvPath = path.join(rootDir, '.env.local');
+const targetLocalEnvPath = path.join(activeRuntimePaths.configDir, '.env.local');
+if (
+  activeRuntimePaths.configDir !== rootDir &&
+  fs.existsSync(sourceLocalEnvPath) &&
+  !fs.existsSync(targetLocalEnvPath)
+) {
+  fs.mkdirSync(activeRuntimePaths.configDir, { recursive: true });
+  const temporaryPath = `${targetLocalEnvPath}.${process.pid}.tmp`;
+  fs.copyFileSync(sourceLocalEnvPath, temporaryPath);
+  fs.renameSync(temporaryPath, targetLocalEnvPath);
+}
+dotenv.config({ path: targetLocalEnvPath });
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 

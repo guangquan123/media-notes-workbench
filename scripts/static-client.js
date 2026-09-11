@@ -19,7 +19,6 @@ const basePath =
     /\/+$/,
     '',
   ) || '/';
-const indexFile = path.join(clientRoot, 'static-fallback-index.html');
 const backendTarget = new URL(`http://${serverHost}:${serverPort}`);
 let localDevUtils;
 try {
@@ -141,7 +140,6 @@ function buildFallbackIndex() {
   </body>
 </html>
 `;
-  fs.writeFileSync(indexFile, html, 'utf8');
   return html;
 }
 
@@ -274,12 +272,14 @@ function start() {
       response.end('Not found');
       return;
     }
-    const servedPath = hasStaticFile ? filePath : indexFile;
+    const servedPath = hasStaticFile ? filePath : null;
     response.writeHead(200, {
-      'content-type': contentType(servedPath),
-      ...(servedPath === indexFile ? { 'cache-control': 'no-store' } : {}),
+      'content-type': servedPath
+        ? contentType(servedPath)
+        : 'text/html; charset=utf-8',
+      ...(!servedPath ? { 'cache-control': 'no-store' } : {}),
     });
-    if (servedPath === indexFile) response.end(indexHtml);
+    if (!servedPath) response.end(indexHtml);
     else fs.createReadStream(servedPath).pipe(response);
   });
   server.ready = new Promise((resolve, reject) => {

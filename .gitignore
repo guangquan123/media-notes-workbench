@@ -15,11 +15,14 @@ release/
 .minutes-transcription-state.json
 .tencent-asr-config.json
 .external-model-config.json
+.model-provider-config.json
 .task-notification-config.json
 .connector-config.json
 .runtime-config.json
 .media-cleanup-config.json
 .media-cleanup-history.json
+.recording-assets.json
+.recording-storage-settings.json
 data/
 
 # Logs
@@ -31,6 +34,7 @@ lerna-debug.log*
 
 # Runtime data
 pids
+runtime/
 *.pid
 *.seed
 *.pid.lock
@@ -59,6 +63,8 @@ Thumbs.db
 tmp/
 temp/
 .playwright-cli/
+.tmp/
+*.tmp
 
 # Lock files (keep package-lock.json for consistent installs)
 yarn.lock
@@ -67,6 +73,8 @@ pnpm-lock.yaml
 # Cache files
 .eslintcache
 *.tsbuildinfo
+.cache/
+cache/
 
 # swc wasm
 .swc

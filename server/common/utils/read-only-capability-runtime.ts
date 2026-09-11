@@ -7,7 +7,8 @@ import {
   TemplateEngineService,
 } from '@lark-apaas/fullstack-nestjs-core';
 import { config as loadEnvironment } from 'dotenv';
-import { resolve } from 'node:path';
+import { join } from 'node:path';
+import { getLocalConfigDir } from './local-runtime-paths';
 
 interface ReadOnlyRequestContextState {
   [key: string]: unknown;
@@ -53,7 +54,7 @@ async function createReadOnlyCapabilityRuntime(
   capabilitiesDir: string,
 ): Promise<ReadOnlyCapabilityRuntime> {
   loadEnvironment({
-    path: [resolve(process.cwd(), '.env.local'), resolve(process.cwd(), '.env')],
+    path: [join(getLocalConfigDir(), '.env.local'), join(getLocalConfigDir(), '.env')],
     quiet: true,
   });
   const requestContextService = new ReadOnlyRequestContextService();
