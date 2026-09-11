@@ -77,3 +77,11 @@ node scripts/package-windows.js --compile --node-runtime 'D:\tools\node\node.exe
 5. 从“应用和功能”卸载，确认服务进程和快捷方式被清理。
 
 客户数据保存在 `%LOCALAPPDATA%\MediaNotesWorkbench`，不会写入安装目录，升级安装时应保留该目录。
+
+## 卸载行为
+
+客户可以通过 Windows“设置 → 应用 → 已安装的应用”找到“多媒体笔记工作台”，点击卸载；也可以在开始菜单的应用组中打开卸载入口。卸载程序会先停止本地服务，再删除安装目录、内置 Node、桌面快捷方式和开始菜单快捷方式。
+
+为防止误删，卸载默认保留 `%LOCALAPPDATA%\MediaNotesWorkbench` 中的模型配置、笔记、上传文件和日志。重新安装同一产品后可以继续使用原数据。若客户要彻底清理数据，请在确认不再需要恢复后，手工删除该目录。
+
+安装器和桌面快捷方式使用项目现有的 `client/public/icons/zhiji-logo.svg` 生成的 `app-icon.ico`，每次 Windows 打包都会自动重新生成并打入安装包。

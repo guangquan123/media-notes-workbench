@@ -40,6 +40,36 @@ function hashFile(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+const USER_DATA_FILE_NAMES = new Set([
+  '.connector-config.json',
+  '.env.local',
+  '.external-model-config.json',
+  '.media-cleanup-config.json',
+  '.media-cleanup-history.json',
+  '.media-inbox-state.json',
+  '.model-provider-config.json',
+  '.minutes-transcription-state.json',
+  '.recording-assets.json',
+  '.recording-storage-settings.json',
+  '.runtime-config.json',
+  '.task-notification-config.json',
+  '.tencent-asr-config.json',
+]);
+
+function assertPublishInputIsClean(directory) {
+  const pending = [directory];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (USER_DATA_FILE_NAMES.has(entry.name) || entry.name.endsWith('.tmp')) {
+        fail(`发布输入包含运行时数据文件: ${entryPath}`);
+      }
+      if (entry.isDirectory()) pending.push(entryPath);
+    }
+  }
+}
+
 function writeInstallerScript() {
   const installerDir = path.dirname(installerPath);
   fs.mkdirSync(installerDir, { recursive: true });
@@ -52,6 +82,8 @@ AppVersion={#AppVersion}
 AppPublisher=多媒体笔记工作台
 DefaultDirName={localappdata}\\Programs\\多媒体笔记工作台
 DefaultGroupName=多媒体笔记工作台
+SetupIconFile=../app/dist/client/app-icon.ico
+UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
 PrivilegesRequired=lowest
 OutputDir=.
 OutputBaseFilename=多媒体笔记工作台-{#AppVersion}-Setup
@@ -65,8 +97,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Source: "${sourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autodesktop}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"
-Name: "{group}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"
+Name: "{autodesktop}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
+Name: "{group}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
 [UninstallRun]
 Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; Flags: runhidden
@@ -119,8 +151,20 @@ for (const required of [
     fail(`缺少发布目录 ${required}。请先运行 npm run package:windows:build。`);
   }
 }
+for (const publishInput of [
+  path.join(rootDir, 'dist', 'server'),
+  path.join(rootDir, 'dist', 'client'),
+  path.join(rootDir, 'dist', 'shared'),
+]) {
+  assertPublishInputIsClean(publishInput);
+}
 
-fs.rmSync(outputRoot, { recursive: true, force: true });
+fs.rmSync(outputRoot, {
+  recursive: true,
+  force: true,
+  maxRetries: 10,
+  retryDelay: 500,
+});
 fs.mkdirSync(appStage, { recursive: true });
 copy(path.join(rootDir, 'dist', 'server'), path.join(appStage, 'dist', 'server'));
 copy(path.join(rootDir, 'dist', 'client'), path.join(appStage, 'dist', 'client'));
@@ -136,7 +180,9 @@ for (const fileName of [
   'launcher-process.js',
   'launcher-status.js',
   'local-runtime-config.js',
+  'migrate-local-runtime.js',
   'run-hidden.vbs',
+  'runtime-paths.js',
   'static-client.js',
   'stop.js',
 ]) {
@@ -147,7 +193,14 @@ const manifest = {
   generatedAt: new Date().toISOString(),
   runtime: 'embedded-node',
   browserMode: 'default-browser',
-  dataDirectory: '%LOCALAPPDATA%\\MediaNotesWorkbench',
+  dataDirectory: '%LOCALAPPDATA%\\MediaNotesWorkbench\\data',
+  runtimeDirectories: {
+    cache: '%LOCALAPPDATA%\\MediaNotesWorkbench\\cache',
+    config: '%LOCALAPPDATA%\\MediaNotesWorkbench\\config',
+    data: '%LOCALAPPDATA%\\MediaNotesWorkbench\\data',
+    logs: '%LOCALAPPDATA%\\MediaNotesWorkbench\\logs',
+    state: '%LOCALAPPDATA%\\MediaNotesWorkbench\\runtime',
+  },
   files: {
     serverEntry: 'dist/server/main.js',
     clientDirectory: 'dist/client',
