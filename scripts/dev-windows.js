@@ -67,7 +67,13 @@ try {
     : path.join(fallbackRoot, 'pids');
   runtimePaths = applyRuntimePathEnvironment(process.env, { cwd: rootDir });
 }
-require('dotenv').config({ path: path.join(runtimePaths.configDir, '.env.local') });
+// 外部运行配置是持久化配置的最终来源。重新解析一次路径，确保外部配置
+// 中的显式目录覆盖与日志/PID/服务进程使用同一套路径。
+require('dotenv').config({
+  path: path.join(runtimePaths.configDir, '.env.local'),
+  override: true,
+});
+runtimePaths = applyRuntimePathEnvironment(process.env, { cwd: rootDir });
 
 const logDir = path.resolve(
   runtimePaths.logDir,
