@@ -62,7 +62,14 @@ function stopByConfiguredPorts() {
       rootDir,
       spawnSync,
     });
-    if (inspection.ownership === 'stale') continue;
+    if (inspection.ownership !== 'owned') {
+      if (inspection.ownership === 'unknown') {
+        console.warn(
+          `[stop] 无法确认端口 ${ports.join('/')} 的进程 ${pid} 属于本项目，已跳过，避免误停止其他程序。`,
+        );
+      }
+      continue;
+    }
     const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
       encoding: 'utf8',
       windowsHide: true,

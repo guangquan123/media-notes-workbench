@@ -13,7 +13,9 @@ const outputRoot = path.resolve(
   valueAfter('--output') || path.join(rootDir, 'release', 'windows', version),
 );
 const runtimeNode = path.resolve(
-  valueAfter('--node-runtime') || process.execPath,
+  valueAfter('--node-runtime') ||
+    process.env.WORKBENCH_NODE_RUNTIME ||
+    process.execPath,
 );
 const compileInstaller = args.includes('--compile');
 const appStage = path.join(outputRoot, 'app');
@@ -73,10 +75,19 @@ Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" 
 }
 
 function compile() {
-  const compiler = process.env.INNO_SETUP_COMPILER ||
-    'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe';
-  if (!fs.existsSync(compiler)) {
-    fail(`未找到 Inno Setup 编译器: ${compiler}。已生成 .iss，可安装 Inno Setup 后使用 --compile。`);
+  const compilerCandidates = [
+    process.env.INNO_SETUP_COMPILER,
+    'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe',
+    'C:\\Program Files\\Inno Setup 6\\ISCC.exe',
+  ].filter(Boolean);
+  const compiler = compilerCandidates.find((candidate) =>
+    fs.existsSync(candidate),
+  );
+  if (!compiler || !fs.existsSync(compiler)) {
+    fail(
+      `未找到 Inno Setup 编译器。已生成 .iss，请安装 Inno Setup 6，` +
+        '或设置 INNO_SETUP_COMPILER 指向 ISCC.exe 后重试 --compile。',
+    );
   }
   const result = spawnSync(compiler, [installerPath], {
     cwd: path.dirname(installerPath),
@@ -90,6 +101,7 @@ if (!fs.existsSync(runtimeNode)) fail(`找不到 Node 运行时: ${runtimeNode}`
 for (const required of [
   path.join(rootDir, 'dist', 'server'),
   path.join(rootDir, 'dist', 'client'),
+  path.join(rootDir, 'dist', 'shared'),
   path.join(rootDir, 'dist', 'node_modules'),
 ]) {
   if (!fs.existsSync(required)) {

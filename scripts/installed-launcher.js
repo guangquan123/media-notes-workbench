@@ -101,7 +101,15 @@ async function main() {
   });
   child.unref();
 
-  const ready = await waitForReady();
+  const childFailure = new Promise((resolve) => {
+    child.once('error', (error) => resolve({ error }));
+  });
+  const readyOrFailure = await Promise.race([
+    waitForReady().then((ready) => ({ ready })),
+    childFailure,
+  ]);
+  if (readyOrFailure.error) throw readyOrFailure.error;
+  const ready = readyOrFailure.ready;
   if (!ready) {
     throw new Error(`工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`);
   }

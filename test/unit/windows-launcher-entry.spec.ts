@@ -134,6 +134,8 @@ describe('Windows launcher entry', () => {
     expect(stop).toContain('inspectWindowsLauncherProcess');
     expect(stop).toContain("inspection.ownership === 'stale'");
     expect(stop).toContain("inspection.ownership === 'unknown'");
+    expect(stop).toContain("inspection.ownership !== 'owned'");
+    expect(stop).toContain('避免误停止其他程序');
     expect(stop).toContain('未停止该进程');
     expect(launch).toContain("child.once('error'");
   });
