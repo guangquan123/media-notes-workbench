@@ -22,6 +22,7 @@ import {
 } from 'node:fs/promises';
 import { availableParallelism, homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { getLocalDataDir } from '../../common/utils/local-runtime-paths';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -294,7 +295,7 @@ export class NoteJobsService implements OnModuleInit {
   private readonly cancelledJobs = new Set<string>();
   private readonly jobContext = new AsyncLocalStorage<string>();
   private readonly whisperModelPath = join(
-    process.cwd(),
+    getLocalDataDir(),
     'models',
     'ggml-base-q5_1.bin',
   );

@@ -5,8 +5,11 @@ const { spawnSync } = require('node:child_process');
 const dotenv = require('dotenv');
 const { inspectWindowsLauncherProcess } = require('./launcher-process.js');
 
-const rootDir = process.cwd();
-const pidPath = path.resolve(rootDir, 'pids/dev-local.pid');
+const rootDir = path.resolve(process.env.WORKBENCH_APP_ROOT || process.cwd());
+const stateDir = path.resolve(
+  process.env.WORKBENCH_STATE_DIR || path.join(rootDir, 'pids'),
+);
+const pidPath = path.join(stateDir, 'dev-local.pid');
 const envConfig = [
   path.join(rootDir, '.env'),
   path.join(rootDir, '.env.local'),
@@ -47,7 +50,10 @@ function findListeningPids(ports) {
 }
 
 function stopByConfiguredPorts() {
-  const ports = [readPort('SERVER_PORT', 3000), readPort('CLIENT_DEV_PORT', 8081)];
+  const ports = [
+    Number.parseInt(process.env.SERVER_PORT || '', 10) || readPort('SERVER_PORT', 3000),
+    Number.parseInt(process.env.CLIENT_DEV_PORT || '', 10) || readPort('CLIENT_DEV_PORT', 8081),
+  ];
   const pids = findListeningPids(ports).filter((pid) => pid !== process.pid);
   if (pids.length === 0) return false;
   let stopped = false;

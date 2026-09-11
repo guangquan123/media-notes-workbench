@@ -7,7 +7,9 @@ const net = require('node:net');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 
-const rootDir = path.resolve(__dirname, '..');
+const rootDir = path.resolve(
+  process.env.WORKBENCH_APP_ROOT || path.resolve(__dirname, '..'),
+);
 const skipBuild = process.argv.includes('--skip-build');
 // Windows 上 Vite 的 CommonJS 依赖预处理依赖 esbuild 子进程；当系统策略
 // 拒绝创建该子进程时，关闭预处理会让 react/dayjs 以错误的 ESM 形式返回。
@@ -16,8 +18,12 @@ const useStaticClient =
   process.platform === 'win32' && !process.argv.includes('--vite-client');
 process.chdir(rootDir);
 
-const logDir = path.resolve(rootDir, process.env.LOG_DIR || 'logs');
-const pidDir = path.resolve(rootDir, 'pids');
+const logDir = path.resolve(
+  process.env.LOG_DIR || path.join(rootDir, 'logs'),
+);
+const pidDir = path.resolve(
+  process.env.WORKBENCH_STATE_DIR || path.join(rootDir, 'pids'),
+);
 const pidPath = path.join(pidDir, 'dev-local.pid');
 const launcherOperationTokenPath = path.join(
   pidDir,
@@ -929,10 +935,16 @@ async function main() {
       : `[dev-windows] 已验证本地运行配置: ${runtimeConfig.configPath}`,
   );
   startupStage = '检查启动环境';
-  for (const requiredPath of [nestCliPath, viteCliPath]) {
+  const installedRuntime = process.env.WORKBENCH_INSTALLED === '1';
+  const requiredPaths = installedRuntime || skipBuild
+    ? [serverEntryPath, clientOutputPath]
+    : [nestCliPath, viteCliPath];
+  for (const requiredPath of requiredPaths) {
     if (!fs.existsSync(requiredPath)) {
       throw new Error(
-        `缺少依赖文件: ${requiredPath}。请先运行 npm.cmd install。`,
+        installedRuntime || skipBuild
+          ? `缺少已构建的发布文件: ${requiredPath}。请重新安装或联系支持人员。`
+          : `缺少依赖文件: ${requiredPath}。请先运行 npm.cmd install。`,
       );
     }
   }
@@ -967,7 +979,7 @@ async function main() {
 
   writeLine(`[dev-windows] PID: ${process.pid}`);
   writeLine(`[dev-windows] 日志: ${logPath}`);
-  if (skipBuild) {
+  if (skipBuild || installedRuntime) {
     if (!fs.existsSync(serverEntryPath)) {
       throw new Error(`缺少已构建的后端入口: ${serverEntryPath}`);
     }
@@ -977,7 +989,7 @@ async function main() {
     await ensureServerBuild();
   }
 
-  if (useStaticClient && !skipBuild) {
+  if (useStaticClient && !skipBuild && !installedRuntime) {
     startupStage = '前端构建失败';
     await ensureClientBuild();
   }

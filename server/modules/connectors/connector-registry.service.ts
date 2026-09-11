@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
   ConnectorSettingsResponse,
   ConnectorTestResponse,
@@ -307,7 +308,7 @@ export class ConnectorRegistryService {
   private async migrateLegacyNotificationSecret(
     config: StoredConnectorConfig,
   ): Promise<StoredConnectorConfig> {
-    const legacyPath = join(process.cwd(), '.task-notification-config.json');
+    const legacyPath = getLocalConfigPath('.task-notification-config.json');
     let legacyItems: LegacyNotificationItem[] = [];
     try {
       const raw: unknown = JSON.parse(await readFile(legacyPath, 'utf8'));

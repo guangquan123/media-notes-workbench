@@ -13,24 +13,35 @@ const host = process.env.CLIENT_DEV_HOST || '127.0.0.1';
 const port = Number(process.env.CLIENT_DEV_PORT || 8081);
 const serverHost = process.env.SERVER_HOST || '127.0.0.1';
 const serverPort = Number(process.env.SERVER_PORT || 3001);
+const configuredBasePath = process.env.CLIENT_BASE_PATH;
 const basePath =
-  `${process.env.CLIENT_BASE_PATH || '/app/app_179bn4jet6k'}`.replace(
+  `${configuredBasePath !== undefined ? configuredBasePath : '/app/app_179bn4jet6k'}`.replace(
     /\/+$/,
     '',
   ) || '/';
 const indexFile = path.join(clientRoot, 'static-fallback-index.html');
 const backendTarget = new URL(`http://${serverHost}:${serverPort}`);
-const localDevUtils = require(
-  path.join(
-    rootDir,
-    'node_modules',
-    '@lark-apaas',
-    'fullstack-vite-preset',
-    'lib',
-    'utils',
-    'local-dev.js',
-  ),
-);
+let localDevUtils;
+try {
+  localDevUtils = require(
+    path.join(
+      rootDir,
+      'node_modules',
+      '@lark-apaas',
+      'fullstack-vite-preset',
+      'lib',
+      'utils',
+      'local-dev.js',
+    ),
+  );
+} catch {
+  // 客户安装包只运行本地服务，不需要妙搭开发环境的沙箱认证工具。
+  localDevUtils = {
+    composeSandboxOutboundAuth: () => ({ cookie: '', csrfToken: '' }),
+    parseSudaWebUserEnv: () => null,
+    resolveSandboxOrigin: () => '',
+  };
+}
 const sandboxOrigin = localDevUtils.resolveSandboxOrigin();
 const runtimeTarget = sandboxOrigin ? new URL(sandboxOrigin) : null;
 const instanceToken = process.env.STATIC_CLIENT_INSTANCE_TOKEN || '';

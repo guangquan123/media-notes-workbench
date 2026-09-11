@@ -41,6 +41,10 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NoteHistoryService } from './note-history.service';
 import {
+  getLocalConfigDir,
+  getLocalDataDir,
+} from '../../common/utils/local-runtime-paths';
+import {
   DEFAULT_MEDIA_CLEANUP_CONFIG,
   getMediaCleanupRunKey,
   getNextMediaCleanupRunAt,
@@ -92,15 +96,16 @@ export class MediaCleanupService implements OnModuleInit, OnModuleDestroy {
     private readonly noteHistoryService: NoteHistoryService,
     @Optional() baseDir?: string,
   ) {
-    this.baseDir = baseDir || process.cwd();
+    const usesDefaultPaths = !baseDir;
+    this.baseDir = baseDir || getLocalConfigDir();
     this.configPath = join(this.baseDir, '.media-cleanup-config.json');
     this.historyPath = join(this.baseDir, '.media-cleanup-history.json');
-    this.uploadDir = join(this.baseDir, 'data', 'uploads');
-    this.quarantineDir = join(
-      this.baseDir,
-      'data',
-      '.media-cleanup-quarantine',
-    );
+    this.uploadDir = usesDefaultPaths
+      ? join(getLocalDataDir(), 'uploads')
+      : join(this.baseDir, 'data', 'uploads');
+    this.quarantineDir = usesDefaultPaths
+      ? join(getLocalDataDir(), '.media-cleanup-quarantine')
+      : join(this.baseDir, 'data', '.media-cleanup-quarantine');
   }
 
   onModuleInit(): void {

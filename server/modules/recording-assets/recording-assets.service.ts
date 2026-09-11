@@ -37,6 +37,10 @@ import { existsSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import {
+  getLocalConfigDir,
+  getLocalDataDir,
+} from '../../common/utils/local-runtime-paths';
 
 interface StoredAsset extends RecordingAsset {
   ownerId: string;
@@ -49,7 +53,7 @@ interface StoredSettings extends RecordingStorageSettings {
   ownerId: string;
 }
 
-const DEFAULT_ARCHIVE_PATH = join(process.cwd(), 'data', 'recordings');
+const DEFAULT_ARCHIVE_PATH = join(getLocalDataDir(), 'recordings');
 
 interface CommandResult {
   stderr: string;
@@ -81,15 +85,20 @@ export class RecordingAssetsService {
     @Optional() baseDir?: string,
     @Optional() backgroundEnabled = true,
   ) {
-    const resolvedBaseDir = baseDir || process.cwd();
+    const usesDefaultPaths = !baseDir;
+    const resolvedBaseDir = baseDir || getLocalConfigDir();
     this.backgroundEnabled = backgroundEnabled;
     this.manifestPath = join(resolvedBaseDir, '.recording-assets.json');
     this.settingsPath = join(
       resolvedBaseDir,
       '.recording-storage-settings.json',
     );
-    this.uploadsPath = join(resolvedBaseDir, 'data', 'uploads');
-    this.playablePath = join(resolvedBaseDir, 'data', 'recording-playable');
+    this.uploadsPath = usesDefaultPaths
+      ? join(getLocalDataDir(), 'uploads')
+      : join(resolvedBaseDir, 'data', 'uploads');
+    this.playablePath = usesDefaultPaths
+      ? join(getLocalDataDir(), 'recording-playable')
+      : join(resolvedBaseDir, 'data', 'recording-playable');
   }
 
   async list(

@@ -1,20 +1,19 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { getLocalConfigPath, getLocalStateDir } from '../../common/utils/local-runtime-paths';
 import type { RuntimeStatus } from '@shared/api.interface';
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, type RuntimeConfig, type RuntimeMode } from './runtime.config';
 
 @Injectable()
 export class RuntimeRegistryService {
-  private readonly configPath = join(process.cwd(), '.runtime-config.json');
+  private readonly configPath = getLocalConfigPath('.runtime-config.json');
   private readonly launcherOperationTokenPath = join(
-    process.cwd(),
-    'pids',
+    getLocalStateDir(),
     'launcher-operation.token',
   );
   private readonly launcherUiReadyTokenPath = join(
-    process.cwd(),
-    'pids',
+    getLocalStateDir(),
     'launcher-ui-ready.token',
   );
   private current: RuntimeConfig | undefined;

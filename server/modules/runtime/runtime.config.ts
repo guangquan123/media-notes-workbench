@@ -34,11 +34,11 @@ export function normalizeRuntimeConfig(input: unknown): RuntimeConfig {
 }
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 
 export function isLocalRuntime(): boolean {
   try {
-    return normalizeRuntimeConfig(JSON.parse(readFileSync(join(process.cwd(), '.runtime-config.json'), 'utf8'))).mode === 'local';
+    return normalizeRuntimeConfig(JSON.parse(readFileSync(getLocalConfigPath('.runtime-config.json'), 'utf8'))).mode === 'local';
   } catch {
     return false;
   }

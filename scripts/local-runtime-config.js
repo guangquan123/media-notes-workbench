@@ -44,15 +44,27 @@ function readExistingLocalRuntimeConfig(configPath) {
   return config;
 }
 
-function ensureLocalRuntimeConfig(rootDir) {
-  const configPath = path.join(rootDir, '.runtime-config.json');
+function ensureLocalRuntimeConfig(rootDir, options = {}) {
+  const configDir = options.configDir || process.env.WORKBENCH_CONFIG_DIR || rootDir;
+  fs.mkdirSync(configDir, { recursive: true });
+  const configPath = path.join(configDir, '.runtime-config.json');
 
   if (fs.existsSync(configPath)) {
     readExistingLocalRuntimeConfig(configPath);
     return { configPath, created: false };
   }
 
-  const content = `${JSON.stringify(DEFAULT_LOCAL_RUNTIME_CONFIG, null, 2)}\n`;
+  const dataDir = path.resolve(
+    process.env.WORKBENCH_DATA_DIR || path.join(rootDir, 'data'),
+  );
+  const runtimeConfig = options.configDir || process.env.WORKBENCH_CONFIG_DIR
+    ? {
+        ...DEFAULT_LOCAL_RUNTIME_CONFIG,
+        database: { kind: 'sqlite', file: path.join(dataDir, 'workbench.sqlite') },
+        storage: { kind: 'local', root: path.join(dataDir, 'storage') },
+      }
+    : DEFAULT_LOCAL_RUNTIME_CONFIG;
+  const content = `${JSON.stringify(runtimeConfig, null, 2)}\n`;
   try {
     fs.writeFileSync(configPath, content, {
       encoding: 'utf8',

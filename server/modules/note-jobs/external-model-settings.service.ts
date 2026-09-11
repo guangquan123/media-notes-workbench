@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
   ExternalModelConnectionStatus,
   ExternalModelQuotaStatus,
@@ -38,10 +38,7 @@ const DEFAULT_MODEL = 'deepseek-chat';
 
 @Injectable()
 export class ExternalModelSettingsService {
-  private readonly configPath = join(
-    process.cwd(),
-    '.external-model-config.json',
-  );
+  private readonly configPath = getLocalConfigPath('.external-model-config.json');
   private current: ExternalModelCredentials | undefined;
 
   constructor(

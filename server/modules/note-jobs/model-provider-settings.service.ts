@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
   AiModelCapability,
   AiModelSettings,
@@ -62,7 +62,7 @@ export class ModelProviderSettingsService {
   private current: StoredModelProviderConfig | undefined;
 
   constructor(@Optional() configPath?: string) {
-    this.configPath = configPath || join(process.cwd(), CONFIG_FILE_NAME);
+    this.configPath = configPath || getLocalConfigPath(CONFIG_FILE_NAME);
   }
 
   async getPublicSettings(): Promise<AiModelSettings> {
@@ -327,7 +327,7 @@ export class ModelProviderSettingsService {
   private async loadLegacyConfig(): Promise<StoredModelProviderConfig> {
     try {
       const raw: string = await readFile(
-        join(process.cwd(), LEGACY_CONFIG_FILE_NAME),
+        getLocalConfigPath(LEGACY_CONFIG_FILE_NAME),
         'utf8',
       );
       const parsed = JSON.parse(raw) as {

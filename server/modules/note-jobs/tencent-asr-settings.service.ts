@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import COS from 'cos-nodejs-sdk-v5';
 import * as TencentCloud from 'tencentcloud-sdk-nodejs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
   TencentAsrQuotaStatus,
   TencentAsrSettings,
@@ -32,7 +32,7 @@ const DEFAULT_ASR_REGION = 'ap-guangzhou';
 @Injectable()
 export class TencentAsrSettingsService {
   private readonly logger = new Logger(TencentAsrSettingsService.name);
-  private readonly configPath = join(process.cwd(), '.tencent-asr-config.json');
+  private readonly configPath = getLocalConfigPath('.tencent-asr-config.json');
   private current: TencentAsrCredentials | undefined;
 
   async getPublicSettings(): Promise<TencentAsrSettings> {

@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig } from './runtime.config';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class LocalUserContextMiddleware implements NestMiddleware {
   constructor() {
     let config = DEFAULT_RUNTIME_CONFIG;
     try {
-      config = normalizeRuntimeConfig(JSON.parse(readFileSync(join(process.cwd(), '.runtime-config.json'), 'utf8')));
+      config = normalizeRuntimeConfig(JSON.parse(readFileSync(getLocalConfigPath('.runtime-config.json'), 'utf8')));
     } catch {
       // keep defaults
     }

@@ -13,13 +13,14 @@ import { diskStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { getLocalDataDir } from '../../common/utils/local-runtime-paths';
 import type { Request, Response } from 'express';
 import {
   resolveByteRange,
   type ByteRange,
 } from './local-uploads.utils';
 
-const uploadsDir = join(process.cwd(), 'data', 'uploads');
+const uploadsDir = join(getLocalDataDir(), 'uploads');
 
 interface MulterFile {
   filename: string;
