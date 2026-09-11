@@ -221,7 +221,7 @@
     "memory:sync": "ts-node --project tsconfig.node.json scripts/sync-codex-memory-profile.ts",
     "postinstall": "node scripts/init-action-plugins.js",
     "precommit": "node scripts/hooks/run-precommit.js",
-    "prepare": "chmod +x .githooks/pre-commit 2>/dev/null; git config core.hooksPath .githooks 2>/dev/null || true",
+    "prepare": "node scripts/prepare.js",
     "start": "cross-env NODE_ENV=production node main.js",
     "stop": "node ./scripts/stop.js",
     "start:windows": "node ./scripts/launch-windows.js",
