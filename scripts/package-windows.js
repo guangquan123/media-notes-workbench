@@ -75,10 +75,12 @@ Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" 
 }
 
 function compile() {
+  const localAppData = process.env.LOCALAPPDATA;
   const compilerCandidates = [
     process.env.INNO_SETUP_COMPILER,
     'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe',
     'C:\\Program Files\\Inno Setup 6\\ISCC.exe',
+    localAppData && path.join(localAppData, 'Programs', 'Inno Setup 6', 'ISCC.exe'),
   ].filter(Boolean);
   const compiler = compilerCandidates.find((candidate) =>
     fs.existsSync(candidate),
@@ -89,12 +91,21 @@ function compile() {
         '或设置 INNO_SETUP_COMPILER 指向 ISCC.exe 后重试 --compile。',
     );
   }
-  const result = spawnSync(compiler, [installerPath], {
+  const result = spawnSync(compiler, ['/Qp', installerPath], {
     cwd: path.dirname(installerPath),
     stdio: 'inherit',
     windowsHide: true,
   });
   if (result.status !== 0) fail(`Inno Setup 编译失败，退出码: ${result.status}`);
+  const setupPath = path.join(
+    path.dirname(installerPath),
+    `多媒体笔记工作台-${version}-Setup.exe`,
+  );
+  if (!fs.existsSync(setupPath)) {
+    fail(`Inno Setup 未生成预期安装包: ${setupPath}`);
+  }
+  const sizeMiB = (fs.statSync(setupPath).size / 1024 / 1024).toFixed(1);
+  process.stdout.write(`[package-windows] Setup.exe 已生成: ${setupPath} (${sizeMiB} MiB)\n`);
 }
 
 if (!fs.existsSync(runtimeNode)) fail(`找不到 Node 运行时: ${runtimeNode}`);

@@ -28,6 +28,17 @@ const BUILTIN_MODULES = new Set([
   'string_decoder', 'timers', 'tls', 'url', 'util', 'v8', 'vm', 'zlib',
   'async_hooks', 'perf_hooks', 'worker_threads', 'inspector', 'trace_events'
 ]);
+const RUNTIME_IGNORED_DIRECTORIES = new Set([
+  '.git',
+  '.github',
+  '.vscode',
+  '__tests__',
+  'coverage',
+  'example',
+  'examples',
+  'test',
+  'tests',
+]);
 
 /**
  * 从完整路径中提取 npm 包名（优化版）
@@ -60,10 +71,17 @@ function removeDir(dir) {
   }
 }
 
+function shouldSkipRuntimeFile(entry) {
+  if (entry.isDirectory()) {
+    return RUNTIME_IGNORED_DIRECTORIES.has(entry.name);
+  }
+  return entry.name.endsWith('.map');
+}
+
 /**
  * 递归复制目录（优化版：优先使用硬链接）
  */
-function copyDir(src, dest, stats = { hardLinks: 0, copies: 0 }) {
+function copyDir(src, dest, stats = { hardLinks: 0, copies: 0, skipped: 0 }) {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
   }
@@ -71,6 +89,10 @@ function copyDir(src, dest, stats = { hardLinks: 0, copies: 0 }) {
   const entries = fs.readdirSync(src, { withFileTypes: true });
 
   for (const entry of entries) {
+    if (shouldSkipRuntimeFile(entry)) {
+      stats.skipped++;
+      continue;
+    }
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
@@ -97,7 +119,7 @@ function copyDir(src, dest, stats = { hardLinks: 0, copies: 0 }) {
  */
 function copyPackagesSelectively(packages, rootNodeModules, outNodeModules) {
   const copiedCount = { success: 0, failed: 0 };
-  const fileStats = { hardLinks: 0, copies: 0 };
+  const fileStats = { hardLinks: 0, copies: 0, skipped: 0 };
 
   // 确保输出目录存在
   if (fs.existsSync(outNodeModules)) {
@@ -281,6 +303,7 @@ async function smartPrune() {
   console.log(`   ✅ 复制完成，耗时: ${copyElapsed}ms`);
   console.log(`   成功: ${copiedCount.success} 个包，失败: ${copiedCount.failed} 个`);
   console.log(`   硬链接: ${fileStats.hardLinks} 个文件，复制: ${fileStats.copies} 个文件\n`);
+  console.log(`   跳过开发文件/目录: ${fileStats.skipped} 项\n`);
 
   // 7. 生成精简版 package.json
   // 优化：直接构建 dependencies，避免多次对象展开
@@ -320,6 +343,7 @@ async function smartPrune() {
   console.log(`  失败:           ${copiedCount.failed} 个包`);
   console.log(`  硬链接文件:     ${fileStats.hardLinks} 个`);
   console.log(`  复制文件:       ${fileStats.copies} 个`);
+  console.log(`  跳过开发项:     ${fileStats.skipped} 个`);
   console.log(`  分析耗时:       ${analyzeElapsed}ms`);
   console.log(`  复制耗时:       ${copyElapsed}ms`);
   console.log(`  总耗时:         ${totalElapsed}ms`);

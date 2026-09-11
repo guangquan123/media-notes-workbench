@@ -36,6 +36,8 @@ release/windows/<版本>/installer/多媒体笔记工作台-<版本>-Setup.exe
 
 `package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。
 
+Windows 打包会先清理上一次生成的 `dist/client`、`dist/server`、source map、精简依赖和 TypeScript 增量缓存，避免历史哈希资源重复进入安装包。依赖裁剪同时跳过 source map、测试和示例目录，保留运行所需的 JavaScript、JSON 和原生模块。
+
 ### 关于 `@vercel/nft` 提示
 
 项目已将 `@vercel/nft` 固定为开发依赖。正常执行 `npm.cmd install` 后，裁剪脚本会使用 NFT 精确追踪服务端依赖；它只参与构建，不会被复制到客户安装包。
