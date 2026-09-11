@@ -101,6 +101,7 @@
     "@types/node": "^22.18.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@vercel/nft": "^1.11.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "~2.0.1",
@@ -225,8 +226,8 @@
     "stop": "node ./scripts/stop.js",
     "start:windows": "node ./scripts/launch-windows.js",
     "package:windows": "node ./scripts/package-windows.js",
-    "package:windows:build": "npm run build:server && npm run build:client:installed && node scripts/prune-smart.js && node scripts/package-windows.js",
-    "package:windows:compile": "npm run build:server && npm run build:client:installed && node scripts/prune-smart.js && node scripts/package-windows.js --compile",
+    "package:windows:build": "npm run build:server && npm run build:client:installed && node scripts/init-action-plugins.js && node scripts/prune-smart.js && node scripts/package-windows.js",
+    "package:windows:compile": "npm run build:server && npm run build:client:installed && node scripts/init-action-plugins.js && node scripts/prune-smart.js && node scripts/package-windows.js --compile",
     "stop:windows": "node ./scripts/stop.js",
     "restart:windows": "node ./scripts/restart-windows.js",
     "stylelint": "stylelint client/src/**/*.css --quiet",
@@ -239,5 +240,8 @@
     "type:check:server": "tsc --noEmit --project tsconfig.node.json",
     "upgrade": "npx -y @lark-apaas/fullstack-cli@latest sync --disable-gen-openapi"
   },
-  "version": "2.2.5"
+  "version": "2.2.5",
+  "allowScripts": {
+    "esbuild@0.27.7": true
+  }
 }

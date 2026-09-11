@@ -36,6 +36,14 @@ release/windows/<版本>/installer/多媒体笔记工作台-<版本>-Setup.exe
 
 `package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。
 
+### 关于 `@vercel/nft` 提示
+
+项目已将 `@vercel/nft` 固定为开发依赖。正常执行 `npm.cmd install` 后，裁剪脚本会使用 NFT 精确追踪服务端依赖；它只参与构建，不会被复制到客户安装包。
+
+如果构建机因离线、缓存或权限问题没有安装 NFT，脚本会显示“按 package.json 生产依赖进行保守裁剪”，并继续构建。这不是失败，但发布目录可能更大。遇到该提示时，先执行 `npm.cmd install`；若仍无法安装，确认 `node_modules/@vercel/nft` 是否存在，或在可联网的构建机上重新安装依赖。
+
+Windows 构建机如果 npm 阻止 `esbuild` 安装脚本，Vite 会出现 `spawn EPERM`。项目已允许 `esbuild` 安装脚本；可执行 `npm.cmd install-scripts approve esbuild` 后再运行打包命令。
+
 ## 只生成发布目录或指定工具路径
 
 不编译 Setup.exe 时：
