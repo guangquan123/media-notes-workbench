@@ -26,10 +26,11 @@ import {
 } from './document-image-download.service';
 import { MediaCleanupController } from './media-cleanup.controller';
 import { MediaCleanupService } from './media-cleanup.service';
+import { RecordingAssetsModule } from '../recording-assets/recording-assets.module';
 
 @Module({
   controllers: [NoteJobsController, MediaCleanupController],
-  imports: [ConnectorModule, TaskNotificationModule],
+  imports: [ConnectorModule, RecordingAssetsModule, TaskNotificationModule],
   providers: [
     NoteHistoryService,
     NoteJobsService,

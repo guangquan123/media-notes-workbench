@@ -19,7 +19,7 @@
 
 ### Full view
 
-The previous side-by-side comparison established the wide two-column structure. The v5 capture validates the additional density pass: the full preparation surface ends at 639px, the document height is exactly 720px, and no vertical scrollbar is present in the 1280 × 720 viewport. The action bar and privacy copy remain visible without changing the information architecture.
+The previous side-by-side comparison established the wide two-column structure. The v6 capture validates the additional density pass: the full preparation surface ends well within the 720px viewport, and no vertical scrollbar is present in the 1280 × 720 viewport. The action bar remains visible while the redundant bottom privacy copy is removed.
 
 ### Focused regions
 
@@ -63,8 +63,11 @@ passed
 
 - Source screenshots: `C:/Users/15208/AppData/Local/Temp/codex-clipboard-1fe7fdc2-e045-4f2b-b5c2-0da729f5a4d5.png` and `C:/Users/15208/AppData/Local/Temp/codex-clipboard-1dde175b-1942-4abd-a232-8e96d756d19e.png`.
 - Accepted prepare screenshot: `v6-prepare.png` at 1280 × 720.
+- Latest stepper screenshot: `v7-prepare-stepper.png` at 1280 × 720.
 - Accepted microphone listening screenshot: `v6-mic-listening.png` at 1280 × 720.
 - Accepted recording screenshot: `v6-recording.png` at 1280 × 720.
 - The v6 pass compresses the top bar and step rail, adds a bordered configuration card with distinct title/style controls, and gives the microphone panel a clear primary action and live meter.
+- The follow-up pass hides the preparation-page introduction and both bottom privacy notices; the step rail adds subtle state grouping for current and completed steps without increasing its height.
+- The v7 pass replaces the large tinted step blocks with lightweight circular nodes and Chevron connectors; current and completed colors remain the only emphasis.
 - Interaction evidence: `connecting` shows the loading state, `listening` shows 9 active meter bars and a persistent `重新检测` action, `success` enables `开始录音`, and recording shows a continuously animated 40-bar waveform.
 - Layout evidence: 1280 × 720 has `scrollHeight === 720` with no horizontal overflow; 390px mobile layout collapses to one column with no horizontal overflow.

@@ -7,6 +7,25 @@ export interface BackendResponse<T = unknown> {
   [key: string]: unknown;
 }
 
+interface LocalRuntimeWindow extends Window {
+  __BASENAME__?: string;
+}
+
+function normalizeBasePath(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().replace(/\/+$/, '');
+  return normalized && normalized !== '/' ? normalized : undefined;
+}
+
+function resolveConfiguredBasePath(): string | undefined {
+  const windowBasePath =
+    typeof window !== 'undefined'
+      ? (window as LocalRuntimeWindow).__BASENAME__
+      : undefined;
+  return normalizeBasePath(windowBasePath) ??
+    normalizeBasePath(process.env.CLIENT_BASE_PATH);
+}
+
 export function resolveLocalBackendBasePath(
   pathname: string,
 ): string | undefined {
@@ -20,12 +39,16 @@ export function resolveLocalBackendRequestPath(
   const normalizedRequestPath = requestPath.startsWith('/')
     ? requestPath
     : `/${requestPath}`;
-  return `${resolveLocalBackendBasePath(pathname) ?? ''}${normalizedRequestPath}`;
+  const basePath =
+    resolveLocalBackendBasePath(pathname) ?? resolveConfiguredBasePath() ?? '';
+  return `${basePath}${normalizedRequestPath}`;
 }
 
 // 本地模式：直连同源 API；部署在 /app/app_xxx 下时保留应用前缀。
 export function axiosForBackend<T = unknown>(config: AxiosRequestConfig): Promise<BackendResponse<T>> {
-  const baseURL = resolveLocalBackendBasePath(window.location.pathname);
+  const baseURL =
+    resolveLocalBackendBasePath(window.location.pathname) ??
+    resolveConfiguredBasePath();
   return axios({
     ...(baseURL ? { baseURL } : {}),
     withCredentials: true,

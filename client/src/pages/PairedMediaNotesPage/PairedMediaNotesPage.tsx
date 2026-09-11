@@ -236,7 +236,7 @@ export default function PairedMediaNotesPage() {
   const connectorLabel: string = getConnectorLabel(readiness?.connectorType);
   const displayMessage: string | undefined =
     readiness?.connectorType === 'dingtalk'
-      ? job?.message?.replaceAll('飞书', connectorLabel)
+      ? job?.message?.replace(/飞书/gu, connectorLabel)
       : job?.message;
   const processStages = getPairedProcessStages(connectorLabel).filter(
     ([stage]) =>

@@ -375,6 +375,16 @@
       return value;
     } catch (e) { return null; }
   }
+  function readLauncherProgress() {
+    if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(root, "pids\\launcher-progress.json"), 1, false, 0);
+      var value = window.JSON.parse(file.ReadAll());
+      file.Close();
+      if (!value || value.operationToken !== operationToken) return null;
+      return value;
+    } catch (e) { return null; }
+  }
   function formatLauncherFailure(failure) {
     var sections = [];
     if (failure.message) sections.push(String(failure.message));
@@ -387,13 +397,33 @@
   function quote(value) { return '"' + String(value).replace(/"/g, '""') + '"'; }
   function openWorkbench() { if (shell) { try { var separator = workbenchUrl().indexOf("?") >= 0 ? "&" : "?"; var target = workbenchUrl() + separator + "launcherReadyToken=" + encodeURIComponent(operationToken); browserOpenedAt = new Date().getTime(); shell.Run("explorer.exe " + quote(target), 1, false); } catch (e) {} } }
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
-  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; shell.Run("node.exe " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
+  function resolveNodeExecutable() {
+    if (!shell) return "";
+    try {
+      var probe = shell.Exec("where.exe node.exe");
+      var output = probe.StdOut.ReadAll();
+      var lines = String(output || "").split(/\r?\n/);
+      for (var i = 0; i < lines.length; i += 1) {
+        var candidate = lines[i].replace(/^\s+|\s+$/g, "");
+        if (candidate && fso.FileExists(candidate)) return candidate;
+      }
+    } catch (e) {}
+    return "node.exe";
+  }
+  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; var node = resolveNodeExecutable(); shell.Run(quote(node) + " " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
   function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); var completeTitle = action === "stop" ? "服务已停止" : action === "restart" ? "重启完成" : "服务检查完成"; setText("stage", completeTitle); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); setVisualState("success"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "✓"; document.getElementById("operation").className = "operation is-success"; document.getElementById("progressBar").className = "progress-bar is-success"; document.getElementById("footerMessage").className = "elapsed is-success"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
   function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function poll() {
     if (finished || failed) return;
     var startupFailure = readLauncherFailure();
     if (startupFailure) { setFailure(startupFailure.stage || "启动失败", formatLauncherFailure(startupFailure)); return; }
+    var progress = readLauncherProgress();
+    if (progress && progress.message) {
+      setText("detail", String(progress.message));
+      setText("statusCopy", String(progress.message));
+      setText("cardNextStep", String(progress.message));
+      setText("nextStep", String(progress.message));
+    }
     var now = new Date().getTime(); var elapsed = now - startedAt;
     var backend = backendUp(); var frontend = frontendReady(); var api = backendRouteReachable(); var servicesReady = restartReadyTokenMatches() && api; var uiReady = launcherUiReadyTokenMatches(); var pid = launcherActive(); var currentPid = readPid(); updateDiagnostics(backend && api && servicesReady, frontend && servicesReady, pid);
     if (action === "stop") {

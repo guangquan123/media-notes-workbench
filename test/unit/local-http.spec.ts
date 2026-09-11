@@ -28,4 +28,17 @@ describe('local HTTP request path', () => {
       expected,
     );
   });
+
+  it('uses the configured app base path when the page is opened at root', () => {
+    const originalBasePath = process.env.CLIENT_BASE_PATH;
+    process.env.CLIENT_BASE_PATH = '/app/app_configured';
+    try {
+      expect(
+        resolveLocalBackendRequestPath('/', '/api/runtime'),
+      ).toBe('/app/app_configured/api/runtime');
+    } finally {
+      if (originalBasePath === undefined) delete process.env.CLIENT_BASE_PATH;
+      else process.env.CLIENT_BASE_PATH = originalBasePath;
+    }
+  });
 });

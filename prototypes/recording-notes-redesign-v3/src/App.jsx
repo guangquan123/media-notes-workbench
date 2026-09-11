@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowUpRight, BookOpenText, Check, CheckCheck, ChevronDown,
-  ChevronUp, Circle, FilePenLine, Info, LoaderCircle, LockKeyhole, Mic,
+  ChevronRight, ChevronUp, Circle, FilePenLine, Info, LoaderCircle, LockKeyhole, Mic,
   Mic2, Pause, Play, RotateCcw, RotateCw, Save, ShieldCheck, SlidersHorizontal,
   Sparkles, Square, TriangleAlert, UsersRound, Volume2,
 } from 'lucide-react';
@@ -13,8 +13,8 @@ const NOTE_STYLES = [
 
 const initialAdvanced = { audio: '原声保真（推荐）', language: '自动识别（推荐）', hotwords: '' };
 
-const ICONS = { ArrowLeft, ArrowUpRight, BookOpenText, Check, CheckCheck, ChevronDown, ChevronUp, Circle, FilePenLine, Info, LoaderCircle, LockKeyhole, Mic, Mic2, Pause, Play, RotateCcw, RotateCw, Save, ShieldCheck, SlidersHorizontal, Sparkles, Square, TriangleAlert, UsersRound, Volume2 };
-const ICON_ALIASES = { 'arrow-left': 'ArrowLeft', 'arrow-up-right': 'ArrowUpRight', 'book-open-text': 'BookOpenText', check: 'Check', 'check-check': 'CheckCheck', 'chevron-down': 'ChevronDown', 'chevron-up': 'ChevronUp', circle: 'Circle', 'file-pen-line': 'FilePenLine', info: 'Info', 'loader-circle': 'LoaderCircle', 'lock-keyhole': 'LockKeyhole', mic: 'Mic', 'mic-2': 'Mic2', pause: 'Pause', play: 'Play', 'rotate-ccw': 'RotateCcw', 'rotate-cw': 'RotateCw', save: 'Save', 'shield-check': 'ShieldCheck', 'sliders-horizontal': 'SlidersHorizontal', sparkles: 'Sparkles', square: 'Square', 'triangle-alert': 'TriangleAlert', 'users-round': 'UsersRound', 'volume-2': 'Volume2' };
+const ICONS = { ArrowLeft, ArrowUpRight, BookOpenText, Check, CheckCheck, ChevronDown, ChevronRight, ChevronUp, Circle, FilePenLine, Info, LoaderCircle, LockKeyhole, Mic, Mic2, Pause, Play, RotateCcw, RotateCw, Save, ShieldCheck, SlidersHorizontal, Sparkles, Square, TriangleAlert, UsersRound, Volume2 };
+const ICON_ALIASES = { 'arrow-left': 'ArrowLeft', 'arrow-up-right': 'ArrowUpRight', 'book-open-text': 'BookOpenText', check: 'Check', 'check-check': 'CheckCheck', 'chevron-down': 'ChevronDown', 'chevron-right': 'ChevronRight', 'chevron-up': 'ChevronUp', circle: 'Circle', 'file-pen-line': 'FilePenLine', info: 'Info', 'loader-circle': 'LoaderCircle', 'lock-keyhole': 'LockKeyhole', mic: 'Mic', 'mic-2': 'Mic2', pause: 'Pause', play: 'Play', 'rotate-ccw': 'RotateCcw', 'rotate-cw': 'RotateCw', save: 'Save', 'shield-check': 'ShieldCheck', 'sliders-horizontal': 'SlidersHorizontal', sparkles: 'Sparkles', square: 'Square', 'triangle-alert': 'TriangleAlert', 'users-round': 'UsersRound', 'volume-2': 'Volume2' };
 function Icon({ name, size = 18 }) {
   const Component = ICONS[ICON_ALIASES[name]] || Circle;
   return <Component aria-hidden="true" size={size} strokeWidth={2} />;
@@ -23,7 +23,7 @@ function Icon({ name, size = 18 }) {
 function StepRail({ phase }) {
   const step = phase === 'prepare' ? 0 : phase === 'review' ? 2 : 1;
   const steps = ['准备', '录音', '确认'];
-  return <div className="step-rail" aria-label={`当前步骤：${steps[step]}`}>{steps.map((label, index) => <div className="step-item" key={label}><div className={`step-node ${index < step ? 'is-done' : ''} ${index === step ? 'is-current' : ''}`}>{index < step ? <Icon name="check" size={16} /> : index + 1}</div><span className={index === step ? 'is-current' : ''}>{label}</span>{index < steps.length - 1 && <span className={`step-line ${index < step ? 'is-done' : ''}`} aria-hidden="true" />}</div>)}</div>;
+  return <div className="step-rail" aria-label={`当前步骤：${steps[step]}`}>{steps.map((label, index) => <Fragment key={label}><div className={`step-item ${index < step ? 'is-done' : ''} ${index === step ? 'is-current' : ''}`}><div className={`step-node ${index < step ? 'is-done' : ''} ${index === step ? 'is-current' : ''}`}>{index < step ? <Icon name="check" size={16} /> : index + 1}</div><span className={index === step ? 'is-current' : ''}>{label}</span></div>{index < steps.length - 1 && <span className={`step-arrow ${index < step ? 'is-done' : ''}`} aria-hidden="true"><Icon name="chevron-right" size={19} /></span>}</Fragment>)}</div>;
 }
 
 function MicStatus({ micState, onRetry }) {
@@ -42,15 +42,6 @@ function MicStatus({ micState, onRetry }) {
 function Preparation({ title, setTitle, noteStyle, setNoteStyle, advancedOpen, setAdvancedOpen, advanced, setAdvanced, micState, startMicTest, startRecording }) {
   const canStart = micState === 'success';
   return <>
-    <div className="intro-block">
-      <div>
-        <p className="section-kicker">录音笔记</p>
-        <h1>开始一段新录音</h1>
-        <p className="intro-copy">设置标题，先确认麦克风，再开始录音。</p>
-      </div>
-      <div className="intro-icon"><Icon name="mic-2" size={24} /></div>
-    </div>
-
     <div className="prepare-columns">
       <section className="prepare-config" aria-labelledby="record-config-title">
         <div className="section-heading">
@@ -100,7 +91,6 @@ function Preparation({ title, setTitle, noteStyle, setNoteStyle, advancedOpen, s
         <button className="button button--primary button--wide" type="button" disabled={!canStart} onClick={startRecording}><Icon name="mic" size={19} /> 开始录音</button>
         {!canStart && <span className="action-hint">{micState === 'idle' ? '完成右侧麦克风检测后才能开始' : micState === 'connecting' ? '正在连接设备…' : micState === 'listening' || micState === 'timeout' ? '请先说话，确认有声音输入' : '请重新检测麦克风'}</span>}
       </div>
-      <p className="privacy-note"><Icon name="shield-check" size={16} /> 录音前不会采集声音；完成后可先试听，再决定是否转为笔记。</p>
     </div>
   </>;
 }
@@ -128,5 +118,5 @@ export function App() {
   const [phase, setPhase] = useState('prepare'); const [title, setTitle] = useState('录音笔记 2026-08-31 22-02'); const [noteStyle, setNoteStyle] = useState('meeting'); const [micState, setMicState] = useState('idle'); const [advancedOpen, setAdvancedOpen] = useState(false); const [advanced, setAdvanced] = useState(initialAdvanced); const [elapsed, setElapsed] = useState(0); const [paused, setPaused] = useState(false); const [playing, setPlaying] = useState(false); const [progress, setProgress] = useState(12); const timers = useRef([]);
   useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
   const clearTimers = () => { timers.current.forEach((timer) => window.clearTimeout(timer)); timers.current = []; }; const startMicTest = () => { clearTimers(); setMicState('connecting'); timers.current.push(window.setTimeout(() => setMicState('listening'), 900)); timers.current.push(window.setTimeout(() => setMicState('success'), 3000)); }; const startRecording = () => { clearTimers(); setElapsed(0); setPaused(false); setPhase('recording'); }; const finishRecording = () => { clearTimers(); setPaused(false); setPhase('review'); }; const convert = () => { setProgress(12); setPhase('processing'); }; const reset = () => { clearTimers(); setPhase('prepare'); setMicState('idle'); setElapsed(0); setPaused(false); setPlaying(false); setProgress(12); };
-  return <main className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark"><Icon name="mic-2" size={20} /></span><span><strong>实时录音笔记</strong><small>录音、试听、转录、整理</small></span></div><button className="button button--ghost" type="button" onClick={reset}><Icon name="arrow-left" size={16} /> 返回入口</button></header><section className="workspace"><div className="surface"><StepRail phase={phase} />{phase === 'prepare' && <Preparation title={title} setTitle={setTitle} noteStyle={noteStyle} setNoteStyle={setNoteStyle} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} advanced={advanced} setAdvanced={setAdvanced} micState={micState} startMicTest={startMicTest} startRecording={startRecording} />}{phase === 'recording' && <Recording title={title} elapsed={elapsed} setElapsed={setElapsed} paused={paused} setPaused={setPaused} finishRecording={finishRecording} />}{phase === 'review' && <Review title={title} elapsed={elapsed} playing={playing} setPlaying={setPlaying} convert={convert} />}{phase === 'processing' && <Processing progress={progress} setProgress={setProgress} reset={reset} />}</div></section><footer className="footer-note"><Icon name="lock-keyhole" size={15} /> 录音前不会采集声音，完成后再决定是否转为笔记</footer></main>;
+  return <main className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark"><Icon name="mic-2" size={20} /></span><span><strong>实时录音笔记</strong><small>录音、试听、转录、整理</small></span></div><button className="button button--ghost" type="button" onClick={reset}><Icon name="arrow-left" size={16} /> 返回入口</button></header><section className="workspace"><div className="surface"><StepRail phase={phase} />{phase === 'prepare' && <Preparation title={title} setTitle={setTitle} noteStyle={noteStyle} setNoteStyle={setNoteStyle} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} advanced={advanced} setAdvanced={setAdvanced} micState={micState} startMicTest={startMicTest} startRecording={startRecording} />}{phase === 'recording' && <Recording title={title} elapsed={elapsed} setElapsed={setElapsed} paused={paused} setPaused={setPaused} finishRecording={finishRecording} />}{phase === 'review' && <Review title={title} elapsed={elapsed} playing={playing} setPlaying={setPlaying} convert={convert} />}{phase === 'processing' && <Processing progress={progress} setProgress={setProgress} reset={reset} />}</div></section></main>;
 }

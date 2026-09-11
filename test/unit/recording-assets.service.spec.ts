@@ -47,6 +47,31 @@ describe('RecordingAssetsService', () => {
     expect(restored.items[0].title).toBe('周会录音');
   });
 
+  it('links a conversion job and updates the recording only when the job finishes', async () => {
+    const service = new RecordingAssetsService(baseDir, false);
+    const input = createInput('upload-1');
+    input.capturedAt = '2026-09-04T06:18:00.000Z';
+    const created = await service.create('owner-1', input);
+
+    await service.linkJobForMedia('owner-1', 'job-1', [created.item.media]);
+    let item = (await service.get('owner-1', created.item.id)).item;
+    expect(item.processingStatus).toBe('processing');
+    expect(item.linkedJobIds).toEqual(['job-1']);
+    expect(item.title).toBe('周会录音');
+
+    expect(
+      await service.getLinkedJobTitle('owner-1', 'job-1', '产品周会'),
+    ).toBe('2026-09-04 · 产品周会');
+    expect((await service.get('owner-1', created.item.id)).item.title).toBe(
+      '周会录音',
+    );
+    await service.updateLinkedJobTitle('owner-1', 'job-1', '产品周会');
+    await service.updateLinkedJobStatus('owner-1', 'job-1', 'processed');
+    item = (await service.get('owner-1', created.item.id)).item;
+    expect(item.title).toBe('2026-09-04 · 产品周会');
+    expect(item.processingStatus).toBe('processed');
+  });
+
   it('queues M4A generation before archive while preserving the source file', async () => {
     await writeFile(join(baseDir, 'data', 'uploads', 'upload-1'), 'audio');
     const service = new RecordingAssetsService(baseDir, false);

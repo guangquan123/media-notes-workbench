@@ -19,6 +19,49 @@ export function normalizeAudioMimeType(mimeType: string): string {
   return normalized === 'audio/x-m4a' ? 'audio/mp4' : normalized;
 }
 
+export function getRecordingFormatLabel(mimeType: string): string {
+  const normalized: string = normalizeAudioMimeType(mimeType);
+  const codec: string =
+    mimeType.match(/codecs=([^;]+)/iu)?.[1]?.trim().toLowerCase() || '';
+  if (normalized === 'audio/webm') {
+    return codec.includes('opus') ? 'WebM（Opus 编码）' : 'WebM 音频';
+  }
+  if (normalized === 'audio/ogg') {
+    return codec.includes('opus') ? 'Ogg（Opus 编码）' : 'Ogg 音频';
+  }
+  if (normalized === 'audio/mp4') {
+    return codec.includes('mp4a') ? 'M4A（AAC 编码）' : 'M4A 音频';
+  }
+  if (normalized === 'audio/mpeg') return 'MP3 音频';
+  if (normalized === 'audio/wav') return 'WAV 音频';
+  if (normalized === 'audio/aac') return 'AAC 音频';
+  if (normalized === 'audio/flac') return 'FLAC 音频';
+  return '音频文件';
+}
+
+export function buildRecordingMeetingTitle(
+  capturedAt: string,
+  topic: string,
+): string {
+  const date: Date = new Date(capturedAt);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(Number.isNaN(date.getTime()) ? new Date() : date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  const dateLabel: string = `${values.year}-${values.month}-${values.day}`;
+  const normalizedTopic: string = topic
+    .replace(/^\s*#+\s*/u, '')
+    .replace(/^\s*\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\s*[·•-]?\s*/u, '')
+    .trim()
+    .slice(0, 120);
+  return `${dateLabel} · ${normalizedTopic || '会议纪要'}`;
+}
+
 export function archiveExtension(mimeType: string): string {
   return MIME_EXTENSIONS[normalizeAudioMimeType(mimeType)] || 'bin';
 }

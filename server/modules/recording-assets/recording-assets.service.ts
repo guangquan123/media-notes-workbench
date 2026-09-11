@@ -13,10 +13,13 @@ import type {
   RecordingAssetDetailResponse,
   RecordingAssetListResponse,
   RecordingStorageSettings,
+  RecordingAssetProcessingStatus,
+  UploadedMediaInput,
   UpdateRecordingAssetRequest,
   UpdateRecordingStorageSettingsRequest,
 } from '@shared/api.interface';
 import {
+  buildRecordingMeetingTitle,
   buildRecordingArchiveFileName,
   filterRecordingAssets,
   sortRecordingAssets,
@@ -74,7 +77,10 @@ export class RecordingAssetsService {
   private readonly backgroundEnabled: boolean;
   private readonly activePlayableTasks = new Set<string>();
 
-  constructor(@Optional() baseDir?: string, backgroundEnabled = true) {
+  constructor(
+    @Optional() baseDir?: string,
+    @Optional() backgroundEnabled = true,
+  ) {
     const resolvedBaseDir = baseDir || process.cwd();
     this.backgroundEnabled = backgroundEnabled;
     this.manifestPath = join(resolvedBaseDir, '.recording-assets.json');
@@ -163,6 +169,80 @@ export class RecordingAssetsService {
     item.updatedAt = new Date().toISOString();
     await this.saveAssets(assets);
     return { item: this.toPublic(item) };
+  }
+
+  async linkJobForMedia(
+    ownerId: string,
+    jobId: string,
+    mediaItems: readonly UploadedMediaInput[],
+  ): Promise<void> {
+    const assets: StoredAsset[] = await this.loadAssets();
+    const item: StoredAsset | undefined = assets.find(
+      (candidate: StoredAsset): boolean =>
+        candidate.ownerId === ownerId &&
+        mediaItems.some((media: UploadedMediaInput): boolean =>
+          this.matchesMedia(candidate.media, media),
+        ),
+    );
+    if (!item) return;
+    item.linkedJobIds = [...new Set([...item.linkedJobIds, jobId])];
+    item.processingStatus = 'processing';
+    item.updatedAt = new Date().toISOString();
+    await this.saveAssets(assets);
+  }
+
+  async updateLinkedJobStatus(
+    ownerId: string,
+    jobId: string,
+    status: RecordingAssetProcessingStatus,
+  ): Promise<void> {
+    const assets: StoredAsset[] = await this.loadAssets();
+    const linked: StoredAsset[] = assets.filter(
+      (item: StoredAsset): boolean =>
+        item.ownerId === ownerId && item.linkedJobIds.includes(jobId),
+    );
+    if (linked.length === 0) return;
+    linked.forEach((item: StoredAsset): void => {
+      item.processingStatus = status;
+      item.updatedAt = new Date().toISOString();
+    });
+    await this.saveAssets(assets);
+  }
+
+  async getLinkedJobTitle(
+    ownerId: string,
+    jobId: string,
+    topic: string,
+  ): Promise<string | undefined> {
+    const assets: StoredAsset[] = await this.loadAssets();
+    const linked: StoredAsset[] = assets.filter(
+      (item: StoredAsset): boolean =>
+        item.ownerId === ownerId && item.linkedJobIds.includes(jobId),
+    );
+    if (linked.length === 0) return undefined;
+    const title: string = buildRecordingMeetingTitle(
+      linked[0].capturedAt,
+      topic,
+    );
+    return title;
+  }
+
+  async updateLinkedJobTitle(
+    ownerId: string,
+    jobId: string,
+    topic: string,
+  ): Promise<void> {
+    const assets: StoredAsset[] = await this.loadAssets();
+    const linked: StoredAsset[] = assets.filter(
+      (item: StoredAsset): boolean =>
+        item.ownerId === ownerId && item.linkedJobIds.includes(jobId),
+    );
+    if (linked.length === 0) return;
+    linked.forEach((item: StoredAsset): void => {
+      item.title = buildRecordingMeetingTitle(item.capturedAt, topic);
+      item.updatedAt = new Date().toISOString();
+    });
+    await this.saveAssets(assets);
   }
 
   async archive(
@@ -298,6 +378,18 @@ export class RecordingAssetsService {
     );
     if (!item) throw new NotFoundException('录音记录不存在');
     return item;
+  }
+
+  private matchesMedia(
+    assetMedia: UploadedMediaInput,
+    sourceMedia: UploadedMediaInput,
+  ): boolean {
+    const assetStorageId: string | undefined = assetMedia.storage?.id;
+    const sourceStorageId: string | undefined = sourceMedia.storage?.id;
+    if (assetStorageId && sourceStorageId) {
+      return assetStorageId === sourceStorageId;
+    }
+    return assetMedia.downloadUrl === sourceMedia.downloadUrl;
   }
 
   private extractUploadId(url: string): string | null {

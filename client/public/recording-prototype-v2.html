@@ -281,6 +281,35 @@
         .track-wave { grid-column: 1 / -1; grid-row: 2; }
         .track-level { grid-column: 2; grid-row: 1; }
       }
+      /* v2: progressive disclosure keeps the primary task calm. */
+      .setup-grid { grid-template-columns: minmax(0, 1fr); max-width: 780px; margin: 0 auto; }
+      .source-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .source-card { min-height: 78px; padding: 11px; }
+      .advanced-settings { padding: 0; overflow: hidden; }
+      .advanced-settings > summary { list-style: none; cursor: pointer; padding: 17px; }
+      .advanced-settings > summary::-webkit-details-marker { display: none; }
+      .advanced-settings > summary::after { content: '展开'; float: right; color: var(--blue); font-size: 12px; font-weight: 800; }
+      .advanced-settings[open] > summary::after { content: '收起'; }
+      .advanced-settings[open] > summary { border-bottom: 1px solid #e7edf4; }
+      .advanced-settings > .field, .advanced-settings > .config-fields, .advanced-settings > .privacy-note { margin-left: 17px; margin-right: 17px; }
+      .advanced-settings > .privacy-note { margin-bottom: 17px; }
+      .setup-grid > .module:first-child { background: white; }
+      .setup-grid > .module:first-child .module-header { border-bottom: 0; padding-bottom: 2px; }
+      .setup-actions { max-width: 780px; margin-left: auto; margin-right: auto; }
+      .setup-actions p { max-width: 520px; }
+      .track-details { margin-top: 12px; border-top: 1px solid #e7edf4; }
+      .track-details > summary { cursor: pointer; padding-top: 11px; color: #526277; font-size: 12px; font-weight: 800; }
+      .track-details > summary::marker { color: var(--blue); }
+      .recording-view .live-warning { max-width: 660px; }
+      .recording-meta { max-width: 660px; }
+      .track-board { max-width: 660px; }
+      .review-layout { max-width: 820px; margin-left: auto; margin-right: auto; }
+      .review-actions { max-width: 820px; margin-left: auto; margin-right: auto; }
+      @media (max-width: 720px) {
+        .source-list { grid-template-columns: 1fr; }
+        .setup-actions { margin-top: 14px; }
+        .advanced-settings > summary { padding: 14px; }
+      }
     </style>
   </head>
   <body>
@@ -350,8 +379,8 @@
                   </div>
                 </section>
 
-                <section class="module">
-                  <div class="module-header"><div><p>录音设置</p><h2>把这段录音准备好</h2></div><span class="status-pill">1 / 2</span></div>
+                <details class="module advanced-settings">
+                  <summary><strong>更多设置</strong><span style="display:block;color:var(--muted);font-size:11px;margin-top:2px;">标题、音质、笔记类型和自动处理</span></summary>
                   <div class="field title-field"><label for="record-title">录音标题</label><input id="record-title" type="text" value="产品周会 · 2026-09-05" maxlength="80" /></div>
                   <div class="config-fields">
                     <div class="field"><label>录音质量</label><div class="radio-row" role="group"><button class="radio-button selected" type="button">会议清晰</button><button class="radio-button" type="button">高保真</button><button class="radio-button" type="button">省空间</button></div></div>
@@ -360,7 +389,7 @@
                     <div class="switch-row"><div><strong>保存独立轨道</strong><small>麦克风、电脑声音分别保留，试听时可单独验证</small></div><button class="switch on" id="separate-track-switch" type="button" role="switch" aria-checked="true" aria-label="保存独立轨道"></button></div>
                   </div>
                   <p class="privacy-note">▣ 每 5 秒写入本地分片 · 浏览器崩溃最多丢失最近 5 秒 · 未经确认不会上传</p>
-                </section>
+                </details>
               </div>
               <div class="setup-actions"><p id="setup-hint">请选择录音来源并完成对应测试，设备切换后需要重新测试。</p><button class="primary-button" id="start-button" type="button">● 开始录音</button></div>
             </section>
@@ -382,7 +411,7 @@
               <div class="module-header"><div><p>录音完成 · 已保存</p><h2>先试听，再转成笔记</h2></div><span class="status-pill">完整性检查通过</span></div>
               <div class="review-layout" style="margin-top: 17px;">
                 <div>
-                  <div class="audio-card"><div class="audio-toolbar"><button class="play-button" id="play-button" type="button" aria-label="播放混合轨道">▶</button><div><strong id="review-title">产品周会 · 2026-09-05</strong><small id="review-meta">00:00:00 · 麦克风 · 1 个轨道</small></div></div><div class="waveform" id="review-waveform"></div><div class="timeline"><span>00:00:00</span><span id="review-duration">00:00:00</span></div><div class="playback-mode" role="group" aria-label="试听模式"><button class="selected" type="button" data-play-mode="mix">混合播放</button><button type="button" data-play-mode="mic">仅听麦克风</button><button type="button" data-play-mode="system">仅听电脑声音</button></div><div class="track-mix" id="track-mix"></div></div>
+                  <div class="audio-card"><div class="audio-toolbar"><button class="play-button" id="play-button" type="button" aria-label="播放混合轨道">▶</button><div><strong id="review-title">产品周会 · 2026-09-05</strong><small id="review-meta">00:00:00 · 麦克风 · 1 个轨道</small></div></div><div class="waveform" id="review-waveform"></div><div class="timeline"><span>00:00:00</span><span id="review-duration">00:00:00</span></div><div class="playback-mode" role="group" aria-label="试听模式"><button class="selected" type="button" data-play-mode="mix">混合播放</button><button type="button" data-play-mode="mic">仅听麦克风</button><button type="button" data-play-mode="system">仅听电脑声音</button></div><details class="track-details"><summary>调整音轨</summary><div class="track-mix" id="track-mix"></div></details></div>
                   <div class="quality-list" id="review-quality"></div>
                 </div>
                 <div class="review-side"><div class="module"><div class="module-header"><div><p>时间标记</p><h3>重点回看</h3></div><span class="status-pill" id="marker-count-pill">0 个</span></div><div class="marker-list" id="review-markers"></div></div><div class="module"><div class="field"><label for="review-note-type">笔记类型</label><select id="review-note-type"><option>会议纪要</option><option>学习笔记</option><option>访谈摘要</option></select></div><p class="privacy-note">▣ 原始音频保留在录音记录中，可随时删除或导出</p></div></div>

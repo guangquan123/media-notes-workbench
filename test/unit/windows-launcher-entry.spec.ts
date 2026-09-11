@@ -82,7 +82,6 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain("!process.argv.includes('--vite-client')");
     expect(devWindows).toContain('Windows 稳定模式使用静态前端资源');
     expect(devWindows).toContain('isServerBuildCurrent');
-    expect(devWindows).toContain('后端构建产物已是最新，跳过构建');
     expect(devWindows).toContain('[clientIndexPath, fallbackIndex]');
     expect(devWindows).toContain(
       '.sort((left, right) => right.outputMtime - left.outputMtime)',
@@ -156,5 +155,73 @@ describe('Windows launcher entry', () => {
     expect(layout).toContain('/api/runtime/launcher-ready?token=');
     expect(layout).toContain('window.requestAnimationFrame');
     expect(layout).toContain('data-launcher-page-ready="true"');
+  });
+
+  it('keeps the recording asset background flag optional for Nest bootstrap', () => {
+    const service = readFileSync(
+      resolve(root, 'server', 'modules', 'recording-assets', 'recording-assets.service.ts'),
+      'utf8',
+    );
+
+    expect(service).toContain('@Optional() backgroundEnabled = true');
+  });
+
+  it('does not overwrite a structured startup failure during process exit', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain('!fs.existsSync(launcherFailurePath)');
+  });
+
+  it('does not trust directory mtimes for server freshness during launcher startup', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain('构建后端以确保运行产物与源码一致');
+    expect(devWindows).not.toContain("后端构建产物已是最新，跳过构建");
+  });
+
+  it('reuses a valid static client bundle when a Windows helper process is unavailable', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain('已发现可用客户端静态产物，跳过启动时重建');
+    expect(devWindows).toContain('getStaticClientAssetPaths()?.bundlePath');
+  });
+
+  it('publishes a small atomic progress state for the launcher UI', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain("launcher-progress.json");
+    expect(devWindows).toContain('writeLauncherProgress(message)');
+    expect(devWindows).toContain('fs.renameSync(temporaryPath, launcherProgressPath)');
+    expect(launcher).toContain('function readLauncherProgress()');
+    expect(launcher).toContain('readLauncherProgress()');
+  });
+
+  it('keeps build waits bounded and emits a startup heartbeat while work is active', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain('构建超过 ${Math.round(timeoutMs / 1000)} 秒无结果');
+    expect(devWindows).toContain('waitForExit(build, \'后端\')');
+    expect(devWindows).toContain('waitForExit(build, \'客户端\')');
+    expect(devWindows).toContain('progressHeartbeat = setInterval');
+    expect(devWindows).toContain('构建仍在进行，请耐心等待');
   });
 });

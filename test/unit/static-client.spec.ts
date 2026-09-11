@@ -1,8 +1,10 @@
 import { get } from 'node:http';
 
 const {
+  isBackendApiPath,
   resolveBackendProxyPath,
 }: {
+  isBackendApiPath: (pathname: string) => boolean;
   resolveBackendProxyPath: (
     requestUrl: string,
     configuredBasePath?: string,
@@ -10,6 +12,12 @@ const {
 } = require('../../scripts/static-client.js');
 
 describe('static client backend proxy path', () => {
+  it('recognizes root API paths when the app is opened without its mount prefix', () => {
+    expect(isBackendApiPath('/api/runtime')).toBe(true);
+    expect(isBackendApiPath('/api')).toBe(true);
+    expect(isBackendApiPath('/settings')).toBe(false);
+  });
+
   it('removes the application base path before forwarding API requests to the local backend', () => {
     expect(
       resolveBackendProxyPath(

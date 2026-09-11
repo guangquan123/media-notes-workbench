@@ -88,6 +88,10 @@ function resolveBackendProxyPath(requestUrl, configuredBasePath = basePath) {
     : requestUrl;
 }
 
+function isBackendApiPath(pathname) {
+  return pathname === '/api' || pathname.startsWith('/api/');
+}
+
 function buildFallbackIndex() {
   const assetFiles = fs
     .readdirSync(assetRoot)
@@ -223,13 +227,18 @@ function start() {
       proxyRequest(request, response, runtimeTarget, getRuntimeProxyHeaders());
       return;
     }
-    if (requestUrl.pathname.startsWith(`${basePath}/api/`)) {
+    if (
+      isBackendApiPath(requestUrl.pathname) ||
+      requestUrl.pathname.startsWith(`${basePath}/api/`)
+    ) {
       proxyRequest(
         request,
         response,
         backendTarget,
         getBackendProxyHeaders(request),
-        resolveBackendProxyPath(request.url || '/'),
+        isBackendApiPath(requestUrl.pathname)
+          ? request.url || '/'
+          : resolveBackendProxyPath(request.url || '/'),
       );
       return;
     }
@@ -284,6 +293,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isBackendApiPath,
   isPlatformRuntimePath,
   resolveBackendProxyPath,
   resolveStaticRequest,

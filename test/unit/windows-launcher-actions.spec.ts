@@ -68,4 +68,16 @@ describe('Windows launcher action routing', () => {
     expect(launcher).toContain('if (!action) { setFailure("无法识别操作"');
     expect(launcher).not.toContain('var action = "start";');
   });
+
+  it('resolves Node from the Windows PATH before invoking the launcher script', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+
+    expect(launcher).toContain('function resolveNodeExecutable()');
+    expect(launcher).toContain('shell.Exec("where.exe node.exe")');
+    expect(launcher).toContain('fso.FileExists(candidate)');
+    expect(launcher).toContain('shell.Run(quote(node) + " " + quote(');
+  });
 });

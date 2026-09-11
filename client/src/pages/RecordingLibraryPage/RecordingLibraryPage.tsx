@@ -36,6 +36,7 @@ import {
   repairLegacyRecordingArchives,
   updateRecordingStorageSettings,
 } from '@/api';
+import { getRecordingFormatLabel } from '@shared/recording-assets.utils';
 import type {
   RecordingAsset,
   RecordingAssetProcessingStatus,
@@ -86,6 +87,8 @@ export default function RecordingLibraryPage() {
     useState<RecordingStorageSettings>();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
 
   const refresh = async (): Promise<void> => {
     setLoading(true);
@@ -140,6 +143,9 @@ export default function RecordingLibraryPage() {
   const legacyBinCount = assets.filter((item) =>
     Boolean(item.archivePath && /\.bin$/iu.test(item.archivePath)),
   ).length;
+  const pageCount = Math.max(1, Math.ceil(visibleAssets.length / pageSize));
+  const pagedAssets = visibleAssets.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => { setPage(1); }, [keyword, processingFilter, storageFilter]);
 
   const repairLegacyArchives = async (): Promise<void> => {
     setBusy(true);
@@ -276,7 +282,7 @@ export default function RecordingLibraryPage() {
               </Button>
             </div>
           )}
-          <div className="mt-5 grid items-start gap-5 lg:grid-cols-[1.3fr_.7fr]">
+          <div className="mt-5">
             <section className="overflow-hidden rounded-lg border bg-white">
               <div className="flex flex-wrap gap-2 border-b bg-[#fbfcfb] p-3">
                 <div className="relative min-w-48 flex-1">
@@ -327,9 +333,9 @@ export default function RecordingLibraryPage() {
                 </div>
               ) : (
                 <div>
-                  {visibleAssets.map((asset) => (
+                  {pagedAssets.map((asset) => (
                     <button
-                      className={`flex w-full items-center gap-3 border-b px-4 py-4 text-left last:border-b-0 hover:bg-black/[.02] ${asset.id === selected?.id ? 'bg-emerald-50/50' : ''}`}
+                      className={`flex w-full items-center gap-3 border-b px-4 py-2.5 text-left last:border-b-0 hover:bg-black/[.02] ${asset.id === selected?.id ? 'bg-emerald-50/50' : ''}`}
                       key={asset.id}
                       onClick={() => setSelectedId(asset.id)}
                       type="button"
@@ -343,7 +349,8 @@ export default function RecordingLibraryPage() {
                         </strong>
                         <span className="mt-1 block text-xs text-black/45">
                           {formatDate(asset.capturedAt)} ·{' '}
-                          {formatDuration(asset.durationMs)} · {asset.fileName}
+                          {formatDuration(asset.durationMs)} ·{' '}
+                          {getRecordingFormatLabel(asset.mimeType)}
                         </span>
                         <span className="mt-2 flex flex-wrap gap-1.5">
                           <Badge variant="secondary">
@@ -355,7 +362,7 @@ export default function RecordingLibraryPage() {
                         </span>
                       </span>
                       <Play
-                        className="size-4 text-black/35"
+                        className="size-5 fill-blue-600 text-blue-600"
                         onClick={(event) => {
                           event.stopPropagation();
                           navigate(`/recording-library/${asset.id}`);
@@ -365,16 +372,8 @@ export default function RecordingLibraryPage() {
                   ))}
                 </div>
               )}
+              {visibleAssets.length > 0 && <div className="flex items-center justify-between border-t bg-[#fbfcfb] px-4 py-2 text-xs text-black/50"><span>共 {visibleAssets.length} 条 · 第 {page} / {pageCount} 页</span><div className="flex gap-1"><Button disabled={page === 1} onClick={() => setPage((value) => value - 1)} size="sm" variant="outline">上一页</Button><Button disabled={page === pageCount} onClick={() => setPage((value) => value + 1)} size="sm" variant="outline">下一页</Button></div></div>}
             </section>
-            <aside className="flex items-center justify-center rounded-lg border border-dashed bg-white p-6 text-center lg:sticky lg:top-4">
-              <div>
-                <FileAudio className="mx-auto size-8 text-blue-600" />
-                <h2 className="mt-3 font-semibold">选择播放，进入完整播放器</h2>
-                <p className="mt-2 text-sm text-black/45">
-                  播放、转写、下载和归档操作将在独立页面完成。
-                </p>
-              </div>
-            </aside>
           </div>
         </section>
       </div>

@@ -9,7 +9,6 @@ import {
   createNoteJob,
   getNoteJob,
   getReadiness,
-  updateRecordingAsset,
 } from '@/api';
 import {
   deleteUploadedFiles,
@@ -132,7 +131,6 @@ export default function RecordingNotesPage() {
     useState<RecordingAudioAnalysis | null>(null);
   const [recordingAssetMedia, setRecordingAssetMedia] =
     useState<UploadedMediaInput | null>(null);
-  const [recordingAssetId, setRecordingAssetId] = useState<string | null>(null);
   const [integrityCheck, setIntegrityCheck] =
     useState<RecordingIntegrityCheck | null>(null);
   const [integrityChecking, setIntegrityChecking] = useState<boolean>(false);
@@ -218,7 +216,6 @@ export default function RecordingNotesPage() {
           source: getRecordingAssetSource(result.captureMode),
           title,
         });
-        setRecordingAssetId(asset.item.id);
         setRecordingAssetMedia(asset.item.media);
         toast.success('录音已保存到录音记录，请先试听确认');
       }
@@ -470,7 +467,6 @@ export default function RecordingNotesPage() {
     setRecordingBytes(0);
     setChunkCount(0);
     setAudioAnalysis(null);
-    setRecordingAssetId(null);
     setRecordingAssetMedia(null);
     setDurationMs(0);
     handledResultSessionRef.current = null;
@@ -654,12 +650,6 @@ export default function RecordingNotesPage() {
         visualOptions: { mode: 'disabled' },
       });
       setJob(created);
-      if (recordingAssetId) {
-        await updateRecordingAsset(recordingAssetId, {
-          processingStatus: created.stage === 'failed' ? 'failed' : 'processed',
-          linkedJobIds: [created.id],
-        }).catch(() => undefined);
-      }
       if (created.stage === 'failed') {
         const message: string = created.error || '转化失败，录音文件仍然保留';
         setError(message);

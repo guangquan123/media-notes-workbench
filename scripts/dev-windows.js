@@ -26,6 +26,7 @@ const launcherOperationTokenPath = path.join(
 const launcherReadyTokenPath = path.join(pidDir, 'launcher-ready.token');
 const launcherUiReadyTokenPath = path.join(pidDir, 'launcher-ui-ready.token');
 const launcherFailurePath = path.join(pidDir, 'launcher-failure.json');
+const launcherProgressPath = path.join(pidDir, 'launcher-progress.json');
 const logPath = path.join(logDir, 'dev.std.log');
 
 fs.mkdirSync(logDir, { recursive: true });
@@ -262,6 +263,7 @@ let shuttingDown = false;
 let startupStage = '准备启动';
 let startupCompleted = false;
 let backendAlreadyRunning = false;
+let progressHeartbeat = null;
 
 function parsePort(rawValue, fallback, name) {
   const port = Number.parseInt(rawValue || String(fallback), 10);
@@ -275,6 +277,28 @@ function writeLine(message) {
   const line = `${message}\n`;
   process.stdout.write(line);
   if (Number.isInteger(logFd)) fs.writeSync(logFd, line);
+  writeLauncherProgress(message);
+}
+
+function writeLauncherProgress(message) {
+  const operationToken = readLauncherOperationToken();
+  if (!operationToken) return;
+  const temporaryPath = `${launcherProgressPath}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify({
+        operationToken,
+        stage: startupStage,
+        message: String(message).replace(/^\[dev-windows\]\s*/u, ''),
+        timestamp: Date.now(),
+      }),
+      'utf8',
+    );
+    fs.renameSync(temporaryPath, launcherProgressPath);
+  } catch {
+    try { fs.unlinkSync(temporaryPath); } catch { /* best effort */ }
+  }
 }
 
 function writeLauncherReadyToken() {
@@ -293,8 +317,9 @@ function writeLauncherReadyToken() {
 function clearLauncherStartupState() {
   for (const tokenPath of [
     launcherReadyTokenPath,
-    launcherUiReadyTokenPath,
-    launcherFailurePath,
+      launcherUiReadyTokenPath,
+      launcherFailurePath,
+      launcherProgressPath,
   ]) {
     try {
       runFileOperationWithRetry(() => fs.unlinkSync(tokenPath));
@@ -489,10 +514,20 @@ function startNodeProcess(name, args, envOverrides = {}, pipeOutput = true) {
   return child;
 }
 
-function waitForExit(child) {
+function waitForExit(child, name, timeoutMs = 240000) {
   return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('close', (code, signal) => resolve({ code, signal }));
+    const timeout = setTimeout(() => {
+      terminateProcessTree(child);
+      reject(new Error(`${name} 构建超过 ${Math.round(timeoutMs / 1000)} 秒无结果，已终止以避免启动器永久等待`));
+    }, timeoutMs);
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('close', (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
   });
 }
 
@@ -504,7 +539,7 @@ async function runBuild() {
       const build = startNodeProcess('build', [nestCliPath, 'build'], {
         NODE_ENV: 'production',
       });
-      const result = await waitForExit(build);
+      const result = await waitForExit(build, '后端');
       if (result.code !== 0) {
         throw new Error(
           `后端构建失败，退出码: ${result.code ?? result.signal ?? 'unknown'}`,
@@ -550,10 +585,10 @@ function isServerBuildCurrent() {
 }
 
 async function ensureServerBuild() {
-  if (isServerBuildCurrent()) {
-    writeLine('[dev-windows] 后端构建产物已是最新，跳过构建');
-    return;
-  }
+  // A directory-level mtime cannot prove that every compiled module matches
+  // its source (a newer unrelated dist file can hide a stale module). Build
+  // the server on every launcher run so startup never executes stale DI code.
+  writeLine('[dev-windows] 构建后端以确保运行产物与源码一致');
   await runBuild();
 }
 
@@ -624,8 +659,12 @@ function isClientBuildCurrent() {
 }
 
 async function ensureClientBuild() {
-  if (isClientBuildCurrent()) {
-    writeLine('[dev-windows] 客户端静态产物已是最新，跳过构建');
+  // Windows startup must remain usable when Vite/esbuild cannot create a
+  // helper process (spawn EPERM). A complete local bundle is sufficient for
+  // the static fallback; rebuilds can be performed explicitly with
+  // `npm run build:client`.
+  if (getStaticClientAssetPaths()?.bundlePath) {
+    writeLine('[dev-windows] 已发现可用客户端静态产物，跳过启动时重建');
     return;
   }
 
@@ -652,7 +691,7 @@ async function ensureClientBuild() {
         },
         false,
       );
-      const result = await waitForExit(build);
+      const result = await waitForExit(build, '客户端');
       if (result.code !== 0) {
         throw new Error(
           `客户端构建失败，退出码: ${result.code ?? result.signal ?? 'unknown'}`,
@@ -848,6 +887,7 @@ function clearPidFile() {
 function shutdown(exitCode = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (progressHeartbeat) clearInterval(progressHeartbeat);
   staticClientServer?.close();
   for (const child of [...children]) terminateProcessTree(child);
   clearPidFile();
@@ -865,7 +905,14 @@ process.once('SIGINT', () => shutdown(0));
 process.once('SIGTERM', () => shutdown(0));
 process.once('exit', (exitCode) => {
   clearPidFile();
-  if (!startupCompleted && !shuttingDown && exitCode !== 0) {
+  // uncaughtExceptionMonitor/unhandledRejection already writes the precise
+  // failure. Do not overwrite it with a generic exit message.
+  if (
+    !startupCompleted &&
+    !shuttingDown &&
+    exitCode !== 0 &&
+    !fs.existsSync(launcherFailurePath)
+  ) {
     writeLauncherFailure(
       new Error('启动进程意外退出，请查看日志确认具体原因。'),
     );
@@ -1052,6 +1099,11 @@ async function bootstrap() {
     }
   }
   logFd = fs.openSync(logPath, 'a');
+  progressHeartbeat = setInterval(() => {
+    if (!startupCompleted) {
+      writeLauncherProgress(`正在${startupStage}，构建仍在进行，请耐心等待`);
+    }
+  }, 5000);
   await main();
 }
 

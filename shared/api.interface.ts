@@ -131,7 +131,11 @@ export interface UploadedMediaInput {
   storage?: StoredSourceObject;
 }
 
-export type RecordingAssetSource = 'microphone' | 'file_import';
+export type RecordingAssetSource =
+  | 'microphone'
+  | 'system_audio'
+  | 'mixed_audio'
+  | 'file_import';
 export type RecordingAssetStorageStatus =
   | 'app_only'
   | 'pending_archive'

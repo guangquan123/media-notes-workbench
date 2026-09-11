@@ -79,6 +79,8 @@ import {
   buildRawDocumentTitle,
   buildRawTranscriptMarkdown,
 } from './note-document.utils';
+import { buildRecordingMeetingTitle } from '@shared/recording-assets.utils';
+import { RecordingAssetsService } from '../recording-assets/recording-assets.service';
 import {
   type CreateHistoryRecordInput,
   NoteHistoryService,
@@ -321,6 +323,7 @@ export class NoteJobsService implements OnModuleInit {
     private readonly feishuAuthService: FeishuAuthService,
     private readonly dingTalkDocumentService: DingTalkDocumentService,
     private readonly dingTalkTaskService: DingTalkTaskService,
+    private readonly recordingAssetsService: RecordingAssetsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -534,6 +537,13 @@ export class NoteJobsService implements OnModuleInit {
               warnings: [],
             },
     };
+    if (validatedInput.sourceType === 'audio') {
+      await this.recordingAssetsService.linkJobForMedia(
+        ownerId,
+        job.id,
+        validatedInput.mediaItems,
+      );
+    }
     await this.noteHistoryService.create(job, ownerId, historyInput);
     await this.frameReviewService.saveJobState(job.id, {
       job,
@@ -1045,8 +1055,11 @@ export class NoteJobsService implements OnModuleInit {
             context.rawDocumentUrl,
           )
         : documentDraft.markdown;
-      const noteTitle: string =
-        this.extractMarkdownTitle(summaryResult.markdown) || context.title;
+      const noteTitle: string = await this.resolvePublishedNoteTitle(
+        id,
+        ownerId,
+        this.extractMarkdownTitle(summaryResult.markdown) || context.title,
+      );
       await this.persistTitle(id, noteTitle);
       this.update(id, 'publishing', 92, '新版笔记已生成，正在写入连接器文档…');
       const publishResult = await this.createLarkDocument(
@@ -1071,6 +1084,7 @@ export class NoteJobsService implements OnModuleInit {
         documentUrl,
         rawDocumentUrl: context.rawDocumentUrl || undefined,
         status: 'completed',
+        title: noteTitle,
       });
       const todoTitles: readonly string[] = await this.createReviewTask(
         id,
@@ -1509,8 +1523,11 @@ export class NoteJobsService implements OnModuleInit {
             rawDocumentUrl,
           )
         : documentDraft.markdown;
-      const noteTitle =
-        this.extractMarkdownTitle(reviewedMarkdown) || videoTitle;
+      const noteTitle: string = await this.resolvePublishedNoteTitle(
+        id,
+        ownerId,
+        this.extractMarkdownTitle(reviewedMarkdown) || videoTitle,
+      );
       await this.persistTitle(id, noteTitle);
 
       this.update(id, 'publishing', 88, '笔记已生成，正在写入连接器文档…');
@@ -1539,6 +1556,7 @@ export class NoteJobsService implements OnModuleInit {
         status: 'completed',
         rawDocumentUrl,
         documentUrl,
+        title: noteTitle,
       });
       const todoTitles: readonly string[] = await this.createReviewTask(
         id,
@@ -3667,6 +3685,24 @@ export class NoteJobsService implements OnModuleInit {
     return title || undefined;
   }
 
+  private async resolvePublishedNoteTitle(
+    id: string,
+    ownerId: string,
+    topic: string,
+  ): Promise<string> {
+    const job: NoteJob = this.get(id, ownerId);
+    if (job.sourceType !== 'audio') return topic;
+    const linkedRecordingTitle: string | undefined =
+      await this.recordingAssetsService.getLinkedJobTitle(
+        ownerId,
+        id,
+        topic,
+      );
+    return (
+      linkedRecordingTitle || buildRecordingMeetingTitle(job.createdAt, topic)
+    );
+  }
+
   private applyDocumentPublishToVisualSummary(
     summary: VisualPipelineSummary | undefined,
     result: DocumentMediaPublishResult,
@@ -4632,6 +4668,7 @@ export class NoteJobsService implements OnModuleInit {
       documentUrl?: string;
       rawDocumentUrl?: string;
       error?: string;
+      title?: string;
     },
   ): Promise<void> {
     const stored: StoredNoteJob | undefined = this.jobs.get(id);
@@ -4646,6 +4683,20 @@ export class NoteJobsService implements OnModuleInit {
         rawDocumentUrl: result.rawDocumentUrl || stored.job.rawDocumentUrl,
         error: result.error,
       });
+      if (stored.job.sourceType === 'audio') {
+        if (result.status === 'completed' && result.title) {
+          await this.recordingAssetsService.updateLinkedJobTitle(
+            stored.ownerId,
+            id,
+            result.title,
+          );
+        }
+        await this.recordingAssetsService.updateLinkedJobStatus(
+          stored.ownerId,
+          id,
+          result.status === 'completed' ? 'processed' : 'failed',
+        );
+      }
     } catch (error) {
       this.logger.warn(
         `更新任务 ${id} 的历史状态失败: ${

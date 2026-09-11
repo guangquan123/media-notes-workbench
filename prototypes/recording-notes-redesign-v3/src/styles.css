@@ -7,11 +7,18 @@
 .topbar{height:64px;padding:0 28px;background:#f8fafc}
 .workspace{width:min(1520px,calc(100% - 56px));margin:12px auto 0}
 .surface{max-width:1500px;margin:0 auto;padding:18px 28px 22px;border-radius:14px}
-.step-rail{max-width:620px;margin:0 auto 16px;padding:6px 14px;border:1px solid #e3eaf3;border-radius:12px;background:#f8fafc}
-.step-item{grid-template-columns:28px auto;grid-template-rows:28px auto}
-.step-node{width:28px;height:28px;font-size:12px}
-.step-item>span:not(.step-line){margin-top:5px;font-size:12px}
-.step-line{left:28px;top:13px;height:1px}
+.step-rail{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;max-width:700px;margin:0 auto 16px;padding:9px 16px;border:1px solid #e1e8f1;border-radius:14px;background:#fff;box-shadow:0 4px 14px rgba(23,48,82,.05)}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:1px 10px;position:relative}
+.step-item.is-current,.step-item.is-done{background:transparent;box-shadow:none}
+.step-node{width:30px;height:30px;border:1px solid #d9e1eb;background:#f7f9fc;color:#7a8797;font-size:12px}
+.step-node.is-current{border-color:var(--blue);box-shadow:0 0 0 5px rgba(37,99,235,.12)}
+.step-node.is-done{border-color:var(--green);box-shadow:0 0 0 3px rgba(24,169,87,.1)}
+.step-item>span:not(.step-line){margin-top:0;font-size:12px;color:#7a8797}
+.step-item>span.is-current{color:var(--blue);font-weight:800}
+.step-item.is-done>span:not(.step-line){color:#2f8c60;font-weight:700}
+.step-arrow{display:grid;place-items:center;width:28px;height:28px;color:#c7d0dc}
+.step-arrow.is-done{color:var(--green)}
+.step-line{display:none}
 .intro-block{gap:14px;margin-bottom:14px}
 .intro-block h1,.state-header h1{margin-top:4px;font-size:30px;line-height:1.12}
 .intro-copy{margin-top:5px;font-size:13px;line-height:1.45}
@@ -50,7 +57,7 @@
 .meter{height:22px;gap:3px}
 .meter span{width:4px}
 .inline-alert{margin-top:10px;padding:9px 10px;font-size:11px}
-.prepare-footer{display:grid;grid-template-columns:minmax(0,360px) 1fr;align-items:center;gap:18px;margin-top:14px;padding-top:12px;border-top:1px solid #e4ebf3}
+.prepare-footer{display:block;margin-top:14px;padding-top:12px;border-top:1px solid #e4ebf3}
 .action-row{margin-top:0}
 .action-row--primary{grid-template-columns:1fr}
 .button{min-height:40px;border-radius:8px;font-size:13px}

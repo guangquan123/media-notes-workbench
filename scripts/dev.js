@@ -188,7 +188,13 @@ function startProcess({ name, command, args, cleanupPort }) {
         break;
       }
 
-      const delay = Math.min(RESTART_DELAY * (1 << Math.max(0, restartCount - 1)), MAX_DELAY);
+      // Bitwise shifts wrap at 32 bits and eventually produce negative delays.
+      // Exponential backoff is capped before multiplication so long-running
+      // failure loops remain bounded and predictable.
+      const delay = Math.min(
+        RESTART_DELAY * 2 ** Math.max(0, restartCount - 1),
+        MAX_DELAY,
+      );
       logEvent('WARN', name, `Process exited with code ${exitCode}, restarting (${restartCount}/${MAX_RESTART_COUNT}) in ${delay}s...`);
       await sleep(delay * 1000);
     }

@@ -10,6 +10,10 @@ const localRuntime: boolean = process.env.VITE_RUNTIME === 'local';
 const stableMode: boolean = process.env.VITE_STABLE_MODE === 'true';
 const localApiPrefix: string = `${clientBasePath}/api`;
 const localApiTarget: string = `http://${process.env.SERVER_HOST || '127.0.0.1'}:${process.env.SERVER_PORT || '3000'}`;
+const localApiProxy = {
+  target: localApiTarget,
+  changeOrigin: true,
+};
 const localRuntimeAliases = localRuntime
   ? {
       '@lark-apaas/client-toolkit/components/AppContainer': path.resolve(
@@ -83,11 +87,13 @@ export default defineConfig({
     proxy: localRuntime
       ? {
           [localApiPrefix]: {
-            target: localApiTarget,
-            changeOrigin: true,
+            ...localApiProxy,
             rewrite: (requestPath: string) =>
               requestPath.slice(clientBasePath.length),
           },
+          ...(localApiPrefix === '/api'
+            ? {}
+            : { '/api': localApiProxy }),
         }
       : undefined,
   },

@@ -154,4 +154,42 @@ describe('media cleanup history', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('ignores history entries with malformed nested result fields', async () => {
+    const baseDir = await mkdtemp(
+      join(tmpdir(), 'media-cleanup-invalid-history-'),
+    );
+    try {
+      await writeFile(
+        join(baseDir, '.media-cleanup-history.json'),
+        JSON.stringify({
+          items: [
+            {
+              ownerId: 'owner-a',
+              id: 'invalid',
+              source: 'manual',
+              status: 'success',
+              startedAt: '2026-08-31T00:00:00.000Z',
+              finishedAt: '2026-08-31T00:00:01.000Z',
+              durationMs: 1000,
+              dryRun: false,
+              deletedBytes: 1,
+              deletedFiles: 1,
+              deletedItems: [{ objectId: 'x', fileName: 'x', fileSize: '1' }],
+              failed: [],
+              skipped: [],
+            },
+          ],
+        }),
+      );
+      const service = new MediaCleanupService(
+        createDatabase(),
+        createHistoryService(),
+        baseDir,
+      );
+      expect((await service.getHistory('owner-a')).totalItems).toBe(0);
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });

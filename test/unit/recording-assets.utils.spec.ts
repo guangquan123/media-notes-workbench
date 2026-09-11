@@ -1,6 +1,8 @@
 import {
   buildRecordingArchiveFileName,
+  buildRecordingMeetingTitle,
   filterRecordingAssets,
+  getRecordingFormatLabel,
   normalizeAudioMimeType,
   sortRecordingAssets,
 } from '@shared/recording-assets.utils';
@@ -146,6 +148,24 @@ describe('recording-assets.utils', () => {
         'asset1234',
       ),
     ).toBe('2026-09-04_14-18_语音备忘_asset1234.webm');
+  });
+
+  it('turns technical recording MIME types into readable format labels', () => {
+    expect(getRecordingFormatLabel('audio/webm;codecs=opus')).toBe(
+      'WebM（Opus 编码）',
+    );
+    expect(getRecordingFormatLabel('audio/mp4;codecs=mp4a.40.2')).toBe(
+      'M4A（AAC 编码）',
+    );
+  });
+
+  it('uses the recording date and generated meeting topic for the final title', () => {
+    expect(
+      buildRecordingMeetingTitle(
+        '2026-09-04T06:18:00.000Z',
+        '# 产品周会：迭代计划',
+      ),
+    ).toBe('2026-09-04 · 产品周会：迭代计划');
   });
 
   it('falls back to a safe title when the title is blank', () => {
