@@ -26,6 +26,8 @@ npm.cmd install
 npm.cmd run package:windows:compile
 ```
 
+也可以直接双击项目根目录的 `build-windows-installer.cmd`。
+
 输出文件位于：
 
 ```text
