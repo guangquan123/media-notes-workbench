@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="多媒体笔记工作台 Windows 一键交付客户旅程演示" />
+  <title>多媒体笔记工作台｜客户首次使用演示</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f766e'/%3E%3Cpath d='M18 17h28v30H18z' fill='white' opacity='.96'/%3E%3Cpath d='M24 27h16M24 34h16M24 41h10' stroke='%230f766e' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --ink: #13233a;
+      --muted: #63738a;
+      --line: #dce5ee;
+      --surface: #ffffff;
+      --canvas: #f4f8fb;
+      --teal: #0b8278;
+      --teal-deep: #075e58;
+      --teal-pale: #e5f6f2;
+      --blue: #1d5fd1;
+      --blue-pale: #eaf1ff;
+      --success: #15803d;
+      --warning: #b45309;
+      --shadow: 0 18px 50px rgba(30, 56, 82, .11);
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 88% -8%, rgba(31, 165, 151, .15), transparent 26rem),
+        radial-gradient(circle at 0 10%, rgba(48, 104, 214, .1), transparent 22rem),
+        var(--canvas);
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 28px 28px 44px; }
+
+    .topbar { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 24px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(145deg, #0c9186, #075e58); box-shadow: 0 8px 20px rgba(8, 122, 112, .26); }
+    .brand-mark svg { width: 25px; height: 25px; }
+    .brand-name { font-weight: 800; font-size: 17px; letter-spacing: .2px; }
+    .brand-sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .prototype-badge { color: #42607b; border: 1px solid #cdd9e6; background: rgba(255,255,255,.7); padding: 7px 11px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 22px; margin: 4px 0 22px; }
+    h1 { font-size: clamp(24px, 4vw, 36px); letter-spacing: -.8px; margin: 0; line-height: 1.2; }
+    .intro p { max-width: 570px; color: var(--muted); line-height: 1.75; font-size: 15px; margin: 10px 0 0; }
+    .time-chip { background: #fff7e6; border: 1px solid #f1d29a; color: var(--warning); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+    .journey { background: rgba(255,255,255,.84); border: 1px solid rgba(207,221,234,.9); border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px rgba(39, 72, 99, .04); display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .step-tab { min-height: 72px; text-align: left; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: var(--muted); padding: 10px 12px; border-radius: 11px; transition: .18s ease; }
+    .step-tab:hover { background: #f1f6fa; color: var(--ink); }
+    .step-tab.active { background: var(--teal-pale); color: var(--teal-deep); }
+    .step-no { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #e6edf4; color: #66788d; font-size: 12px; font-weight: 800; }
+    .step-tab.active .step-no, .step-tab.done .step-no { background: var(--teal); color: white; }
+    .step-label { font-size: 14px; font-weight: 800; line-height: 1.25; }
+    .step-label small { display: block; color: inherit; opacity: .68; font-size: 11px; font-weight: 500; margin-top: 3px; }
+
+    .stage { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) 286px; gap: 18px; }
+    .panel { min-height: 570px; border-radius: 20px; background: var(--surface); border: 1px solid #dbe6ef; box-shadow: var(--shadow); overflow: hidden; }
+    .stage-main { display: grid; grid-template-rows: auto 1fr auto; }
+    .stage-header { padding: 24px 30px 18px; border-bottom: 1px solid #e6edf3; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; color: var(--teal); font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    h2 { font-size: 22px; margin: 8px 0 0; letter-spacing: -.3px; }
+    .stage-explain { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 590px; }
+    .step-count { color: var(--muted); font-size: 12px; background: #f5f8fa; padding: 7px 9px; border-radius: 8px; white-space: nowrap; }
+    .stage-content { min-height: 368px; padding: 28px 30px; display: grid; place-items: center; background: linear-gradient(180deg, #fff 0%, #fbfdfe 100%); }
+    .stage-footer { padding: 17px 30px; border-top: 1px solid #e6edf3; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .hint { color: var(--muted); font-size: 13px; }
+    .hint b { color: var(--ink); }
+    .button-row { display: flex; align-items: center; gap: 10px; }
+    .btn { border: 1px solid transparent; border-radius: 9px; padding: 10px 15px; font-weight: 800; font-size: 14px; transition: transform .15s, box-shadow .15s, background .15s; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { color: white; background: var(--teal); box-shadow: 0 8px 16px rgba(11, 130, 120, .22); }
+    .btn.primary:hover { background: var(--teal-deep); }
+    .btn.secondary { color: #40536a; background: white; border-color: #ccd9e4; }
+    .btn.secondary:hover { background: #f5f8fb; }
+    .btn:disabled { cursor: not-allowed; opacity: .45; box-shadow: none; }
+
+    .side { padding: 20px; }
+    .side h3 { font-size: 14px; margin: 0 0 16px; }
+    .side-card { border: 1px solid #deebea; background: #f7fcfb; border-radius: 13px; padding: 15px; margin-bottom: 14px; }
+    .side-card b { display: block; font-size: 13px; margin-bottom: 7px; }
+    .side-card p { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 0; }
+    .need-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    .need-list li { display: grid; grid-template-columns: 22px 1fr; gap: 9px; align-items: start; color: #52657a; font-size: 13px; line-height: 1.55; }
+    .need-list i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #e7f6ef; color: var(--success); font-style: normal; font-size: 12px; font-weight: 900; }
+    .support { border-top: 1px solid #e5edf3; padding-top: 16px; margin-top: 18px; color: #58708a; font-size: 12px; line-height: 1.65; }
+
+    .scene { width: min(650px, 100%); }
+    .installer { max-width: 610px; border: 1px solid #c7d5e1; border-radius: 11px; box-shadow: 0 20px 38px rgba(17, 48, 75, .16); overflow: hidden; background: white; }
+    .window-bar { height: 37px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #f4f7f9; border-bottom: 1px solid #dce6ed; color: #34495e; font-size: 12px; }
+    .window-app { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+    .mini-mark { width: 15px; height: 15px; border-radius: 4px; background: var(--teal); }
+    .window-actions { color: #8a99a8; letter-spacing: 7px; font-size: 15px; }
+    .installer-body { display: grid; grid-template-columns: 170px 1fr; min-height: 298px; }
+    .installer-graphic { padding: 24px; background: linear-gradient(155deg, #087c73, #11a496); color: white; display: flex; flex-direction: column; justify-content: space-between; }
+    .installer-graphic svg { width: 58px; }
+    .installer-graphic b { font-size: 15px; line-height: 1.45; }
+    .installer-form { padding: 31px 30px 22px; }
+    .installer-form h4 { font-size: 20px; margin: 0 0 9px; }
+    .installer-form p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0 0 20px; }
+    .install-path { border: 1px solid #d4e0ea; background: #f8fafc; border-radius: 7px; padding: 10px; font-family: Consolas, monospace; color: #52657a; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .installer-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 27px; }
+    .mini-btn { border: 1px solid #c8d6e0; border-radius: 5px; background: white; color: #41576d; padding: 6px 15px; font-size: 12px; }
+    .mini-btn.install { color: white; background: #1665c1; border-color: #1665c1; }
+
+    .desktop { border-radius: 13px; min-height: 330px; padding: 28px; background: linear-gradient(135deg, #1554ae, #377fde 62%, #65a5e2); position: relative; overflow: hidden; }
+    .desktop::after { content: ""; position: absolute; width: 440px; height: 440px; right: -180px; bottom: -300px; border: 52px solid rgba(255,255,255,.12); border-radius: 50%; }
+    .desktop-icon { position: relative; z-index: 1; width: 92px; text-align: center; color: white; font-size: 12px; line-height: 1.5; cursor: pointer; border-radius: 9px; padding: 8px 4px; }
+    .desktop-icon:hover, .desktop-icon.focused { background: rgba(255,255,255,.18); }
+    .desktop-icon svg { width: 48px; height: 48px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.2)); }
+    .launch-note { position: absolute; z-index: 1; bottom: 20px; left: 24px; padding: 10px 13px; background: rgba(4, 35, 83, .4); border: 1px solid rgba(255,255,255,.19); border-radius: 9px; color: rgba(255,255,255,.94); font-size: 12px; }
+    .launch-note strong { color: white; }
+
+    .browser { border-radius: 11px; border: 1px solid #cbd8e3; overflow: hidden; box-shadow: 0 20px 38px rgba(17,48,75,.14); background: white; }
+    .browser-top { background: #f4f7fa; padding: 9px 12px 0; }
+    .browser-tabs { display: flex; gap: 6px; }
+    .browser-tab { background: white; border-radius: 7px 7px 0 0; padding: 7px 16px; min-width: 200px; font-size: 11px; color: #465b70; }
+    .browser-nav { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+    .browser-controls { color: #789; font-size: 16px; letter-spacing: 4px; white-space: nowrap; }
+    .address { flex: 1; border: 1px solid #d9e2ea; background: white; border-radius: 15px; padding: 6px 12px; font-size: 11px; color: #4d647a; }
+    .browser-page { min-height: 260px; display: grid; grid-template-columns: 150px 1fr; }
+    .app-nav { padding: 20px 13px; background: #103d58; color: #d4e6eb; font-size: 12px; }
+    .app-nav b { display: block; color: white; margin: 0 0 25px 4px; font-size: 13px; }
+    .app-nav div { padding: 8px; margin: 3px 0; border-radius: 6px; }
+    .app-nav .selected { color: white; background: rgba(96, 218, 202, .18); }
+    .welcome-page { padding: 28px; background: #fbfdfe; }
+    .welcome-page h4 { font-size: 20px; margin: 0 0 7px; }
+    .welcome-page p { margin: 0; color: var(--muted); font-size: 12px; }
+    .ready-strip { display: flex; align-items: center; gap: 8px; margin-top: 23px; padding: 11px; border-radius: 8px; background: #e9f8ef; color: #207443; font-size: 12px; }
+    .ready-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    .model-card { width: min(590px, 100%); border: 1px solid #d6e3ed; border-radius: 13px; overflow: hidden; background: white; box-shadow: 0 12px 28px rgba(40,74,103,.07); }
+    .model-card-head { padding: 17px 20px; background: #f7fbfd; border-bottom: 1px solid #e2ebf0; display: flex; justify-content: space-between; align-items: center; }
+    .model-card-head b { font-size: 15px; }
+    .local-only { font-size: 11px; font-weight: 700; color: var(--teal); background: var(--teal-pale); padding: 5px 8px; border-radius: 6px; }
+    .form-grid { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field.wide { grid-column: 1 / -1; }
+    label { font-size: 12px; color: #51667b; font-weight: 700; }
+    input, select { width: 100%; border: 1px solid #ccdbe6; border-radius: 7px; background: white; color: #253a4f; padding: 9px 10px; outline: none; font-size: 13px; }
+    input:focus, select:focus { border-color: #20a699; box-shadow: 0 0 0 3px rgba(32,166,153,.13); }
+    .form-foot { padding: 0 20px 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .privacy-note { color: var(--muted); font-size: 11px; line-height: 1.5; max-width: 280px; }
+    .test-result { display: none; margin: 0 20px 18px; padding: 10px 12px; border-radius: 8px; background: #eaf8ef; color: var(--success); font-size: 12px; font-weight: 700; }
+    .test-result.show { display: block; }
+
+    .workspace { border: 1px solid #cfdee9; border-radius: 11px; overflow: hidden; background: white; box-shadow: 0 18px 35px rgba(24,61,91,.12); }
+    .workspace-head { height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #113d58; color: white; }
+    .workspace-head b { font-size: 13px; }
+    .workspace-head span { color: #b8d4de; font-size: 11px; }
+    .workspace-body { display: grid; grid-template-columns: 138px 1fr; min-height: 255px; }
+    .workspace-side { padding: 15px 10px; border-right: 1px solid #e3edf2; background: #f9fbfc; }
+    .workspace-side div { padding: 8px; margin: 2px 0; border-radius: 6px; color: #5b7184; font-size: 12px; }
+    .workspace-side .current { background: var(--teal-pale); color: var(--teal-deep); font-weight: 800; }
+    .workspace-home { padding: 22px; }
+    .workspace-home h4 { margin: 0; font-size: 19px; }
+    .workspace-home p { color: var(--muted); font-size: 12px; margin: 7px 0 15px; }
+    .upload-zone { display: grid; place-items: center; min-height: 94px; border: 1px dashed #8ecfc7; background: #f4fcfa; border-radius: 9px; color: var(--teal); text-align: center; font-size: 12px; }
+    .upload-zone b { display: block; font-size: 13px; margin-bottom: 5px; }
+    .sample-result { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 1px solid #dce8ee; border-radius: 7px; color: #4a6074; font-size: 11px; }
+    .sample-result .ok { color: var(--success); font-weight: 800; }
+
+    .toast { position: fixed; left: 50%; bottom: 24px; z-index: 10; transform: translate(-50%, 24px); opacity: 0; pointer-events: none; color: white; background: #152f47; box-shadow: 0 12px 30px rgba(15,35,55,.24); padding: 11px 15px; border-radius: 9px; font-size: 13px; transition: .25s ease; }
+    .toast.show { transform: translate(-50%, 0); opacity: 1; }
+    .hidden { display: none !important; }
+
+    @media (max-width: 920px) {
+      .stage { grid-template-columns: 1fr; }
+      .side { min-height: auto; }
+      .journey { overflow-x: auto; grid-template-columns: repeat(5, minmax(145px, 1fr)); }
+      .installer-body { grid-template-columns: 135px 1fr; }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 18px 14px 30px; }
+      .topbar, .intro, .stage-header, .stage-footer { align-items: flex-start; flex-direction: column; }
+      .prototype-badge, .time-chip { white-space: normal; }
+      .stage-content, .stage-header, .stage-footer { padding-left: 18px; padding-right: 18px; }
+      .panel { min-height: 590px; }
+      .installer-body, .browser-page, .workspace-body { grid-template-columns: 1fr; }
+      .installer-graphic { min-height: 120px; }
+      .installer-graphic svg { width: 38px; }
+      .app-nav, .workspace-side { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .form-foot { align-items: flex-start; flex-direction: column; }
+      .button-row { width: 100%; justify-content: flex-end; }
+      .stage-main { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none"><path d="M13 7h22v34H13z" fill="white"/><path d="M19 18h10M19 24h10M19 30h6" stroke="#0b8278" stroke-width="3" stroke-linecap="round"/><path d="m31 29 4 4 7-8" stroke="#0b8278" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div><div class="brand-name">多媒体笔记工作台</div><div class="brand-sub">客户首次使用流程演示</div></div>
+      </div>
+      <div class="prototype-badge">交互原型 · 不会连接真实模型</div>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">客户拿到软件包后，会经历什么？</h1>
+        <p>从双击安装包到完成第一份笔记，客户只需要完成一次模型配置。点击下方步骤或“下一步”，以客户视角体验整个过程。</p>
+      </div>
+      <div class="time-chip">预计首次完成：3 分钟</div>
+    </section>
+
+    <nav class="journey" aria-label="客户首次使用步骤" id="journey"></nav>
+
+    <section class="stage">
+      <article class="panel stage-main" aria-live="polite">
+        <div class="stage-header">
+          <div>
+            <div class="eyebrow" id="eyebrow">第 1 步</div>
+            <h2 id="stage-title"></h2>
+            <p class="stage-explain" id="stage-explain"></p>
+          </div>
+          <div class="step-count" id="step-count"></div>
+        </div>
+        <div class="stage-content" id="stage-content"></div>
+        <footer class="stage-footer">
+          <div class="hint" id="stage-hint"></div>
+          <div class="button-row">
+            <button class="btn secondary" id="previous" type="button">上一步</button>
+            <button class="btn primary" id="next" type="button">下一步</button>
+          </div>
+        </footer>
+      </article>
+
+      <aside class="panel side">
+        <h3>客户此刻需要做什么</h3>
+        <div class="side-card">
+          <b id="customer-action-title"></b>
+          <p id="customer-action"></p>
+        </div>
+        <h3>客户不需要处理</h3>
+        <ul class="need-list">
+          <li><i>✓</i><span>不需要安装 Node.js、npm 或其他开发环境。</span></li>
+          <li><i>✓</i><span>不需要打开命令行、构建前端或启动后端服务。</span></li>
+          <li><i>✓</i><span>不需要改变浏览器；仍在自己常用的浏览器中使用。</span></li>
+          <li><i>✓</i><span>升级程序时，模型配置和本地数据应被保留。</span></li>
+        </ul>
+        <div class="support">售后入口应放在产品内：<b>诊断与帮助</b>。它展示运行状态、日志编号和一键重启，不让客户自行排查技术问题。</div>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" role="status" aria-live="polite" id="toast"></div>
+
+  <template id="install-template">
+    <div class="scene installer">
+      <div class="window-bar"><span class="window-app"><i class="mini-mark"></i>多媒体笔记工作台 安装</span><span class="window-actions">— □ ×</span></div>
+      <div class="installer-body">
+        <div class="installer-graphic">
+          <svg viewBox="0 0 48 48" fill="none"><path d="M12 5h24v38H12z" fill="white"/><path d="M18 17h12M18 23h12M18 29h7" stroke="#0b8278" stroke-width="3" stroke-linecap="round"/><path d="m29 28 4 4 7-8" stroke="#0b8278" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b>本地安装<br />数据留在本机</b>
+        </div>
+        <div class="installer-form">
+          <h4>安装多媒体笔记工作台</h4>
+          <p>安装完成后，会在桌面创建“多媒体笔记工作台”图标。首次使用只需配置您的模型服务。</p>
+          <div class="install-path">C:\\Users\\客户\\AppData\\Local\\Programs\\多媒体笔记工作台</div>
+          <div class="installer-foot"><button class="mini-btn" type="button">取消</button><button class="mini-btn install" type="button" id="simulate-install">安装</button></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="desktop-template">
+    <div class="scene desktop">
+      <button class="desktop-icon" type="button" id="desktop-icon" aria-label="启动多媒体笔记工作台">
+        <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="7" width="48" height="48" rx="12" fill="white"/><path d="M21 20h22v25H21z" fill="#0b8278"/><path d="M26 28h12M26 34h12M26 40h8" stroke="white" stroke-width="3" stroke-linecap="round"/><path d="m42 40 3 3 6-7" stroke="#8bdbd2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        多媒体笔记工作台
+      </button>
+      <div class="launch-note" id="launch-note"><strong>提示：</strong>双击桌面图标，即可启动本地工作台。</div>
+    </div>
+  </template>
+
+  <template id="browser-template">
+    <div class="scene browser">
+      <div class="browser-top">
+        <div class="browser-tabs"><div class="browser-tab">多媒体笔记工作台</div></div>
+        <div class="browser-nav"><span class="browser-controls">‹ › ⟳</span><div class="address">🔒 http://127.0.0.1:8081</div></div>
+      </div>
+      <div class="browser-page">
+        <div class="app-nav"><b>多媒体笔记工作台</b><div class="selected">首页</div><div>新建笔记</div><div>我的文件</div><div>设置</div></div>
+        <div class="welcome-page"><h4>欢迎使用</h4><p>本地工作台已准备就绪。先连接您的 AI 模型，即可开始处理文档。</p><div class="ready-strip"><span class="ready-dot"></span>本地服务已启动，数据将保存到这台电脑</div></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="model-template">
+    <form class="scene model-card" id="model-form">
+      <div class="model-card-head"><b>连接 AI 模型</b><span class="local-only">仅保存到本机</span></div>
+      <div class="form-grid">
+        <div class="field"><label for="provider">模型供应商</label><select id="provider"><option>OpenAI 兼容服务</option><option>硅基流动</option><option>阿里云百炼</option><option>DeepSeek</option><option>自定义服务</option></select></div>
+        <div class="field"><label for="model">模型名称</label><input id="model" value="gpt-4.1-mini" /></div>
+        <div class="field wide"><label for="endpoint">模型地址</label><input id="endpoint" value="https://api.example.com/v1" /></div>
+        <div class="field wide"><label for="api-key">API Key</label><input id="api-key" type="password" value="sk-demo-key-not-real" /></div>
+      </div>
+      <div class="test-result" id="test-result">✓ 连接成功：模型可正常响应。您现在可以开始创建笔记。</div>
+      <div class="form-foot"><div class="privacy-note">您的密钥将由 Windows 当前用户保护，不会随软件安装包或升级包上传。</div><button class="btn primary" type="button" id="test-model">测试连接</button></div>
+    </form>
+  </template>
+
+  <template id="workspace-template">
+    <div class="scene workspace">
+      <div class="workspace-head"><b>多媒体笔记工作台</b><span>本地模式 · 模型已连接</span></div>
+      <div class="workspace-body">
+        <div class="workspace-side"><div class="current">首页</div><div>新建笔记</div><div>我的文件</div><div>模型设置</div></div>
+        <div class="workspace-home"><h4>开始您的第一份笔记</h4><p>拖入一份文档，或点击下方区域选择文件。处理结果仅保存在本机。</p><div class="upload-zone"><div><b>上传文档开始整理</b>支持 PDF、Word、PPT、文本文件</div></div><div class="sample-result"><span>示例：项目启动会记录.docx</span><span class="ok">已生成笔记 ✓</span></div></div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const steps = [
+      {
+        key: 'install', label: '下载并安装', short: '安装包', title: '下载一个安装包，按“安装”即可',
+        explain: '客户获得的是一个标准 Windows 安装包，不是源码压缩包。程序运行环境、前后端产物和必要依赖都已经在其中。',
+        actionTitle: '双击 Setup.exe', action: '按默认选项点击“安装”。普通客户不需要认识 Node、npm、端口或服务器。', hint: '<b>客户动作：</b>点击“安装”模拟完成安装。'
+      },
+      {
+        key: 'desktop', label: '点击桌面图标', short: '启动', title: '双击图标，启动器在后台完成准备',
+        explain: '桌面图标启动内置的本地运行环境。它检测服务是否已运行，必要时启动服务并等待健康检查通过。',
+        actionTitle: '双击桌面图标', action: '客户只关心一个图标；启动、端口检查和异常恢复都应由产品自己处理。', hint: '<b>客户动作：</b>点击工作台图标，模拟启动。'
+      },
+      {
+        key: 'browser', label: '浏览器自动打开', short: '浏览器', title: '浏览器自动打开，不改变原有使用方式',
+        explain: '启动器确认本地服务可用后，用客户默认浏览器打开本地工作台。界面仍在浏览器中，产品架构不需要改成 Electron。',
+        actionTitle: '等待浏览器打开', action: '客户不需要复制地址或手工启动服务；看到欢迎页就说明本地工作台已准备完成。', hint: '<b>客户动作：</b>浏览器自动打开，进入欢迎页。'
+      },
+      {
+        key: 'model', label: '连接模型', short: '配置', title: '首次只配置自己的模型服务',
+        explain: '客户选择供应商预设，填写模型地址、模型名和 API Key，然后点击一次“测试连接”。配置保存到客户本机。',
+        actionTitle: '填写模型配置', action: '这是唯一必须由客户完成的技术配置。产品应提供预设、清晰错误提示和连接测试。', hint: '<b>客户动作：</b>填写信息后点击“测试连接”。'
+      },
+      {
+        key: 'ready', label: '开始使用', short: '完成', title: '连接成功后，立即处理第一份文档',
+        explain: '模型连接通过后，客户进入熟悉的浏览器工作台，上传文件即可生成笔记。至此，首次交付闭环完成。',
+        actionTitle: '上传第一份文档', action: '通过一份示例文档或真实文件完成首次成功，让客户确认“安装包真的能用”。', hint: '<b>客户动作：</b>上传文档，开始生成笔记。'
+      }
+    ];
+
+    let current = 0;
+    let tested = false;
+    const journey = document.querySelector('#journey');
+    const content = document.querySelector('#stage-content');
+    const previous = document.querySelector('#previous');
+    const next = document.querySelector('#next');
+    const toast = document.querySelector('#toast');
+
+    function toastMessage(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(window.toastTimer);
+      window.toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    function renderTabs() {
+      journey.innerHTML = steps.map((step, index) => `
+        <button class="step-tab ${index === current ? 'active' : ''} ${index < current ? 'done' : ''}" type="button" data-index="${index}" aria-current="${index === current ? 'step' : 'false'}">
+          <span class="step-no">${index < current ? '✓' : index + 1}</span><span class="step-label">${step.label}<small>${step.short}</small></span>
+        </button>`).join('');
+      journey.querySelectorAll('button').forEach(button => button.addEventListener('click', () => setStep(Number(button.dataset.index))));
+    }
+
+    function renderScene(step) {
+      const template = document.querySelector(`#${step.key === 'ready' ? 'workspace' : step.key}-template`);
+      content.replaceChildren(template.content.cloneNode(true));
+      if (step.key === 'install') document.querySelector('#simulate-install').addEventListener('click', () => { toastMessage('安装完成：已创建桌面图标。'); window.setTimeout(() => setStep(1), 450); });
+      if (step.key === 'desktop') document.querySelector('#desktop-icon').addEventListener('click', () => {
+        document.querySelector('#desktop-icon').classList.add('focused');
+        document.querySelector('#launch-note').innerHTML = '<strong>正在启动：</strong>本地服务准备完成，正在打开默认浏览器…';
+        toastMessage('本地服务已启动，正在打开浏览器。');
+        window.setTimeout(() => setStep(2), 850);
+      });
+      if (step.key === 'model') document.querySelector('#test-model').addEventListener('click', () => {
+        document.querySelector('#test-result').classList.add('show'); tested = true; next.disabled = false; next.textContent = '进入工作台'; toastMessage('模型连接测试成功。');
+      });
+    }
+
+    function setStep(index) {
+      if (index === 4 && !tested) { toastMessage('请先在第 4 步完成“测试连接”。'); index = 3; }
+      current = Math.max(0, Math.min(index, steps.length - 1));
+      const step = steps[current];
+      document.querySelector('#eyebrow').textContent = `第 ${current + 1} 步`;
+      document.querySelector('#stage-title').textContent = step.title;
+      document.querySelector('#stage-explain').textContent = step.explain;
+      document.querySelector('#step-count').textContent = `${current + 1} / ${steps.length}`;
+      document.querySelector('#customer-action-title').textContent = step.actionTitle;
+      document.querySelector('#customer-action').textContent = step.action;
+      document.querySelector('#stage-hint').innerHTML = step.hint;
+      previous.disabled = current === 0;
+      next.textContent = current === steps.length - 1 ? '已完成首次体验' : (current === 3 ? '请先测试连接' : '下一步');
+      next.disabled = current === 3 && !tested;
+      renderTabs(); renderScene(step);
+    }
+
+    previous.addEventListener('click', () => setStep(current - 1));
+    next.addEventListener('click', () => {
+      if (current === steps.length - 1) return toastMessage('这就是客户完成首次使用后的产品状态。');
+      setStep(current + 1);
+    });
+    setStep(0);
+  </script>
+</body>
+</html>
