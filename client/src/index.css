@@ -2490,11 +2490,11 @@ body {
 
 @media (min-width: 861px) and (max-height: 800px) {
   .recording-notes-page__surface {
-    padding-block: 10px;
+    padding-block: 5px;
   }
 
   .recording-config-panel .recording-advanced-panel {
-    gap: 8px 12px;
+    gap: 6px 12px;
   }
 
   .recording-config-panel .recording-field {
