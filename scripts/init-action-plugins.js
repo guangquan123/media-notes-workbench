@@ -8,15 +8,17 @@ const { spawnSync } = require('node:child_process');
 
 const projectRoot = path.resolve(__dirname, '..');
 const cliPackage = '@lark-apaas/fullstack-cli@latest';
+const projectNpmCache = path.join(projectRoot, '.tmp', 'npm-cache');
 
 function runNpx() {
   const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const result = spawnSync(
     command,
-    ['-y', cliPackage, 'action-plugin', 'init'],
+    ['--cache', projectNpmCache, '-y', cliPackage, 'action-plugin', 'init'],
     {
       cwd: projectRoot,
       stdio: 'inherit',
+      shell: process.platform === 'win32',
       windowsHide: process.platform === 'win32',
     },
   );
@@ -26,17 +28,33 @@ function runNpx() {
 function findCachedCli() {
   if (process.platform !== 'win32') return undefined;
   const localAppData = process.env.LOCALAPPDATA;
-  if (!localAppData) return undefined;
-
-  const npxRoot = path.join(localAppData, 'npm-cache', '_npx');
-  if (!fs.existsSync(npxRoot)) return undefined;
-
-  const candidates = fs
-    .readdirSync(npxRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(npxRoot, entry.name, 'node_modules', '@lark-apaas', 'fullstack-cli', 'dist', 'index.js'))
-    .filter((candidate) => fs.existsSync(candidate))
-    .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs);
+  const npxRoots = [
+    path.join(projectNpmCache, '_npx'),
+    ...(localAppData
+      ? [path.join(localAppData, 'npm-cache', '_npx')]
+      : []),
+  ];
+  const candidates = npxRoots.flatMap((npxRoot) => {
+    if (!fs.existsSync(npxRoot)) return [];
+    return fs
+      .readdirSync(npxRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) =>
+        path.join(
+          npxRoot,
+          entry.name,
+          'node_modules',
+          '@lark-apaas',
+          'fullstack-cli',
+          'dist',
+          'index.js',
+        ),
+      )
+      .filter((candidate) => fs.existsSync(candidate));
+  });
+  candidates.sort(
+    (left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs,
+  );
 
   return candidates[0];
 }
