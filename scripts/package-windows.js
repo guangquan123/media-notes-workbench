@@ -153,9 +153,7 @@ function writeUninstallScripts() {
     'if not exist "%~dp0unins000.exe" exit /b 1\r\n' +
     'start "" "%~dp0unins000.exe"\r\n' +
     'exit /b 0\r\n';
-  for (const fileName of ['uninstall.cmd', '卸载多媒体笔记工作台.cmd']) {
-    fs.writeFileSync(path.join(appStage, fileName), command, 'ascii');
-  }
+  fs.writeFileSync(path.join(appStage, 'uninstall.cmd'), command, 'ascii');
 }
 
 function compile() {
@@ -183,7 +181,7 @@ function compile() {
   if (result.status !== 0) fail(`Inno Setup 编译失败，退出码: ${result.status}`);
   const setupPath = path.join(
     path.dirname(installerPath),
-    `多媒体笔记工作台-${version}-Setup.exe`,
+    `Media-Notes-Workbench-${version}-Setup.exe`,
   );
   if (!fs.existsSync(setupPath)) {
     fail(`Inno Setup 未生成预期安装包: ${setupPath}`);

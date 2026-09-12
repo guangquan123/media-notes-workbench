@@ -8,7 +8,8 @@ describe('Windows packaging safeguards', () => {
     const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
 
     expect(packager).toContain('function writeUninstallScripts()');
-    expect(packager).toContain("'uninstall.cmd', '卸载多媒体笔记工作台.cmd'");
+    expect(packager).toContain("path.join(appStage, 'uninstall.cmd')");
+    expect(packager).not.toContain('卸载多媒体笔记工作台.cmd');
     expect(packager).toContain('function assertSafeOutputRoot()');
     expect(packager).toContain("relative === '..'");
     expect(packager).toContain("'node_modules'");

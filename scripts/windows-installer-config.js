@@ -19,41 +19,42 @@ function buildInstallerScript({ sourcePath, version, iconPath }) {
   return `#define AppVersion "${version}"
 [Setup]
 AppId={{${APP_ID}}}
-AppName=多媒体笔记工作台
+AppName=Media Notes Workbench
 AppVersion={#AppVersion}
-AppPublisher=多媒体笔记工作台
-DefaultDirName={autopf}\\多媒体笔记工作台
-DefaultGroupName=多媒体笔记工作台
+AppPublisher=Media Notes Workbench
+DefaultDirName={autopf}\\Media Notes Workbench
+DefaultGroupName=Media Notes Workbench
 SetupIconFile="${normalizedIconPath}"
 Uninstallable=yes
 CreateUninstallRegKey=yes
 UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
-UninstallDisplayName=多媒体笔记工作台
+UninstallDisplayName=Media Notes Workbench
 PrivilegesRequired=admin
-DisableDirPage=yes
-UsePreviousAppDir=no
+DisableDirPage=no
+DirExistsWarning=yes
+AppendDefaultDirName=yes
 AllowRootDirectory=no
 DisableProgramGroupPage=yes
 MinVersion=10.0
 ArchitecturesAllowed=x64compatible and not arm64
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=.
-OutputBaseFilename=多媒体笔记工作台-{#AppVersion}-Setup
+OutputBaseFilename=Media-Notes-Workbench-{#AppVersion}-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 
 [Messages]
-WindowsVersionNotSupported=多媒体笔记工作台仅支持 Windows 10/11 64 位系统。
+WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 11.
 
 [Files]
 Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "${normalizedSourcePath}/package-manifest.json"; DestDir: "{app}"; DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]
-Name: "{autodesktop}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
-Name: "{group}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
-Name: "{group}\\卸载多媒体笔记工作台"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
+Name: "{autodesktop}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
+Name: "{group}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
+Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
 [UninstallRun]
 Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"

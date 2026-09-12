@@ -2,7 +2,7 @@
 
 ## 客户看到的流程
 
-客户只需要下载 `多媒体笔记工作台-<版本>-Setup.exe`，完成安装后点击桌面图标。程序会启动本地服务并打开默认浏览器，首次进入时填写模型地址、模型名和 API Key，测试连接后即可使用。
+客户只需要下载 `Media-Notes-Workbench-<版本>-Setup.exe`，完成安装后点击桌面的 `Media Notes Workbench` 图标。程序会启动本地服务并打开默认浏览器，首次进入时填写模型地址、模型名和 API Key，测试连接后即可使用。
 
 客户机必须是 Windows 10 或 Windows 11 的 64 位 x64 系统。安装器会主动拒绝 Windows 7、Windows 8、32 位 Windows 和 ARM64，避免出现“安装成功但无法启动”的假成功。
 
@@ -33,14 +33,14 @@ npm.cmd run package:windows:compile
 输出文件位于：
 
 ```text
-release/windows/<版本>/installer/多媒体笔记工作台-<版本>-Setup.exe
+release/windows/<版本>/installer/Media-Notes-Workbench-<版本>-Setup.exe
 ```
 
-`package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。默认使用管理员权限安装到 `C:\Program Files\多媒体笔记工作台`，因此会出现一次 UAC 确认；这是为了把卸载信息可靠登记到控制面板“程序和功能”以及 Windows 设置的“已安装的应用”。
+`package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。默认使用管理员权限安装到 `C:\Program Files\Media Notes Workbench`，用户可在安装向导中选择其他目录。安装时会出现一次 UAC 确认，以便把卸载信息可靠登记到 Windows。
 
 Windows 打包会先清理上一次生成的 `dist/client`、`dist/server`、source map、精简依赖和 TypeScript 增量缓存，避免历史哈希资源重复进入安装包。依赖裁剪同时跳过 source map、测试和示例目录，以及不会参与运行的 TypeScript 源码、类型声明、README/许可证等文档文件；保留运行所需的 JavaScript、JSON、原生模块、WASM、字体和 PDF.js CMap 资源。
 
-安装向导会显示标准目录选择页。可以直接使用默认目录，也可以选择其他磁盘/目录并在对话框中新建目录；卸载器会根据安装标记识别本产品目录，不要求目录名必须保持默认值。
+安装向导会显示标准目录选择页。可以直接使用默认目录，也可以选择其他磁盘/目录并在对话框中新建目录。卸载时只删除安装器自身登记的文件，不递归清空用户选择的目录。
 
 ### 关于 `@vercel/nft` 提示
 
@@ -84,9 +84,9 @@ node scripts/package-windows.js --compile --node-runtime 'D:\tools\node\node.exe
 
 ## 卸载行为
 
-客户可以通过 Windows“设置 → 应用”找到“多媒体笔记工作台”并卸载；也可以点击开始菜单应用组中的“卸载多媒体笔记工作台”，或直接双击安装目录根部的 `uninstall.cmd` / `卸载多媒体笔记工作台.cmd`。卸载程序会把内置 Node 临时复制到系统临时目录，用临时副本执行停止脚本并等待停止完成，再删除安装目录、内置 Node、桌面快捷方式和开始菜单快捷方式，避免正在退出的 Node 短暂锁住安装目录。若运行时文件已被删除或被安全软件隔离，卸载脚本会返回明确的非零退出码，卸载器仍会继续执行文件清理。
+客户可以通过 Windows“设置 → 应用”找到 `Media Notes Workbench` 并卸载；也可以点击开始菜单中的 `Uninstall Media Notes Workbench`，或双击安装目录根部的 `uninstall.cmd`。卸载程序会先停止工作台进程，再删除由安装器登记的内置 Node、程序文件和快捷方式。若运行时文件已被删除或被安全软件隔离，卸载器仍会继续清理自身登记的文件。
 
-安装器会写入专用标记，并在卸载时同时确认标记、内置 Node、启动脚本和服务端入口都存在，满足条件才递归删除整个应用目录；这样既能清理自定义目录中的旧版本遗留文件，也避免误删无关目录。通过命令行把输出目录指向项目根目录、`dist` 或 `node_modules` 等受保护目录会被打包脚本拒绝。
+卸载器不使用 `filesandordirs` 递归删除用户选择的 `{app}` 目录，因此不会删除同目录中不属于本应用的文件。通过命令行把输出目录指向项目根目录、`dist` 或 `node_modules` 等受保护目录会被打包脚本拒绝。
 
 为防止误删，卸载默认保留 `%LOCALAPPDATA%\MediaNotesWorkbench` 中的模型配置、笔记、上传文件和日志。重新安装同一产品后可以继续使用原数据。若客户要彻底清理数据，请在确认不再需要恢复后，手工删除该目录。
 

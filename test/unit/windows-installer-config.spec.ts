@@ -13,7 +13,7 @@ describe('Windows installer configuration', () => {
     expect(script).toContain('CreateUninstallRegKey=yes');
     expect(script).toContain('AppVersion={#AppVersion}');
     expect(script).toContain(
-      'Name: "{group}\\卸载多媒体笔记工作台"; Filename: "{uninstallexe}"',
+      'Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"',
     );
   });
 
@@ -30,11 +30,12 @@ describe('Windows installer configuration', () => {
     expect(uninstallRun).toContain('RunOnceId: "StopWorkbench"');
   });
 
-  it('locks installation to the dedicated application directory', () => {
-    expect(script).toContain('DisableDirPage=yes');
-    expect(script).toContain('UsePreviousAppDir=no');
+  it('allows choosing an install directory without recursively deleting it', () => {
+    expect(script).toContain('DisableDirPage=no');
+    expect(script).toContain('DirExistsWarning=yes');
+    expect(script).toContain('AppendDefaultDirName=yes');
     expect(script).toContain('PrivilegesRequired=admin');
-    expect(script).toContain('DefaultDirName={autopf}\\多媒体笔记工作台');
+    expect(script).toContain('DefaultDirName={autopf}\\Media Notes Workbench');
     expect(script).toContain('AllowRootDirectory=no');
     expect(script).toContain(
       'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',
@@ -50,7 +51,7 @@ describe('Windows installer configuration', () => {
     );
     expect(script).not.toContain('SetupArchitecture=');
     expect(script).toContain(
-      'WindowsVersionNotSupported=多媒体笔记工作台仅支持 Windows 10/11 64 位系统。',
+      'WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 11.',
     );
   });
 
