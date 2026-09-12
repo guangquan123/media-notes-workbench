@@ -214,6 +214,28 @@ describe('Windows launcher entry', () => {
     expect(launcher).toContain('readLauncherProgress()');
   });
 
+  it('keeps the HTA responsive while probing unavailable services', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+    const pollStart = launcher.indexOf('function poll()');
+    const retryStart = launcher.indexOf('function retry()', pollStart);
+    const poll = launcher.slice(pollStart, retryStart);
+
+    expect(launcher).toContain('function httpRequestAsync(target, callback)');
+    expect(launcher).toContain('request.open("GET", target, true)');
+    expect(launcher).toContain('request.abort()');
+    expect(launcher).toContain('var probeInFlight = false;');
+    expect(launcher).toContain('var probeTimeoutMs = 1800;');
+    expect(launcher).not.toContain('function httpRequest(target)');
+    expect(launcher).not.toContain('function launcherActive()');
+    expect(poll).not.toContain('httpRequest(');
+    expect(poll).not.toContain('launcherActive()');
+    expect(poll).toContain('if (probeInFlight)');
+    expect(poll).toContain('finishPollCycle(snapshot)');
+  });
+
   it('keeps build waits bounded and emits a startup heartbeat while work is active', () => {
     const devWindows = readFileSync(
       resolve(root, 'scripts', 'dev-windows.js'),

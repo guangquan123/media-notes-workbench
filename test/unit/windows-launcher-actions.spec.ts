@@ -69,15 +69,17 @@ describe('Windows launcher action routing', () => {
     expect(launcher).not.toContain('var action = "start";');
   });
 
-  it('resolves Node from the Windows PATH before invoking the launcher script', () => {
+  it('resolves Node without synchronously invoking an external PATH probe', () => {
     const launcher = readFileSync(
       resolve(root, 'scripts', 'workbench-launcher.hta'),
       'utf8',
     );
 
     expect(launcher).toContain('function resolveNodeExecutable()');
-    expect(launcher).toContain('shell.Exec("where.exe node.exe")');
-    expect(launcher).toContain('fso.FileExists(candidate)');
+    expect(launcher).toContain('Programs\\\\nodejs\\\\node.exe');
+    expect(launcher).toContain('return "node.exe";');
+    expect(launcher).not.toContain('shell.Exec("where.exe node.exe")');
+    expect(launcher).toContain('fso.FileExists(candidates[i])');
     expect(launcher).toContain('shell.Run(quote(node) + " " + quote(');
   });
 });
