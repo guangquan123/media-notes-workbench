@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { buildInstallerScript } = require('./windows-installer-config.js');
+const { APP_ID, buildInstallerScript } = require('./windows-installer-config.js');
 
 const rootDir = path.resolve(__dirname, '..');
 const version = require(path.join(rootDir, 'package.json')).version;
@@ -24,6 +24,17 @@ const installerPath = path.join(outputRoot, 'installer', 'MediaNotesWorkbench.is
 const buildLockPath = `${outputRoot}.lock`;
 let buildLockFd;
 
+const PROTECTED_OUTPUT_SEGMENTS = new Set([
+  '.git',
+  'client',
+  'dist',
+  'node_modules',
+  'scripts',
+  'server',
+  'shared',
+  'test',
+]);
+
 function valueAfter(flag) {
   const index = args.indexOf(flag);
   return index >= 0 ? args[index + 1] : undefined;
@@ -32,6 +43,22 @@ function valueAfter(flag) {
 function fail(message) {
   process.stderr.write(`[package-windows] ${message}\n`);
   process.exit(1);
+}
+
+function assertSafeOutputRoot() {
+  const relative = path.relative(rootDir, outputRoot);
+  if (
+    !relative ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    fail(`输出目录必须位于项目根目录下，且不能是项目根目录: ${outputRoot}`);
+  }
+  const firstSegment = relative.split(path.sep)[0].toLowerCase();
+  if (PROTECTED_OUTPUT_SEGMENTS.has(firstSegment)) {
+    fail(`拒绝覆盖项目受保护目录，请使用 release 或 .tmp 下的输出目录: ${outputRoot}`);
+  }
 }
 
 function acquireBuildLock() {
@@ -120,6 +147,17 @@ function writeInstallerScript() {
   fs.writeFileSync(installerPath, content, 'utf8');
 }
 
+function writeUninstallScripts() {
+  const command = '@echo off\r\n' +
+    'setlocal\r\n' +
+    'if not exist "%~dp0unins000.exe" exit /b 1\r\n' +
+    'start "" "%~dp0unins000.exe"\r\n' +
+    'exit /b 0\r\n';
+  for (const fileName of ['uninstall.cmd', '卸载多媒体笔记工作台.cmd']) {
+    fs.writeFileSync(path.join(appStage, fileName), command, 'ascii');
+  }
+}
+
 function compile() {
   const localAppData = process.env.LOCALAPPDATA;
   const compilerCandidates = [
@@ -155,6 +193,7 @@ function compile() {
 }
 
 if (!fs.existsSync(runtimeNode)) fail(`找不到 Node 运行时: ${runtimeNode}`);
+assertSafeOutputRoot();
 for (const required of [
   path.join(rootDir, 'dist', 'server'),
   path.join(rootDir, 'dist', 'client'),
@@ -220,6 +259,7 @@ if (!fs.existsSync(installerIcon)) {
 const manifest = {
   appVersion: version,
   generatedAt: new Date().toISOString(),
+  installerAppId: APP_ID,
   runtime: 'embedded-node',
   browserMode: 'default-browser',
   dataDirectory: '%LOCALAPPDATA%\\MediaNotesWorkbench\\data',
@@ -243,6 +283,7 @@ fs.writeFileSync(
   `${JSON.stringify(manifest, null, 2)}\n`,
   'utf8',
 );
+writeUninstallScripts();
 writeInstallerScript();
 process.stdout.write(`[package-windows] 发布目录已生成: ${outputRoot}\n`);
 process.stdout.write(`[package-windows] 安装器脚本: ${installerPath}\n`);

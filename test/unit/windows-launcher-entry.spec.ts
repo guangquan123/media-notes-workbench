@@ -150,6 +150,11 @@ describe('Windows launcher entry', () => {
     expect(runHidden).toContain('"installed-stop.js"');
     expect(runHidden).toContain('fileSystem.GetSpecialFolder(2)');
     expect(runHidden).toContain('fileSystem.CopyFile executablePath, tempExecutable, True');
+    expect(runHidden).toContain('If Not fileSystem.FileExists(executablePath) Then');
+    expect(runHidden).toContain('WScript.Quit 3');
+    expect(runHidden).toContain('WScript.Quit 4');
+    expect(runHidden).toContain('exitCode = 5');
+    expect(runHidden).toContain('If tempCreated Then');
     expect(runHidden).toContain('fileSystem.DeleteFile tempExecutable, True');
     expect(runHidden).toContain('shell.Run(commandLine, 0, waitForExit)');
   });

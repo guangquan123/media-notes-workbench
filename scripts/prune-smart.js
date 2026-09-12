@@ -39,6 +39,25 @@ const RUNTIME_IGNORED_DIRECTORIES = new Set([
   'test',
   'tests',
 ]);
+const RUNTIME_IGNORED_EXTENSIONS = [
+  '.coffee',
+  '.cts',
+  '.d.ts',
+  '.editorconfig',
+  '.eslintrc',
+  '.gitattributes',
+  '.gitignore',
+  '.iml',
+  '.jsdoc',
+  '.lock',
+  '.markdown',
+  '.md',
+  '.mts',
+  '.npmignore',
+  '.nycrc',
+  '.ts',
+  '.txt',
+];
 
 /**
  * 从完整路径中提取 npm 包名（优化版）
@@ -75,7 +94,8 @@ function shouldSkipRuntimeFile(entry) {
   if (entry.isDirectory()) {
     return RUNTIME_IGNORED_DIRECTORIES.has(entry.name);
   }
-  return entry.name.endsWith('.map');
+  return entry.name.endsWith('.map') ||
+    RUNTIME_IGNORED_EXTENSIONS.some((extension) => entry.name.endsWith(extension));
 }
 
 /**

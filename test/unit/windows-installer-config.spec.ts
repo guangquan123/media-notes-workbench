@@ -11,6 +11,7 @@ describe('Windows installer configuration', () => {
   it('registers Windows uninstall and creates an explicit Start menu uninstall shortcut', () => {
     expect(script).toContain('Uninstallable=yes');
     expect(script).toContain('CreateUninstallRegKey=yes');
+    expect(script).toContain('AppVersion={#AppVersion}');
     expect(script).toContain(
       'Name: "{group}\\卸载多媒体笔记工作台"; Filename: "{uninstallexe}"',
     );
@@ -30,7 +31,11 @@ describe('Windows installer configuration', () => {
   });
 
   it('removes the dedicated application directory only when its installer marker is present', () => {
-    expect(script).toContain('DisableDirPage=yes');
+    expect(script).toContain('DisableDirPage=no');
+    expect(script).toContain('PrivilegesRequired=admin');
+    expect(script).toContain('DefaultDirName={autopf}\\多媒体笔记工作台');
+    expect(script).toContain('DirExistsWarning=yes');
+    expect(script).toContain('AllowRootDirectory=no');
     expect(script).toContain(
       'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',
     );
@@ -39,7 +44,12 @@ describe('Windows installer configuration', () => {
       'Type: filesandordirs; Name: "{app}"; Check: IsSafeInstallDirectory',
     );
     expect(script).toContain('function IsSafeInstallDirectory(): Boolean;');
-    expect(script).toContain("ExtractFileName(appDirectory), '多媒体笔记工作台'");
+    expect(script).toContain(
+      "FileExists(AddBackslash(appDirectory) + 'runtime\\node.exe')",
+    );
+    expect(script).toContain(
+      "FileExists(AddBackslash(appDirectory) + 'scripts\\installed-launcher.js')",
+    );
     expect(script).toContain("'.media-notes-workbench-install-marker'");
   });
 

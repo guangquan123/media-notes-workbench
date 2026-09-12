@@ -5,6 +5,8 @@ function normalizePath(value) {
   return value.replace(/\\/gu, '/');
 }
 
+const APP_ID = 'A8F7FD44-40D9-4AF7-9F80-2A7A1D90F2DA';
+
 function buildInstallerScript({ sourcePath, version, iconPath }) {
   if (!sourcePath) throw new Error('sourcePath is required');
   if (!version) throw new Error('version is required');
@@ -16,19 +18,23 @@ function buildInstallerScript({ sourcePath, version, iconPath }) {
 
   return `#define AppVersion "${version}"
 [Setup]
-AppId={{A8F7FD44-40D9-4AF7-9F80-2A7A1D90F2DA}
+AppId={{${APP_ID}}}
 AppName=多媒体笔记工作台
 AppVersion={#AppVersion}
 AppPublisher=多媒体笔记工作台
-DefaultDirName={localappdata}\\Programs\\多媒体笔记工作台
+DefaultDirName={autopf}\\多媒体笔记工作台
 DefaultGroupName=多媒体笔记工作台
 SetupIconFile="${normalizedIconPath}"
 Uninstallable=yes
 CreateUninstallRegKey=yes
 UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
 UninstallDisplayName=多媒体笔记工作台
-PrivilegesRequired=lowest
-DisableDirPage=yes
+PrivilegesRequired=admin
+DisableDirPage=no
+DirExistsWarning=yes
+AppendDefaultDirName=yes
+AllowRootDirectory=no
+DisableProgramGroupPage=yes
 MinVersion=10.0
 ArchitecturesAllowed=x64compatible and not arm64
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -65,12 +71,16 @@ begin
   appDirectory := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
   markerPath := AddBackslash(appDirectory) + '.media-notes-workbench-install-marker';
   Result :=
-    (CompareText(ExtractFileName(appDirectory), '多媒体笔记工作台') = 0) and
-    FileExists(markerPath);
+    (appDirectory <> '') and
+    FileExists(markerPath) and
+    FileExists(AddBackslash(appDirectory) + 'runtime\\node.exe') and
+    FileExists(AddBackslash(appDirectory) + 'scripts\\installed-launcher.js') and
+    FileExists(AddBackslash(appDirectory) + 'dist\\server\\main.js');
 end;
 `;
 }
 
 module.exports = {
+  APP_ID,
   buildInstallerScript,
 };
