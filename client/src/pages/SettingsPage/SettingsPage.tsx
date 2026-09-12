@@ -105,7 +105,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
+    <main className="page-layout--settings min-h-screen overflow-auto bg-[#f6f7f5] text-[#161616]">
       <div className="min-h-screen bg-[radial-gradient(circle_at_84%_4%,rgba(77,93,255,0.1),transparent_25%),linear-gradient(135deg,rgba(17,19,21,0.025)_1px,transparent_1px)] bg-[size:auto,32px_32px]">
         <div className="mx-auto min-h-screen max-w-7xl px-5 md:px-8">
           <header className="sticky top-0 z-20 -mx-5 flex h-12 items-center justify-between gap-4 border-b border-black/8 bg-[#f6f7f5]/95 px-5 backdrop-blur md:-mx-8 md:px-8">

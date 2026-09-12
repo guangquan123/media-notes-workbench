@@ -172,6 +172,7 @@ interface ConnectorSettingsPageProps {
 export default function ConnectorSettingsPage({
   embedded = false,
 }: ConnectorSettingsPageProps): ReactElement {
+  const Root = embedded ? 'section' : 'main';
   const [settings, setSettings] = useState<ConnectorSettingsResponse | null>(
     null,
   );
@@ -507,7 +508,7 @@ export default function ConnectorSettingsPage({
 
   if (loading) {
     return (
-      <main
+      <Root
         className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
       >
         <div className="mx-auto max-w-5xl animate-pulse space-y-6">
@@ -519,13 +520,13 @@ export default function ConnectorSettingsPage({
           </div>
           <div className="h-[34rem] rounded-2xl bg-black/[0.06]" />
         </div>
-      </main>
+      </Root>
     );
   }
 
   if (loadError || !settings) {
     return (
-      <main
+      <Root
         className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
       >
         <div className="mx-auto max-w-3xl">
@@ -573,12 +574,12 @@ export default function ConnectorSettingsPage({
             </div>
           </section>
         </div>
-      </main>
+      </Root>
     );
   }
 
   return (
-    <main
+    <Root
       className={`w-full min-w-0 max-w-full bg-[#f7f7f5] text-[#161616] ${embedded ? 'px-0 py-0' : 'min-h-screen px-4 py-4 sm:px-5 sm:py-5 md:px-8'}`}
     >
       <div className="mx-auto w-full min-w-0 max-w-5xl">
@@ -1113,6 +1114,6 @@ export default function ConnectorSettingsPage({
           </div>
         </section>
       </div>
-    </main>
+    </Root>
   );
 }

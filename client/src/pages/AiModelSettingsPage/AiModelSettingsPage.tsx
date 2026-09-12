@@ -114,6 +114,7 @@ export default function AiModelSettingsPage({
   embedded = false,
   initialTab = 'providers',
 }: AiModelSettingsPageProps) {
+  const Root = embedded ? 'section' : 'main';
   const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
   const [tab, setTab] = useState<AiSettingsTab>(
@@ -363,7 +364,7 @@ export default function AiModelSettingsPage({
   };
 
   if (!settings) {
-    return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取模型服务配置…</main>;
+    return <Root className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取模型服务配置…</Root>;
   }
 
   const currentAsrLabel: string = transcriptionMode === 'tencent_asr'
@@ -386,7 +387,7 @@ export default function AiModelSettingsPage({
   ];
 
   return (
-    <main className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}>
+    <Root className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}>
       <div className={embedded ? '' : 'mx-auto max-w-4xl'}>
         {!embedded && (
           <header className="flex items-center justify-between border-b border-black/8 pb-5">
@@ -513,6 +514,6 @@ export default function AiModelSettingsPage({
       <AlertDialog open={Boolean(deletingProvider)} onOpenChange={(open: boolean): void => { if (!open) setDeletingProvider(null); }}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除模型服务提供者？</AlertDialogTitle><AlertDialogDescription>删除后不能再用它发起转录或总结。已被模型配置引用的提供者需要先更换引用。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={(): void => void removeProvider()}>确认删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
-    </main>
+    </Root>
   );
 }

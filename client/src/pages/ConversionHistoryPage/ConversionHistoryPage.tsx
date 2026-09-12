@@ -490,7 +490,7 @@ export default function ConversionHistoryPage() {
   });
 
   return (
-    <main className="min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
+    <main className="page-layout--data min-h-screen overflow-auto bg-[radial-gradient(circle_at_top_right,_rgba(51,112,255,0.08),_transparent_28%),linear-gradient(180deg,#faf9f6_0%,#f5f4f0_100%)] text-[#161616]">
       <div className="mx-auto min-h-screen w-[calc(100%-28px)] max-w-[1560px] sm:w-[calc(100%-48px)]">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-black/8 bg-[#faf9f6]/95 backdrop-blur">
           <nav

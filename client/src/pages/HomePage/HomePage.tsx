@@ -291,8 +291,8 @@ export default function HomePage() {
   }
 
   return (
-    <main className="video-page min-h-screen overflow-auto text-[#111827]">
-      <div className="video-shell mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-5 md:px-10 md:py-7">
+    <main className="video-page page-layout--task text-[#111827]">
+      <div className="video-shell page-layout__container mx-auto flex max-w-7xl flex-col px-5 py-5 md:px-10 md:py-7">
         <header className="video-header flex flex-col gap-4 border-b border-black/8 pb-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="video-brand__mark grid size-10 place-items-center rounded-lg text-white shadow-sm">
@@ -322,7 +322,7 @@ export default function HomePage() {
           </div>
         </header>
 
-        <section className="video-layout grid flex-1 items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(410px,0.82fr)] lg:gap-16 lg:py-14">
+        <section className="video-layout page-layout__workspace grid flex-1 items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(410px,0.82fr)] lg:gap-16 lg:py-14">
           <div className="video-hero max-w-xl">
             <div className="video-kicker mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm">
               <Sparkles className="size-3.5" />
@@ -383,7 +383,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="task-panel video-panel">
+          <div className="task-panel page-layout__panel video-panel">
             {!job ? (
               <>
                 <div>
@@ -495,7 +495,7 @@ export default function HomePage() {
                 </div>
               </>
             ) : (
-              <div className="flex min-h-[390px] flex-col justify-between">
+              <div className="flex min-h-0 flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <div>

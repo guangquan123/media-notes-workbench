@@ -63,6 +63,7 @@ function styleFallbackLabel(style: NoteStyle): string {
 export default function NoteTemplatesPage({
   embedded = false,
 }: NoteTemplatesPageProps) {
+  const Root = embedded ? 'section' : 'main';
   const navigate = useNavigate();
   const location = useLocation();
   const [templates, setTemplates] = useState<NoteTemplateConfig[]>([]);
@@ -222,7 +223,7 @@ export default function NoteTemplatesPage({
 
   if (loading) {
     return (
-      <main
+      <Root
         className={
           embedded
             ? 'p-3 text-sm text-black/50'
@@ -231,7 +232,7 @@ export default function NoteTemplatesPage({
       >
         <LoaderCircle className="mr-2 inline size-4 animate-spin" />
         正在读取提示词配置…
-      </main>
+      </Root>
     );
   }
 
@@ -240,7 +241,7 @@ export default function NoteTemplatesPage({
     selectedTemplate?.label || styleFallbackLabel(selectedStyle);
 
   return (
-    <main
+    <Root
       className={
         embedded
           ? 'text-[#161616]'
@@ -380,7 +381,7 @@ export default function NoteTemplatesPage({
               </div>
               <Textarea
                 aria-label={`${templateLabel}提示词内容`}
-                className="min-h-[440px] resize-y rounded-xl border-black/10 bg-[#fafaf8] p-4 font-mono text-sm leading-6 shadow-none focus-visible:ring-[#3370ff]/25"
+                className="note-template-editor resize-y rounded-xl border-black/10 bg-[#fafaf8] p-4 font-mono text-sm leading-6 shadow-none focus-visible:ring-[#3370ff]/25"
                 disabled={saving || publishing}
                 maxLength={MAX_TEMPLATE_LENGTH}
                 onChange={(event): void => setContent(event.target.value)}
@@ -623,6 +624,6 @@ export default function NoteTemplatesPage({
           </div>
         </DialogContent>
       </Dialog>
-    </main>
+    </Root>
   );
 }

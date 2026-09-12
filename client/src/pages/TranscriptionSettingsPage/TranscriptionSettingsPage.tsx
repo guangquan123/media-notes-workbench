@@ -46,6 +46,7 @@ function toFormState(settings: TencentAsrSettings): FormState {
 export default function TranscriptionSettingsPage({
   embedded = false,
 }: TranscriptionSettingsPageProps) {
+  const Root = embedded ? 'section' : 'main';
   const [settings, setSettings] = useState<TencentAsrSettings | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -151,11 +152,11 @@ export default function TranscriptionSettingsPage({
   };
 
   if (!settings || !form) {
-    return <main className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取腾讯 ASR 配置…</main>;
+    return <Root className={embedded ? 'p-3 text-sm text-black/50' : 'min-h-screen bg-[#f7f7f5] p-8 text-sm text-black/50'}><LoaderCircle className="mr-2 inline size-4 animate-spin" />正在读取腾讯 ASR 配置…</Root>;
   }
 
   return (
-    <main className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}>
+    <Root className={embedded ? 'text-[#161616]' : 'min-h-screen bg-[#f7f7f5] px-5 py-7 text-[#161616] md:px-10 md:py-10'}>
       <div className={embedded ? '' : 'mx-auto max-w-2xl'}>
         {!embedded && <header className="flex items-center justify-between border-b border-black/8 pb-5">
           <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#3370ff] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">腾讯云高质量转录</p><p className="text-xs text-black/45">私有 COS + ASR 大模型 2.0</p></div></div>
@@ -188,6 +189,6 @@ export default function TranscriptionSettingsPage({
           {quota && <div className={`rounded-xl border p-4 text-sm ${quota.status === 'depleted' ? 'border-red-200 bg-red-50 text-red-950' : quota.status === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}><p className="font-semibold">额度状态：{quota.status === 'available' ? '可用' : quota.status === 'depleted' ? '余额不足/可能已耗尽' : quota.status === 'not_configured' ? '未配置' : '暂不可用'}</p><p className="mt-1 text-xs leading-5">{quota.message}</p>{quota.accountBalanceCny !== undefined && <p className="mt-2 text-xs">腾讯云账户可用余额：<strong>¥{quota.accountBalanceCny.toFixed(2)}</strong></p>}{quota.asrUsage && <p className="mt-2 text-xs">本月录音识别：<strong>{quota.asrUsage.durationSeconds} 秒 / {quota.asrUsage.count} 次</strong></p>}<p className="mt-2 text-[11px] text-black/45">查询时间：{new Date(quota.checkedAt).toLocaleString('zh-CN')}</p></div>}
         </section>
       </div>
-    </main>
+    </Root>
   );
 }

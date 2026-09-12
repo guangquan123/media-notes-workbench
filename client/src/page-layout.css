@@ -1,0 +1,97 @@
+/* Opt-in page contracts. Keep the app shell and business state untouched. */
+.page-layout--task {
+  min-height: 100dvh;
+}
+
+.page-layout--settings,
+.page-layout--data {
+  min-height: 100dvh;
+}
+
+.note-template-editor {
+  field-sizing: fixed;
+  min-height: clamp(15rem, 42dvh, 26rem);
+  height: min(52dvh, 30rem);
+  max-height: calc(100dvh - 18rem);
+  overflow-y: auto;
+}
+
+@media (min-width: 1024px) {
+  .page-layout--task {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .page-layout--task .page-layout__container {
+    min-height: 0;
+    height: 100%;
+    max-height: 100dvh;
+  }
+
+  .page-layout--task .page-layout__workspace {
+    min-height: 0;
+    overflow: hidden;
+    padding-block: clamp(1rem, 4dvh, 2.5rem);
+  }
+
+  .page-layout--task .page-layout__panel {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
+  .page-layout--task .page-layout__panel .min-h-\[390px\] {
+    min-height: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 850px) {
+  .page-layout--task .video-layout {
+    gap: clamp(1.5rem, 3vw, 3rem);
+    padding-block: 1rem;
+  }
+
+  .page-layout--task .video-panel {
+    padding: 1rem;
+  }
+
+  .page-layout--task .video-panel .space-y-5 {
+    margin-top: 0.75rem;
+  }
+
+  .page-layout--task .video-panel .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+  }
+
+  .page-layout--task .video-panel [aria-label="选择笔记风格"] > button {
+    min-height: 3.75rem;
+    padding-block: 0.5rem;
+  }
+
+  .page-layout--task .video-panel .video-submit {
+    position: sticky;
+    z-index: 1;
+    bottom: 0;
+    box-shadow: 0 -0.5rem 0.75rem rgb(255 255 255 / 92%);
+  }
+}
+
+@media (max-width: 1023px) {
+  .page-layout--task {
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .page-layout--task .page-layout__container,
+  .page-layout--task .page-layout__workspace,
+  .page-layout--task .page-layout__panel {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .note-template-editor {
+    max-height: 24rem;
+  }
+}

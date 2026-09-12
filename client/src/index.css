@@ -2,6 +2,7 @@
 @import 'tw-animate-css';
 @import './tailwind-theme.css';
 @import './typography.css';
+@import './page-layout.css';
 
 @source "../../node_modules/streamdown/dist/*.js";
 @config "../../tailwind.config.ts";
@@ -287,7 +288,7 @@ body {
 
 .entry-primary-stack {
   display: grid;
-  min-height: 422px;
+  min-height: 0;
   grid-template-rows: 96px minmax(0, 1fr);
   gap: 12px;
 }
@@ -432,7 +433,7 @@ body {
 }
 
 .entry-card--featured {
-  min-height: 422px;
+  min-height: 0;
   border-color: rgb(37 99 235 / 26%);
   background: #f8fbff;
 }
@@ -608,9 +609,14 @@ body {
     gap: 10px;
   }
 
+  .entry-workspace {
+    align-items: start;
+  }
+
   .entry-primary-stack {
     min-height: 338px;
-    grid-template-rows: 82px minmax(0, 1fr);
+    align-content: start;
+    grid-template-rows: 82px auto;
   }
 
   .entry-direct-record {
@@ -627,7 +633,11 @@ body {
   }
 
   .entry-card--featured {
-    min-height: 334px;
+    min-height: 0;
+  }
+
+  .entry-secondary-grid {
+    align-content: start;
   }
 
   .entry-card__icon {
