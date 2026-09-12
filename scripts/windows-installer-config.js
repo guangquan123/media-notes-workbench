@@ -30,9 +30,8 @@ CreateUninstallRegKey=yes
 UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
 UninstallDisplayName=多媒体笔记工作台
 PrivilegesRequired=admin
-DisableDirPage=no
-DirExistsWarning=yes
-AppendDefaultDirName=yes
+DisableDirPage=yes
+UsePreviousAppDir=no
 AllowRootDirectory=no
 DisableProgramGroupPage=yes
 MinVersion=10.0
@@ -59,24 +58,6 @@ Name: "{group}\\卸载多媒体笔记工作台"; Filename: "{uninstallexe}"; Ico
 [UninstallRun]
 Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}"; Check: IsSafeInstallDirectory
-
-[Code]
-function IsSafeInstallDirectory(): Boolean;
-var
-  appDirectory: String;
-  markerPath: String;
-begin
-  appDirectory := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
-  markerPath := AddBackslash(appDirectory) + '.media-notes-workbench-install-marker';
-  Result :=
-    (appDirectory <> '') and
-    FileExists(markerPath) and
-    FileExists(AddBackslash(appDirectory) + 'runtime\\node.exe') and
-    FileExists(AddBackslash(appDirectory) + 'scripts\\installed-launcher.js') and
-    FileExists(AddBackslash(appDirectory) + 'dist\\server\\main.js');
-end;
 `;
 }
 

@@ -30,27 +30,17 @@ describe('Windows installer configuration', () => {
     expect(uninstallRun).toContain('RunOnceId: "StopWorkbench"');
   });
 
-  it('removes the dedicated application directory only when its installer marker is present', () => {
-    expect(script).toContain('DisableDirPage=no');
+  it('locks installation to the dedicated application directory', () => {
+    expect(script).toContain('DisableDirPage=yes');
+    expect(script).toContain('UsePreviousAppDir=no');
     expect(script).toContain('PrivilegesRequired=admin');
     expect(script).toContain('DefaultDirName={autopf}\\多媒体笔记工作台');
-    expect(script).toContain('DirExistsWarning=yes');
     expect(script).toContain('AllowRootDirectory=no');
     expect(script).toContain(
       'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',
     );
-    expect(script).toContain('[UninstallDelete]');
-    expect(script).toContain(
-      'Type: filesandordirs; Name: "{app}"; Check: IsSafeInstallDirectory',
-    );
-    expect(script).toContain('function IsSafeInstallDirectory(): Boolean;');
-    expect(script).toContain(
-      "FileExists(AddBackslash(appDirectory) + 'runtime\\node.exe')",
-    );
-    expect(script).toContain(
-      "FileExists(AddBackslash(appDirectory) + 'scripts\\installed-launcher.js')",
-    );
-    expect(script).toContain("'.media-notes-workbench-install-marker'");
+    expect(script).not.toContain('[UninstallDelete]');
+    expect(script).not.toContain('Type: filesandordirs; Name: "{app}"');
   });
 
   it('allows only supported Windows 10 and 11 native x64 systems', () => {
