@@ -16,19 +16,31 @@ describe('Windows installer configuration', () => {
     );
   });
 
-  it('waits for the bundled Node stop command before deleting installed files', () => {
+  it('waits for a temporary Node stop command before deleting installed files', () => {
     const uninstallRun = script.split('[UninstallRun]')[1] || '';
 
     expect(uninstallRun).toContain(
-      'Filename: "{app}\\runtime\\node.exe"',
+      'Filename: "{sys}\\wscript.exe"',
     );
     expect(uninstallRun).toContain(
-      'Parameters: """{app}\\scripts\\installed-stop.js"""',
+      'Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""',
     );
     expect(uninstallRun).toContain('Flags: runhidden waituntilterminated');
     expect(uninstallRun).toContain('RunOnceId: "StopWorkbench"');
-    expect(uninstallRun).not.toContain('wscript.exe');
-    expect(uninstallRun).not.toContain('run-hidden.vbs');
+  });
+
+  it('removes the dedicated application directory only when its installer marker is present', () => {
+    expect(script).toContain('DisableDirPage=yes');
+    expect(script).toContain(
+      'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',
+    );
+    expect(script).toContain('[UninstallDelete]');
+    expect(script).toContain(
+      'Type: filesandordirs; Name: "{app}"; Check: IsSafeInstallDirectory',
+    );
+    expect(script).toContain('function IsSafeInstallDirectory(): Boolean;');
+    expect(script).toContain("ExtractFileName(appDirectory), '多媒体笔记工作台'");
+    expect(script).toContain("'.media-notes-workbench-install-marker'");
   });
 
   it('allows only supported Windows 10 and 11 native x64 systems', () => {

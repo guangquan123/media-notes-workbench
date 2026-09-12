@@ -40,9 +40,13 @@ function ensureDirectories() {
   }
 }
 
-function request(url, timeoutMs = 1500) {
+function request(url, timeoutMs = 1500, signal) {
   return new Promise((resolve) => {
-    const requestHandle = http.get(url, (response) => {
+    if (signal?.aborted) {
+      resolve(0);
+      return;
+    }
+    const requestHandle = http.get(url, { signal }, (response) => {
       response.resume();
       response.once('end', () => resolve(response.statusCode || 0));
     });
@@ -51,13 +55,13 @@ function request(url, timeoutMs = 1500) {
   });
 }
 
-async function waitForReady(timeoutMs = 300000) {
+async function waitForReady(timeoutMs = 300000, signal) {
   const deadline = Date.now() + timeoutMs;
   const runtimeUrl = `${appUrl}api/runtime`;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && !signal?.aborted) {
     const [pageStatus, runtimeStatus] = await Promise.all([
-      request(appUrl),
-      request(runtimeUrl),
+      request(appUrl, 1500, signal),
+      request(runtimeUrl, 1500, signal),
     ]);
     if (pageStatus >= 200 && pageStatus < 400 && runtimeStatus === 200) {
       return true;
@@ -113,14 +117,29 @@ async function main() {
   });
   child.unref();
 
-  const childFailure = new Promise((resolve) => {
+  const childOutcome = new Promise((resolve) => {
     child.once('error', (error) => resolve({ error }));
+    child.once('exit', (code, signal) => resolve({ exit: { code, signal } }));
   });
+  const readinessController = new AbortController();
   const readyOrFailure = await Promise.race([
-    waitForReady().then((ready) => ({ ready })),
-    childFailure,
+    waitForReady(300000, readinessController.signal).then((ready) => ({ ready })),
+    childOutcome,
   ]);
+  readinessController.abort();
   if (readyOrFailure.error) throw readyOrFailure.error;
+  if (readyOrFailure.exit) {
+    const readyAfterExit = await waitForReady(5000);
+    if (!readyAfterExit) {
+      const { code, signal } = readyOrFailure.exit;
+      const exitDetail = signal ? `信号 ${signal}` : `退出码 ${code ?? '未知'}`;
+      throw new Error(
+        `服务进程在工作台就绪前退出（${exitDetail}），请查看日志: ${path.join(logDir, 'dev.std.log')}`,
+      );
+    }
+    openBrowser();
+    return;
+  }
   const ready = readyOrFailure.ready;
   if (!ready) {
     throw new Error(`工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`);

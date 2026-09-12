@@ -2,7 +2,6 @@
 'use strict';
 
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const appRoot = path.resolve(
   process.env.WORKBENCH_APP_ROOT || path.resolve(__dirname, '..'),
@@ -20,23 +19,12 @@ const runtimePaths = applyRuntimePathEnvironment(process.env, {
   cwd: appRoot,
 });
 const runtimeNode = path.join(appRoot, 'runtime', 'node.exe');
-const stopScript = path.join(appRoot, 'scripts', 'stop.js');
+process.env.LOG_DIR = runtimePaths.logDir;
+process.env.WORKBENCH_CACHE_DIR = runtimePaths.cacheDir;
+process.env.WORKBENCH_CONFIG_DIR = runtimePaths.configDir;
+process.env.WORKBENCH_DATA_DIR = runtimePaths.dataDir;
+process.env.WORKBENCH_HOME = runtimePaths.homeDir;
+process.env.WORKBENCH_RUNTIME_NODE = runtimeNode;
+process.env.WORKBENCH_STATE_DIR = runtimePaths.stateDir;
 
-const result = spawnSync(runtimeNode, [stopScript], {
-  cwd: appRoot,
-  stdio: 'inherit',
-  windowsHide: true,
-  env: {
-    ...process.env,
-    WORKBENCH_APP_ROOT: appRoot,
-    LOG_DIR: runtimePaths.logDir,
-    WORKBENCH_CACHE_DIR: runtimePaths.cacheDir,
-    WORKBENCH_CONFIG_DIR: runtimePaths.configDir,
-    WORKBENCH_DATA_DIR: runtimePaths.dataDir,
-    WORKBENCH_HOME: runtimePaths.homeDir,
-    WORKBENCH_INSTALLED: '1',
-    WORKBENCH_STATE_DIR: runtimePaths.stateDir,
-  },
-});
-
-process.exitCode = result.status ?? 1;
+require('./stop.js');

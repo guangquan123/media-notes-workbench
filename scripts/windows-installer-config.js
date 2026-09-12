@@ -28,6 +28,7 @@ CreateUninstallRegKey=yes
 UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
 UninstallDisplayName=多媒体笔记工作台
 PrivilegesRequired=lowest
+DisableDirPage=yes
 MinVersion=10.0
 ArchitecturesAllowed=x64compatible and not arm64
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -42,6 +43,7 @@ WindowsVersionNotSupported=多媒体笔记工作台仅支持 Windows 10/11 64 �
 
 [Files]
 Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "${normalizedSourcePath}/package-manifest.json"; DestDir: "{app}"; DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]
 Name: "{autodesktop}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
@@ -49,7 +51,23 @@ Name: "{group}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Param
 Name: "{group}\\卸载多媒体笔记工作台"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
 [UninstallRun]
-Filename: "{app}\\runtime\\node.exe"; Parameters: """{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
+Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"; Check: IsSafeInstallDirectory
+
+[Code]
+function IsSafeInstallDirectory(): Boolean;
+var
+  appDirectory: String;
+  markerPath: String;
+begin
+  appDirectory := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
+  markerPath := AddBackslash(appDirectory) + '.media-notes-workbench-install-marker';
+  Result :=
+    (CompareText(ExtractFileName(appDirectory), '多媒体笔记工作台') = 0) and
+    FileExists(markerPath);
+end;
 `;
 }
 

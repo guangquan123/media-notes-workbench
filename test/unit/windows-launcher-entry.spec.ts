@@ -123,6 +123,35 @@ describe('Windows launcher entry', () => {
     expect(installedLauncher).toContain("child.once('exit'");
     expect(installedLauncher).toContain('服务进程在工作台就绪前退出');
     expect(installedLauncher).toContain('await waitForReady(5000)');
+    expect(installedLauncher).toContain('const readinessController = new AbortController()');
+    expect(installedLauncher).toContain('readinessController.abort()');
+    expect(installedLauncher).toContain('!signal?.aborted');
+  });
+
+  it('runs installed stop logic in the current temporary Node process', () => {
+    const installedStop = readFileSync(
+      resolve(root, 'scripts', 'installed-stop.js'),
+      'utf8',
+    );
+
+    expect(installedStop).toContain('WORKBENCH_RUNTIME_NODE = runtimeNode');
+    expect(installedStop).toContain("require('./stop.js')");
+    expect(installedStop).not.toContain('spawnSync');
+  });
+
+  it('waits for legacy hidden uninstall commands before files are removed', () => {
+    const runHidden = readFileSync(
+      resolve(root, 'scripts', 'run-hidden.vbs'),
+      'utf8',
+    );
+
+    expect(runHidden).toContain('waitForExit = False');
+    expect(runHidden).toContain('LCase(WScript.Arguments(index))');
+    expect(runHidden).toContain('"installed-stop.js"');
+    expect(runHidden).toContain('fileSystem.GetSpecialFolder(2)');
+    expect(runHidden).toContain('fileSystem.CopyFile executablePath, tempExecutable, True');
+    expect(runHidden).toContain('fileSystem.DeleteFile tempExecutable, True');
+    expect(runHidden).toContain('shell.Run(commandLine, 0, waitForExit)');
   });
 
   it('does not create a second instance when the previous service cannot be stopped', () => {
@@ -151,7 +180,14 @@ describe('Windows launcher entry', () => {
     expect(stop).toContain("inspection.ownership === 'stale'");
     expect(stop).toContain("inspection.ownership === 'unknown'");
     expect(stop).toContain('inspection.sameRuntime');
+    expect(stop).toContain(
+      'nodePath: process.env.WORKBENCH_RUNTIME_NODE || process.execPath',
+    );
     expect(stop).toContain('按项目端口定向停止');
+    expect(stop).toContain('waitForProcessExit');
+    expect(stop).toContain('tasklist.exe');
+    expect(stop).toContain("return { method: 'taskkill-retry', stopped: true }");
+    expect(stop).toContain('停止命令已发送，但进程仍未退出');
     expect(stop).toContain("inspection.ownership !== 'owned'");
     expect(stop).toContain('避免误停止其他程序');
     expect(stop).toContain('未停止该进程');

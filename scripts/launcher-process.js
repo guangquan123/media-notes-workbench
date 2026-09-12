@@ -10,6 +10,16 @@ function normalizeWindowsPath(value) {
     .replace(/\\/g, '/');
 }
 
+function decodePowerShellOutput(value) {
+  const output = String(value || '').trim();
+  if (!output.startsWith('b64:')) return output;
+  try {
+    return Buffer.from(output.slice(4), 'base64').toString('utf16le');
+  } catch {
+    return '';
+  }
+}
+
 function isWindowsInspectionBlocked(result) {
   const message = [result?.stderr || '', result?.error?.message || '']
     .join('\n')
@@ -30,11 +40,13 @@ function readWindowsProcessExecutable(pid, powershellPath, spawnSync) {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        `$process = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; [Console]::Out.Write($process.Path)`,
+        `$process = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; ` +
+          `if ($null -ne $process.Path) { $bytes = [Text.Encoding]::Unicode.GetBytes([string]$process.Path); ` +
+          `[Console]::Out.Write('b64:' + [Convert]::ToBase64String($bytes)) }`,
       ],
       { encoding: 'utf8', windowsHide: true },
     );
-    return normalizeWindowsPath(result?.stdout || '');
+    return normalizeWindowsPath(decodePowerShellOutput(result?.stdout || ''));
   } catch {
     return '';
   }
@@ -76,7 +88,9 @@ function inspectWindowsLauncherProcess(pid, options = {}) {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        `$process = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; [Console]::Out.Write($process.CommandLine)`,
+        `$process = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; ` +
+          `if ($null -ne $process.CommandLine) { $bytes = [Text.Encoding]::Unicode.GetBytes([string]$process.CommandLine); ` +
+          `[Console]::Out.Write('b64:' + [Convert]::ToBase64String($bytes)) }`,
       ],
       { encoding: 'utf8', windowsHide: true },
     );
@@ -98,7 +112,9 @@ function inspectWindowsLauncherProcess(pid, options = {}) {
       : { ownership: 'unknown' };
   }
 
-  const commandLine = normalizeWindowsPath(result?.stdout || '');
+  const commandLine = normalizeWindowsPath(
+    decodePowerShellOutput(result?.stdout || ''),
+  );
   const expectedLauncher = normalizeWindowsPath(
     path.join(rootDir, 'scripts', 'dev-windows.js'),
   );

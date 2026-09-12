@@ -4,6 +4,10 @@ import {
 } from '../../scripts/launcher-process.js';
 
 describe('Windows launcher PID ownership inspection', () => {
+  function encodePowerShellOutput(value: string) {
+    return `b64:${Buffer.from(value, 'utf16le').toString('base64')}`;
+  }
+
   const rootDir = 'D:\\data\\codex_space\\media-notes-workbench';
 
   function inspect(stdout: string, overrides: Record<string, unknown> = {}) {
@@ -58,6 +62,17 @@ describe('Windows launcher PID ownership inspection', () => {
     expect(inspect('C:\\Windows\\System32\\SearchIndexer.exe')).toEqual({
       ownership: 'stale',
     });
+  });
+
+  it('preserves Chinese installation paths returned by Windows PowerShell', () => {
+    const chineseRoot = 'D:\\test\\多媒体笔记工作台';
+    const commandLine =
+      `"${chineseRoot}\\runtime\\node.exe" ` +
+      `"${chineseRoot}\\scripts\\dev-windows.js" --skip-build`;
+
+    expect(
+      inspect(encodePowerShellOutput(commandLine), { rootDir: chineseRoot }),
+    ).toEqual({ ownership: 'owned' });
   });
 
   it('keeps the PID state unknown when Windows denies process inspection', () => {

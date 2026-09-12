@@ -64,6 +64,77 @@ function findListeningPids(ports) {
   return [...pids];
 }
 
+const sleepSignal = new Int32Array(new SharedArrayBuffer(4));
+
+function isWindowsProcessRunning(pid) {
+  const tasklistPath = process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, 'System32', 'tasklist.exe')
+    : 'tasklist';
+  const result = spawnSync(
+    tasklistPath,
+    ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
+    { encoding: 'utf8', windowsHide: true },
+  );
+  if (result.status !== 0) return undefined;
+  const processRow = new RegExp(`^"[^"]+","${pid}",`, 'mu');
+  return processRow.test(String(result.stdout || ''));
+}
+
+function hasProcessExited(pid) {
+  if (process.platform === 'win32') {
+    const running = isWindowsProcessRunning(pid);
+    if (running !== undefined) return !running;
+  }
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return error?.code === 'ESRCH';
+  }
+}
+
+function waitForProcessExit(pid, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (hasProcessExited(pid)) return true;
+    Atomics.wait(sleepSignal, 0, 0, 200);
+  }
+  return hasProcessExited(pid);
+}
+
+function stopWindowsProcess(pid) {
+  const taskkillArgs = ['/PID', String(pid), '/T', '/F'];
+  const runTaskkill = () =>
+    spawnSync('taskkill', taskkillArgs, {
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+  const result = runTaskkill();
+  let method = 'taskkill';
+  if (result.status !== 0) {
+    try {
+      process.kill(pid, 'SIGTERM');
+      method = 'signal';
+    } catch {
+      return {
+        message: (result.stderr || result.stdout || '未知错误').trim(),
+        stopped: false,
+      };
+    }
+  }
+  if (!waitForProcessExit(pid)) {
+    const retry = runTaskkill();
+    if (retry.status === 0 && waitForProcessExit(pid, 5000)) {
+      return { method: 'taskkill-retry', stopped: true };
+    }
+    return {
+      message: `停止命令已发送，但进程仍未退出: ${pid}`,
+      stopped: false,
+    };
+  }
+  return { method, stopped: true };
+}
+
 function stopByConfiguredPorts() {
   const ports = [
     Number.parseInt(process.env.SERVER_PORT || '', 10) || readPort('SERVER_PORT', 3000),
@@ -76,6 +147,7 @@ function stopByConfiguredPorts() {
     const inspection = inspectWindowsLauncherProcess(pid, {
       rootDir,
       spawnSync,
+      nodePath: process.env.WORKBENCH_RUNTIME_NODE || process.execPath,
     });
     if (inspection.ownership !== 'owned' && !inspection.sameRuntime) {
       if (inspection.ownership === 'unknown') {
@@ -90,11 +162,13 @@ function stopByConfiguredPorts() {
         `[stop] 端口进程 ${pid} 的命令行不可读，但确认使用当前 Node 运行时，按项目端口定向停止。`,
       );
     }
-    const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-    if (result.status === 0) stopped = true;
+    const stopResult = stopWindowsProcess(pid);
+    if (stopResult.stopped) {
+      stopped = true;
+    } else {
+      console.error(`[stop] ${stopResult.message}`);
+      process.exit(1);
+    }
   }
   return stopped;
 }
@@ -144,6 +218,7 @@ if (process.platform === 'win32') {
   const inspection = inspectWindowsLauncherProcess(pid, {
     rootDir,
     spawnSync,
+    nodePath: process.env.WORKBENCH_RUNTIME_NODE || process.execPath,
   });
   if (inspection.ownership === 'stale') {
     fs.unlinkSync(pidPath);
@@ -162,28 +237,22 @@ if (process.platform === 'win32') {
     );
   }
 
-  const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-    encoding: 'utf8',
-    windowsHide: true,
-  });
-  if (result.status !== 0) {
-    try {
-      process.kill(pid, 'SIGTERM');
-      fs.unlinkSync(pidPath);
-      console.log(`[stop] taskkill 不可用，已向项目 PID ${pid} 发送停止信号。`);
-      process.exit(0);
-    } catch {
-      const message = (result.stderr || result.stdout || '未知错误').trim();
-      console.error(`[stop] 停止失败: ${message}`);
-      process.exit(1);
-    }
+  const stopResult = stopWindowsProcess(pid);
+  if (!stopResult.stopped) {
+    console.error(`[stop] 停止失败: ${stopResult.message}`);
+    process.exit(1);
   }
   try {
     fs.unlinkSync(pidPath);
   } catch {
     // 启动器退出时可能已自行清理。
   }
-  console.log(`[stop] 已停止本项目 Windows 开发进程树 ${pid}。`);
+  stopByConfiguredPorts();
+  if (stopResult.method === 'signal') {
+    console.log(`[stop] taskkill 不可用，已确认项目 PID ${pid} 退出。`);
+  } else {
+    console.log(`[stop] 已停止本项目 Windows 开发进程树 ${pid}。`);
+  }
   process.exit(0);
 }
 
