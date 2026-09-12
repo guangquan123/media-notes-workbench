@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { buildInstallerScript } = require('./windows-installer-config.js');
 
 const rootDir = path.resolve(__dirname, '..');
 const version = require(path.join(rootDir, 'package.json')).version;
@@ -20,6 +21,8 @@ const runtimeNode = path.resolve(
 const compileInstaller = args.includes('--compile');
 const appStage = path.join(outputRoot, 'app');
 const installerPath = path.join(outputRoot, 'installer', 'MediaNotesWorkbench.iss');
+const buildLockPath = `${outputRoot}.lock`;
+let buildLockFd;
 
 function valueAfter(flag) {
   const index = args.indexOf(flag);
@@ -30,6 +33,41 @@ function fail(message) {
   process.stderr.write(`[package-windows] ${message}\n`);
   process.exit(1);
 }
+
+function acquireBuildLock() {
+  fs.mkdirSync(path.dirname(outputRoot), { recursive: true });
+  try {
+    buildLockFd = fs.openSync(buildLockPath, 'wx');
+    fs.writeSync(
+      buildLockFd,
+      `${JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })}\n`,
+    );
+  } catch (error) {
+    if (error && error.code === 'EEXIST') {
+      fail(
+        `发布目录正在被另一个打包进程使用: ${outputRoot}。` +
+          '请等待已有打包完成后再重试。',
+      );
+    }
+    fail(`无法创建打包锁 ${buildLockPath}: ${error.message}`);
+  }
+}
+
+function releaseBuildLock() {
+  if (buildLockFd === undefined) return;
+  try {
+    fs.closeSync(buildLockFd);
+  } finally {
+    buildLockFd = undefined;
+    try {
+      fs.rmSync(buildLockPath, { force: true });
+    } catch {
+      // The build result is still usable; leave the lock diagnostic to the next run.
+    }
+  }
+}
+
+process.on('exit', releaseBuildLock);
 
 function copy(source, destination) {
   if (!fs.existsSync(source)) fail(`缺少发布输入: ${source}`);
@@ -73,36 +111,12 @@ function assertPublishInputIsClean(directory) {
 function writeInstallerScript() {
   const installerDir = path.dirname(installerPath);
   fs.mkdirSync(installerDir, { recursive: true });
-  const sourcePath = path.relative(installerDir, appStage).replace(/\\/gu, '/');
-  const content = `#define AppVersion "${version}"
-[Setup]
-AppId={{A8F7FD44-40D9-4AF7-9F80-2A7A1D90F2DA}
-AppName=多媒体笔记工作台
-AppVersion={#AppVersion}
-AppPublisher=多媒体笔记工作台
-DefaultDirName={localappdata}\\Programs\\多媒体笔记工作台
-DefaultGroupName=多媒体笔记工作台
-SetupIconFile=../app/dist/client/app-icon.ico
-UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
-PrivilegesRequired=lowest
-OutputDir=.
-OutputBaseFilename=多媒体笔记工作台-{#AppVersion}-Setup
-Compression=lzma2/max
-SolidCompression=yes
-WizardStyle=modern
-UninstallDisplayName=多媒体笔记工作台
-ArchitecturesInstallIn64BitMode=x64compatible
-
-[Files]
-Source: "${sourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{autodesktop}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
-Name: "{group}\\多媒体笔记工作台"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
-
-[UninstallRun]
-Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; Flags: runhidden
-`;
+  const iconPath = path.join(appStage, 'dist', 'client', 'app-icon.ico');
+  const content = buildInstallerScript({
+    sourcePath: appStage,
+    iconPath,
+    version,
+  });
   fs.writeFileSync(installerPath, content, 'utf8');
 }
 
@@ -159,12 +173,23 @@ for (const publishInput of [
   assertPublishInputIsClean(publishInput);
 }
 
-fs.rmSync(outputRoot, {
-  recursive: true,
-  force: true,
-  maxRetries: 10,
-  retryDelay: 500,
-});
+acquireBuildLock();
+try {
+  fs.rmSync(outputRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 500,
+  });
+} catch (error) {
+  fail(
+    `无法清理旧发布目录: ${outputRoot}。请关闭正在使用该目录的程序后重试。` +
+      ` 原因: ${error.message}`,
+  );
+}
+if (fs.existsSync(outputRoot)) {
+  fail(`旧发布目录未能完全清理: ${outputRoot}`);
+}
 fs.mkdirSync(appStage, { recursive: true });
 copy(path.join(rootDir, 'dist', 'server'), path.join(appStage, 'dist', 'server'));
 copy(path.join(rootDir, 'dist', 'client'), path.join(appStage, 'dist', 'client'));
@@ -187,6 +212,10 @@ for (const fileName of [
   'stop.js',
 ]) {
   copy(path.join(rootDir, 'scripts', fileName), path.join(appStage, 'scripts', fileName));
+}
+const installerIcon = path.join(appStage, 'dist', 'client', 'app-icon.ico');
+if (!fs.existsSync(installerIcon)) {
+  fail(`发布目录缺少安装器图标: ${installerIcon}`);
 }
 const manifest = {
   appVersion: version,
