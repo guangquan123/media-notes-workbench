@@ -77,13 +77,18 @@ function stopByConfiguredPorts() {
       rootDir,
       spawnSync,
     });
-    if (inspection.ownership !== 'owned') {
+    if (inspection.ownership !== 'owned' && !inspection.sameRuntime) {
       if (inspection.ownership === 'unknown') {
         console.warn(
           `[stop] 无法确认端口 ${ports.join('/')} 的进程 ${pid} 属于本项目，已跳过，避免误停止其他程序。`,
         );
       }
       continue;
+    }
+    if (inspection.sameRuntime) {
+      console.warn(
+        `[stop] 端口进程 ${pid} 的命令行不可读，但确认使用当前 Node 运行时，按项目端口定向停止。`,
+      );
     }
     const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
       encoding: 'utf8',

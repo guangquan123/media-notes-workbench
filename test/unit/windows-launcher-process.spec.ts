@@ -16,12 +16,42 @@ describe('Windows launcher PID ownership inspection', () => {
     });
   }
 
+  function inspectWithRuntimeFallback(
+    commandLineResult: Record<string, unknown>,
+    executablePath: string,
+  ) {
+    let callCount = 0;
+    return inspect('', {
+      nodePath: 'C:\\Program Files\\nodejs\\node.exe',
+      spawnSync: () => {
+        callCount += 1;
+        return callCount === 1
+          ? commandLineResult
+          : { status: 0, stdout: executablePath, stderr: '' };
+      },
+    });
+  }
+
   it('accepts only the launcher process from this project', () => {
     expect(
       inspect(
         '"C:\\Program Files\\nodejs\\node.exe" "D:\\data\\codex_space\\media-notes-workbench\\scripts\\dev-windows.js"',
       ),
     ).toEqual({ ownership: 'owned' });
+  });
+
+  it('accepts the project static client process as an owned process', () => {
+    expect(
+      inspect(
+        '"C:\\Program Files\\nodejs\\node.exe" "D:\\data\\codex_space\\media-notes-workbench\\scripts\\static-client.js"',
+      ),
+    ).toEqual({ ownership: 'owned' });
+  });
+
+  it('accepts a static client command line using the launcher working directory', () => {
+    expect(inspect('node scripts/static-client.js')).toEqual({
+      ownership: 'owned',
+    });
   });
 
   it('marks a reused PID held by an unrelated process as stale', () => {
@@ -40,6 +70,24 @@ describe('Windows launcher PID ownership inspection', () => {
         }),
       }),
     ).toEqual({ ownership: 'unknown' });
+  });
+
+  it('recognizes the current Node runtime when command-line inspection is denied', () => {
+    expect(
+      inspectWithRuntimeFallback(
+        { status: 1, stdout: '', stderr: 'Access is denied' },
+        'C:\\Program Files\\nodejs\\node.exe',
+      ),
+    ).toEqual({ ownership: 'unknown', sameRuntime: true });
+  });
+
+  it('uses the executable fallback when Windows returns an empty command line', () => {
+    expect(
+      inspectWithRuntimeFallback(
+        { status: 0, stdout: '', stderr: '' },
+        'C:\\Program Files\\nodejs\\node.exe',
+      ),
+    ).toEqual({ ownership: 'unknown', sameRuntime: true });
   });
 
   it('uses verified service state instead of trusting an unreadable stale PID', () => {

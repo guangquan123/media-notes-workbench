@@ -22,6 +22,24 @@ function isWindowsInspectionBlocked(result) {
   );
 }
 
+function readWindowsProcessExecutable(pid, powershellPath, spawnSync) {
+  try {
+    const result = spawnSync(
+      powershellPath,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `$process = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; [Console]::Out.Write($process.Path)`,
+      ],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    return normalizeWindowsPath(result?.stdout || '');
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Classify the process currently referenced by dev-local.pid without ever
  * terminating it. A live PID alone is not sufficient on Windows because PID
@@ -33,6 +51,7 @@ function inspectWindowsLauncherProcess(pid, options = {}) {
     platform = process.platform,
     env = process.env,
     spawnSync,
+    nodePath = process.execPath,
   } = options;
 
   if (platform !== 'win32' || typeof spawnSync !== 'function') {
@@ -66,20 +85,53 @@ function inspectWindowsLauncherProcess(pid, options = {}) {
   }
 
   if (isWindowsInspectionBlocked(result)) {
-    return { ownership: 'unknown' };
+    const executablePath = readWindowsProcessExecutable(
+      pid,
+      powershellPath,
+      spawnSync,
+    );
+    const sameRuntime =
+      Boolean(executablePath) &&
+      executablePath === normalizeWindowsPath(nodePath);
+    return sameRuntime
+      ? { ownership: 'unknown', sameRuntime: true }
+      : { ownership: 'unknown' };
   }
 
   const commandLine = normalizeWindowsPath(result?.stdout || '');
   const expectedLauncher = normalizeWindowsPath(
     path.join(rootDir, 'scripts', 'dev-windows.js'),
   );
+  const expectedStaticClient = normalizeWindowsPath(
+    path.join(rootDir, 'scripts', 'static-client.js'),
+  );
+  const expectedStaticClientMarker = 'scripts/static-client.js';
 
-  if (result?.status !== 0 || !commandLine) {
+  if (!commandLine) {
+    const executablePath = readWindowsProcessExecutable(
+      pid,
+      powershellPath,
+      spawnSync,
+    );
+    const sameRuntime =
+      Boolean(executablePath) &&
+      executablePath === normalizeWindowsPath(nodePath);
+    return sameRuntime
+      ? { ownership: 'unknown', sameRuntime: true }
+      : { ownership: result?.status === 0 ? 'stale' : 'unknown' };
+  }
+
+  if (result?.status !== 0) {
     return { ownership: 'stale' };
   }
 
   return {
-    ownership: commandLine.includes(expectedLauncher) ? 'owned' : 'stale',
+    ownership:
+      commandLine.includes(expectedLauncher) ||
+      commandLine.includes(expectedStaticClient) ||
+      commandLine.includes(expectedStaticClientMarker)
+        ? 'owned'
+        : 'stale',
   };
 }
 

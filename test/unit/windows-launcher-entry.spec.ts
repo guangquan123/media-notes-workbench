@@ -113,12 +113,28 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain('为避免假启动已停止');
     expect(devWindows).toContain('resolveExistingLauncherState');
   });
+
+  it('stops waiting when the installed service launcher exits before readiness', () => {
+    const installedLauncher = readFileSync(
+      resolve(root, 'scripts', 'installed-launcher.js'),
+      'utf8',
+    );
+
+    expect(installedLauncher).toContain("child.once('exit'");
+    expect(installedLauncher).toContain('服务进程在工作台就绪前退出');
+    expect(installedLauncher).toContain('await waitForReady(5000)');
+  });
+
   it('does not create a second instance when the previous service cannot be stopped', () => {
     const restart = readFileSync(
       resolve(root, 'scripts', 'restart-windows.js'),
       'utf8',
     );
     const stop = readFileSync(resolve(root, 'scripts', 'stop.js'), 'utf8');
+    const launcherProcess = readFileSync(
+      resolve(root, 'scripts', 'launcher-process.js'),
+      'utf8',
+    );
     const launch = readFileSync(
       resolve(root, 'scripts', 'launch-windows.js'),
       'utf8',
@@ -134,9 +150,12 @@ describe('Windows launcher entry', () => {
     expect(stop).toContain('inspectWindowsLauncherProcess');
     expect(stop).toContain("inspection.ownership === 'stale'");
     expect(stop).toContain("inspection.ownership === 'unknown'");
+    expect(stop).toContain('inspection.sameRuntime');
+    expect(stop).toContain('按项目端口定向停止');
     expect(stop).toContain("inspection.ownership !== 'owned'");
     expect(stop).toContain('避免误停止其他程序');
     expect(stop).toContain('未停止该进程');
+    expect(launcherProcess).toContain('static-client.js');
     expect(launch).toContain("child.once('error'");
   });
 
