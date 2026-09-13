@@ -5,9 +5,15 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  ChevronDown,
+  FileText,
+  Link2,
   LoaderCircle,
+  Mic2,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
+  Video,
   Waypoints,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -354,6 +360,11 @@ const SetupPage: React.FC = () => {
     setBaseUrl(selectedPreset.baseUrl);
   }, [providerPresetId, selectedPreset]);
 
+  useEffect((): void => {
+    if (step !== 'environment' || environment || working) return;
+    void handleEnvironmentNext();
+  }, [step, environment, working]);
+
   const saveProgress = async (nextStep: SetupStep): Promise<void> => {
     const nextStatus: SetupStatusResponse = await updateSetupProgress({
       currentStep: nextStep,
@@ -415,6 +426,26 @@ const SetupPage: React.FC = () => {
     setError('');
     try {
       await saveProgress('environment');
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleUseDocumentsOnly = async (): Promise<void> => {
+    setWorking(true);
+    setError('');
+    try {
+      const documentsOnly: SetupCapability[] = ['documents'];
+      setSelectedCapabilities(documentsOnly);
+      const nextStatus: SetupStatusResponse = await updateSetupProgress({
+        currentStep: 'provider',
+        selectedCapabilities: documentsOnly,
+      });
+      setStatus(nextStatus);
+      setEnvironment(null);
+      setStep('provider');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -651,18 +682,22 @@ const SetupPage: React.FC = () => {
     0,
     SETUP_STEPS.findIndex(({ id }: { id: SetupStep; label: string }): boolean => id === step),
   );
+  const selectedCapabilityLabels: string[] = selectedCapabilities.map(
+    (capability: SetupCapability): string =>
+      CAPABILITIES.find((item): boolean => item.id === capability)?.label || capability,
+  );
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-4xl">
+    <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-slate-950 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+            <span className="flex size-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-900/10">
               <Waypoints className="size-5" />
             </span>
             <div>
-              <p className="font-semibold text-slate-950">多媒体笔记工作台</p>
-              <p className="text-xs text-slate-500">首次配置</p>
+              <p className="font-semibold tracking-tight">多媒体笔记工作台</p>
+              <p className="text-xs text-slate-500">首次启动 · 约 2 分钟</p>
             </div>
           </div>
           <Button
@@ -677,364 +712,166 @@ const SetupPage: React.FC = () => {
           </Button>
         </header>
 
-        <nav aria-label="首次配置进度" className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-6">
+        <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">把资料变成笔记</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">先把工作台准备好</h1>
+          </div>
+          <p className="max-w-sm text-left text-sm leading-6 text-slate-500 sm:text-right">
+            只配置你现在要用的能力。系统会自动检查环境并记住你的选择。
+          </p>
+        </div>
+
+        <nav aria-label="首次配置进度" className="mt-7 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-6">
           {SETUP_STEPS.map(
             ({ id, label }: { id: SetupStep; label: string }, index: number): React.ReactNode => (
               <div className="min-w-0" key={id}>
-                <div
-                  className={`h-1 rounded-full ${index <= stepIndex ? 'bg-slate-900' : 'bg-slate-200'}`}
-                />
-                <p className="mt-2 truncate text-xs text-slate-500">{label}</p>
+                <div className={`h-1.5 rounded-full ${index <= stepIndex ? 'bg-blue-600' : 'bg-slate-200'}`} />
+                <p className={`mt-2 truncate text-xs ${index === stepIndex ? 'font-semibold text-blue-700' : 'text-slate-500'}`}>{label}</p>
               </div>
             ),
           )}
         </nav>
 
         {error && (
-          <Alert className="mt-6" variant="destructive">
+          <Alert className="mt-6 border-amber-200 bg-amber-50 text-amber-950" variant="default">
             <AlertTriangle className="size-4" />
             <AlertTitle>还需要处理一项问题</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <section className="mt-8 rounded-2xl border bg-white p-6 shadow-sm sm:p-10">
-          {step === 'welcome' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">大约需要 2 分钟</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                先告诉我，你准备整理什么？
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                只会配置你现在需要的能力。笔记和原始资料默认保存在这台电脑上，之后可以随时增加其他能力。
-              </p>
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                {visibleCapabilities.map(
-                  ({ description, id, label }): React.ReactNode => {
-                    const checked: boolean = selectedCapabilities.includes(id);
-                    return (
-                      <label
-                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${checked ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}
-                        key={id}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(value: boolean | 'indeterminate'): void => {
-                            setSelectedCapabilities((current: SetupCapability[]): SetupCapability[] =>
-                              value === true
-                                ? uniqueCapabilities([...current, id])
-                                : current.filter(
-                                    (item: SetupCapability): boolean => item !== id,
-                                  ),
-                            );
-                          }}
-                        />
-                        <span>
-                          <span className="block text-sm font-medium text-slate-950">{label}</span>
-                          <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
-                        </span>
-                      </label>
-                    );
-                  },
-                )}
-              </div>
-              {isLocalRuntime() && (
-                <p className="mt-4 text-xs leading-5 text-slate-500">
-                  本地模式默认保存 Markdown 到此电脑。飞书或钉钉同步可在连接器设置中单独开启，不会影响首次使用。
-                </p>
-              )}
-              <div className="mt-8 flex justify-end">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleWelcomeNext()}>
-                  开始配置
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {step === 'environment' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">自动检查</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">正在准备本地工作台</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">系统会检查保存位置和你刚才选择的处理能力，不需要安装开发工具。</p>
-              {environment && (
-                <div className="mt-8 grid gap-3">
-                  {environment.checks.map((check): React.ReactNode => (
-                    <div className="flex items-start gap-3 rounded-xl border p-4" key={check.id}>
-                      {check.status === 'ready' ? <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" /> : check.status === 'not_required' ? <ShieldCheck className="mt-0.5 size-5 text-slate-400" /> : <AlertTriangle className="mt-0.5 size-5 text-amber-600" />}
-                      <div>
-                        <p className="text-sm font-medium text-slate-950">{check.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{check.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost">
-                  <ArrowLeft className="size-4" />返回
-                </Button>
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>
-                  检查并继续
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {step === 'provider' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">只需连接一次</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">连接你的 AI 服务</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">普通服务只需要粘贴 API Key。系统会自动保存、读取模型并验证一次真实调用。</p>
-              <div className="mt-8 grid gap-5">
-                <div className="grid gap-2">
-                  <Label htmlFor="setup-provider">服务提供者</Label>
-                  <Select value={providerPresetId} onValueChange={handleProviderPresetChange}>
-                    <SelectTrigger id="setup-provider"><SelectValue placeholder="选择服务提供者" /></SelectTrigger>
-                    <SelectContent>
-                      {PROVIDER_PRESETS.map((preset: ProviderPreset): React.ReactNode => <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {providerPresetId === 'custom' && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-provider-name">服务名称</Label>
-                    <Input id="setup-provider-name" value={providerName} onChange={(event): void => setProviderName(event.target.value)} placeholder="例如：公司内部模型" />
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_18px_48px_rgba(15,35,60,0.08)] sm:p-9">
+            {step === 'welcome' && (
+              <div>
+                <div className="flex items-start gap-4">
+                  <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-700"><Sparkles className="size-6" /></div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">第 1 步 · 选择用途</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight">你准备先整理什么？</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">只勾选现在需要的入口，之后随时可以在“参数配置”中增加。</p>
                   </div>
-                )}
-                <div className="grid gap-2">
-                  <Label htmlFor="setup-base-url">API 地址</Label>
-                  <Input id="setup-base-url" value={baseUrl} onChange={(event): void => { setBaseUrl(event.target.value); setUrlNotice(''); }} placeholder="https://api.example.com/v1" />
-                  {urlNotice && <p className="text-xs text-amber-700">{urlNotice}</p>}
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="setup-api-key">API Key{!selectedPreset.requiresApiKey ? '（可选）' : ''}</Label>
-                  <Input id="setup-api-key" type="password" value={apiKey} onChange={(event): void => setApiKey(event.target.value)} placeholder={providerId ? '已保存；留空表示不修改' : '粘贴 API Key'} />
-                  <p className="text-xs leading-5 text-slate-500">密钥只由本机服务保存，页面和日志不会显示完整内容。</p>
-                </div>
-              </div>
-              <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleProviderNext()}>
-                  连接并继续
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {step === 'capabilities' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">最后确认</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">选择总结模型</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">推荐模型已经自动填入。没有自动列表时，也可以手动填写服务商提供的模型名称。</p>
-              <div className="mt-8 grid gap-5">
-                <div className="grid gap-2">
-                  <Label htmlFor="setup-model">总结模型</Label>
-                  {models.length > 0 ? (
-                    <Select value={model} onValueChange={setModel}>
-                      <SelectTrigger id="setup-model"><SelectValue placeholder="选择总结模型" /></SelectTrigger>
-                      <SelectContent>{models.map((item: ModelProviderModel): React.ReactNode => <SelectItem key={item.id} value={item.id}>{item.name || item.id}</SelectItem>)}</SelectContent>
-                    </Select>
-                  ) : (
-                    <Input id="setup-model" value={model} onChange={(event): void => setModel(event.target.value)} placeholder="例如：deepseek-chat" />
+                <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                  {visibleCapabilities.map(
+                    ({ description, id, label }): React.ReactNode => {
+                      const checked: boolean = selectedCapabilities.includes(id);
+                      const Icon = id === 'documents' ? FileText : id === 'local_audio' || id === 'recording' ? Mic2 : id === 'local_video' ? Video : Link2;
+                      return (
+                        <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${checked ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} key={id}>
+                          <Checkbox checked={checked} onCheckedChange={(value: boolean | 'indeterminate'): void => {
+                            setSelectedCapabilities((current: SetupCapability[]): SetupCapability[] => value === true ? uniqueCapabilities([...current, id]) : current.filter((item: SetupCapability): boolean => item !== id));
+                          }} />
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-2 text-sm font-medium"><Icon className="size-4 text-blue-600" />{label}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
+                          </span>
+                        </label>
+                      );
+                    },
                   )}
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-950">已选择的用途</p>
-                  <div className="mt-3 flex flex-wrap gap-2">{selectedCapabilities.map((capability: SetupCapability): React.ReactNode => <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-600" key={capability}>{CAPABILITIES.find((item): boolean => item.id === capability)?.label || capability}</span>)}</div>
+                <div className="mt-5 flex items-start gap-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                  <span>笔记和原始资料默认保存在这台电脑上。{isLocalRuntime() ? '本地模式不要求绑定飞书或钉钉。' : ''}</span>
+                </div>
+                <div className="mt-8 flex justify-end">
+                  <Button data-ai-section-type="button" disabled={working || selectedCapabilities.length === 0} onClick={(): void => void handleWelcomeNext()}>
+                    开始准备
+                    {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+                  </Button>
                 </div>
               </div>
-              <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleCapabilitiesNext()}>
-                  验证模型并继续
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
 
-          {step === 'transcription' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">音视频能力</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                选择语音转文字方式
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                这一步只在你选择音频、视频或录音时出现。文档笔记不会依赖转录服务。
-              </p>
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                <button
-                  aria-pressed={transcriptionMode === 'custom_api'}
-                  className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}
-                  onClick={(): void => setTranscriptionMode('custom_api')}
-                  type="button"
-                >
-                  <p className="text-sm font-medium text-slate-950">我的 API 模型</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    使用上一步的模型服务提供者或其他已配置提供者。
-                  </p>
-                </button>
-                <button
-                  aria-pressed={transcriptionMode === 'tencent_asr'}
-                  className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}
-                  onClick={(): void => setTranscriptionMode('tencent_asr')}
-                  type="button"
-                >
-                  <p className="text-sm font-medium text-slate-950">腾讯云 ASR</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    需要腾讯云 SecretId、SecretKey 和 COS 存储桶。
-                  </p>
-                </button>
-              </div>
-
-              {transcriptionMode === 'custom_api' && (
-                <div className="mt-6 grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-transcription-provider">转录服务提供者</Label>
-                    <Select
-                      value={transcriptionProviderId}
-                      onValueChange={(value: string): void => {
-                        setTranscriptionProviderId(value);
-                        setTranscriptionModel('');
-                      }}
-                    >
-                      <SelectTrigger id="setup-transcription-provider">
-                        <SelectValue placeholder="选择已配置的提供者" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(aiSettings?.providers || [])
-                          .filter(
-                            (provider: ModelServiceProvider): boolean =>
-                              provider.enabled && provider.configured,
-                          )
-                          .map((provider: ModelServiceProvider): React.ReactNode => (
-                            <SelectItem key={provider.id} value={provider.id}>
-                              {provider.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-transcription-model">转录模型</Label>
-                    {transcriptionModels.length > 0 ? (
-                      <Select value={transcriptionModel} onValueChange={setTranscriptionModel}>
-                        <SelectTrigger id="setup-transcription-model">
-                          <SelectValue placeholder="选择转录模型" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {transcriptionModels.map((item: ModelProviderModel): React.ReactNode => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.name || item.id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        id="setup-transcription-model"
-                        value={transcriptionModel}
-                        onChange={(event): void => setTranscriptionModel(event.target.value)}
-                        placeholder={transcriptionLoading ? '正在读取模型列表…' : '例如：whisper-1'}
-                      />
-                    )}
-                    <p className="text-xs leading-5 text-slate-500">
-                      没有模型列表时可以直接填写服务商提供的模型 ID。
-                    </p>
-                  </div>
+            {step === 'environment' && (
+              <div>
+                <p className="text-sm font-medium text-blue-700">第 2 步 · 自动准备</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">正在检查你的工作台</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">不用安装开发工具。我们只检查你刚才选择的能力是否可以正常运行。</p>
+                <div className="mt-8 grid gap-3">
+                  {environment ? environment.checks.map((check): React.ReactNode => (
+                    <div className={`flex items-start gap-3 rounded-xl border p-4 ${check.status === 'unavailable' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50/40'}`} key={check.id}>
+                      {check.status === 'ready' ? <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" /> : check.status === 'not_required' ? <ShieldCheck className="mt-0.5 size-5 text-slate-400" /> : <AlertTriangle className="mt-0.5 size-5 text-amber-600" />}
+                      <div><p className="text-sm font-medium">{check.label}</p><p className="mt-1 text-xs leading-5 text-slate-500">{check.detail}</p></div>
+                    </div>
+                  )) : <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-5 text-sm text-blue-800"><LoaderCircle className="size-5 animate-spin" />正在检测本机环境…</div>}
                 </div>
-              )}
-
-              {transcriptionMode === 'tencent_asr' && (
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-tencent-secret-id">SecretId</Label>
-                    <Input
-                      id="setup-tencent-secret-id"
-                      value={tencentForm.secretId}
-                      onChange={(event): void =>
-                        setTencentForm((current) => ({ ...current, secretId: event.target.value }))
-                      }
-                      placeholder={tencentSettings?.secretId || 'AKID…'}
-                    />
+                {environment?.checks.some((check): boolean => check.status === 'unavailable') && (
+                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+                    <p className="font-medium">音视频组件还没准备好</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-900/75">这不会影响文档笔记。你可以先完成首次使用，之后安装组件并在“参数配置”中重新开启音视频。</p>
+                    <Button className="mt-3" data-ai-section-type="button" disabled={working} onClick={(): void => void handleUseDocumentsOnly()} size="sm" variant="outline">先使用文档笔记</Button>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-tencent-secret-key">SecretKey</Label>
-                    <Input
-                      id="setup-tencent-secret-key"
-                      type="password"
-                      value={tencentForm.secretKey}
-                      onChange={(event): void =>
-                        setTencentForm((current) => ({ ...current, secretKey: event.target.value }))
-                      }
-                      placeholder={tencentSettings?.secretKeyConfigured ? '已保存；留空则不修改' : '请输入 SecretKey'}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-tencent-region">腾讯云地域</Label>
-                    <Input
-                      id="setup-tencent-region"
-                      value={tencentForm.region}
-                      onChange={(event): void =>
-                        setTencentForm((current) => ({ ...current, region: event.target.value }))
-                      }
-                      placeholder="ap-shanghai"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="setup-tencent-bucket">COS 存储桶</Label>
-                    <Input
-                      id="setup-tencent-bucket"
-                      value={tencentForm.bucket}
-                      onChange={(event): void =>
-                        setTencentForm((current) => ({ ...current, bucket: event.target.value }))
-                      }
-                      placeholder="bucket-name"
-                    />
-                  </div>
-                  <p className="sm:col-span-2 text-xs leading-5 text-amber-700">
-                    腾讯云识别和 COS 可能产生费用，验证时会访问你的腾讯云账户。
-                  </p>
+                )}
+                <div className="mt-8 flex justify-between gap-3">
+                  <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
+                  {environment && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>{environment.checks.some((check): boolean => check.status === 'unavailable') ? '重新检查' : '继续'}{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button>}
                 </div>
-              )}
+              </div>
+            )}
 
-              <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost">
-                  <ArrowLeft className="size-4" />返回
-                </Button>
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleTranscriptionNext()}>
-                  验证转录并继续
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
+            {step === 'provider' && (
+              <div>
+                <p className="text-sm font-medium text-blue-700">第 3 步 · 连接一次</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">连接你的 AI 服务</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">选择你已有的服务，然后粘贴 API Key。地址和服务名称会自动填好。</p>
+                <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                  {PROVIDER_PRESETS.filter((preset: ProviderPreset): boolean => preset.id !== 'custom').map((preset: ProviderPreset): React.ReactNode => {
+                    const selected: boolean = providerPresetId === preset.id;
+                    return <button aria-pressed={selected} className={`flex min-h-16 items-center justify-between rounded-xl border px-4 text-left transition ${selected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} key={preset.id} onClick={(): void => handleProviderPresetChange(preset.id)} type="button"><span><span className="block text-sm font-medium">{preset.name}</span><span className="mt-1 block text-xs text-slate-500">{preset.id === 'ollama' ? '本机运行 · 不需要 Key' : 'OpenAI 兼容接口'}</span></span>{selected && <CheckCircle2 className="size-5 text-blue-600" />}</button>;
+                  })}
+                  <button aria-pressed={providerPresetId === 'custom'} className={`flex min-h-16 items-center justify-between rounded-xl border px-4 text-left transition ${providerPresetId === 'custom' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} onClick={(): void => handleProviderPresetChange('custom')} type="button"><span><span className="block text-sm font-medium">其他兼容服务</span><span className="mt-1 block text-xs text-slate-500">填写自己的服务地址</span></span>{providerPresetId === 'custom' && <CheckCircle2 className="size-5 text-blue-600" />}</button>
+                </div>
+                <div className="mt-6 grid gap-2"><Label htmlFor="setup-api-key">API Key{!selectedPreset.requiresApiKey ? '（可选）' : ''}</Label><Input id="setup-api-key" type="password" value={apiKey} onChange={(event): void => setApiKey(event.target.value)} placeholder={providerId ? '已保存；留空表示不修改' : '粘贴 API Key'} /><p className="text-xs leading-5 text-slate-500">密钥只保存在本机，不会显示在页面或日志中。</p></div>
+                <details className="group mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-slate-700">高级设置（通常不需要修改）<ChevronDown className="size-4 transition group-open:rotate-180" /></summary>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="grid gap-2"><Label htmlFor="setup-base-url">API 地址</Label><Input id="setup-base-url" value={baseUrl} onChange={(event): void => { setBaseUrl(event.target.value); setUrlNotice(''); }} placeholder="https://api.example.com/v1" />{urlNotice && <p className="text-xs text-amber-700">{urlNotice}</p>}</div>{providerPresetId === 'custom' && <div className="grid gap-2"><Label htmlFor="setup-provider-name">服务名称</Label><Input id="setup-provider-name" value={providerName} onChange={(event): void => setProviderName(event.target.value)} placeholder="例如：公司内部模型" /></div>}</div>
+                </details>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working || (selectedPreset.requiresApiKey && !apiKey && !providerId)} onClick={(): void => void handleProviderNext()}>连接并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 'review' && (
-            <div>
-              <p className="text-sm font-medium text-slate-500">真实最小调用</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">完成最后验证</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">系统会确认模型可以返回内容，本机可以保存数据。测试只发送一小段固定文本，可能产生极少量调用费用。</p>
-              <div className="mt-8 grid gap-3">
-                <div className="flex items-center gap-3 rounded-xl border p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-slate-700">AI 服务已连接</span></div>
-                <div className="flex items-center gap-3 rounded-xl border p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-slate-700">总结模型已完成真实测试：{model}</span></div>
-                <div className="flex items-center gap-3 rounded-xl border p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-slate-700">本机数据保存已检查</span></div>
-                {hasMediaCapability(selectedCapabilities) && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">音视频转录已完成验证，可以直接开始处理。</div>}
+            {step === 'capabilities' && (
+              <div>
+                <p className="text-sm font-medium text-blue-700">第 4 步 · 选一个默认模型</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">确认总结模型</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">系统会用它把原文整理成结构化笔记。列表由刚刚连接的服务自动读取。</p>
+                <div className="mt-7 grid gap-5"><div className="grid gap-2"><Label htmlFor="setup-model">总结模型</Label>{models.length > 0 ? <Select value={model} onValueChange={setModel}><SelectTrigger id="setup-model"><SelectValue placeholder="选择总结模型" /></SelectTrigger><SelectContent>{models.map((item: ModelProviderModel): React.ReactNode => <SelectItem key={item.id} value={item.id}>{item.name || item.id}</SelectItem>)}</SelectContent></Select> : <Input id="setup-model" value={model} onChange={(event): void => setModel(event.target.value)} placeholder="例如：deepseek-chat" />}<p className="text-xs text-slate-500">没有自动列表时，填写服务商提供的模型 ID 即可。</p></div><div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><p className="text-sm font-medium text-blue-950">本次会启用</p><div className="mt-2 flex flex-wrap gap-2">{selectedCapabilityLabels.map((label: string): React.ReactNode => <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-600" key={label}>{label}</span>)}</div></div></div>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleCapabilitiesNext()}>验证并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
-              <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>
-                  完成并进入工作台
-                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                </Button>
+            )}
+
+            {step === 'transcription' && (
+              <div>
+                <p className="text-sm font-medium text-blue-700">第 5 步 · 仅音视频需要</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">选择语音转文字方式</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">你选择了音频或视频。文档笔记不会经过这一步。优先选择你已经有账号的服务。</p>
+                <div className="mt-7 grid gap-3 sm:grid-cols-2"><button aria-pressed={transcriptionMode === 'custom_api'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} onClick={(): void => setTranscriptionMode('custom_api')} type="button"><span className="flex items-center gap-2 text-sm font-medium"><Mic2 className="size-4 text-blue-600" />沿用刚刚的 AI 服务</span><span className="mt-2 block text-xs leading-5 text-slate-500">如果服务支持语音模型，无需再填一套账号。</span></button><button aria-pressed={transcriptionMode === 'tencent_asr'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} onClick={(): void => setTranscriptionMode('tencent_asr')} type="button"><span className="flex items-center gap-2 text-sm font-medium"><Waypoints className="size-4 text-blue-600" />腾讯云 ASR</span><span className="mt-2 block text-xs leading-5 text-slate-500">识别效果稳定，需要腾讯云 SecretId、SecretKey 和 COS。</span></button></div>
+                {transcriptionMode === 'custom_api' && <div className="mt-6 grid gap-4"><div className="grid gap-2"><Label htmlFor="setup-transcription-provider">转录服务提供者</Label><Select value={transcriptionProviderId} onValueChange={(value: string): void => { setTranscriptionProviderId(value); setTranscriptionModel(''); }}><SelectTrigger id="setup-transcription-provider"><SelectValue placeholder="选择已配置的提供者" /></SelectTrigger><SelectContent>{(aiSettings?.providers || []).filter((provider: ModelServiceProvider): boolean => provider.enabled && provider.configured).map((provider: ModelServiceProvider): React.ReactNode => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="setup-transcription-model">转录模型</Label>{transcriptionModels.length > 0 ? <Select value={transcriptionModel} onValueChange={setTranscriptionModel}><SelectTrigger id="setup-transcription-model"><SelectValue placeholder="选择转录模型" /></SelectTrigger><SelectContent>{transcriptionModels.map((item: ModelProviderModel): React.ReactNode => <SelectItem key={item.id} value={item.id}>{item.name || item.id}</SelectItem>)}</SelectContent></Select> : <Input id="setup-transcription-model" value={transcriptionModel} onChange={(event): void => setTranscriptionModel(event.target.value)} placeholder={transcriptionLoading ? '正在读取模型列表…' : '例如：whisper-1'} />}<p className="text-xs leading-5 text-slate-500">没有模型列表时可以直接填写模型 ID。</p></div></div>}
+                {transcriptionMode === 'tencent_asr' && <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2"><div className="grid gap-2"><Label htmlFor="setup-tencent-secret-id">SecretId</Label><Input id="setup-tencent-secret-id" value={tencentForm.secretId} onChange={(event): void => setTencentForm((current) => ({ ...current, secretId: event.target.value }))} placeholder={tencentSettings?.secretId || 'AKID…'} /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-secret-key">SecretKey</Label><Input id="setup-tencent-secret-key" type="password" value={tencentForm.secretKey} onChange={(event): void => setTencentForm((current) => ({ ...current, secretKey: event.target.value }))} placeholder={tencentSettings?.secretKeyConfigured ? '已保存；留空表示不修改' : '请输入 SecretKey'} /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-region">腾讯云地域</Label><Input id="setup-tencent-region" value={tencentForm.region} onChange={(event): void => setTencentForm((current) => ({ ...current, region: event.target.value }))} placeholder="ap-shanghai" /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-bucket">COS 存储桶</Label><Input id="setup-tencent-bucket" value={tencentForm.bucket} onChange={(event): void => setTencentForm((current) => ({ ...current, bucket: event.target.value }))} placeholder="bucket-name" /></div><p className="text-xs leading-5 text-amber-700 sm:col-span-2">腾讯云识别和 COS 可能产生费用，验证时会访问你的腾讯云账户。</p></div>}
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleTranscriptionNext()}>验证转录并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
-            </div>
-          )}
-        </section>
-        <p className="mt-5 text-center text-xs text-slate-400">配置可以随时在“参数配置”中修改，已保存的笔记不会受到影响。</p>
+            )}
+
+            {step === 'review' && (
+              <div>
+                <p className="text-sm font-medium text-blue-700">最后一步 · 自动验证</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight">可以开始了</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">关键配置已经验证。点击完成后，直接进入第一篇笔记。</p>
+                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>完成并进入工作台{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
+              </div>
+            )}
+          </section>
+
+          <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_18px_48px_rgba(15,35,60,0.12)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">你只需要准备</p>
+            <div className="mt-5 grid gap-5"><div className="flex gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-sm">1</span><div><p className="text-sm font-medium">选择用途</p><p className="mt-1 text-xs leading-5 text-slate-300">只出现与你有关的检查项。</p></div></div><div className="flex gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-sm">2</span><div><p className="text-sm font-medium">准备一个模型 Key</p><p className="mt-1 text-xs leading-5 text-slate-300">服务地址、模型列表会自动读取。</p></div></div><div className="flex gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-sm">3</span><div><p className="text-sm font-medium">上传第一份资料</p><p className="mt-1 text-xs leading-5 text-slate-300">完成后直接进入工作台开始使用。</p></div></div></div>
+            <div className="mt-7 border-t border-white/10 pt-4 text-xs leading-5 text-slate-300">配置随时可以在“参数配置”中修改，已经生成的笔记不会受到影响。</div>
+          </aside>
+        </div>
       </div>
     </main>
   );
