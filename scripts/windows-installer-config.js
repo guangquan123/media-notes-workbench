@@ -58,7 +58,7 @@ Name: "{autodesktop}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Pa
 Name: "{group}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-launcher.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 Name: "{group}\\Stop Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 Name: "{group}\\Restart Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-restart.js"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
-Name: "{group}\\Open Media Notes Logs"; Filename: "{sys}\\explorer.exe"; Parameters: """{localappdata}\\MediaNotesWorkbench\\logs"""; IconFilename: "{app}\\dist\\client\\app-icon.ico"
+Name: "{group}\\Open Media Notes Logs"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\open-logs.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
 [UninstallRun]

@@ -244,6 +244,7 @@ for (const fileName of [
   'launcher-status.js',
   'local-runtime-config.js',
   'migrate-local-runtime.js',
+  'open-logs.vbs',
   'restart-windows.js',
   'run-hidden.vbs',
   'runtime-paths.js',

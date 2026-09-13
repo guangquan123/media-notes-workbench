@@ -26,6 +26,10 @@ describe('Windows installer configuration', () => {
     expect(script).toContain('Name: "{group}\\Restart Media Notes Workbench"');
     expect(script).toContain('scripts\\installed-restart.js');
     expect(script).toContain('Name: "{group}\\Open Media Notes Logs"');
+    expect(script).toContain(
+      'Name: "{group}\\Open Media Notes Logs"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\open-logs.vbs"""',
+    );
+    expect(script).not.toContain('{localappdata}\\MediaNotesWorkbench\\logs');
   });
 
   it('waits for a temporary Node stop command before deleting installed files', () => {

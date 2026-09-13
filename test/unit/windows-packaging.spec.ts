@@ -22,6 +22,7 @@ describe('Windows packaging safeguards', () => {
     const restart = readFileSync(resolve(root, 'scripts', 'restart-windows.js'), 'utf8');
 
     expect(packager).toContain("'installed-restart.js'");
+    expect(packager).toContain("'open-logs.vbs'");
     expect(packager).toContain("'restart-windows.js'");
     expect(restart).toContain("process.env.WORKBENCH_INSTALLED === '1'");
     expect(restart).toContain("'installed-launcher.js'");

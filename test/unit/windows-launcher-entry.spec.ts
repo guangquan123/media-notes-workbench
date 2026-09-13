@@ -159,6 +159,19 @@ describe('Windows launcher entry', () => {
     expect(runHidden).toContain('shell.Run(commandLine, 0, waitForExit)');
   });
 
+  it('opens the per-user log directory after creating it on demand', () => {
+    const openLogs = readFileSync(
+      resolve(root, 'scripts', 'open-logs.vbs'),
+      'utf8',
+    );
+
+    expect(openLogs).toContain('ExpandEnvironmentStrings("%LOCALAPPDATA%")');
+    expect(openLogs).toContain('Sub EnsureFolder(folderPath)');
+    expect(openLogs).toContain('EnsureFolder logsFolder');
+    expect(openLogs).toContain('fileSystem.CreateFolder folderPath');
+    expect(openLogs).toContain('explorer.exe ');
+  });
+
   it('does not create a second instance when the previous service cannot be stopped', () => {
     const restart = readFileSync(
       resolve(root, 'scripts', 'restart-windows.js'),
