@@ -1,6 +1,7 @@
 import {
   resolveLocalBackendBasePath,
   resolveLocalBackendRequestPath,
+  resolveLocalDocumentUrl,
 } from '../../client/src/lib/local-http';
 
 describe('local HTTP base path', () => {
@@ -40,5 +41,13 @@ describe('local HTTP request path', () => {
       if (originalBasePath === undefined) delete process.env.CLIENT_BASE_PATH;
       else process.env.CLIENT_BASE_PATH = originalBasePath;
     }
+  });
+});
+
+describe('local document URL', () => {
+  it('prefixes local API documents when served below an app base path', () => {
+    expect(resolveLocalDocumentUrl('/api/note-jobs/local-documents/id')).toBe(
+      '/api/note-jobs/local-documents/id',
+    );
   });
 });

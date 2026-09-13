@@ -1,0 +1,33 @@
+import type { SetupCapability } from '@shared/api.interface';
+
+const CAPABILITY_ROUTES: ReadonlyArray<{
+  capability: SetupCapability;
+  pattern: RegExp;
+}> = [
+  { capability: 'documents', pattern: /(^|\/)(?:document-notes|pdf-notes)(?:\/|$)/u },
+  { capability: 'local_audio', pattern: /(^|\/)audio-notes(?:\/|$)/u },
+  { capability: 'local_video', pattern: /(^|\/)(?:local-video-notes|paired-media-notes)(?:\/|$)/u },
+  { capability: 'recording', pattern: /(^|\/)recording-notes(?:\/|$)/u },
+  { capability: 'platform_video', pattern: /(^|\/)video-notes(?:\/|$)/u },
+];
+
+export function getSetupCapabilityForPath(
+  pathname: string,
+): SetupCapability | undefined {
+  return CAPABILITY_ROUTES.find(
+    ({ pattern }: { capability: SetupCapability; pattern: RegExp }): boolean =>
+      pattern.test(pathname),
+  )?.capability;
+}
+
+export function buildSetupRedirect(
+  pathname: string,
+  search: string,
+  hash: string,
+): string {
+  const returnTo: string = `${pathname}${search}${hash}`;
+  const query = new URLSearchParams({ returnTo });
+  const capability: SetupCapability | undefined = getSetupCapabilityForPath(pathname);
+  if (capability) query.set('capability', capability);
+  return `/setup?${query.toString()}`;
+}

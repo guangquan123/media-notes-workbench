@@ -14,6 +14,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { resolveLocalDocumentUrl } from '@/lib/local-http';
 import { toast } from 'sonner';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
@@ -561,7 +562,7 @@ export default function HomePage() {
                       className="h-12 w-full rounded-xl bg-[#3370ff] hover:bg-[#2864ea]"
                       onClick={() =>
                         window.open(
-                          job.documentUrl,
+                          resolveLocalDocumentUrl(job.documentUrl),
                           '_blank',
                           'noopener,noreferrer',
                         )
@@ -576,7 +577,7 @@ export default function HomePage() {
                       className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
                       onClick={() =>
                         window.open(
-                          job.rawDocumentUrl,
+                          resolveLocalDocumentUrl(job.rawDocumentUrl),
                           '_blank',
                           'noopener,noreferrer',
                         )

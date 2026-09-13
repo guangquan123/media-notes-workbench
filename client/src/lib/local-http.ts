@@ -44,6 +44,16 @@ export function resolveLocalBackendRequestPath(
   return `${basePath}${normalizedRequestPath}`;
 }
 
+export function resolveLocalDocumentUrl(url: string): string {
+  if (/^(?:https?:|mailto:)/iu.test(url)) return url;
+  const basePath =
+    typeof window !== 'undefined'
+      ? resolveLocalBackendBasePath(window.location.pathname)
+      : undefined;
+  if (!basePath || !url.startsWith('/')) return url;
+  return `${basePath}${url}`;
+}
+
 // 本地模式：直连同源 API；部署在 /app/app_xxx 下时保留应用前缀。
 export function axiosForBackend<T = unknown>(config: AxiosRequestConfig): Promise<BackendResponse<T>> {
   const baseURL =

@@ -75,6 +75,18 @@ import type {
   RecordingStorageSettings,
   UpdateRecordingAssetRequest,
   UpdateRecordingStorageSettingsRequest,
+  AnalyzeProviderUrlRequest,
+  ProviderUrlAnalysis,
+  SetupEnvironmentResponse,
+  SetupModelValidationRequest,
+  SetupModelValidationResponse,
+  SetupStatusResponse,
+  SetupCapability,
+  SetupStep,
+  RuntimeControlStatus,
+  StopRuntimeRequest,
+  RuntimeControlOperation,
+  RuntimeControlSession,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -125,6 +137,39 @@ const noteJobsReadinessState = createCachedRequestState<SystemReadiness>();
 const articleExportReadinessState =
   createCachedRequestState<ArticleExportReadiness>();
 
+let runtimeControlToken = '';
+
+function isAuthorizationFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const response = (error as { response?: { status?: unknown } }).response;
+  return response?.status === 401 || response?.status === 403;
+}
+
+async function ensureRuntimeControlSession(): Promise<string> {
+  if (runtimeControlToken) return runtimeControlToken;
+  const response: { data: RuntimeControlSession } = await axiosForBackend({
+    url: '/api/runtime/control/session',
+    method: 'GET',
+    timeout: READINESS_TIMEOUT_MS,
+  });
+  runtimeControlToken = response.data.csrfToken;
+  return runtimeControlToken;
+}
+
+async function runtimeControlRequest<T>(
+  request: (token: string) => Promise<{ data: T }>,
+): Promise<T> {
+  let token: string = await ensureRuntimeControlSession();
+  try {
+    return (await request(token)).data;
+  } catch (error) {
+    if (!isAuthorizationFailure(error)) throw error;
+    runtimeControlToken = '';
+    token = await ensureRuntimeControlSession();
+    return (await request(token)).data;
+  }
+}
+
 export async function getReadiness(): Promise<SystemReadiness> {
   return requestWithCache(noteJobsReadinessState, async () => {
     const response = await axiosForBackend({
@@ -143,6 +188,147 @@ export async function getRuntimeStatus(): Promise<RuntimeStatus> {
     timeout: JOB_READ_TIMEOUT_MS,
   });
   return response.data;
+}
+
+export async function getSetupStatus(): Promise<SetupStatusResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/status',
+    method: 'GET',
+    timeout: READINESS_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function updateSetupProgress(input: {
+  currentStep: SetupStep;
+  selectedCapabilities: SetupCapability[];
+}): Promise<SetupStatusResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/progress',
+    method: 'PUT',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function validateSetupEnvironment(): Promise<SetupEnvironmentResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/environment/validate',
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function analyzeSetupProviderUrl(
+  input: AnalyzeProviderUrlRequest,
+): Promise<ProviderUrlAnalysis> {
+  const response = await axiosForBackend({
+    url: '/api/setup/providers/analyze-url',
+    method: 'POST',
+    data: input,
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function validateSetupSummaryModel(
+  input: SetupModelValidationRequest,
+): Promise<SetupModelValidationResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/models/validate-summary',
+    method: 'POST',
+    data: input,
+    timeout: 35_000,
+  });
+  return response.data;
+}
+
+export async function validateSetupTranscriptionModel(
+  input: SetupModelValidationRequest,
+): Promise<SetupModelValidationResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/models/validate-transcription',
+    method: 'POST',
+    data: input,
+    timeout: 35_000,
+  });
+  return response.data;
+}
+
+export async function validateSetupTencentAsr(): Promise<TencentAsrConnectionStatus> {
+  const response = await axiosForBackend({
+    url: '/api/setup/transcription/validate-tencent',
+    method: 'POST',
+    timeout: 35_000,
+  });
+  return response.data;
+}
+
+export async function completeSetup(): Promise<SetupStatusResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/complete',
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function resetSetupProgress(): Promise<SetupStatusResponse> {
+  const response = await axiosForBackend({
+    url: '/api/setup/reset-progress',
+    method: 'POST',
+    timeout: JOB_WRITE_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function getRuntimeControlStatus(): Promise<RuntimeControlStatus> {
+  return runtimeControlRequest<RuntimeControlStatus>((token: string) =>
+    axiosForBackend({
+      url: '/api/runtime/control/status',
+      method: 'GET',
+      headers: { 'X-Workbench-Control-Token': token },
+      timeout: READINESS_TIMEOUT_MS,
+    }),
+  );
+}
+
+export async function stopRuntime(
+  input: StopRuntimeRequest,
+): Promise<RuntimeControlOperation> {
+  return runtimeControlRequest<RuntimeControlOperation>((token: string) =>
+    axiosForBackend({
+      url: '/api/runtime/control/stop',
+      method: 'POST',
+      data: input,
+      headers: { 'X-Workbench-Control-Token': token },
+      timeout: JOB_WRITE_TIMEOUT_MS,
+    }),
+  );
+}
+
+export async function restartRuntime(): Promise<RuntimeControlOperation> {
+  return runtimeControlRequest<RuntimeControlOperation>((token: string) =>
+    axiosForBackend({
+      url: '/api/runtime/control/restart',
+      method: 'POST',
+      headers: { 'X-Workbench-Control-Token': token },
+      timeout: JOB_WRITE_TIMEOUT_MS,
+    }),
+  );
+}
+
+export async function cancelScheduledRuntimeStop(): Promise<RuntimeControlStatus> {
+  return runtimeControlRequest<RuntimeControlStatus>((token: string) =>
+    axiosForBackend({
+      url: '/api/runtime/control/scheduled-stop',
+      method: 'DELETE',
+      headers: { 'X-Workbench-Control-Token': token },
+      timeout: JOB_WRITE_TIMEOUT_MS,
+    }),
+  );
 }
 
 export async function getTencentAsrSettings(): Promise<TencentAsrSettings> {

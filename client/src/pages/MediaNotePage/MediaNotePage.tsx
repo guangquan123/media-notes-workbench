@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { Link } from 'react-router-dom';
+import { resolveLocalDocumentUrl } from '@/lib/local-http';
 import { toast } from 'sonner';
 
 import {
@@ -859,7 +860,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       className="h-12 w-full rounded-xl bg-[#3370ff] hover:bg-[#2864ea]"
                       onClick={() =>
                         window.open(
-                          job.documentUrl,
+                          resolveLocalDocumentUrl(job.documentUrl),
                           '_blank',
                           'noopener,noreferrer',
                         )
@@ -874,7 +875,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                       className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
                       onClick={() =>
                         window.open(
-                          job.rawDocumentUrl,
+                          resolveLocalDocumentUrl(job.rawDocumentUrl),
                           '_blank',
                           'noopener,noreferrer',
                         )

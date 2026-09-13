@@ -10,6 +10,7 @@ import type {
   UpdateConnectorRequest,
 } from '@shared/api.interface';
 import { buildDescriptor, isConnectorType } from './connector.utils';
+import { isLocalRuntime } from '../runtime/runtime.config';
 import { FeishuAuthService } from './feishu-auth.service';
 import { DingTalkAuthService } from './dingtalk-auth.service';
 
@@ -115,6 +116,7 @@ export class ConnectorRegistryService {
   }
 
   async isActiveConnectorReady(): Promise<boolean> {
+    if (isLocalRuntime()) return true;
     const settings = await this.getSettings();
     const active = settings.items.find(
       (item) => item.type === settings.activeConnector,

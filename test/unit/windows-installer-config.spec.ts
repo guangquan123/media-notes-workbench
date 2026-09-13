@@ -17,6 +17,17 @@ describe('Windows installer configuration', () => {
     );
   });
 
+  it('keeps the desktop to one launch icon and puts service controls in the Start menu', () => {
+    const desktopEntries = script.match(/Name: "\{autodesktop\}\\/gu) || [];
+
+    expect(desktopEntries).toHaveLength(1);
+    expect(script).toContain('Name: "{group}\\Stop Media Notes Workbench"');
+    expect(script).toContain('scripts\\installed-stop.js');
+    expect(script).toContain('Name: "{group}\\Restart Media Notes Workbench"');
+    expect(script).toContain('scripts\\installed-restart.js');
+    expect(script).toContain('Name: "{group}\\Open Media Notes Logs"');
+  });
+
   it('waits for a temporary Node stop command before deleting installed files', () => {
     const uninstallRun = script.split('[UninstallRun]')[1] || '';
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { CircleAlert, RefreshCw } from 'lucide-react';
-import { getRuntimeStatus } from '@/api';
+import { getRuntimeStatus, getSetupStatus } from '@/api';
+import AppErrorBoundary from './AppErrorBoundary';
 import {
   describeBackendFailure,
   type BackendHealthState,
@@ -9,6 +10,8 @@ import {
 } from '@/lib/backend-health';
 import { isLocalRuntime } from '@/lib/runtime';
 import { Button } from '@/components/ui/button';
+import RuntimeControlMenu from './RuntimeControlMenu';
+import { buildSetupRedirect } from '@/lib/setup-routing';
 
 const BACKEND_HEALTH_INTERVAL_MS = 5_000;
 const INITIAL_BACKEND_HEALTH: BackendHealthState = {
@@ -48,10 +51,13 @@ function reportLauncherPageReady(): void {
 }
 
 const Layout = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [backendHealth, setBackendHealth] = useState<BackendHealthState>(
     INITIAL_BACKEND_HEALTH,
   );
   const [backendFailure, setBackendFailure] = useState<string>('');
+  const [setupLoading, setSetupLoading] = useState<boolean>(isLocalRuntime());
   const healthCheckInFlight = useRef<boolean>(false);
 
   const checkBackendHealth = useCallback(async (): Promise<void> => {
@@ -96,11 +102,57 @@ const Layout = () => {
     };
   }, [checkBackendHealth]);
 
+  useEffect(() => {
+    if (!isLocalRuntime()) {
+      setSetupLoading(false);
+      return undefined;
+    }
+    let mounted = true;
+    setSetupLoading(true);
+    getSetupStatus()
+      .then((status): void => {
+        if (!mounted) return;
+        const isSetupRoute: boolean = /(^|\/)setup(?:\/|$)/u.test(location.pathname);
+        if (status.status === 'completed' && status.requiredActions.length === 0) {
+          if (isSetupRoute) navigate('/', { replace: true });
+        } else if (!isSetupRoute) {
+          navigate(
+            buildSetupRedirect(
+              location.pathname,
+              location.search,
+              location.hash,
+            ),
+            { replace: true },
+          );
+        }
+      })
+      .catch((): void => {
+        // Keep the current route usable while the next health check retries setup status.
+      })
+      .finally((): void => {
+        if (mounted) setSetupLoading(false);
+      });
+    return (): void => {
+      mounted = false;
+    };
+  }, [location.pathname, navigate]);
+
+  const isSetupRoute: boolean = /(^|\/)setup(?:\/|$)/u.test(location.pathname);
+  if (isLocalRuntime() && setupLoading && !isSetupRoute) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="text-sm text-slate-600">正在准备工作台…</div>
+      </main>
+    );
+  }
+
   return (
-    <div
-      className="min-h-screen w-full min-w-0 max-w-full"
-      data-launcher-page-ready="true"
-    >
+    <AppErrorBoundary>
+      <div
+        className="min-h-screen w-full min-w-0 max-w-full"
+        data-launcher-page-ready="true"
+      >
+      {isLocalRuntime() && !isSetupRoute && <RuntimeControlMenu />}
       {backendHealth.unavailable && (
         <div
           className="sticky top-0 z-50 border-b border-red-300 bg-red-50 px-4 py-3 text-red-950 shadow-sm"
@@ -134,8 +186,9 @@ const Layout = () => {
           </div>
         </div>
       )}
-      <Outlet />
-    </div>
+        <Outlet />
+      </div>
+    </AppErrorBoundary>
   );
 };
 

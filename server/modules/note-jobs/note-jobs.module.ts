@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { FileService as PlatformStorageClient } from '@lark-apaas/file-service';
 import { PlatformHttpClientService } from '@lark-apaas/fullstack-nestjs-core';
 import { NoteJobsController } from './note-jobs.controller';
+import { LocalDocumentController } from './local-document.controller';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
 import { NoteTemplateService } from './note-template.service';
@@ -17,6 +18,7 @@ import { ExternalModelSettingsService } from './external-model-settings.service'
 import { NoteSummaryPipelineService } from './note-summary-pipeline.service';
 import { ModelProviderSettingsService } from './model-provider-settings.service';
 import { CustomApiTranscriptionService } from './custom-api-transcription.service';
+import { LocalDocumentService } from './local-document.service';
 import { LocalDocumentParserService } from './local-document-parser.service';
 import { ConnectorModule } from '../connectors/connector.module';
 import { TaskNotificationModule } from '../task-notifications/task-notification.module';
@@ -29,7 +31,11 @@ import { MediaCleanupService } from './media-cleanup.service';
 import { RecordingAssetsModule } from '../recording-assets/recording-assets.module';
 
 @Module({
-  controllers: [NoteJobsController, MediaCleanupController],
+  controllers: [
+    NoteJobsController,
+    MediaCleanupController,
+    LocalDocumentController,
+  ],
   imports: [ConnectorModule, RecordingAssetsModule, TaskNotificationModule],
   providers: [
     NoteHistoryService,
@@ -58,7 +64,12 @@ import { RecordingAssetsModule } from '../recording-assets/recording-assets.modu
     DocumentImageDownloadService,
     LocalDocumentParserService,
     MediaCleanupService,
+    LocalDocumentService,
   ],
-  exports: [NoteJobsService],
+  exports: [
+    NoteJobsService,
+    ModelProviderSettingsService,
+    TencentAsrSettingsService,
+  ],
 })
 export class NoteJobsModule {}

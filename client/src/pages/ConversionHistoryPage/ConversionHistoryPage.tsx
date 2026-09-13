@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { resolveLocalDocumentUrl } from '@/lib/local-http';
 import { toast } from 'sonner';
 import type { DateRange } from 'react-day-picker';
 
@@ -869,7 +870,7 @@ export default function ConversionHistoryPage() {
                               size="sm"
                             >
                               <a
-                                href={record.documentUrl}
+                                href={resolveLocalDocumentUrl(record.documentUrl)}
                                 rel="noopener noreferrer"
                                 target="_blank"
                               >

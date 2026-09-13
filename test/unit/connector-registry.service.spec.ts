@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConnectorRegistryService } from '../../server/modules/connectors/connector-registry.service';
+import { isLocalRuntime } from '../../server/modules/runtime/runtime.config';
 
 describe('connector registry service', () => {
   let baseDir: string;
@@ -21,7 +22,7 @@ describe('connector registry service', () => {
     expect(settings.items.map((item) => item.type)).toEqual(['feishu', 'dingtalk']);
     expect(settings.items.find((item) => item.type === 'feishu')?.status).toBe('unconfigured');
     await expect(service.getActiveConnector()).resolves.toBe('feishu');
-    await expect(service.isActiveConnectorReady()).resolves.toBe(false);
+    await expect(service.isActiveConnectorReady()).resolves.toBe(isLocalRuntime());
   });
 
   it('rejects switching to an unconfigured Feishu connector', async () => {

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import COS from 'cos-nodejs-sdk-v5';
 import * as TencentCloud from 'tencentcloud-sdk-nodejs';
+import { createHash } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
@@ -139,6 +140,24 @@ export class TencentAsrSettingsService {
       cosConnected: true,
       message: 'COS 存储桶和腾讯云录音文件识别均可访问。',
     };
+  }
+
+  async getConfigurationFingerprint(): Promise<string | undefined> {
+    const current: TencentAsrCredentials = await this.load();
+    if (!this.isConfigured(current)) return undefined;
+    return createHash('sha256')
+      .update(
+        [
+          current.asrRegion,
+          current.bucket,
+          current.engineModelType,
+          current.region,
+          current.secretId,
+          current.secretKey,
+          current.speakerDiarization,
+        ].join('\u0000'),
+      )
+      .digest('hex');
   }
 
   async getQuotaStatus(): Promise<TencentAsrQuotaStatus> {

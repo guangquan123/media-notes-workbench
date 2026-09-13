@@ -14,6 +14,8 @@ import { DatabaseModule } from './database/database.module';
 import { LocalPlatformModule } from './modules/runtime/local-platform.module';
 import { LocalUploadsModule } from './modules/local-uploads/local-uploads.module';
 import { RecordingAssetsModule } from './modules/recording-assets/recording-assets.module';
+import { SetupModule } from './modules/setup/setup.module';
+import { RuntimeControlModule } from './modules/runtime-control/runtime-control.module';
 import { isLocalRuntime } from './modules/runtime/runtime.config';
 
 @Module({
@@ -31,6 +33,8 @@ import { isLocalRuntime } from './modules/runtime/runtime.config';
     RuntimeModule,
     LocalUploadsModule,
     RecordingAssetsModule,
+    SetupModule,
+    RuntimeControlModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last

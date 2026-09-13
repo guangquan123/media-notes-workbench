@@ -988,3 +988,130 @@ export interface ArticleExportReadiness {
   connectorType?: ConnectorType;
   connectorReady?: boolean;
 }
+
+/** 用户在首次引导中选择的实际使用场景。 */
+export type SetupCapability =
+  | 'documents'
+  | 'local_audio'
+  | 'local_video'
+  | 'recording'
+  | 'platform_video'
+  | 'external_sync';
+
+export type SetupStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'validating'
+  | 'completed'
+  | 'needs_repair';
+
+export type SetupStep =
+  | 'welcome'
+  | 'environment'
+  | 'provider'
+  | 'capabilities'
+  | 'transcription'
+  | 'review';
+
+export type SetupValidationKind =
+  | 'environment'
+  | 'storage'
+  | 'summary'
+  | 'transcription'
+  | 'connector';
+
+export type SetupValidationStatus = 'pending' | 'success' | 'failed';
+
+export interface SetupValidationSummary {
+  configFingerprint?: string;
+  detail?: string;
+  kind: SetupValidationKind;
+  status: SetupValidationStatus;
+  validatedAt?: string;
+}
+
+export interface SetupRequiredAction {
+  action: 'configure_connector' | 'configure_summary' | 'configure_transcription' | 'repair_storage';
+  capability?: SetupCapability;
+  label: string;
+}
+
+export interface SetupStatusResponse {
+  completedAt?: string;
+  completedSteps: SetupStep[];
+  currentStep: SetupStep;
+  migratedFromLegacy: boolean;
+  requiredActions: SetupRequiredAction[];
+  selectedCapabilities: SetupCapability[];
+  status: SetupStatus;
+  validations: SetupValidationSummary[];
+}
+
+export interface UpdateSetupProgressRequest {
+  currentStep: SetupStep;
+  selectedCapabilities: SetupCapability[];
+}
+
+export interface SetupEnvironmentCheck {
+  detail?: string;
+  id: 'ffmpeg' | 'local_storage' | 'yt_dlp';
+  label: string;
+  required: boolean;
+  status: 'ready' | 'unavailable' | 'not_required';
+}
+
+export interface SetupEnvironmentResponse {
+  checks: SetupEnvironmentCheck[];
+  storageReady: boolean;
+}
+
+export interface AnalyzeProviderUrlRequest {
+  baseUrl: string;
+}
+
+export interface ProviderUrlAnalysis {
+  changed: boolean;
+  message?: string;
+  normalizedUrl?: string;
+  requiresConfirmation: boolean;
+  valid: boolean;
+}
+
+export interface SetupModelValidationRequest {
+  model: string;
+  providerId: string;
+}
+
+export interface SetupModelValidationResponse {
+  checkedAt: string;
+  kind: 'summary' | 'transcription';
+  message: string;
+  model: string;
+  providerId: string;
+  status: 'success' | 'failed';
+}
+
+export type RuntimeControlState =
+  | 'ready'
+  | 'draining'
+  | 'stopping';
+
+export interface RuntimeControlStatus {
+  activeTaskCount: number;
+  canStopImmediately: boolean;
+  scheduledStop: boolean;
+  state: RuntimeControlState;
+}
+
+export interface RuntimeControlSession {
+  csrfToken: string;
+}
+
+export interface StopRuntimeRequest {
+  mode: 'after_tasks' | 'immediate';
+}
+
+export interface RuntimeControlOperation {
+  operationId: string;
+  status: 'accepted' | 'draining' | 'stopping';
+}

@@ -157,6 +157,8 @@ import {
 } from './custom-api-transcription.service';
 import { ModelProviderSettingsService } from './model-provider-settings.service';
 import { ExternalModelSettingsService } from './external-model-settings.service';
+import { LocalDocumentService } from './local-document.service';
+import { isLocalRuntime } from '../runtime/runtime.config';
 import { isTencentAsrQuotaError } from './tencent-asr-error.utils';
 import { fetchExternalModelJson } from './external-model-request.utils';
 import {
@@ -325,6 +327,7 @@ export class NoteJobsService implements OnModuleInit {
     private readonly dingTalkDocumentService: DingTalkDocumentService,
     private readonly dingTalkTaskService: DingTalkTaskService,
     private readonly recordingAssetsService: RecordingAssetsService,
+    private readonly localDocumentService: LocalDocumentService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -373,7 +376,9 @@ export class NoteJobsService implements OnModuleInit {
       this.commandExists('lark-cli'),
       this.tencentAsrTranscriptionService.isEnabled(),
       this.customApiTranscriptionService.isEnabled(),
-      this.connectorRegistryService.isActiveConnectorReady(),
+      isLocalRuntime()
+        ? Promise.resolve(true)
+        : this.connectorRegistryService.isActiveConnectorReady(),
       this.connectorRegistryService.getActiveConnector(),
     ]);
     return {
@@ -577,6 +582,16 @@ export class NoteJobsService implements OnModuleInit {
       throw new NotFoundException('任务不存在或服务已重启');
     }
     return stored.job;
+  }
+
+  getActiveTaskCount(): number {
+    let count: number = 0;
+    for (const stored of this.jobs.values()) {
+      if (stored.job.stage !== 'completed' && stored.job.stage !== 'failed') {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   async cancel(id: string, ownerId: string): Promise<NoteJob> {
@@ -3739,6 +3754,9 @@ export class NoteJobsService implements OnModuleInit {
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
   ): Promise<LarkDocumentPublishResult> {
+    if (isLocalRuntime()) {
+      return this.localDocumentService.create(title, markdown, media.length);
+    }
     if (
       (await this.connectorRegistryService.getActiveConnector()) === 'dingtalk'
     ) {
@@ -4502,6 +4520,10 @@ export class NoteJobsService implements OnModuleInit {
     title: string,
     documentUrl: string,
   ): Promise<readonly string[]> {
+    if (isLocalRuntime()) {
+      this.patch(jobId, { message: '完成！笔记已保存到本机。' });
+      return [];
+    }
     const connectorType =
       await this.connectorRegistryService.getActiveConnector();
     if (connectorType === 'dingtalk') {

@@ -17,6 +17,13 @@ describe('Windows packaging safeguards', () => {
     expect(packager).toContain('assertSafeOutputRoot();');
   });
 
+  it('ships the installed restart wrapper and its coordinator dependency', () => {
+    const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
+
+    expect(packager).toContain("'installed-restart.js'");
+    expect(packager).toContain("'restart-windows.js'");
+  });
+
   it('removes development-only files without removing native or PDF runtime assets', () => {
     const prune = readFileSync(resolve(root, 'scripts', 'prune-smart.js'), 'utf8');
 
@@ -26,6 +33,15 @@ describe('Windows packaging safeguards', () => {
     expect(prune).not.toContain("'.bcmap'");
     expect(prune).not.toContain("'.node'");
     expect(prune).not.toContain("'.wasm'");
+  });
+
+  it('drops only known non-runtime artifacts from officeparser and TypeScript', () => {
+    const prune = readFileSync(resolve(root, 'scripts', 'prune-smart.js'), 'utf8');
+
+    expect(prune).toContain("packageName === 'officeparser'");
+    expect(prune).toContain("dist/officeparser.browser.");
+    expect(prune).toContain("packageName === 'typescript'");
+    expect(prune).toContain("normalizedPath !== 'lib/typescript.js'");
   });
 
   it('generates a multi-size 32-bit application icon for Explorer and shortcuts', () => {
@@ -39,4 +55,5 @@ describe('Windows packaging safeguards', () => {
     );
     expect([0, 1, 2, 3].every((index) => icon.readUInt16LE(6 + index * 16 + 6) === 32)).toBe(true);
   });
+
 });

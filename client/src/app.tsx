@@ -19,12 +19,14 @@ import HomePage from './pages/HomePage/HomePage';
 import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesPage';
 import AiModelSettingsPage from './pages/AiModelSettingsPage/AiModelSettingsPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
+import SetupPage from './pages/SetupPage/SetupPage';
 
 const RoutesComponent = () => {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<EntryPage />} />
+        <Route path="setup" element={<SetupPage />} />
         <Route path="video-notes" element={<HomePage />} />
         <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
         <Route path="audio-notes" element={<AudioNotesPage />} />

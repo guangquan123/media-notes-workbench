@@ -4,7 +4,7 @@ import {
   Optional,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
 import type {
@@ -16,11 +16,15 @@ import type {
   ModelServiceProvider,
   ModelProviderModelsResponse,
   ModelProviderConnectionStatus,
+  SetupModelValidationResponse,
   TranscriptionMode,
   UpdateAiModelSettingsRequest,
   UpdateModelServiceProviderRequest,
 } from '@shared/api.interface';
-import { fetchExternalModelJson } from './external-model-request.utils';
+import {
+  ExternalModelRequestError,
+  fetchExternalModelJson,
+} from './external-model-request.utils';
 
 export interface ModelProviderCredentials {
   apiKey: string;
@@ -189,7 +193,7 @@ export class ModelProviderSettingsService {
       const payload: unknown = await fetchExternalModelJson(
         `${provider.baseUrl}/models`,
         {
-          headers: { Authorization: `Bearer ${provider.apiKey}` },
+          headers: buildProviderHeaders(provider.apiKey),
           method: 'GET',
         },
         20_000,
@@ -220,13 +224,13 @@ export class ModelProviderSettingsService {
       config.providers,
     );
     if (!this.isProviderConfigured(provider)) {
-      throw new BadRequestException('请先填写 API 地址和 API Key');
+      throw new BadRequestException('请先填写 API 地址和必要凭据');
     }
     try {
       const payload: unknown = await fetchExternalModelJson(
         `${provider.baseUrl}/models`,
         {
-          headers: { Authorization: `Bearer ${provider.apiKey}` },
+          headers: buildProviderHeaders(provider.apiKey),
           method: 'GET',
         },
         20_000,
@@ -246,6 +250,107 @@ export class ModelProviderSettingsService {
       const message: string = error instanceof Error ? error.message : '未知错误';
       throw new BadRequestException(`提供者连通性测试失败：${message}`);
     }
+  }
+
+  async validateSummaryModel(
+    providerId: string,
+    requestedModel: string,
+  ): Promise<SetupModelValidationResponse> {
+    const config: StoredModelProviderConfig = await this.load();
+    const provider: StoredModelProvider = this.findProvider(
+      providerId,
+      config.providers,
+    );
+    if (!this.isProviderConfigured(provider) || !provider.enabled) {
+      throw new BadRequestException('请先配置并启用该模型服务提供者');
+    }
+    const model: string = requestedModel.trim();
+    if (!model) throw new BadRequestException('模型名称不能为空');
+    try {
+      const payload: unknown = await this.requestSummaryCompletion(
+        provider,
+        model,
+      );
+      const output: string = extractCompletionText(payload);
+      if (!output) {
+        throw new Error('模型没有返回可用的文本结果');
+      }
+      return {
+        checkedAt: new Date().toISOString(),
+        kind: 'summary',
+        message: '模型已完成一条最小总结测试。',
+        model,
+        providerId,
+        status: 'success',
+      };
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : '未知错误';
+      throw new BadRequestException(`总结模型验证失败：${message}`);
+    }
+  }
+
+  async validateTranscriptionModel(
+    providerId: string,
+    requestedModel: string,
+  ): Promise<SetupModelValidationResponse> {
+    const config: StoredModelProviderConfig = await this.load();
+    const provider: StoredModelProvider = this.findProvider(
+      providerId,
+      config.providers,
+    );
+    if (!this.isProviderConfigured(provider) || !provider.enabled) {
+      throw new BadRequestException('请先配置并启用该模型服务提供者');
+    }
+    const model: string = requestedModel.trim();
+    if (!model) throw new BadRequestException('转录模型名称不能为空');
+
+    const form: FormData = new FormData();
+    const audio: Buffer = createSilentWav();
+    const audioArrayBuffer: ArrayBuffer = new ArrayBuffer(audio.byteLength);
+    new Uint8Array(audioArrayBuffer).set(audio);
+    form.append(
+      'file',
+      new Blob([audioArrayBuffer], { type: 'audio/wav' }),
+      'workbench-setup-check.wav',
+    );
+    form.append('model', model);
+    form.append('response_format', 'json');
+    const headers: Record<string, string> = buildProviderHeaders(
+      provider.apiKey,
+    );
+    try {
+      await this.requestTranscriptionCompletion(provider, form, headers);
+      return {
+        checkedAt: new Date().toISOString(),
+        kind: 'transcription',
+        message: '转录服务已接受一段最小测试音频。',
+        model,
+        providerId,
+        status: 'success',
+      };
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : '未知错误';
+      throw new BadRequestException(`转录模型验证失败：${message}`);
+    }
+  }
+
+  async getConfigurationFingerprint(
+    capability: AiModelCapability,
+  ): Promise<string | undefined> {
+    const credentials: ModelProviderCredentials | undefined =
+      await this.getCredentials(capability);
+    if (!credentials) return undefined;
+    return createHash('sha256')
+      .update(
+        [
+          capability,
+          credentials.providerId,
+          credentials.baseUrl,
+          credentials.model,
+          credentials.apiKey,
+        ].join('\u0000'),
+      )
+      .digest('hex');
   }
 
   async getCredentials(
@@ -358,7 +463,7 @@ export class ModelProviderSettingsService {
   }
 
   private async save(config: StoredModelProviderConfig): Promise<void> {
-    const tempPath: string = `${this.configPath}.tmp`;
+    const tempPath: string = `${this.configPath}.${randomUUID()}.tmp`;
     await writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, {
       encoding: 'utf8',
       mode: 0o600,
@@ -396,12 +501,86 @@ export class ModelProviderSettingsService {
 
   private assertProviderCanBeEnabled(provider: StoredModelProvider): void {
     if (provider.enabled && !this.isProviderConfigured(provider)) {
-      throw new BadRequestException('启用前请填写 API 地址和 API Key');
+      throw new BadRequestException(
+        '启用前请填写 API 地址和 API Key；本机 Ollama 服务可不填写 API Key',
+      );
     }
   }
 
   private isProviderConfigured(provider: StoredModelProvider): boolean {
-    return Boolean(provider.baseUrl && provider.apiKey);
+    if (!provider.baseUrl) return false;
+    if (provider.apiKey) return true;
+    return isLoopbackHttpUrl(provider.baseUrl);
+  }
+
+  private async requestSummaryCompletion(
+    provider: StoredModelProvider,
+    model: string,
+  ): Promise<unknown> {
+    const headers: Record<string, string> = {
+      ...buildProviderHeaders(provider.apiKey),
+      'Content-Type': 'application/json',
+    };
+    try {
+      return await fetchExternalModelJson(
+        `${provider.baseUrl}/chat/completions`,
+        {
+          body: JSON.stringify({
+            max_tokens: 8,
+            messages: [{ content: '只回复 OK。', role: 'user' }],
+            model,
+            temperature: 0,
+          }),
+          headers,
+          method: 'POST',
+        },
+        30_000,
+        { maxAttempts: 1 },
+      );
+    } catch (error) {
+      const status: number | undefined =
+        error instanceof ExternalModelRequestError ? error.status : undefined;
+      if (status !== 404 && status !== 405) throw error;
+      return fetchExternalModelJson(
+        `${provider.baseUrl}/responses`,
+        {
+          body: JSON.stringify({
+            input: '只回复 OK。',
+            max_output_tokens: 8,
+            model,
+          }),
+          headers,
+          method: 'POST',
+        },
+        30_000,
+        { maxAttempts: 1 },
+      );
+    }
+  }
+
+  private async requestTranscriptionCompletion(
+    provider: StoredModelProvider,
+    form: FormData,
+    headers: Record<string, string>,
+  ): Promise<unknown> {
+    try {
+      return await fetchExternalModelJson(
+        `${provider.baseUrl}/audio/transcriptions`,
+        { body: form, headers, method: 'POST' },
+        30_000,
+        { maxAttempts: 1 },
+      );
+    } catch (error) {
+      const status: number | undefined =
+        error instanceof ExternalModelRequestError ? error.status : undefined;
+      if (status !== 404 && status !== 405) throw error;
+      return fetchExternalModelJson(
+        `${provider.baseUrl}/audio/transcriptions/async`,
+        { body: form, headers, method: 'POST' },
+        30_000,
+        { maxAttempts: 1 },
+      );
+    }
   }
 
   private toPublicProvider(
@@ -449,10 +628,56 @@ function normalizeBaseUrl(value: string): string {
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       throw new Error('unsupported protocol');
     }
+    if (parsed.username || parsed.password) {
+      throw new Error('credentials in URL are not supported');
+    }
   } catch {
     throw new BadRequestException('API 地址必须是有效的 HTTP(S) 地址');
   }
   return baseUrl;
+}
+
+function buildProviderHeaders(apiKey: string): Record<string, string> {
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
+function isLoopbackHttpUrl(value: string): boolean {
+  try {
+    const parsed: URL = new URL(value);
+    if (parsed.protocol !== 'http:') return false;
+    const hostname: string = parsed.hostname.toLowerCase();
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]' ||
+      hostname === '::1'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function createSilentWav(): Buffer {
+  const sampleRate: number = 16_000;
+  const channels: number = 1;
+  const bitsPerSample: number = 16;
+  const sampleCount: number = Math.floor(sampleRate / 10);
+  const dataSize: number = sampleCount * channels * (bitsPerSample / 8);
+  const buffer: Buffer = Buffer.alloc(44 + dataSize);
+  buffer.write('RIFF', 0, 'ascii');
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8, 'ascii');
+  buffer.write('fmt ', 12, 'ascii');
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * channels * (bitsPerSample / 8), 28);
+  buffer.writeUInt16LE(channels * (bitsPerSample / 8), 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write('data', 36, 'ascii');
+  buffer.writeUInt32LE(dataSize, 40);
+  return buffer;
 }
 
 function normalizeConfig(value: unknown): StoredModelProviderConfig {
@@ -538,6 +763,23 @@ function countModelItems(payload: unknown): number {
   if (!payload || typeof payload !== 'object') return 0;
   const data: unknown = (payload as { data?: unknown }).data;
   return Array.isArray(data) ? data.length : 0;
+}
+
+function extractCompletionText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const response: Record<string, unknown> = payload as Record<string, unknown>;
+  const choices: unknown = response.choices;
+  if (Array.isArray(choices)) {
+    for (const choice of choices) {
+      if (!choice || typeof choice !== 'object') continue;
+      const message: unknown = (choice as Record<string, unknown>).message;
+      if (!message || typeof message !== 'object') continue;
+      const content: unknown = (message as Record<string, unknown>).content;
+      if (typeof content === 'string' && content.trim()) return content.trim();
+    }
+  }
+  const output: unknown = response.output_text;
+  return typeof output === 'string' ? output.trim() : '';
 }
 
 function mergeProviderModels(

@@ -25,6 +25,7 @@ import {
 
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
+import { resolveLocalDocumentUrl } from '@/lib/local-http';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -858,7 +859,7 @@ export function ProcessingPanel({
         <Button
           className="mt-7 w-full bg-blue-600 hover:bg-blue-700"
           onClick={() =>
-            window.open(job.documentUrl, '_blank', 'noopener,noreferrer')
+            window.open(resolveLocalDocumentUrl(job.documentUrl), '_blank', 'noopener,noreferrer')
           }
         >
           打开总结笔记
@@ -869,7 +870,7 @@ export function ProcessingPanel({
         <Button
           className="mt-3 w-full"
           onClick={() =>
-            window.open(job.rawDocumentUrl, '_blank', 'noopener,noreferrer')
+            window.open(resolveLocalDocumentUrl(job.rawDocumentUrl), '_blank', 'noopener,noreferrer')
           }
           variant="outline"
         >

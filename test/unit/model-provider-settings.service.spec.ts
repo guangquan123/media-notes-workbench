@@ -142,4 +142,154 @@ describe('model provider settings', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('uses a real minimal completion request to validate a manually selected summary model', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await service.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: '测试 Provider',
+      });
+      await service.updateModelSettings({
+        summaryModel: {
+          model: 'manual-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+        transcriptionMode: 'tencent_asr',
+      });
+      fetchSpy.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'OK' } }],
+          }),
+          {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
+          },
+        ),
+      );
+
+      await expect(
+        service.validateSummaryModel(provider.id, 'manual-model'),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          model: 'manual-model',
+          providerId: provider.id,
+          status: 'success',
+        }),
+      );
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+        'https://models.example.com/v1/chat/completions',
+      );
+      const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+      expect(request.body).toContain('manual-model');
+      expect(request.headers).toEqual({
+        Authorization: 'Bearer secret-key',
+        'Content-Type': 'application/json',
+      });
+      await expect(service.getConfigurationFingerprint('llm')).resolves.toMatch(
+        /^[a-f0-9]{64}$/u,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
+  it('allows a loopback Ollama provider without an API key', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await service.createProvider({
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        enabled: true,
+        name: 'Ollama',
+      });
+      expect(provider.configured).toBe(true);
+      await service.updateModelSettings({
+        summaryModel: {
+          model: 'ollama-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+        transcriptionMode: 'tencent_asr',
+      });
+      await expect(service.getCredentials('llm')).resolves.toEqual(
+        expect.objectContaining({ apiKey: '' }),
+      );
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
+  it('falls back to the Responses endpoint when chat completions are unavailable', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await service.createProvider({
+        apiKey: 'secret-key',
+        baseUrl: 'https://models.example.com/v1',
+        enabled: true,
+        name: 'Responses Provider',
+      });
+      await service.updateModelSettings({
+        summaryModel: {
+          model: 'responses-model',
+          providerId: provider.id,
+          providerName: provider.name,
+        },
+        transcriptionMode: 'tencent_asr',
+      });
+      fetchSpy
+        .mockResolvedValueOnce(new Response('', { status: 404 }))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ output_text: 'OK' }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
+          }),
+        );
+
+      await expect(
+        service.validateSummaryModel(provider.id, 'responses-model'),
+      ).resolves.toEqual(expect.objectContaining({ status: 'success' }));
+      expect(fetchSpy.mock.calls[1]?.[0]).toBe(
+        'https://models.example.com/v1/responses',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
+  it('rejects credentials embedded in a provider URL', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      await expect(
+        service.createProvider({
+          apiKey: 'secret-key',
+          baseUrl: 'https://user:password@models.example.com/v1',
+          enabled: true,
+          name: 'Invalid URL',
+        }),
+      ).rejects.toThrow('有效的 HTTP(S) 地址');
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });
