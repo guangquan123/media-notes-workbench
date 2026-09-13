@@ -1,4 +1,4 @@
-import type { SetupCapability } from '@shared/api.interface';
+import type { SetupCapability, SetupStep } from '@shared/api.interface';
 
 const CAPABILITY_ROUTES: ReadonlyArray<{
   capability: SetupCapability;
@@ -30,4 +30,24 @@ export function buildSetupRedirect(
   const capability: SetupCapability | undefined = getSetupCapabilityForPath(pathname);
   if (capability) query.set('capability', capability);
   return `/setup?${query.toString()}`;
+}
+
+export function getPreviousSetupStep(
+  currentStep: SetupStep,
+  capabilities: SetupCapability[],
+): SetupStep | undefined {
+  if (currentStep === 'environment') return 'welcome';
+  if (currentStep === 'provider') return 'environment';
+  if (currentStep === 'capabilities') return 'provider';
+  if (currentStep === 'transcription') return 'capabilities';
+  if (currentStep === 'review') {
+    const requiresTranscription: boolean = capabilities.some(
+      (capability: SetupCapability): boolean =>
+        ['local_audio', 'local_video', 'recording', 'platform_video'].includes(
+          capability,
+        ),
+    );
+    return requiresTranscription ? 'transcription' : 'capabilities';
+  }
+  return undefined;
 }

@@ -292,4 +292,37 @@ describe('model provider settings', () => {
       await rm(baseDir, { force: true, recursive: true });
     }
   });
+
+  it('never reuses a saved API key after the provider address changes', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
+    try {
+      const service = new ModelProviderSettingsService(
+        join(baseDir, '.model-provider-config.json'),
+      );
+      const provider = await service.createProvider({
+        apiKey: 'old-secret-key',
+        baseUrl: 'https://old.example.com/v1',
+        enabled: true,
+        name: 'Old Provider',
+      });
+
+      await expect(
+        service.updateProvider(provider.id, {
+          baseUrl: 'https://new.example.com/v1',
+          enabled: true,
+          name: 'New Provider',
+        }),
+      ).rejects.toThrow('API 地址已变更');
+
+      await expect(
+        service.updateProvider(provider.id, {
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          enabled: true,
+          name: 'Local Provider',
+        }),
+      ).resolves.toEqual(expect.objectContaining({ apiKeyConfigured: false }));
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
 });

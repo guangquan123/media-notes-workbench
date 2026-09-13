@@ -53,6 +53,7 @@ import type {
   TranscriptionMode,
 } from '@shared/api.interface';
 import { isLocalRuntime } from '@/lib/runtime';
+import { getPreviousSetupStep } from '@/lib/setup-routing';
 
 interface ProviderPreset {
   baseUrl: string;
@@ -360,6 +361,53 @@ const SetupPage: React.FC = () => {
     });
     setStatus(nextStatus);
     setStep(nextStep);
+  };
+
+  const handleBack = async (): Promise<void> => {
+    const previousStep: SetupStep | undefined = getPreviousSetupStep(
+      step,
+      selectedCapabilities,
+    );
+    if (!previousStep) return;
+    setWorking(true);
+    setError('');
+    try {
+      await saveProgress(previousStep);
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleProviderPresetChange = (nextPresetId: string): void => {
+    const nextPreset: ProviderPreset | undefined = PROVIDER_PRESETS.find(
+      (preset: ProviderPreset): boolean => preset.id === nextPresetId,
+    );
+    if (!nextPreset) return;
+    const matchingProvider: ModelServiceProvider | undefined =
+      nextPreset.id === 'custom'
+        ? undefined
+        : aiSettings?.providers.find(
+            (provider: ModelServiceProvider): boolean =>
+              provider.baseUrl === nextPreset.baseUrl,
+          );
+    setProviderPresetId(nextPresetId);
+    setProviderId(matchingProvider?.id || '');
+    setProviderName(
+      matchingProvider?.name ||
+        (nextPreset.id === 'custom' ? '' : nextPreset.name),
+    );
+    setBaseUrl(matchingProvider?.baseUrl || nextPreset.baseUrl);
+    setApiKey('');
+    setModels(matchingProvider?.models || []);
+    setModel(
+      matchingProvider && aiSettings?.summaryModel?.providerId === matchingProvider.id
+        ? aiSettings.summaryModel.model
+        : '',
+    );
+    setUrlNotice('');
+    setError('');
   };
 
   const handleWelcomeNext = async (): Promise<void> => {
@@ -723,7 +771,7 @@ const SetupPage: React.FC = () => {
                 </div>
               )}
               <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => setStep('welcome')} variant="ghost">
+                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost">
                   <ArrowLeft className="size-4" />返回
                 </Button>
                 <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>
@@ -742,7 +790,7 @@ const SetupPage: React.FC = () => {
               <div className="mt-8 grid gap-5">
                 <div className="grid gap-2">
                   <Label htmlFor="setup-provider">服务提供者</Label>
-                  <Select value={providerPresetId} onValueChange={setProviderPresetId}>
+                  <Select value={providerPresetId} onValueChange={handleProviderPresetChange}>
                     <SelectTrigger id="setup-provider"><SelectValue placeholder="选择服务提供者" /></SelectTrigger>
                     <SelectContent>
                       {PROVIDER_PRESETS.map((preset: ProviderPreset): React.ReactNode => <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>)}
@@ -767,7 +815,7 @@ const SetupPage: React.FC = () => {
                 </div>
               </div>
               <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => setStep('environment')} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
+                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
                 <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleProviderNext()}>
                   连接并继续
                   {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
@@ -799,7 +847,7 @@ const SetupPage: React.FC = () => {
                 </div>
               </div>
               <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => setStep('provider')} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
+                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
                 <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleCapabilitiesNext()}>
                   验证模型并继续
                   {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
@@ -954,7 +1002,7 @@ const SetupPage: React.FC = () => {
               )}
 
               <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => setStep('capabilities')} variant="ghost">
+                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost">
                   <ArrowLeft className="size-4" />返回
                 </Button>
                 <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleTranscriptionNext()}>
@@ -977,7 +1025,7 @@ const SetupPage: React.FC = () => {
                 {hasMediaCapability(selectedCapabilities) && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">音视频转录已完成验证，可以直接开始处理。</div>}
               </div>
               <div className="mt-8 flex justify-between gap-3">
-                <Button data-ai-section-type="button" disabled={working} onClick={(): void => setStep('capabilities')} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
+                <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
                 <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>
                   完成并进入工作台
                   {working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}

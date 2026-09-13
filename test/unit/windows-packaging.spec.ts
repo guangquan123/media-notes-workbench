@@ -19,9 +19,12 @@ describe('Windows packaging safeguards', () => {
 
   it('ships the installed restart wrapper and its coordinator dependency', () => {
     const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
+    const restart = readFileSync(resolve(root, 'scripts', 'restart-windows.js'), 'utf8');
 
     expect(packager).toContain("'installed-restart.js'");
     expect(packager).toContain("'restart-windows.js'");
+    expect(restart).toContain("process.env.WORKBENCH_INSTALLED === '1'");
+    expect(restart).toContain("'installed-launcher.js'");
   });
 
   it('removes development-only files without removing native or PDF runtime assets', () => {

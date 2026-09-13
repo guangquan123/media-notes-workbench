@@ -45,9 +45,15 @@ if (stopResult.error || stopResult.status !== 0) {
   );
 }
 console.log('[restart-windows] 启动新服务...');
+const launchScript = path.resolve(
+  __dirname,
+  process.env.WORKBENCH_INSTALLED === '1'
+    ? 'installed-launcher.js'
+    : 'launch-windows.js',
+);
 const launchResult = spawnSync(
   process.execPath,
-  [path.resolve(__dirname, 'launch-windows.js')],
+  [launchScript],
   {
     cwd: root,
     stdio: 'inherit',

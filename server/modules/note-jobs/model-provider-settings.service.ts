@@ -119,11 +119,22 @@ export class ModelProviderSettingsService {
       (item: StoredModelProvider): boolean => item.id === id,
     );
     if (!provider) throw new NotFoundException('模型服务提供者不存在');
+    const baseUrl: string = normalizeBaseUrl(input.baseUrl);
+    const suppliedApiKey: string = input.apiKey?.trim() || '';
+    const baseUrlChanged: boolean = baseUrl !== provider.baseUrl;
+    if (baseUrlChanged && !suppliedApiKey && !isLoopbackHttpUrl(baseUrl)) {
+      throw new BadRequestException(
+        'API 地址已变更，请重新填写该地址对应的 API Key',
+      );
+    }
     const next: StoredModelProvider = {
       ...provider,
-      apiKey: input.apiKey?.trim() || provider.apiKey,
-      baseUrl: normalizeBaseUrl(input.baseUrl),
+      apiKey: baseUrlChanged
+        ? suppliedApiKey
+        : suppliedApiKey || provider.apiKey,
+      baseUrl,
       enabled: input.enabled,
+      models: baseUrlChanged ? [] : provider.models,
       name: normalizeProviderName(input.name),
     };
     this.assertProviderCanBeEnabled(next);
