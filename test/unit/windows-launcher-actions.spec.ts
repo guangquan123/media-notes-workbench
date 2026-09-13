@@ -46,6 +46,17 @@ describe('Windows launcher action routing', () => {
     );
   });
 
+  it('provides an installed visible launcher wrapper with an explicit action', () => {
+    const wrapper = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.vbs'),
+      'utf8',
+    );
+
+    expect(wrapper).toContain('GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))');
+    expect(wrapper).toContain('scripts\\workbench-launcher.hta');
+    expect(wrapper).toContain('shell.Run Quote(mshtaPath) & " " & Quote(htaUrl), 1, False');
+  });
+
   it('uses the native Vite config loader for stable Windows startup', () => {
     const launcher = readFileSync(
       resolve(root, 'scripts', 'dev-windows.js'),

@@ -21,6 +21,12 @@ describe('Windows installer configuration', () => {
     const desktopEntries = script.match(/Name: "\{autodesktop\}\\/gu) || [];
 
     expect(desktopEntries).toHaveLength(1);
+    expect(script).toContain(
+      'Name: "{autodesktop}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\workbench-launcher.vbs"" ""start"""',
+    );
+    expect(script).not.toContain(
+      'Name: "{autodesktop}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs""',
+    );
     expect(script).toContain('Name: "{group}\\Stop Media Notes Workbench"');
     expect(script).toContain('scripts\\installed-stop.js');
     expect(script).toContain('Name: "{group}\\Restart Media Notes Workbench"');
@@ -51,6 +57,7 @@ describe('Windows installer configuration', () => {
     expect(script).toContain('AppendDefaultDirName=yes');
     expect(script).toContain('PrivilegesRequired=admin');
     expect(script).toContain('DefaultDirName={autopf}\\Media Notes Workbench');
+    expect(script).not.toContain('WizardResizable=');
     expect(script).toContain('AllowRootDirectory=no');
     expect(script).toContain(
       'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',

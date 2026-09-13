@@ -250,6 +250,8 @@ for (const fileName of [
   'runtime-paths.js',
   'static-client.js',
   'stop.js',
+  'workbench-launcher.hta',
+  'workbench-launcher.vbs',
 ]) {
   copy(path.join(rootDir, 'scripts', fileName), path.join(appStage, 'scripts', fileName));
 }

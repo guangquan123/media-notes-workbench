@@ -72,7 +72,11 @@ async function waitForReady(timeoutMs = 300000, signal) {
 }
 
 function openBrowser() {
-  if (process.platform !== 'win32' || process.env.WORKBENCH_NO_BROWSER === '1') {
+  if (
+    process.platform !== 'win32' ||
+    process.env.WORKBENCH_NO_BROWSER === '1' ||
+    process.env.WORKBENCH_LAUNCHER_UI === '1'
+  ) {
     return;
   }
   const browser = spawn('explorer.exe', [appUrl], {

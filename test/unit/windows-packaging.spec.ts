@@ -28,6 +28,13 @@ describe('Windows packaging safeguards', () => {
     expect(restart).toContain("'installed-launcher.js'");
   });
 
+  it('ships the visible launcher used by the desktop shortcut', () => {
+    const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
+
+    expect(packager).toContain("'workbench-launcher.hta'");
+    expect(packager).toContain("'workbench-launcher.vbs'");
+  });
+
   it('removes development-only files without removing native or PDF runtime assets', () => {
     const prune = readFileSync(resolve(root, 'scripts', 'prune-smart.js'), 'utf8');
 
@@ -58,6 +65,17 @@ describe('Windows packaging safeguards', () => {
       [0, 1, 2, 3].map((index) => icon[6 + index * 16] || 256),
     );
     expect([0, 1, 2, 3].every((index) => icon.readUInt16LE(6 + index * 16 + 6) === 32)).toBe(true);
+  });
+
+  it('silences missing portable Node directory matches in the batch entrypoint', () => {
+    const buildScript = readFileSync(
+      resolve(root, 'build-windows-installer.cmd'),
+      'utf8',
+    );
+
+    expect(buildScript).toContain('dir /b /ad');
+    expect(buildScript).toContain('2^>nul');
+    expect(buildScript).not.toMatch(/for \/d %%D in \("%~dp0\.tmp\\node-portable/iu);
   });
 
 });

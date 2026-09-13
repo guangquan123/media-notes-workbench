@@ -21,6 +21,25 @@ describe('Windows launcher entry', () => {
     expect(script).not.toMatch(/run-hidden\.vbs[\s\S]*start:windows/i);
   });
 
+  it('uses the installed runtime and keeps browser ownership in the HTA', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+    const installedLauncher = readFileSync(
+      resolve(root, 'scripts', 'installed-launcher.js'),
+      'utf8',
+    );
+
+    expect(launcher).toContain('installedRuntime');
+    expect(launcher).toContain('runtime\\\\node.exe');
+    expect(launcher).toContain('installed-launcher.js');
+    expect(launcher).toContain('WORKBENCH_LAUNCHER_UI');
+    expect(installedLauncher).toContain(
+      "process.env.WORKBENCH_LAUNCHER_UI === '1'",
+    );
+  });
+
   it('waits for verified services and the browser render acknowledgement before closing', () => {
     const launcher = readFileSync(
       resolve(root, 'scripts', 'workbench-launcher.hta'),

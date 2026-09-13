@@ -183,11 +183,18 @@
   var restartLaunchObserved = false;
   var browserLaunchObserved = false;
   var probeInFlight = false;
+  var installedRuntime = false;
   var operationNames = { start: "启动服务", stop: "停止服务", restart: "重启服务" };
   var scriptNames = { start: "launch-windows.js", stop: "stop.js", restart: "restart-windows.js" };
 
   try { shell = new ActiveXObject("WScript.Shell"); } catch (e) {}
   try { fso = new ActiveXObject("Scripting.FileSystemObject"); root = fso.GetAbsolutePathName("."); } catch (e) {}
+  try {
+    installedRuntime = !!fso && fso.FileExists(fso.BuildPath(root, "runtime\\node.exe"));
+    if (installedRuntime) {
+      scriptNames = { start: "installed-launcher.js", stop: "installed-stop.js", restart: "installed-restart.js" };
+    }
+  } catch (e) { installedRuntime = false; }
   function expandedEnvironmentPath(name) {
     try {
       var value = shell ? shell.ExpandEnvironmentStrings("%" + name + "%") : "";
@@ -203,7 +210,7 @@
   function initializeRuntimePaths() {
     var configuredHome = expandedEnvironmentPath("WORKBENCH_HOME");
     var localAppData = expandedEnvironmentPath("LOCALAPPDATA");
-    runtimeHome = configuredHome || fso.BuildPath(localAppData || root, "MediaNotesWorkbench\\dev");
+    runtimeHome = configuredHome || fso.BuildPath(localAppData || root, installedRuntime ? "MediaNotesWorkbench" : "MediaNotesWorkbench\\dev");
     configRoot = expandedEnvironmentPath("WORKBENCH_CONFIG_DIR") || fso.BuildPath(runtimeHome, "config");
     stateRoot = expandedEnvironmentPath("WORKBENCH_STATE_DIR") || fso.BuildPath(runtimeHome, "runtime");
     logRoot = expandedEnvironmentPath("LOG_DIR") || fso.BuildPath(runtimeHome, "logs");
@@ -437,6 +444,7 @@
   function closeLauncher() { if (pollTimer) window.clearTimeout(pollTimer); if (closeTimer) window.clearTimeout(closeTimer); window.close(); }
   function resolveNodeExecutable() {
     if (!shell || !fso) return "node.exe";
+    if (installedRuntime) return fso.BuildPath(root, "runtime\\node.exe");
     var candidates = [
       fso.BuildPath(expandedEnvironmentPath("LOCALAPPDATA") || "", "Programs\\nodejs\\node.exe"),
       fso.BuildPath(expandedEnvironmentPath("ProgramFiles") || "", "nodejs\\node.exe"),
@@ -448,7 +456,7 @@
     }
     return "node.exe";
   }
-  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; var node = resolveNodeExecutable(); shell.Run(quote(node) + " " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
+  function invokeScript() { if (!shell) { setFailure("无法执行操作", "无法创建 Windows 脚本宿主，请检查系统组件是否可用。"); return false; } try { shell.CurrentDirectory = root; var node = resolveNodeExecutable(); shell.Environment("PROCESS")("WORKBENCH_LAUNCHER_UI") = "1"; shell.Environment("PROCESS")("WORKBENCH_NO_BROWSER") = "1"; shell.Run(quote(node) + " " + quote(fso.BuildPath(root, "scripts\\" + scriptNames[action])), 0, false); return true; } catch (e) { setFailure("无法执行操作", "无法启动 Node.js。请确认 Node.js 已安装，并点击“查看日志”查看详情。\n" + e.message); return false; } }
   function complete(message, shouldOpen, keepOpen) { finished = true; currentStep = steps.length - 1; setProgress(100); var completeTitle = action === "stop" ? "服务已停止" : action === "restart" ? "重启完成" : "服务检查完成"; setText("stage", completeTitle); setText("detail", message); setText("eyebrow", "OPERATION COMPLETE"); setVisualState("success"); var icon = document.getElementById("stateIcon"); icon.className = "state-icon success"; icon.innerText = "✓"; document.getElementById("operation").className = "operation is-success"; document.getElementById("progressBar").className = "progress-bar is-success"; document.getElementById("footerMessage").className = "elapsed is-success"; setText("footerMessage", message); renderSteps(); if (shouldOpen) { openWorkbench(); document.getElementById("openButton").style.display = "inline-block"; } document.getElementById("closeButton").innerText = "关闭"; if (!keepOpen) { var seconds = action === "stop" ? 2 : 1; closeTimer = window.setTimeout(closeLauncher, seconds * 1000); } }
   function tickElapsed() { if (!finished && !failed) { setText("elapsed", Math.floor((new Date().getTime() - startedAt) / 1000) + "s"); window.setTimeout(tickElapsed, 1000); } }
   function finishPollCycle(snapshot) {
