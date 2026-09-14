@@ -167,6 +167,10 @@ const {
 const {
   writeLauncherFailure: writeStandaloneLauncherFailure,
 } = require('./launcher-status.js');
+const {
+  buildLauncherProgress,
+  classifyLauncherFailure,
+} = require('./launcher-state.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -321,6 +325,9 @@ const children = new Set();
 let staticClientServer = null;
 let shuttingDown = false;
 let startupStage = '准备启动';
+let startupStageKey = 'preflight';
+let startupStageFraction = 0;
+let startupAttempt = 0;
 let startupCompleted = false;
 let backendAlreadyRunning = false;
 let progressHeartbeat = null;
@@ -340,25 +347,36 @@ function writeLine(message) {
   writeLauncherProgress(message);
 }
 
-function writeLauncherProgress(message) {
+function writeLauncherProgress(message, fraction = startupStageFraction) {
   const operationToken = readLauncherOperationToken();
   if (!operationToken) return;
   const temporaryPath = `${launcherProgressPath}.${process.pid}.tmp`;
   try {
+    const progress = buildLauncherProgress({
+      operationToken,
+      stage: startupStageKey,
+      message: String(message).replace(/^\[dev-windows\]\s*/u, ''),
+      fraction,
+      attempt: startupAttempt,
+    });
+    const stageProgress = progress.stageProgress;
+    const percent = progress.percent;
     fs.writeFileSync(
       temporaryPath,
-      JSON.stringify({
-        operationToken,
-        stage: startupStage,
-        message: String(message).replace(/^\[dev-windows\]\s*/u, ''),
-        timestamp: Date.now(),
-      }),
+      JSON.stringify({ ...progress, stageProgress, percent, stageLabel: startupStage }),
       'utf8',
     );
     fs.renameSync(temporaryPath, launcherProgressPath);
   } catch {
     try { fs.unlinkSync(temporaryPath); } catch { /* best effort */ }
   }
+}
+
+function setStartupStage(key, label, fraction = 0) {
+  startupStageKey = key;
+  startupStage = label;
+  startupStageFraction = Math.max(0, Math.min(1, Number(fraction) || 0));
+  writeLauncherProgress(`正在${label}`);
 }
 
 function writeLauncherReadyToken() {
@@ -420,9 +438,16 @@ function toLauncherFailure(error) {
     };
   }
 
+  const classified = classifyLauncherFailure({
+    code: error?.code,
+    stage: startupStage || '启动失败',
+    message,
+  });
+
   if (isSpawnEperm(error)) {
     return {
       stage: startupStage || '启动失败',
+      code: classified.code,
       message: 'Windows 暂时拒绝创建启动进程',
       detail:
         'Node.js 子进程未能启动，通常由安全软件实时扫描或进程创建权限限制造成。',
@@ -437,6 +462,7 @@ function toLauncherFailure(error) {
   ) {
     return {
       stage: startupStage || '启动失败',
+      code: classified.code,
       message: '所需端口已被其他程序占用',
       detail: '当前服务无法绑定本地端口，因此未能完成启动。',
       suggestion:
@@ -446,6 +472,7 @@ function toLauncherFailure(error) {
   if (error?.code === 'ENOENT' || lowerMessage.includes('缺少依赖文件')) {
     return {
       stage: startupStage || '启动失败',
+      code: classified.code,
       message: '启动所需的文件或依赖缺失',
       detail: '项目无法找到必要的 Node.js 依赖或构建文件。',
       suggestion:
@@ -454,6 +481,7 @@ function toLauncherFailure(error) {
   }
   return {
     stage: startupStage || '启动失败',
+    code: classified.code,
     message: '启动过程中发生未预期的错误',
     detail: '服务未达到可访问状态，因此不会自动打开浏览器或关闭启动页。',
     suggestion: '请点击“打开日志”查看完整诊断信息，处理后再点击“重新尝试”。',
@@ -594,6 +622,8 @@ function waitForExit(child, name, timeoutMs = 240000) {
 async function runBuild() {
   const buildAttempts = 3;
   for (let attempt = 1; attempt <= buildAttempts; attempt += 1) {
+    startupAttempt = attempt;
+    startupStageFraction = Math.min(0.85, attempt / buildAttempts);
     writeLine(`[dev-windows] 构建后端（${attempt}/${buildAttempts}）...`);
     try {
       const build = startNodeProcess('build', [nestCliPath, 'build'], {
@@ -731,6 +761,8 @@ async function ensureClientBuild() {
   const buildAttempts = 2;
   let lastError;
   for (let attempt = 1; attempt <= buildAttempts; attempt += 1) {
+    startupAttempt = attempt;
+    startupStageFraction = Math.min(0.85, attempt / buildAttempts);
     writeLine(`[dev-windows] 构建客户端（${attempt}/${buildAttempts}）...`);
     try {
       const build = startNodeProcess(
@@ -981,14 +1013,14 @@ process.once('exit', (exitCode) => {
 
 async function main() {
   clearLauncherStartupState();
-  startupStage = '准备本地运行配置';
+  setStartupStage('config', '准备本地运行配置', 0.2);
   const runtimeConfig = ensureLocalRuntimeConfig(rootDir);
   writeLine(
     runtimeConfig.created
       ? `[dev-windows] 已创建本地运行配置: ${runtimeConfig.configPath}`
       : `[dev-windows] 已验证本地运行配置: ${runtimeConfig.configPath}`,
   );
-  startupStage = '检查启动环境';
+  setStartupStage('preflight', '检查启动环境', 0.5);
   const installedRuntime = process.env.WORKBENCH_INSTALLED === '1';
   const requiredPaths = installedRuntime || skipBuild
     ? [serverEntryPath, clientOutputPath]
@@ -1039,16 +1071,16 @@ async function main() {
     }
     writeLine('[dev-windows] 使用已构建的后端入口');
   } else {
-    startupStage = '后端构建失败';
+    setStartupStage('backend', '准备后端服务', 0);
     await ensureServerBuild();
   }
 
   if (useStaticClient && !skipBuild && !installedRuntime) {
-    startupStage = '前端构建失败';
+    setStartupStage('frontend', '准备前端页面', 0);
     await ensureClientBuild();
   }
 
-  startupStage = '后端启动失败';
+  setStartupStage('backend', '启动后端服务', 0.55);
   writeLine(`[dev-windows] 启动后端: http://${serverHost}:${serverPort}`);
   writeLine(
     '[dev-windows] 冷启动可能需要 1-2 分钟（杀毒软件实时扫描），请等待「项目已启动」提示，勿重复启动',
@@ -1067,7 +1099,7 @@ async function main() {
   // 生产构建会把带哈希资源地址的 HTML 写入 dist/client/index.html。
   // Vite 开发服务启动前必须移除它，否则会返回旧入口并出现 HTTP 200 白屏。
   if (!useStaticClient) fs.rmSync(clientIndexPath, { force: true });
-  startupStage = '前端启动失败';
+  setStartupStage('frontend', '启动前端页面', 0.55);
   const clientStartAttempts = 3;
   const clientPortTimeoutMs = 15000;
   let client = null;
@@ -1124,7 +1156,7 @@ async function main() {
   if (!client && !staticClientServer) {
     throw clientStartError || new Error('前端启动失败');
   }
-  startupStage = '验证服务可访问性';
+  setStartupStage('readiness', '验证工作台可访问性', 0);
   if (!staticClientServer) {
     try {
       await waitForApplicationReady(client, 8000);
@@ -1144,6 +1176,7 @@ async function main() {
     await waitForApplicationReady(null, 15000);
   }
   writeLine('[dev-windows] 页面和本地 API 已验证可访问');
+  setStartupStage('browser', '打开工作台', 0.1);
   startupCompleted = true;
   client?.once('close', handleUnexpectedExit('前端'));
   writeLauncherReadyToken();
