@@ -135,6 +135,10 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain(
       '已清理上次异常退出留下的本地数据库锁，正在安全恢复服务',
     );
+    expect(devWindows).toContain('installPgliteRenameFallback');
+    expect(devWindows).toContain(
+      '已启用本地数据库的 Windows 检查点兼容模式',
+    );
   });
 
   it('stops waiting when the installed service launcher exits before readiness', () => {

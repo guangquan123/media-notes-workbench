@@ -172,6 +172,7 @@ const {
   classifyLauncherFailure,
 } = require('./launcher-state.js');
 const { removeStalePgliteLock } = require('./pglite-recovery.js');
+const { installPgliteRenameFallback } = require('./pglite-windows-fs.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -1060,6 +1061,11 @@ async function main() {
         '[dev-windows] 已清理上次异常退出留下的本地数据库锁，正在安全恢复服务',
       );
     }
+  }
+  if (installPgliteRenameFallback(runtimePaths.dataDir)) {
+    writeLine(
+      '[dev-windows] 已启用本地数据库的 Windows 检查点兼容模式',
+    );
   }
   const handleUnexpectedExit = (name) => (code, signal) => {
     if (shuttingDown) return;
