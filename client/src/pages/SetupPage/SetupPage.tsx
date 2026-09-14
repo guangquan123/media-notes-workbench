@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -232,6 +232,7 @@ const SetupPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [working, setWorking] = useState<boolean>(false);
   const [completed, setCompleted] = useState<boolean>(false);
+  const environmentValidationInFlight = useRef<boolean>(false);
 
   const selectedPreset: ProviderPreset = useMemo(
     (): ProviderPreset =>
@@ -454,6 +455,8 @@ const SetupPage: React.FC = () => {
   };
 
   const handleEnvironmentNext = async (): Promise<void> => {
+    if (environmentValidationInFlight.current) return;
+    environmentValidationInFlight.current = true;
     setWorking(true);
     setError('');
     try {
@@ -463,7 +466,15 @@ const SetupPage: React.FC = () => {
         (check): boolean => check.required && check.status === 'unavailable',
       );
       if (blocking) {
-        setError('当前选择的能力仍缺少必要的本机组件，请先处理检查结果。');
+        const missingLabels: string = result.checks
+          .filter((check): boolean => check.required && check.status === 'unavailable')
+          .map((check): string => check.label)
+          .join('、');
+        setError(
+          result.storageReady
+            ? `暂时缺少：${missingLabels}。可以先使用文档笔记，稍后再补齐。`
+            : `暂时缺少：${missingLabels}。本机数据目录不可用，请先修复磁盘空间或文件权限。`,
+        );
         return;
       }
       await saveProgress('provider');
@@ -471,6 +482,7 @@ const SetupPage: React.FC = () => {
       setError(getErrorMessage(nextError));
     } finally {
       setWorking(false);
+      environmentValidationInFlight.current = false;
     }
   };
 
@@ -636,7 +648,7 @@ const SetupPage: React.FC = () => {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-        <div className="flex items-center gap-3 text-sm text-slate-600">
+        <div aria-live="polite" className="flex items-center gap-3 text-sm text-slate-600" role="status">
           <LoaderCircle className="size-5 animate-spin" />
           正在读取首次配置状态…
         </div>
@@ -686,6 +698,12 @@ const SetupPage: React.FC = () => {
     (capability: SetupCapability): string =>
       CAPABILITIES.find((item): boolean => item.id === capability)?.label || capability,
   );
+  const missingEnvironmentLabels: string[] = environment?.checks
+    .filter((check): boolean => check.required && check.status === 'unavailable')
+    .map((check): string => check.label) || [];
+  const canUseDocumentsOnly: boolean = Boolean(
+    environment && environment.storageReady && missingEnvironmentLabels.length > 0,
+  );
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-slate-950 sm:px-6 sm:py-10">
@@ -725,7 +743,7 @@ const SetupPage: React.FC = () => {
         <nav aria-label="首次配置进度" className="mt-7 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-6">
           {SETUP_STEPS.map(
             ({ id, label }: { id: SetupStep; label: string }, index: number): React.ReactNode => (
-              <div className="min-w-0" key={id}>
+              <div aria-current={index === stepIndex ? 'step' : undefined} className="min-w-0" key={id}>
                 <div className={`h-1.5 rounded-full ${index <= stepIndex ? 'bg-blue-600' : 'bg-slate-200'}`} />
                 <p className={`mt-2 truncate text-xs ${index === stepIndex ? 'font-semibold text-blue-700' : 'text-slate-500'}`}>{label}</p>
               </div>
@@ -741,6 +759,7 @@ const SetupPage: React.FC = () => {
           </Alert>
         )}
 
+        <p className="sr-only" aria-live="polite">当前为第 {stepIndex + 1} 步：{SETUP_STEPS[stepIndex]?.label}</p>
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_18px_48px_rgba(15,35,60,0.08)] sm:p-9">
             {step === 'welcome' && (
@@ -790,7 +809,7 @@ const SetupPage: React.FC = () => {
                 <p className="text-sm font-medium text-blue-700">第 2 步 · 自动准备</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">正在检查你的工作台</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">不用安装开发工具。我们只检查你刚才选择的能力是否可以正常运行。</p>
-                <div className="mt-8 grid gap-3">
+                <div aria-live="polite" className="mt-8 grid gap-3" role="status">
                   {environment ? environment.checks.map((check): React.ReactNode => (
                     <div className={`flex items-start gap-3 rounded-xl border p-4 ${check.status === 'unavailable' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50/40'}`} key={check.id}>
                       {check.status === 'ready' ? <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" /> : check.status === 'not_required' ? <ShieldCheck className="mt-0.5 size-5 text-slate-400" /> : <AlertTriangle className="mt-0.5 size-5 text-amber-600" />}
@@ -798,16 +817,22 @@ const SetupPage: React.FC = () => {
                     </div>
                   )) : <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-5 text-sm text-blue-800"><LoaderCircle className="size-5 animate-spin" />正在检测本机环境…</div>}
                 </div>
-                {environment?.checks.some((check): boolean => check.status === 'unavailable') && (
+                {missingEnvironmentLabels.length > 0 && (
                   <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
-                    <p className="font-medium">音视频组件还没准备好</p>
-                    <p className="mt-1 text-xs leading-5 text-amber-900/75">这不会影响文档笔记。你可以先完成首次使用，之后安装组件并在“参数配置”中重新开启音视频。</p>
-                    <Button className="mt-3" data-ai-section-type="button" disabled={working} onClick={(): void => void handleUseDocumentsOnly()} size="sm" variant="outline">先使用文档笔记</Button>
+                    <p className="font-medium">还需要处理：{missingEnvironmentLabels.join('、')}</p>
+                    {canUseDocumentsOnly ? (
+                      <>
+                        <p className="mt-1 text-xs leading-5 text-amber-900/75">这不会影响文档笔记。你可以先完成首次使用，之后补齐组件并在“参数配置”中重新开启对应能力。</p>
+                        <Button className="mt-3" data-ai-section-type="button" disabled={working} onClick={(): void => void handleUseDocumentsOnly()} size="sm" variant="outline">先使用文档笔记</Button>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-xs leading-5 text-amber-900/75">本机数据目录当前不可用，请先修复磁盘空间或文件权限后再继续。</p>
+                    )}
                   </div>
                 )}
-                <div className="mt-8 flex justify-between gap-3">
+                <div className="mt-8 flex flex-wrap justify-between gap-3">
                   <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
-                  {environment && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>{environment.checks.some((check): boolean => check.status === 'unavailable') ? '重新检查' : '继续'}{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button>}
+                  {environment && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>{missingEnvironmentLabels.length > 0 ? '重新检查' : '继续'}{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button>}
                 </div>
               </div>
             )}
