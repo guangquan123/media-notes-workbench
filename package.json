@@ -229,6 +229,7 @@
     "package:windows": "node ./scripts/package-windows.js",
     "package:windows:build": "node scripts/clean-windows-build.js && node scripts/generate-app-icon.js && npm run build:server && npm run build:client:installed && node scripts/init-action-plugins.js && node scripts/prune-smart.js && node scripts/package-windows.js",
     "package:windows:compile": "node scripts/clean-windows-build.js && node scripts/generate-app-icon.js && npm run build:server && npm run build:client:installed && node scripts/init-action-plugins.js && node scripts/prune-smart.js && node scripts/package-windows.js --compile",
+    "package:windows:release": "node scripts/package-windows-release.js",
     "release:check": "node ./scripts/release-preflight.js",
     "stop:windows": "node ./scripts/stop.js",
     "restart:windows": "node ./scripts/restart-windows.js",
