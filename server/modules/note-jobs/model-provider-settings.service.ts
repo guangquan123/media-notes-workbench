@@ -537,10 +537,8 @@ export class ModelProviderSettingsService {
         `${provider.baseUrl}/chat/completions`,
         {
           body: JSON.stringify({
-            max_tokens: 8,
-            messages: [{ content: '只回复 OK。', role: 'user' }],
+            messages: [{ content: 'Reply only with OK.', role: 'user' }],
             model,
-            temperature: 0,
           }),
           headers,
           method: 'POST',

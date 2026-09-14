@@ -129,7 +129,44 @@ const CAPABILITIES: ReadonlyArray<{
   { description: '把结果同步到飞书或钉钉', id: 'external_sync', label: '外部同步' },
 ];
 
+function getApiErrorMessage(value: unknown, depth: number = 0): string {
+  if (depth > 3) return '';
+  if (typeof value === 'string') {
+    const message: string = value.trim();
+    if (!message) return '';
+    try {
+      return getApiErrorMessage(JSON.parse(message), depth + 1) || message;
+    } catch {
+      return message;
+    }
+  }
+  if (!value || typeof value !== 'object') return '';
+
+  const payload: Record<string, unknown> = value as Record<string, unknown>;
+  const candidates: unknown[] = [
+    payload.error,
+    payload.message,
+    payload.detail,
+    payload.details,
+    payload.errorMessage,
+  ];
+  for (const candidate of candidates) {
+    const message: string = getApiErrorMessage(candidate, depth + 1);
+    if (message) return message;
+  }
+  return '';
+}
+
 function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const response: unknown = (error as { response?: unknown }).response;
+    const data: unknown =
+      response && typeof response === 'object'
+        ? (response as { data?: unknown }).data
+        : undefined;
+    const apiMessage: string = getApiErrorMessage(data);
+    if (apiMessage) return apiMessage;
+  }
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'string') return error;
   return '操作失败，请稍后重试。';

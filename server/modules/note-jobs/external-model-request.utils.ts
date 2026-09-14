@@ -103,6 +103,56 @@ function isRetryableFailure(error: ExternalModelRequestError): boolean {
   return error.kind === 'http_retryable' || error.kind === 'transport';
 }
 
+function getExternalErrorMessage(value: unknown, depth: number = 0): string {
+  if (depth > 3) return '';
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return '';
+
+  const payload: Record<string, unknown> = value as Record<string, unknown>;
+  const candidates: unknown[] = [
+    payload.error,
+    payload.message,
+    payload.detail,
+    payload.errorMessage,
+    payload.error_msg,
+    payload.msg,
+  ];
+  for (const candidate of candidates) {
+    const message: string = getExternalErrorMessage(candidate, depth + 1);
+    if (message) return message;
+  }
+  return '';
+}
+
+function redactExternalErrorMessage(value: string): string {
+  const redacted: string = value
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+\b/giu, 'Bearer [已隐藏]')
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/giu, '[已隐藏]')
+    .replace(
+      /\b(api[\s_-]?key|token|secret)\s*[:=]\s*[^\s,;]+/giu,
+      '$1: [已隐藏]',
+    )
+    .replace(/\s+/gu, ' ')
+    .trim();
+  return redacted.slice(0, 320);
+}
+
+async function getResponseErrorDetail(response: Response): Promise<string> {
+  if (typeof response.text !== 'function') return '';
+  try {
+    const body: string = await response.text();
+    if (!body.trim()) return '';
+    try {
+      const parsed: unknown = JSON.parse(body);
+      return redactExternalErrorMessage(getExternalErrorMessage(parsed));
+    } catch {
+      return redactExternalErrorMessage(body);
+    }
+  } catch {
+    return '';
+  }
+}
+
 function getRetryDelayMs(
   error: ExternalModelRequestError,
   attempt: number,
@@ -142,8 +192,11 @@ async function fetchExternalModelJsonOnce(
       signal: controller.signal,
     });
     if (!response.ok) {
+      const detail: string = await getResponseErrorDetail(response);
       throw new ExternalModelRequestError(
-        `服务返回 HTTP ${response.status}`,
+        detail
+          ? `服务返回 HTTP ${response.status}：${detail}`
+          : `服务返回 HTTP ${response.status}`,
         isRetryableHttpStatus(response.status)
           ? 'http_retryable'
           : 'http_client',

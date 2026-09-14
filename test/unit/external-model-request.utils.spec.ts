@@ -115,6 +115,33 @@ describe('external model request utilities', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a safe provider diagnostic for a bad request', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            message: 'Unsupported parameter: temperature. Bearer secret-token',
+          },
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 400,
+        },
+      ),
+    );
+
+    await expect(
+      fetchExternalModelJson(
+        'https://model.example.com/v1/chat/completions',
+        { method: 'POST' },
+        20_000,
+        { retryBaseDelayMs: 0 },
+      ),
+    ).rejects.toThrow(
+      '服务返回 HTTP 400：Unsupported parameter: temperature. Bearer [已隐藏]',
+    );
+  });
+
   it('does not retry an aborted request or leak the runtime abort message', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch').mockRejectedValue(
       Object.assign(new Error('This operation was aborted'), {

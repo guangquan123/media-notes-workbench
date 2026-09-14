@@ -143,7 +143,7 @@ describe('model provider settings', () => {
     }
   });
 
-  it('uses a real minimal completion request to validate a manually selected summary model', async () => {
+  it('uses a compatibility completion request to validate a manually selected summary model', async () => {
     const baseDir = await mkdtemp(join(tmpdir(), 'model-provider-settings-'));
     const fetchSpy = jest.spyOn(global, 'fetch');
     try {
@@ -190,6 +190,10 @@ describe('model provider settings', () => {
       );
       const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
       expect(request.body).toContain('manual-model');
+      expect(JSON.parse(String(request.body))).toEqual({
+        messages: [{ content: 'Reply only with OK.', role: 'user' }],
+        model: 'manual-model',
+      });
       expect(request.headers).toEqual({
         Authorization: 'Bearer secret-key',
         'Content-Type': 'application/json',
