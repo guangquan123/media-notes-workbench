@@ -10,7 +10,9 @@ import {
 } from '@/lib/backend-health';
 import { isLocalRuntime } from '@/lib/runtime';
 import { Button } from '@/components/ui/button';
-import RuntimeControlMenu from './RuntimeControlMenu';
+import RuntimeControlMenu, {
+  RUNTIME_TRANSITION_EVENT,
+} from './RuntimeControlMenu';
 import { buildSetupRedirect } from '@/lib/setup-routing';
 
 const BACKEND_HEALTH_INTERVAL_MS = 5_000;
@@ -18,6 +20,8 @@ const INITIAL_BACKEND_HEALTH: BackendHealthState = {
   consecutiveFailures: 0,
   unavailable: false,
 };
+
+type RuntimeTransition = 'restarting' | 'stopping' | null;
 
 function reportLauncherPageReady(): void {
   const token = new URLSearchParams(window.location.search).get(
@@ -57,6 +61,8 @@ const Layout = () => {
     INITIAL_BACKEND_HEALTH,
   );
   const [backendFailure, setBackendFailure] = useState<string>('');
+  const [runtimeTransition, setRuntimeTransition] =
+    useState<RuntimeTransition>(null);
   const [setupLoading, setSetupLoading] = useState<boolean>(isLocalRuntime());
   const healthCheckInFlight = useRef<boolean>(false);
 
@@ -70,6 +76,7 @@ const Layout = () => {
         nextBackendHealthState(current, true),
       );
       setBackendFailure('');
+      setRuntimeTransition(null);
     } catch (error) {
       setBackendFailure(describeBackendFailure(error));
       setBackendHealth((current: BackendHealthState) =>
@@ -101,6 +108,16 @@ const Layout = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkBackendHealth]);
+
+  useEffect((): (() => void) => {
+    const handleRuntimeTransition = (event: Event): void => {
+      const detail = (event as CustomEvent<{ transition?: RuntimeTransition }>).detail;
+      setRuntimeTransition(detail?.transition ?? null);
+    };
+    window.addEventListener(RUNTIME_TRANSITION_EVENT, handleRuntimeTransition);
+    return (): void =>
+      window.removeEventListener(RUNTIME_TRANSITION_EVENT, handleRuntimeTransition);
+  }, []);
 
   useEffect(() => {
     if (!isLocalRuntime()) {
@@ -155,20 +172,35 @@ const Layout = () => {
       {isLocalRuntime() && !isSetupRoute && <RuntimeControlMenu />}
       {backendHealth.unavailable && (
         <div
-          className="sticky top-0 z-50 border-b border-red-300 bg-red-50 px-4 py-3 text-red-950 shadow-sm"
+          className={`sticky top-0 z-50 border-b px-4 py-3 shadow-sm ${
+            runtimeTransition === 'restarting'
+              ? 'border-amber-300 bg-amber-50 text-amber-950'
+              : runtimeTransition === 'stopping'
+                ? 'border-slate-300 bg-slate-50 text-slate-950'
+                : 'border-red-300 bg-red-50 text-red-950'
+          }`}
           role="alert"
         >
           <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <CircleAlert className="mt-0.5 size-5 shrink-0" />
               <div className="min-w-0">
-                <p className="font-semibold">后台服务已失联</p>
-                <p className="mt-0.5 text-sm leading-6 text-red-900/75">
-                  当前页面可能来自浏览器缓存，请暂时不要提交或保存。请运行
-                  “重启多媒体笔记工作台.vbs”，等待启动器验证完成。
+                <p className="font-semibold">
+                  {runtimeTransition === 'restarting'
+                    ? '正在重启本地服务'
+                    : runtimeTransition === 'stopping'
+                      ? '工作台已停止'
+                      : '后台服务已失联'}
+                </p>
+                <p className="mt-0.5 text-sm leading-6 opacity-75">
+                  {runtimeTransition === 'restarting'
+                    ? '服务恢复后页面会自动刷新，请稍候。'
+                    : runtimeTransition === 'stopping'
+                      ? '请使用桌面图标或开始菜单重新启动工作台。'
+                      : '当前页面可能来自浏览器缓存，请暂时不要提交或保存。请运行“重启多媒体笔记工作台.vbs”，等待启动器验证完成。'}
                 </p>
                 {backendFailure && (
-                  <p className="mt-1 break-words text-xs text-red-900/55">
+                  <p className="mt-1 break-words text-xs opacity-55">
                     检测信息：{backendFailure}
                   </p>
                 )}

@@ -52,4 +52,19 @@ describe('runtime control service', () => {
     jest.advanceTimersByTime(500);
     expect(spawnSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('rejects restart while active tasks are running', () => {
+    expect(() => service.requestRestart()).toThrow(
+      '当前有 2 个任务正在处理，请等待任务完成后再重启',
+    );
+    expect(spawnSpy).not.toHaveBeenCalled();
+  });
+
+  it('accepts restart when no tasks are active', () => {
+    getActiveTaskCount.mockReturnValue(0);
+    expect(service.requestRestart().status).toBe('accepted');
+    expect(service.getStatus().state).toBe('stopping');
+    jest.advanceTimersByTime(500);
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+  });
 });

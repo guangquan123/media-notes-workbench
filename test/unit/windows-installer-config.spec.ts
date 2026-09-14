@@ -49,6 +49,12 @@ describe('Windows installer configuration', () => {
     );
     expect(uninstallRun).toContain('Flags: runhidden waituntilterminated');
     expect(uninstallRun).toContain('RunOnceId: "StopWorkbench"');
+    expect(uninstallRun).toContain('StatusMsg: "正在停止本地服务，请稍候…"');
+    expect(script).toContain(
+      'ConfirmUninstall=卸载前会停止本地服务；本地笔记、配置和历史数据默认保留在 {localappdata}\\MediaNotesWorkbench。确定继续卸载吗？',
+    );
+    expect(script).toContain('function InitializeUninstall(): Boolean;');
+    expect(script).toContain('卸载已取消');
   });
 
   it('allows choosing an install directory without recursively deleting it', () => {

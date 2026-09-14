@@ -47,6 +47,7 @@ WizardSizePercent=110
 
 [Messages]
 WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 11.
+ConfirmUninstall=卸载前会停止本地服务；本地笔记、配置和历史数据默认保留在 {localappdata}\\MediaNotesWorkbench。确定继续卸载吗？
 
 [Files]
 Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -61,7 +62,36 @@ Name: "{group}\\Open Media Notes Logs"; Filename: "{sys}\\wscript.exe"; Paramete
 Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
 [UninstallRun]
-Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
+Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; StatusMsg: "正在停止本地服务，请稍候…"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
+
+[Code]
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  RuntimeNode: String;
+  StopScript: String;
+begin
+  Result := True;
+  RuntimeNode := ExpandConstant('{app}\\runtime\\node.exe');
+  StopScript := ExpandConstant('{app}\\scripts\\installed-stop.js');
+  if (not FileExists(RuntimeNode)) or (not FileExists(StopScript)) then
+    exit;
+  if not Exec(RuntimeNode, AddQuotes(StopScript), ExpandConstant('{app}'), SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+  begin
+    MsgBox('无法启动停止服务程序，卸载已取消。请先从开始菜单停止工作台后重试。',
+      mbError, MB_OK);
+    Result := False;
+    exit;
+  end;
+  if ResultCode <> 0 then
+  begin
+    MsgBox('本地服务未能安全停止，卸载已取消。请保存工作并重试；如问题持续，请查看日志。',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
 
 `;
 }

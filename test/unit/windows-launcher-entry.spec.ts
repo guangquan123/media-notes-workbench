@@ -223,8 +223,8 @@ describe('Windows launcher entry', () => {
     expect(stop).toContain('按项目端口定向停止');
     expect(stop).toContain('waitForProcessExit');
     expect(stop).toContain('tasklist.exe');
-    expect(stop).toContain("return { method: 'taskkill-retry', stopped: true }");
-    expect(stop).toContain('停止命令已发送，但进程仍未退出');
+    expect(stop).toContain("return { method: 'taskkill-force', stopped: true }");
+    expect(stop).toContain('优雅停止超时，强制停止后进程仍未退出');
     expect(stop).toContain("inspection.ownership !== 'owned'");
     expect(stop).toContain('避免误停止其他程序');
     expect(stop).toContain('未停止该进程');

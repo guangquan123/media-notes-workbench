@@ -61,6 +61,12 @@ export class RuntimeControlService {
     if (this.state === 'stopping') {
       throw new BadRequestException('工作台正在停止，请稍后再重启');
     }
+    const activeTaskCount: number = this.noteJobsService.getActiveTaskCount();
+    if (activeTaskCount > 0) {
+      throw new BadRequestException(
+        `当前有 ${activeTaskCount} 个任务正在处理，请等待任务完成后再重启`,
+      );
+    }
     this.cancelDrainTimer();
     this.state = 'stopping';
     this.scheduleProcessCommand('restart');

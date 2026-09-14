@@ -103,14 +103,15 @@ function waitForProcessExit(pid, timeoutMs = 10000) {
 }
 
 function stopWindowsProcess(pid) {
-  const taskkillArgs = ['/PID', String(pid), '/T', '/F'];
-  const runTaskkill = () =>
-    spawnSync('taskkill', taskkillArgs, {
+  const gracefulTaskkillArgs = ['/PID', String(pid), '/T'];
+  const forceTaskkillArgs = ['/PID', String(pid), '/T', '/F'];
+  const runTaskkill = (args) =>
+    spawnSync('taskkill', args, {
       encoding: 'utf8',
       windowsHide: true,
     });
-  const result = runTaskkill();
-  let method = 'taskkill';
+  const result = runTaskkill(gracefulTaskkillArgs);
+  let method = 'taskkill-graceful';
   if (result.status !== 0) {
     try {
       process.kill(pid, 'SIGTERM');
@@ -122,13 +123,13 @@ function stopWindowsProcess(pid) {
       };
     }
   }
-  if (!waitForProcessExit(pid)) {
-    const retry = runTaskkill();
-    if (retry.status === 0 && waitForProcessExit(pid, 5000)) {
-      return { method: 'taskkill-retry', stopped: true };
+  if (!waitForProcessExit(pid, 8000)) {
+    const forceResult = runTaskkill(forceTaskkillArgs);
+    if (forceResult.status === 0 && waitForProcessExit(pid, 5000)) {
+      return { method: 'taskkill-force', stopped: true };
     }
     return {
-      message: `停止命令已发送，但进程仍未退出: ${pid}`,
+      message: `优雅停止超时，强制停止后进程仍未退出: ${pid}`,
       stopped: false,
     };
   }
@@ -250,8 +251,10 @@ if (process.platform === 'win32') {
   stopByConfiguredPorts();
   if (stopResult.method === 'signal') {
     console.log(`[stop] taskkill 不可用，已确认项目 PID ${pid} 退出。`);
+  } else if (stopResult.method === 'taskkill-force') {
+    console.log(`[stop] 优雅停止超时，已强制停止本项目 Windows 开发进程树 ${pid}。`);
   } else {
-    console.log(`[stop] 已停止本项目 Windows 开发进程树 ${pid}。`);
+    console.log(`[stop] 已优雅停止本项目 Windows 开发进程树 ${pid}。`);
   }
   process.exit(0);
 }
