@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -23,6 +24,69 @@ function readJson(relativePath) {
   } catch (error) {
     failures.push(`无法读取 JSON: ${relativePath}（${error.message}）`);
     return null;
+  }
+}
+
+function hashFile(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function reportMediaProblem(message) {
+  (strictMedia ? failures : warnings).push(message);
+}
+
+function isPathInside(parentDirectory, candidatePath) {
+  const relativePath = path.relative(parentDirectory, candidatePath);
+  return (
+    relativePath !== '' &&
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  );
+}
+
+function validateToolManifest(toolsDirectory) {
+  const manifestPath = path.join(toolsDirectory, 'tool-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    reportMediaProblem('缺少媒体工具清单: tools/tool-manifest.json');
+    return;
+  }
+
+  const manifest = readJson('tools/tool-manifest.json');
+  if (!manifest || !Array.isArray(manifest.files)) {
+    failures.push('媒体工具清单缺少 files 数组');
+    return;
+  }
+  if (manifest.modelPolicy !== 'external-only') {
+    failures.push('媒体工具清单必须声明 modelPolicy=external-only');
+  }
+
+  const manifestFiles = new Set();
+  for (const entry of manifest.files) {
+    if (!entry || typeof entry.path !== 'string' || typeof entry.sha256 !== 'string') {
+      failures.push('媒体工具清单包含无效文件条目');
+      continue;
+    }
+    const filePath = path.resolve(toolsDirectory, entry.path);
+    if (!isPathInside(toolsDirectory, filePath)) {
+      failures.push(`媒体工具清单路径越界: ${entry.path}`);
+      continue;
+    }
+    manifestFiles.add(entry.path.toLowerCase());
+    if (!fs.existsSync(filePath)) {
+      reportMediaProblem(`媒体工具清单文件缺失: tools/${entry.path}`);
+      continue;
+    }
+    const actualSha256 = hashFile(filePath);
+    if (actualSha256 !== entry.sha256.toLowerCase()) {
+      failures.push(`媒体工具 SHA-256 不匹配: tools/${entry.path}`);
+    }
+  }
+
+  for (const requiredFile of ['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe']) {
+    if (!manifestFiles.has(requiredFile)) {
+      failures.push(`媒体工具清单未登记必需文件: ${requiredFile}`);
+    }
   }
 }
 
@@ -49,12 +113,30 @@ if (packageJson && !packageJson.version) {
 }
 
 const toolsDirectory = path.join(rootDir, 'tools');
-const toolNames = fs.existsSync(toolsDirectory)
-  ? fs.readdirSync(toolsDirectory).filter((fileName) => /\.(?:exe|cmd)$/iu.test(fileName))
-  : [];
-if (toolNames.length === 0) {
-  const message = '未发现内置媒体工具（ffmpeg/yt-dlp），音视频客户需要额外安装或提供 tools 目录。';
-  (strictMedia ? failures : warnings).push(message);
+const requiredTools = ['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe'];
+const missingTools = requiredTools.filter(
+  (fileName) => !fs.existsSync(path.join(toolsDirectory, fileName)),
+);
+if (missingTools.length > 0) {
+  reportMediaProblem(`缺少内置媒体工具: ${missingTools.join(', ')}`);
+} else {
+  validateToolManifest(toolsDirectory);
+}
+
+if (fs.existsSync(toolsDirectory)) {
+  const forbiddenModelFiles = fs
+    .readdirSync(toolsDirectory, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() && /\.(?:bin|gguf|onnx|safetensors|pt|pth)$/iu.test(entry.name),
+    );
+  if (forbiddenModelFiles.length > 0) {
+    failures.push(
+      `tools 目录禁止包含模型权重: ${forbiddenModelFiles
+        .map((entry) => entry.name)
+        .join(', ')}`,
+    );
+  }
 }
 
 if (failures.length > 0) {

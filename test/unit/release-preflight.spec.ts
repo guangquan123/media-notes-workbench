@@ -14,6 +14,11 @@ describe('release preflight wiring', () => {
     expect(packageJson).toContain('"release:check"');
     expect(preflight).toContain("'package-lock.json'");
     expect(preflight).toContain("process.argv.includes('--strict-media')");
+    expect(preflight).toContain("['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe']");
+    expect(preflight).toContain("readJson('tools/tool-manifest.json')");
+    expect(preflight).toContain("manifest.modelPolicy !== 'external-only'");
+    expect(preflight).toContain("createHash('sha256')");
+    expect(preflight).toContain('gguf|onnx|safetensors');
   });
 
   it('ships bundled tools through the installed runtime and manifest', () => {

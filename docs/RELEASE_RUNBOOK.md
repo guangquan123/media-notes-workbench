@@ -18,8 +18,11 @@
 
 1. 准备合规的工具文件：
    - `tools/ffmpeg.exe`
+   - `tools/ffprobe.exe`
    - `tools/yt-dlp.exe`
-   - 如使用本地 Whisper，再放入对应 CLI 和模型文件。
+   - FFmpeg shared 构建依赖的 DLL。
+   - `tools/tool-manifest.json` 和对应许可证文件。
+   - 不得放入 Whisper CLI、模型权重或其他本地推理文件。
 2. 在干净依赖环境执行 `npm ci`。
 3. 执行 `npm run release:check -- --strict-media`，不得有失败项。
 4. 执行 `npm run package:windows:compile` 生成 Inno Setup 安装包。
@@ -42,4 +45,7 @@
 
 ## 当前发布门禁
 
-仓库已经具备代码侧的发布检查和内置工具路径支持；但当前工作区没有 `tools/ffmpeg.exe` 与 `tools/yt-dlp.exe`，因此严格媒体门禁会阻断。这是有意的硬门槛，避免生成“能安装但音视频不可用”的客户版本。工具文件和许可证确认后，重新运行上述步骤即可进入正式批量交付。
+仓库不提交第三方二进制。发布机必须按 `tools/tool-manifest.json` 中锁定的资产 ID
+恢复 FFmpeg/ffprobe、运行时 DLL 和 yt-dlp；严格门禁会校验必需文件、逐文件
+SHA-256、外部模型策略以及模型权重禁入规则。工具缺失、摘要不一致或发现模型权重时，
+禁止生成客户版本。

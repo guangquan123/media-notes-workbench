@@ -83,3 +83,7 @@ cache/
 .agent/
 .npm_cache
 /models/*.bin
+
+# Audited release tools are restored from tools/tool-manifest.json.
+/tools/*.exe
+/tools/*.dll

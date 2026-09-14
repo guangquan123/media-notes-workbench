@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "modelPolicy": "external-only",
+  "platform": "windows-x64",
+  "generatedAt": "2026-09-14T00:00:00Z",
+  "sources": [
+    {
+      "name": "FFmpeg",
+      "version": "n8.1.2-52-g5a03dfa0f6-20260913",
+      "license": "LGPL-2.1-or-later",
+      "repository": "https://github.com/BtbN/FFmpeg-Builds",
+      "assetId": 561416705,
+      "assetName": "ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip",
+      "assetSha256": "4e2837040919c282046c72abe06b5b5b399ad6bd595b838165c578bb56fd296e"
+    },
+    {
+      "name": "yt-dlp",
+      "version": "2026.08.19",
+      "license": "Unlicense",
+      "repository": "https://github.com/yt-dlp/yt-dlp",
+      "assetId": 521488854,
+      "assetName": "yt-dlp.exe",
+      "assetSha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+    }
+  ],
+  "files": [
+    {
+      "path": "avcodec-62.dll",
+      "sha256": "a011e84f2e7bc32a6e08578a768e5ba7a32db9f3af844d0b47a07c1a65c36fbf"
+    },
+    {
+      "path": "avdevice-62.dll",
+      "sha256": "1a74c51d3a60f28273ef7615ac34f91f805c9bf71cc0e0e027dfdac5f52e6abe"
+    },
+    {
+      "path": "avfilter-11.dll",
+      "sha256": "5c5e79863417d239534d513d23bf2eaeb575c5bdd958b376818f42b3193d973e"
+    },
+    {
+      "path": "avformat-62.dll",
+      "sha256": "cf8b82b293f13b80e14f2e31ec28185a5cf2a24a9f591a7f028fa639ff6fa048"
+    },
+    {
+      "path": "avutil-60.dll",
+      "sha256": "a1378131fc1f3f1791ad5232c3d2006b5c5f39f520a9d2c7b50a7258d24f553b"
+    },
+    {
+      "path": "FFMPEG-LICENSE.txt",
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    },
+    {
+      "path": "ffmpeg.exe",
+      "sha256": "73bcca2735b896ac7d89e2207a3be9801da4e2dd25bd646b1b9fe88fdc2cb8ac"
+    },
+    {
+      "path": "ffprobe.exe",
+      "sha256": "993df9f38f65b69ac14d32446d4971d0a75cf298f9fa360bd0d552cf4af51edc"
+    },
+    {
+      "path": "swresample-6.dll",
+      "sha256": "f0a966a4cbbffac365cb6cd6cd5064e51e4d73b6c6dfbc1755107316b56a5c13"
+    },
+    {
+      "path": "swscale-9.dll",
+      "sha256": "85e1ff5a36b4f4bee8d673e00690b06a48dbec1aac5dbd8877948af30df0bc85"
+    },
+    {
+      "path": "YT-DLP-LICENSE.txt",
+      "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+    },
+    {
+      "path": "yt-dlp.exe",
+      "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+    }
+  ]
+}
