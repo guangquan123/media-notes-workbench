@@ -233,6 +233,10 @@ copy(path.join(rootDir, 'dist', 'client'), path.join(appStage, 'dist', 'client')
 copy(path.join(rootDir, 'dist', 'shared'), path.join(appStage, 'dist', 'shared'));
 copy(path.join(rootDir, 'dist', 'node_modules'), path.join(appStage, 'node_modules'));
 copy(runtimeNode, path.join(appStage, 'runtime', 'node.exe'));
+const bundledToolsDir = path.join(rootDir, 'tools');
+if (fs.existsSync(bundledToolsDir)) {
+  copy(bundledToolsDir, path.join(appStage, 'tools'));
+}
 fs.mkdirSync(path.join(appStage, 'scripts'), { recursive: true });
 for (const fileName of [
   'application-readiness.js',
@@ -241,6 +245,7 @@ for (const fileName of [
   'installed-restart.js',
   'installed-stop.js',
   'launcher-process.js',
+  'launcher-state.js',
   'launcher-status.js',
   'local-runtime-config.js',
   'migrate-local-runtime.js',
@@ -248,6 +253,7 @@ for (const fileName of [
   'restart-windows.js',
   'run-hidden.vbs',
   'runtime-paths.js',
+  'runtime-tools.js',
   'static-client.js',
   'stop.js',
   'workbench-launcher.hta',
@@ -280,6 +286,11 @@ const manifest = {
     runtime: 'runtime/node.exe',
     runtimeSha256: hashFile(path.join(appStage, 'runtime', 'node.exe')),
   },
+  tools: fs.existsSync(path.join(appStage, 'tools'))
+    ? fs.readdirSync(path.join(appStage, 'tools')).filter((fileName) =>
+        /\.(?:exe|cmd)$/iu.test(fileName),
+      )
+    : [],
 };
 fs.writeFileSync(
   path.join(appStage, 'package-manifest.json'),

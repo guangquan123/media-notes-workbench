@@ -18,9 +18,11 @@ if (!process.env.WORKBENCH_HOME) {
   );
 }
 const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
+const { applyBundledToolPath } = require('./runtime-tools.js');
 const runtimePaths = applyRuntimePathEnvironment(process.env, {
   cwd: appRoot,
 });
+applyBundledToolPath(process.env, appRoot);
 const dataRoot = runtimePaths.dataDir;
 const configDir = runtimePaths.configDir;
 const stateDir = runtimePaths.stateDir;
