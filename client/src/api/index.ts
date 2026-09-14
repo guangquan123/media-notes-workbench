@@ -5,6 +5,7 @@ import {
   logger as localLogger,
 } from '@/lib/local-http';
 import { isLocalRuntime } from '@/lib/runtime';
+import { normalizeSetupStatus } from '@/lib/setup-status';
 
 export const axiosForBackend: any = isLocalRuntime()
   ? localAxiosForBackend
@@ -196,7 +197,7 @@ export async function getSetupStatus(): Promise<SetupStatusResponse> {
     method: 'GET',
     timeout: READINESS_TIMEOUT_MS,
   });
-  return response.data;
+  return normalizeSetupStatus(response.data);
 }
 
 export async function updateSetupProgress(input: {
@@ -209,7 +210,7 @@ export async function updateSetupProgress(input: {
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
-  return response.data;
+  return normalizeSetupStatus(response.data);
 }
 
 export async function validateSetupEnvironment(): Promise<SetupEnvironmentResponse> {
@@ -272,7 +273,7 @@ export async function completeSetup(): Promise<SetupStatusResponse> {
     method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
-  return response.data;
+  return normalizeSetupStatus(response.data);
 }
 
 export async function resetSetupProgress(): Promise<SetupStatusResponse> {
@@ -281,7 +282,7 @@ export async function resetSetupProgress(): Promise<SetupStatusResponse> {
     method: 'POST',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
-  return response.data;
+  return normalizeSetupStatus(response.data);
 }
 
 export async function getRuntimeControlStatus(): Promise<RuntimeControlStatus> {
