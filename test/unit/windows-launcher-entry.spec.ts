@@ -32,6 +32,8 @@ describe('Windows launcher entry', () => {
     );
 
     expect(launcher).toContain('installedRuntime');
+    expect(launcher).toContain('<meta charset="utf-8" />');
+    expect(launcher).toContain('<html lang="zh-CN">');
     expect(launcher).toContain('runtime\\\\node.exe');
     expect(launcher).toContain('installed-launcher.js');
     expect(launcher).toContain('WORKBENCH_LAUNCHER_UI');
@@ -81,6 +83,8 @@ describe('Windows launcher entry', () => {
     );
 
     expect(launcher).toContain('launcher-failure.json');
+    expect(launcher).toContain('launcher-recovery.json');
+    expect(launcher).toContain('本地服务正在自动恢复');
     expect(launcher).toContain('readLauncherFailure()');
     expect(launcher).toContain('startupFailure.stage || "启动失败"');
     expect(launcher).toContain('formatLauncherFailure(startupFailure)');
@@ -141,7 +145,7 @@ describe('Windows launcher entry', () => {
     );
   });
 
-  it('stops waiting when the installed service launcher exits before readiness', () => {
+  it('retries a short-lived installed service exit before reporting a diagnostic', () => {
     const installedLauncher = readFileSync(
       resolve(root, 'scripts', 'installed-launcher.js'),
       'utf8',
@@ -153,6 +157,11 @@ describe('Windows launcher entry', () => {
     expect(installedLauncher).toContain('const readinessController = new AbortController()');
     expect(installedLauncher).toContain('readinessController.abort()');
     expect(installedLauncher).toContain('!signal?.aborted');
+    expect(installedLauncher).toContain('const maxAttempts = 3;');
+    expect(installedLauncher).toContain('已自动重试 3 次仍未恢复');
+    expect(installedLauncher).toContain('服务在就绪前退出');
+    expect(installedLauncher).toContain('writeLauncherRecoveryState(true)');
+    expect(installedLauncher).toContain('writeLauncherRecoveryState(false, maxAttempts)');
   });
 
   it('reuses a verified workbench when the desktop icon is clicked again', () => {

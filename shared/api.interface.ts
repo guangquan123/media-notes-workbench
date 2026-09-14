@@ -1011,6 +1011,7 @@ export type SetupStep =
   | 'provider'
   | 'capabilities'
   | 'transcription'
+  | 'connector'
   | 'review';
 
 export type SetupValidationKind =

@@ -29,7 +29,7 @@ const BASE_READINESS: SystemReadiness = {
 };
 
 describe('setup requirements', () => {
-  it('keeps document-only onboarding independent from transcription and connectors', () => {
+  it('keeps document-only onboarding independent from transcription but requires a connector', () => {
     const actions = buildSetupRequiredActions({
       aiModelSettings: EMPTY_MODELS,
       readiness: BASE_READINESS,
@@ -44,6 +44,7 @@ describe('setup requirements', () => {
 
     expect(actions).toEqual([
       { action: 'configure_summary', label: '配置总结模型' },
+      { action: 'configure_connector', label: '配置同步位置' },
     ]);
     expect(checks).toEqual(
       expect.arrayContaining([
@@ -103,7 +104,7 @@ describe('setup requirements', () => {
     );
   });
 
-  it('makes a connector mandatory only after external sync was selected', () => {
+  it('makes a connector mandatory for every note workflow', () => {
     const actions = buildSetupRequiredActions({
       aiModelSettings: {
         ...EMPTY_MODELS,
@@ -114,7 +115,7 @@ describe('setup requirements', () => {
         },
       },
       readiness: BASE_READINESS,
-      selectedCapabilities: ['documents', 'external_sync'],
+      selectedCapabilities: ['documents'],
       storageReady: true,
     });
 

@@ -60,6 +60,7 @@ import type {
 } from '@shared/api.interface';
 import { isLocalRuntime } from '@/lib/runtime';
 import { getPreviousSetupStep } from '@/lib/setup-routing';
+import SetupConnectorStep from './SetupConnectorStep';
 
 interface ProviderPreset {
   baseUrl: string;
@@ -113,6 +114,7 @@ const SETUP_STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
   { id: 'provider', label: 'AI 服务' },
   { id: 'capabilities', label: '处理能力' },
   { id: 'transcription', label: '语音转文字' },
+  { id: 'connector', label: '笔记输出' },
   { id: 'review', label: '完成验证' },
 ];
 
@@ -196,6 +198,7 @@ function getInitialStep(
   if (action === 'repair_storage') return 'environment';
   if (action === 'configure_summary') return 'provider';
   if (action === 'configure_transcription') return 'transcription';
+  if (action === 'configure_connector') return 'connector';
   if (status.status === 'needs_repair') return 'provider';
   return status.currentStep;
 }
@@ -598,7 +601,7 @@ const SetupPage: React.FC = () => {
         model: model.trim(),
         providerId,
       });
-      await saveProgress(hasMediaCapability(selectedCapabilities) ? 'transcription' : 'review');
+      await saveProgress(hasMediaCapability(selectedCapabilities) ? 'transcription' : 'connector');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -657,6 +660,18 @@ const SetupPage: React.FC = () => {
         setTencentSettings(saved);
         await validateSetupTencentAsr();
       }
+      await saveProgress('connector');
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleConnectorNext = async (): Promise<void> => {
+    setWorking(true);
+    setError('');
+    try {
       await saveProgress('review');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
@@ -793,7 +808,7 @@ const SetupPage: React.FC = () => {
           </p>
         </div>
 
-        <nav aria-label="首次配置进度" className="mt-7 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-6">
+        <nav aria-label="首次配置进度" className="mt-7 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-7">
           {SETUP_STEPS.map(
             ({ id, label }: { id: SetupStep; label: string }, index: number): React.ReactNode => (
               <div aria-current={index === stepIndex ? 'step' : undefined} className="min-w-0" key={id}>
@@ -846,7 +861,7 @@ const SetupPage: React.FC = () => {
                 </div>
                 <div className="mt-5 flex items-start gap-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span>笔记和原始资料默认保存在这台电脑上。{isLocalRuntime() ? '本地模式不要求绑定飞书或钉钉。' : ''}</span>
+                  <span>笔记和原始资料默认保存在这台电脑上。完成笔记前，需要授权飞书或钉钉作为笔记输出位置。</span>
                 </div>
                 <div className="mt-8 flex justify-end">
                   <Button data-ai-section-type="button" disabled={working || selectedCapabilities.length === 0} onClick={(): void => void handleWelcomeNext()}>
@@ -933,12 +948,20 @@ const SetupPage: React.FC = () => {
               </div>
             )}
 
+            {step === 'connector' && (
+              <SetupConnectorStep
+                onBack={(): void => void handleBack()}
+                onContinue={handleConnectorNext}
+                working={working}
+              />
+            )}
+
             {step === 'review' && (
               <div>
-                <p className="text-sm font-medium text-blue-700">最后一步 · 自动验证</p>
+                <p className="text-sm font-medium text-blue-700">第 7 步 · 自动验证</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">可以开始了</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">关键配置已经验证。点击完成后，直接进入第一篇笔记。</p>
-                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
+                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">飞书或钉钉输出连接器已授权并验证</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
                 <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>完成并进入工作台{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
             )}

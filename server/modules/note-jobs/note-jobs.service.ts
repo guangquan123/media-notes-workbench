@@ -377,9 +377,7 @@ export class NoteJobsService implements OnModuleInit {
       this.commandExists('lark-cli'),
       this.tencentAsrTranscriptionService.isEnabled(),
       this.customApiTranscriptionService.isEnabled(),
-      isLocalRuntime()
-        ? Promise.resolve(true)
-        : this.connectorRegistryService.isActiveConnectorReady(),
+      this.connectorRegistryService.isActiveConnectorReady(),
       this.connectorRegistryService.getActiveConnector(),
     ]);
     return {

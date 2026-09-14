@@ -8,7 +8,7 @@ const { resolveRuntimePaths } = require('./runtime-paths.js');
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
 function isRetryableWindowsFileError(error) {
-  return ['EBUSY', 'EPERM', 'EACCES'].includes(error?.code);
+  return ['EBUSY', 'EPERM', 'EACCES', 'EBADF'].includes(error?.code);
 }
 
 function runFileOperationWithRetry(operation, attempts = 8, delayMs = 100) {

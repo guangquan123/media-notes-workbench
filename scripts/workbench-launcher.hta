@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
+<meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <title>多媒体笔记工作台</title>
@@ -472,6 +473,16 @@
       return value;
     } catch (e) { return null; }
   }
+  function readLauncherRecovery() {
+    if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-recovery.json"), 1, false, 0);
+      var value = window.JSON.parse(file.ReadAll());
+      file.Close();
+      if (!value || value.operationToken !== operationToken) return null;
+      return value;
+    } catch (e) { return null; }
+  }
   function readLauncherProgress() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
@@ -544,7 +555,9 @@
     if (finished || failed) return;
     loadConfig();
     var startupFailure = readLauncherFailure();
-    if (startupFailure) { setFailure(startupFailure.stage || "启动失败", formatLauncherFailure(startupFailure), startupFailure.code); return; }
+    var startupRecovery = readLauncherRecovery();
+    if (startupFailure && !(startupRecovery && startupRecovery.active)) { setFailure(startupFailure.stage || "启动失败", formatLauncherFailure(startupFailure), startupFailure.code); return; }
+    if (startupFailure && startupRecovery && startupRecovery.active) { var recoveryMessage = "本地服务正在自动恢复（第 " + (startupRecovery.attempt || 1) + "/" + (startupRecovery.maxAttempts || 3) + " 次），请稍候…"; setText("detail", recoveryMessage); setText("statusCopy", recoveryMessage); setText("cardNextStep", recoveryMessage); setText("nextStep", recoveryMessage); }
     var progress = readLauncherProgress();
     var now = new Date().getTime();
     if (progress) {

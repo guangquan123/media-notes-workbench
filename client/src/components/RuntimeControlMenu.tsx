@@ -166,25 +166,26 @@ export default function RuntimeControlMenu(): ReactElement {
 
   return (
     <>
-      <div className="fixed right-4 top-4 z-40">
+      <div className="fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
         {!expanded && (
           <Button
             aria-expanded={expanded}
             aria-label={`打开本地服务控制，${statusText}`}
-            className="bg-white/95 shadow-md backdrop-blur"
+            className="rounded-full border-slate-800 bg-slate-950 px-4 text-white shadow-lg shadow-slate-950/20 hover:bg-slate-800"
             data-ai-section-type="button"
             onClick={() => setExpanded(true)}
-            size="icon"
+            size="sm"
             title="本地服务控制"
-            variant="outline"
+            variant="default"
           >
             <Server className="size-4" />
+            <span>本地服务</span>
           </Button>
         )}
         {expanded && (
           <aside
             aria-label="本地服务控制"
-            className="w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur"
+            className="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-2">

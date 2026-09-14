@@ -10,7 +10,7 @@ describe('setup state', () => {
     try {
       const service = new SetupStateService(statePath);
       await service.updateProgress({
-        currentStep: 'provider',
+        currentStep: 'connector',
         selectedCapabilities: ['documents', 'documents', 'local_audio'],
       });
       await service.recordValidation({
@@ -28,6 +28,7 @@ describe('setup state', () => {
         validations: Array<{ configFingerprint: string }>;
       };
       expect(persisted.selectedCapabilities).toEqual(['documents', 'local_audio']);
+      expect(persisted.currentStep).toBe('review');
       expect(persisted.status).toBe('completed');
       expect(persisted.validations[0]?.configFingerprint).toBe('sha256:summary');
       expect(JSON.stringify(persisted)).not.toContain('apiKey');

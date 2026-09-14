@@ -40,7 +40,7 @@ export function getPreviousSetupStep(
   if (currentStep === 'provider') return 'environment';
   if (currentStep === 'capabilities') return 'provider';
   if (currentStep === 'transcription') return 'capabilities';
-  if (currentStep === 'review') {
+  if (currentStep === 'connector') {
     const requiresTranscription: boolean = capabilities.some(
       (capability: SetupCapability): boolean =>
         ['local_audio', 'local_video', 'recording', 'platform_video'].includes(
@@ -48,6 +48,9 @@ export function getPreviousSetupStep(
         ),
     );
     return requiresTranscription ? 'transcription' : 'capabilities';
+  }
+  if (currentStep === 'review') {
+    return 'connector';
   }
   return undefined;
 }

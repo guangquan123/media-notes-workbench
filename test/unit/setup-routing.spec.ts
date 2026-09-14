@@ -22,9 +22,13 @@ describe('setup routing', () => {
     );
   });
 
-  it('returns to transcription when media setup is being reviewed', () => {
-    expect(getPreviousSetupStep('review', ['documents'])).toBe('capabilities');
+  it('keeps connector setup between capabilities and final review', () => {
+    expect(getPreviousSetupStep('review', ['documents'])).toBe('connector');
     expect(getPreviousSetupStep('review', ['documents', 'local_video'])).toBe(
+      'connector',
+    );
+    expect(getPreviousSetupStep('connector', ['documents'])).toBe('capabilities');
+    expect(getPreviousSetupStep('connector', ['documents', 'local_video'])).toBe(
       'transcription',
     );
     expect(getPreviousSetupStep('provider', ['documents'])).toBe('environment');

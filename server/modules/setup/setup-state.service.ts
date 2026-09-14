@@ -39,6 +39,7 @@ const SETUP_STEPS: readonly SetupStep[] = [
   'provider',
   'capabilities',
   'transcription',
+  'connector',
   'review',
 ];
 const VALIDATION_KINDS: readonly SetupValidationKind[] = [

@@ -88,9 +88,7 @@ export function buildSetupRequiredActions(
       check.required && check.status === 'unavailable',
   );
   const requiresMedia: boolean = needsMediaProcessing(input.selectedCapabilities);
-  const requiresExternalSync: boolean = input.selectedCapabilities.includes(
-    'external_sync',
-  );
+  const requiresConnector: boolean = input.selectedCapabilities.length > 0;
 
   if (hasUnavailableEnvironment) {
     actions.push({ action: 'repair_storage', label: '修复本机运行环境' });
@@ -111,7 +109,7 @@ export function buildSetupRequiredActions(
       label: '配置语音转文字',
     });
   }
-  if (requiresExternalSync && !input.readiness.connectorReady) {
+  if (requiresConnector && !input.readiness.connectorReady) {
     actions.push({ action: 'configure_connector', label: '配置同步位置' });
   }
   return actions;

@@ -35,6 +35,7 @@ const logDir = runtimePaths.logDir;
 const cacheDir = runtimePaths.cacheDir;
 const runtimeNode = path.join(appRoot, 'runtime', 'node.exe');
 const serverScript = path.join(appRoot, 'scripts', 'dev-windows.js');
+const launcherRecoveryPath = path.join(stateDir, 'launcher-recovery.json');
 const clientHost = process.env.CLIENT_DEV_HOST || '127.0.0.1';
 const preferredClientPort = Number(process.env.CLIENT_DEV_PORT || 8081);
 const preferredClientBasePath =
@@ -168,30 +169,41 @@ function acknowledgeReadyService() {
   }
 }
 
-async function main() {
-  if (process.platform === 'win32' && !fs.existsSync(runtimeNode)) {
-    throw new Error(`安装包缺少内置运行时: ${runtimeNode}`);
+function writeLauncherRecoveryState(active, attempt = 0) {
+  try {
+    const operationToken = fs
+      .readFileSync(path.join(stateDir, 'launcher-operation.token'), 'utf8')
+      .trim();
+    if (!operationToken) return false;
+    const temporaryPath = `${launcherRecoveryPath}.${process.pid}.tmp`;
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify({
+        active,
+        attempt,
+        maxAttempts: 3,
+        operationToken,
+        timestamp: Date.now(),
+      }),
+      'utf8',
+    );
+    fs.rmSync(launcherRecoveryPath, { force: true });
+    fs.renameSync(temporaryPath, launcherRecoveryPath);
+    return true;
+  } catch {
+    return false;
   }
-  if (!fs.existsSync(serverScript)) {
-    throw new Error(`安装包缺少启动脚本: ${serverScript}`);
+}
+
+function clearLauncherRecoveryState() {
+  try {
+    fs.rmSync(launcherRecoveryPath, { force: true });
+  } catch {
+    // The visual launcher treats a missing recovery marker as a normal start.
   }
-  ensureDirectories();
+}
 
-  // A customer can click the desktop icon again while the first window is
-  // still open. Reuse a verified local workbench instead of spawning a second
-  // static server on the same port, which previously made the second launch
-  // fail with EADDRINUSE and look like the application was stuck.
-  if (await reuseRunningWorkbench()) {
-    acknowledgeReadyService();
-    openBrowser();
-    return;
-  }
-
-  // A development server or another local program can legitimately use the
-  // default port. The installed product owns neither process, so safely use
-  // the next free loopback port and publish it for the visible launcher.
-  await selectClientEndpoint();
-
+function launchWorkbenchService() {
   const child = spawn(runtimeNode, [serverScript, '--skip-build'], {
     cwd: appRoot,
     detached: true,
@@ -216,34 +228,88 @@ async function main() {
     },
   });
   child.unref();
-
-  const childOutcome = new Promise((resolve) => {
+  return new Promise((resolve) => {
     child.once('error', (error) => resolve({ error }));
     child.once('exit', (code, signal) => resolve({ exit: { code, signal } }));
   });
-  const readinessController = new AbortController();
-  const readyOrFailure = await Promise.race([
-    waitForReady(300000, readinessController.signal).then((ready) => ({ ready })),
-    childOutcome,
-  ]);
-  readinessController.abort();
-  if (readyOrFailure.error) throw readyOrFailure.error;
-  if (readyOrFailure.exit) {
-    const readyAfterExit = await waitForReady(5000);
-    if (!readyAfterExit) {
-      const { code, signal } = readyOrFailure.exit;
-      const exitDetail = signal ? `信号 ${signal}` : `退出码 ${code ?? '未知'}`;
-      throw new Error(
-        `服务进程在工作台就绪前退出（${exitDetail}），请查看日志: ${path.join(logDir, 'dev.std.log')}`,
+}
+
+function describeServiceExit(exit) {
+  return exit.signal ? `信号 ${exit.signal}` : `退出码 ${exit.code ?? '未知'}`;
+}
+
+async function waitForLaunchedService() {
+  const maxAttempts = 3;
+  let latestExit;
+  const recoveryStateVisible = writeLauncherRecoveryState(true);
+  try {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (recoveryStateVisible) writeLauncherRecoveryState(true, attempt);
+      const childOutcome = launchWorkbenchService();
+      const readinessController = new AbortController();
+      const readyOrFailure = await Promise.race([
+        waitForReady(300000, readinessController.signal).then((ready) => ({ ready })),
+        childOutcome,
+      ]);
+      readinessController.abort();
+      if (readyOrFailure.error) throw readyOrFailure.error;
+      if (readyOrFailure.ready) {
+        clearLauncherRecoveryState();
+        return;
+      }
+      if (!readyOrFailure.exit) {
+        throw new Error(`工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`);
+      }
+
+      const readyAfterExit = await waitForReady(5000);
+      if (readyAfterExit) {
+        clearLauncherRecoveryState();
+        return;
+      }
+      latestExit = readyOrFailure.exit;
+      if (attempt === maxAttempts) break;
+
+      const retryDelayMs = attempt * 1500;
+      process.stderr.write(
+        `[installed-launcher] 服务在就绪前退出（${describeServiceExit(latestExit)}），${retryDelayMs / 1000} 秒后自动恢复（${attempt + 1}/${maxAttempts}）。\n`,
       );
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
+  } catch (error) {
+    if (recoveryStateVisible) writeLauncherRecoveryState(false, maxAttempts);
+    throw error;
+  }
+  if (recoveryStateVisible) writeLauncherRecoveryState(false, maxAttempts);
+  throw new Error(
+    `服务进程在工作台就绪前退出（${describeServiceExit(latestExit)}），已自动重试 3 次仍未恢复，请查看日志: ${path.join(logDir, 'dev.std.log')}`,
+  );
+}
+
+async function main() {
+  if (process.platform === 'win32' && !fs.existsSync(runtimeNode)) {
+    throw new Error(`安装包缺少内置运行时: ${runtimeNode}`);
+  }
+  if (!fs.existsSync(serverScript)) {
+    throw new Error(`安装包缺少启动脚本: ${serverScript}`);
+  }
+  ensureDirectories();
+
+  // A customer can click the desktop icon again while the first window is
+  // still open. Reuse a verified local workbench instead of spawning a second
+  // static server on the same port, which previously made the second launch
+  // fail with EADDRINUSE and look like the application was stuck.
+  if (await reuseRunningWorkbench()) {
+    acknowledgeReadyService();
     openBrowser();
     return;
   }
-  const ready = readyOrFailure.ready;
-  if (!ready) {
-    throw new Error(`工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`);
-  }
+
+  // A development server or another local program can legitimately use the
+  // default port. The installed product owns neither process, so safely use
+  // the next free loopback port and publish it for the visible launcher.
+  await selectClientEndpoint();
+
+  await waitForLaunchedService();
   openBrowser();
 }
 

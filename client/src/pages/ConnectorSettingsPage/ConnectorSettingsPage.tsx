@@ -542,12 +542,14 @@ export default function ConnectorSettingsPage({
                 </p>
               </div>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/settings">
-                <ArrowLeft className="size-4" />
-                返回设置
-              </Link>
-            </Button>
+            {!embedded && (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/settings">
+                  <ArrowLeft className="size-4" />
+                  返回设置
+                </Link>
+              </Button>
+            )}
           </header>
           <section className="mt-10 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
             <div className="flex items-start gap-3">
@@ -605,12 +607,14 @@ export default function ConnectorSettingsPage({
               <p className="text-xs text-black/45">当前使用</p>
               <p className="mt-1 text-sm font-semibold">{activeLabel}</p>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/settings">
-                <ArrowLeft className="size-4" />
-                返回设置
-              </Link>
-            </Button>
+            {!embedded && (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/settings">
+                  <ArrowLeft className="size-4" />
+                  返回设置
+                </Link>
+              </Button>
+            )}
           </div>
         </header>
 
