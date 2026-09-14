@@ -5,7 +5,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { APP_ID, buildInstallerScript } = require('./windows-installer-config.js');
+const {
+  APP_ID,
+  buildInstallerScript,
+} = require('./windows-installer-config.js');
 
 const rootDir = path.resolve(__dirname, '..');
 const version = require(path.join(rootDir, 'package.json')).version;
@@ -20,7 +23,11 @@ const runtimeNode = path.resolve(
 );
 const compileInstaller = args.includes('--compile');
 const appStage = path.join(outputRoot, 'app');
-const installerPath = path.join(outputRoot, 'installer', 'MediaNotesWorkbench.iss');
+const installerPath = path.join(
+  outputRoot,
+  'installer',
+  'MediaNotesWorkbench.iss',
+);
 const buildLockPath = `${outputRoot}.lock`;
 let buildLockFd;
 
@@ -57,7 +64,9 @@ function assertSafeOutputRoot() {
   }
   const firstSegment = relative.split(path.sep)[0].toLowerCase();
   if (PROTECTED_OUTPUT_SEGMENTS.has(firstSegment)) {
-    fail(`拒绝覆盖项目受保护目录，请使用 release 或 .tmp 下的输出目录: ${outputRoot}`);
+    fail(
+      `拒绝覆盖项目受保护目录，请使用 release 或 .tmp 下的输出目录: ${outputRoot}`,
+    );
   }
 }
 
@@ -101,8 +110,93 @@ function copy(source, destination) {
   fs.cpSync(source, destination, { recursive: true });
 }
 
+const RUNTIME_SCRIPT_FILES = [
+  'application-readiness.js',
+  'dev-windows.js',
+  'installed-launcher.js',
+  'installed-restart.js',
+  'installed-stop.js',
+  'launcher-endpoint.js',
+  'launcher-process.js',
+  'launcher-state.js',
+  'launcher-status.js',
+  'local-runtime-config.js',
+  'migrate-local-runtime.js',
+  'open-logs.vbs',
+  'restart-windows.js',
+  'run-hidden.vbs',
+  'runtime-paths.js',
+  'runtime-tools.js',
+  'static-client.js',
+  'stop.js',
+  'workbench-launcher.hta',
+  'workbench-launcher.vbs',
+];
+
+function getRuntimeScriptDependencies(scriptDirectory, fileName) {
+  const sourcePath = path.resolve(scriptDirectory, fileName);
+  const source = fs.readFileSync(sourcePath, 'utf8');
+  const dependencies = new Set();
+  const requirePattern = /require\(\s*['"](\.[^'"]+)['"]\s*\)/gu;
+
+  for (const match of source.matchAll(requirePattern)) {
+    const request = match[1];
+    const unresolvedPath = path.resolve(path.dirname(sourcePath), request);
+    const candidatePaths = [
+      unresolvedPath,
+      `${unresolvedPath}.js`,
+      path.join(unresolvedPath, 'index.js'),
+    ];
+    const dependencyPath = candidatePaths.find((candidate) =>
+      fs.existsSync(candidate),
+    );
+    if (!dependencyPath) {
+      fail(`启动脚本依赖不存在: ${fileName} -> ${request}`);
+    }
+    const relativePath = path.relative(scriptDirectory, dependencyPath);
+    if (
+      relativePath === '' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      relativePath === '..' ||
+      path.isAbsolute(relativePath)
+    ) {
+      fail(`启动脚本依赖超出 scripts 目录: ${fileName} -> ${request}`);
+    }
+    dependencies.add(relativePath);
+  }
+
+  return [...dependencies];
+}
+
+function copyRuntimeScripts(sourceDirectory, targetDirectory) {
+  const pending = [...RUNTIME_SCRIPT_FILES];
+  const copied = new Set();
+  while (pending.length > 0) {
+    const fileName = pending.shift();
+    if (!fileName || copied.has(fileName)) continue;
+    const sourcePath = path.resolve(sourceDirectory, fileName);
+    const relativePath = path.relative(sourceDirectory, sourcePath);
+    if (
+      relativePath === '' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      relativePath === '..' ||
+      path.isAbsolute(relativePath)
+    ) {
+      fail(`无效的启动脚本路径: ${fileName}`);
+    }
+    copy(sourcePath, path.join(targetDirectory, relativePath));
+    copied.add(relativePath);
+    pending.push(
+      ...getRuntimeScriptDependencies(sourceDirectory, relativePath),
+    );
+  }
+}
+
 function hashFile(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(filePath))
+    .digest('hex');
 }
 
 const USER_DATA_FILE_NAMES = new Set([
@@ -150,7 +244,8 @@ function writeInstallerScript() {
 }
 
 function writeUninstallScripts() {
-  const command = '@echo off\r\n' +
+  const command =
+    '@echo off\r\n' +
     'setlocal\r\n' +
     'if not exist "%~dp0unins000.exe" exit /b 1\r\n' +
     'start "" "%~dp0unins000.exe"\r\n' +
@@ -164,7 +259,8 @@ function compile() {
     process.env.INNO_SETUP_COMPILER,
     'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe',
     'C:\\Program Files\\Inno Setup 6\\ISCC.exe',
-    localAppData && path.join(localAppData, 'Programs', 'Inno Setup 6', 'ISCC.exe'),
+    localAppData &&
+      path.join(localAppData, 'Programs', 'Inno Setup 6', 'ISCC.exe'),
   ].filter(Boolean);
   const compiler = compilerCandidates.find((candidate) =>
     fs.existsSync(candidate),
@@ -180,7 +276,8 @@ function compile() {
     stdio: 'inherit',
     windowsHide: true,
   });
-  if (result.status !== 0) fail(`Inno Setup 编译失败，退出码: ${result.status}`);
+  if (result.status !== 0)
+    fail(`Inno Setup 编译失败，退出码: ${result.status}`);
   const setupPath = path.join(
     path.dirname(installerPath),
     `Media-Notes-Workbench-${version}-Setup.exe`,
@@ -189,7 +286,9 @@ function compile() {
     fail(`Inno Setup 未生成预期安装包: ${setupPath}`);
   }
   const sizeMiB = (fs.statSync(setupPath).size / 1024 / 1024).toFixed(1);
-  process.stdout.write(`[package-windows] Setup.exe 已生成: ${setupPath} (${sizeMiB} MiB)\n`);
+  process.stdout.write(
+    `[package-windows] Setup.exe 已生成: ${setupPath} (${sizeMiB} MiB)\n`,
+  );
 }
 
 if (!fs.existsSync(runtimeNode)) fail(`找不到 Node 运行时: ${runtimeNode}`);
@@ -230,39 +329,32 @@ if (fs.existsSync(outputRoot)) {
   fail(`旧发布目录未能完全清理: ${outputRoot}`);
 }
 fs.mkdirSync(appStage, { recursive: true });
-copy(path.join(rootDir, 'dist', 'server'), path.join(appStage, 'dist', 'server'));
-copy(path.join(rootDir, 'dist', 'client'), path.join(appStage, 'dist', 'client'));
-copy(path.join(rootDir, 'dist', 'shared'), path.join(appStage, 'dist', 'shared'));
-copy(path.join(rootDir, 'dist', 'node_modules'), path.join(appStage, 'node_modules'));
+copy(
+  path.join(rootDir, 'dist', 'server'),
+  path.join(appStage, 'dist', 'server'),
+);
+copy(
+  path.join(rootDir, 'dist', 'client'),
+  path.join(appStage, 'dist', 'client'),
+);
+copy(
+  path.join(rootDir, 'dist', 'shared'),
+  path.join(appStage, 'dist', 'shared'),
+);
+copy(
+  path.join(rootDir, 'dist', 'node_modules'),
+  path.join(appStage, 'node_modules'),
+);
 copy(runtimeNode, path.join(appStage, 'runtime', 'node.exe'));
 const bundledToolsDir = path.join(rootDir, 'tools');
 if (fs.existsSync(bundledToolsDir)) {
   copy(bundledToolsDir, path.join(appStage, 'tools'));
 }
 fs.mkdirSync(path.join(appStage, 'scripts'), { recursive: true });
-for (const fileName of [
-  'application-readiness.js',
-  'dev-windows.js',
-  'installed-launcher.js',
-  'installed-restart.js',
-  'installed-stop.js',
-  'launcher-process.js',
-  'launcher-state.js',
-  'launcher-status.js',
-  'local-runtime-config.js',
-  'migrate-local-runtime.js',
-  'open-logs.vbs',
-  'restart-windows.js',
-  'run-hidden.vbs',
-  'runtime-paths.js',
-  'runtime-tools.js',
-  'static-client.js',
-  'stop.js',
-  'workbench-launcher.hta',
-  'workbench-launcher.vbs',
-]) {
-  copy(path.join(rootDir, 'scripts', fileName), path.join(appStage, 'scripts', fileName));
-}
+copyRuntimeScripts(
+  path.join(rootDir, 'scripts'),
+  path.join(appStage, 'scripts'),
+);
 const installerIcon = path.join(appStage, 'dist', 'client', 'app-icon.ico');
 if (!fs.existsSync(installerIcon)) {
   fail(`发布目录缺少安装器图标: ${installerIcon}`);
@@ -289,9 +381,9 @@ const manifest = {
     runtimeSha256: hashFile(path.join(appStage, 'runtime', 'node.exe')),
   },
   tools: fs.existsSync(path.join(appStage, 'tools'))
-    ? fs.readdirSync(path.join(appStage, 'tools')).filter((fileName) =>
-        /\.(?:exe|cmd)$/iu.test(fileName),
-      )
+    ? fs
+        .readdirSync(path.join(appStage, 'tools'))
+        .filter((fileName) => /\.(?:exe|cmd)$/iu.test(fileName))
     : [],
 };
 fs.writeFileSync(

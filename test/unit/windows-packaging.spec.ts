@@ -5,7 +5,10 @@ describe('Windows packaging safeguards', () => {
   const root = resolve(__dirname, '../..');
 
   it('ships clickable uninstall scripts and protects source directories from cleanup', () => {
-    const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
+    const packager = readFileSync(
+      resolve(root, 'scripts', 'package-windows.js'),
+      'utf8',
+    );
 
     expect(packager).toContain('function writeUninstallScripts()');
     expect(packager).toContain("path.join(appStage, 'uninstall.cmd')");
@@ -18,8 +21,14 @@ describe('Windows packaging safeguards', () => {
   });
 
   it('ships the installed restart wrapper and its coordinator dependency', () => {
-    const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
-    const restart = readFileSync(resolve(root, 'scripts', 'restart-windows.js'), 'utf8');
+    const packager = readFileSync(
+      resolve(root, 'scripts', 'package-windows.js'),
+      'utf8',
+    );
+    const restart = readFileSync(
+      resolve(root, 'scripts', 'restart-windows.js'),
+      'utf8',
+    );
 
     expect(packager).toContain("'installed-restart.js'");
     expect(packager).toContain("'open-logs.vbs'");
@@ -28,15 +37,38 @@ describe('Windows packaging safeguards', () => {
     expect(restart).toContain("'installed-launcher.js'");
   });
 
+  it('ships the endpoint coordinator required by the installed launcher', () => {
+    const packager = readFileSync(
+      resolve(root, 'scripts', 'package-windows.js'),
+      'utf8',
+    );
+    const installedLauncher = readFileSync(
+      resolve(root, 'scripts', 'installed-launcher.js'),
+      'utf8',
+    );
+
+    expect(installedLauncher).toContain("require('./launcher-endpoint.js')");
+    expect(installedLauncher).toContain('writeLauncherFailure({');
+    expect(packager).toContain("'launcher-endpoint.js'");
+    expect(packager).toContain('copyRuntimeScripts(');
+    expect(packager).toContain('getRuntimeScriptDependencies(');
+  });
+
   it('ships the visible launcher used by the desktop shortcut', () => {
-    const packager = readFileSync(resolve(root, 'scripts', 'package-windows.js'), 'utf8');
+    const packager = readFileSync(
+      resolve(root, 'scripts', 'package-windows.js'),
+      'utf8',
+    );
 
     expect(packager).toContain("'workbench-launcher.hta'");
     expect(packager).toContain("'workbench-launcher.vbs'");
   });
 
   it('removes development-only files without removing native or PDF runtime assets', () => {
-    const prune = readFileSync(resolve(root, 'scripts', 'prune-smart.js'), 'utf8');
+    const prune = readFileSync(
+      resolve(root, 'scripts', 'prune-smart.js'),
+      'utf8',
+    );
 
     expect(prune).toContain("'.d.ts'");
     expect(prune).toContain("'.md'");
@@ -47,16 +79,21 @@ describe('Windows packaging safeguards', () => {
   });
 
   it('drops only known non-runtime artifacts from officeparser and TypeScript', () => {
-    const prune = readFileSync(resolve(root, 'scripts', 'prune-smart.js'), 'utf8');
+    const prune = readFileSync(
+      resolve(root, 'scripts', 'prune-smart.js'),
+      'utf8',
+    );
 
     expect(prune).toContain("packageName === 'officeparser'");
-    expect(prune).toContain("dist/officeparser.browser.");
+    expect(prune).toContain('dist/officeparser.browser.');
     expect(prune).toContain("packageName === 'typescript'");
     expect(prune).toContain("normalizedPath !== 'lib/typescript.js'");
   });
 
   it('generates a multi-size 32-bit application icon for Explorer and shortcuts', () => {
-    const icon = readFileSync(resolve(root, 'client', 'public', 'app-icon.ico'));
+    const icon = readFileSync(
+      resolve(root, 'client', 'public', 'app-icon.ico'),
+    );
 
     expect(icon.readUInt16LE(0)).toBe(0);
     expect(icon.readUInt16LE(2)).toBe(1);
@@ -64,7 +101,11 @@ describe('Windows packaging safeguards', () => {
     expect([16, 32, 48, 256]).toEqual(
       [0, 1, 2, 3].map((index) => icon[6 + index * 16] || 256),
     );
-    expect([0, 1, 2, 3].every((index) => icon.readUInt16LE(6 + index * 16 + 6) === 32)).toBe(true);
+    expect(
+      [0, 1, 2, 3].every(
+        (index) => icon.readUInt16LE(6 + index * 16 + 6) === 32,
+      ),
+    ).toBe(true);
   });
 
   it('silences missing portable Node directory matches in the batch entrypoint', () => {
@@ -81,7 +122,8 @@ describe('Windows packaging safeguards', () => {
     expect(buildScript).not.toContain('if errorlevel 1 (');
     expect(buildScript).toContain('release\\windows\\VERSION\\installer\\');
     expect(buildScript).not.toContain('<version>');
-    expect(buildScript).not.toMatch(/for \/d %%D in \("%~dp0\.tmp\\node-portable/iu);
+    expect(buildScript).not.toMatch(
+      /for \/d %%D in \("%~dp0\.tmp\\node-portable/iu,
+    );
   });
-
 });

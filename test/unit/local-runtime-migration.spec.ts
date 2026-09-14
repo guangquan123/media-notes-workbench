@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -47,7 +48,16 @@ describe('local runtime migration', () => {
       await writeFile(
         join(rootDir, '.recording-assets.json'),
         JSON.stringify({
-          items: [{ playablePath: join(rootDir, 'data', 'recording-playable', 'a.m4a') }],
+          items: [
+            {
+              playablePath: join(
+                rootDir,
+                'data',
+                'recording-playable',
+                'a.m4a',
+              ),
+            },
+          ],
         }),
         'utf8',
       );
@@ -67,9 +77,14 @@ describe('local runtime migration', () => {
 
       expect(result.status).toBe('migrated');
       expect(result.conflicts).toEqual([]);
-      expect(await readFile(join(targetHome, 'data', 'uploads', 'upload-1'), 'utf8')).toBe('audio');
+      expect(
+        await readFile(join(targetHome, 'data', 'uploads', 'upload-1'), 'utf8'),
+      ).toBe('audio');
       const manifest = JSON.parse(
-        await readFile(join(targetHome, 'config', '.recording-assets.json'), 'utf8'),
+        await readFile(
+          join(targetHome, 'config', '.recording-assets.json'),
+          'utf8',
+        ),
       ) as { items: Array<{ playablePath: string }> };
       expect(manifest.items[0].playablePath).toBe(
         join(targetHome, 'data', 'recording-playable', 'a.m4a'),
@@ -82,7 +97,9 @@ describe('local runtime migration', () => {
       ) as { archivePath: string };
       expect(settings.archivePath).toBe(join(targetHome, 'data', 'recordings'));
       await expect(readFile(uploadPath, 'utf8')).resolves.toBe('audio');
-      await expect(readFile(result.markerPath, 'utf8')).resolves.toContain('"version": 1');
+      await expect(readFile(result.markerPath, 'utf8')).resolves.toContain(
+        '"version": 1',
+      );
     } finally {
       await rm(rootDir, { recursive: true, force: true });
       await rm(targetHome, { recursive: true, force: true });
@@ -93,7 +110,11 @@ describe('local runtime migration', () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'media-notes-migration-'));
     const targetHome = await mkdtemp(join(tmpdir(), 'media-notes-target-'));
     try {
-      await writeFile(join(rootDir, '.runtime-config.json'), '{"mode":"local"}\n', 'utf8');
+      await writeFile(
+        join(rootDir, '.runtime-config.json'),
+        '{"mode":"local"}\n',
+        'utf8',
+      );
       await mkdir(join(targetHome, 'config'), { recursive: true });
       await writeFile(
         join(targetHome, 'config', '.runtime-config.json'),
@@ -108,8 +129,36 @@ describe('local runtime migration', () => {
 
       expect(result.status).toBe('conflict');
       expect(result.conflicts.join('\n')).toContain('目标文件已存在');
-      await expect(readFile(join(targetHome, 'config', '.runtime-config.json'), 'utf8')).resolves.toContain('"new":true');
+      await expect(
+        readFile(join(targetHome, 'config', '.runtime-config.json'), 'utf8'),
+      ).resolves.toContain('"new":true');
     } finally {
+      await rm(rootDir, { recursive: true, force: true });
+      await rm(targetHome, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers when Windows rejects the migration marker rename with EBADF', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'media-notes-migration-'));
+    const targetHome = await mkdtemp(join(tmpdir(), 'media-notes-target-'));
+    const failure = Object.assign(new Error('bad file descriptor'), {
+      code: 'EBADF',
+    });
+    const rename = jest.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw failure;
+    });
+    try {
+      const result = migrateLocalRuntime({
+        sourceRoot: rootDir,
+        targetPaths: pathsFor(targetHome),
+      });
+
+      expect(result.status).toBe('noop');
+      await expect(readFile(result.markerPath, 'utf8')).resolves.toContain(
+        '"version": 1',
+      );
+    } finally {
+      rename.mockRestore();
       await rm(rootDir, { recursive: true, force: true });
       await rm(targetHome, { recursive: true, force: true });
     }

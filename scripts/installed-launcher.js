@@ -10,6 +10,7 @@ const {
   readLauncherEndpoint,
   writeLauncherEndpoint,
 } = require('./launcher-endpoint.js');
+const { writeLauncherFailure } = require('./launcher-status.js');
 
 const appRoot = path.resolve(
   process.env.WORKBENCH_APP_ROOT || path.resolve(__dirname, '..'),
@@ -248,7 +249,9 @@ async function waitForLaunchedService() {
       const childOutcome = launchWorkbenchService();
       const readinessController = new AbortController();
       const readyOrFailure = await Promise.race([
-        waitForReady(300000, readinessController.signal).then((ready) => ({ ready })),
+        waitForReady(300000, readinessController.signal).then((ready) => ({
+          ready,
+        })),
         childOutcome,
       ]);
       readinessController.abort();
@@ -258,7 +261,9 @@ async function waitForLaunchedService() {
         return;
       }
       if (!readyOrFailure.exit) {
-        throw new Error(`工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`);
+        throw new Error(
+          `工作台启动超时，请查看日志: ${path.join(logDir, 'dev.std.log')}`,
+        );
       }
 
       const readyAfterExit = await waitForReady(5000);
@@ -314,8 +319,15 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(
-    `[installed-launcher] ${error instanceof Error ? error.message : String(error)}\n`,
-  );
+  const detail =
+    error instanceof Error ? error.stack || error.message : String(error);
+  writeLauncherFailure({
+    rootDir: appRoot,
+    stage: '启动器初始化',
+    message: '本地启动器未能启动服务',
+    detail,
+    suggestion: '请查看启动日志；若安装文件不完整，请重新安装后再试。',
+  });
+  process.stderr.write(`[installed-launcher] ${detail}\n`);
   process.exitCode = 1;
 });

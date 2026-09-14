@@ -33,12 +33,14 @@ function pathEquals(left, right) {
 function pathStartsWith(candidate, root) {
   const normalizedCandidate = path.resolve(candidate);
   const normalizedRoot = path.resolve(root);
-  const left = process.platform === 'win32'
-    ? normalizedCandidate.toLowerCase()
-    : normalizedCandidate;
-  const right = process.platform === 'win32'
-    ? normalizedRoot.toLowerCase()
-    : normalizedRoot;
+  const left =
+    process.platform === 'win32'
+      ? normalizedCandidate.toLowerCase()
+      : normalizedCandidate;
+  const right =
+    process.platform === 'win32'
+      ? normalizedRoot.toLowerCase()
+      : normalizedRoot;
   return left === right || left.startsWith(`${right}${path.sep}`);
 }
 
@@ -107,7 +109,17 @@ function copyFileAtomically(source, target) {
     throw new Error(`迁移临时文件已存在，请先确认后再重试: ${temporaryPath}`);
   }
   fs.copyFileSync(source, temporaryPath);
-  fs.renameSync(temporaryPath, target);
+  replaceTemporaryFile(temporaryPath, target);
+}
+
+function replaceTemporaryFile(temporaryPath, target) {
+  try {
+    fs.renameSync(temporaryPath, target);
+  } catch (error) {
+    if (error?.code !== 'EBADF') throw error;
+    fs.copyFileSync(temporaryPath, target);
+    fs.rmSync(temporaryPath, { force: true });
+  }
 }
 
 function copyTree(source, target, result) {
@@ -143,7 +155,9 @@ function copyTree(source, target, result) {
 function rewriteKnownPath(value, mappings) {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return value;
   const sourcePath = path.resolve(value);
-  const mapping = mappings.find(({ source }) => pathStartsWith(sourcePath, source));
+  const mapping = mappings.find(({ source }) =>
+    pathStartsWith(sourcePath, source),
+  );
   if (!mapping) return value;
   const relative = path.relative(mapping.source, sourcePath);
   return path.resolve(mapping.target, relative);
@@ -187,20 +201,25 @@ function copyFileAtomicallyFromContent(content, target) {
     throw new Error(`迁移临时文件已存在，请先确认后再重试: ${temporaryPath}`);
   }
   fs.writeFileSync(temporaryPath, content, 'utf8');
-  fs.renameSync(temporaryPath, target);
+  replaceTemporaryFile(temporaryPath, target);
 }
 
 function migrateLocalRuntime(options = {}) {
-  const targetPaths = options.targetPaths || resolveRuntimePaths({
-    cwd: options.appRoot,
-    env: options.env || process.env,
-  });
-  const sourceRoot = path.resolve(
-    options.sourceRoot || targetPaths.appRoot,
-  );
+  const targetPaths =
+    options.targetPaths ||
+    resolveRuntimePaths({
+      cwd: options.appRoot,
+      env: options.env || process.env,
+    });
+  const sourceRoot = path.resolve(options.sourceRoot || targetPaths.appRoot);
   const markerPath = path.join(targetPaths.stateDir, 'layout-migration.json');
   if (!options.dryRun && fs.existsSync(markerPath)) {
-    return { markerPath, status: 'skipped', sourceRoot, targetHome: targetPaths.homeDir };
+    return {
+      markerPath,
+      status: 'skipped',
+      sourceRoot,
+      targetHome: targetPaths.homeDir,
+    };
   }
 
   const entries = buildMigrationEntries(sourceRoot, targetPaths);
@@ -216,11 +235,26 @@ function migrateLocalRuntime(options = {}) {
   };
   const mappings = [
     { source: path.join(sourceRoot, 'data'), target: targetPaths.dataDir },
-    { source: path.join(sourceRoot, 'pgdata'), target: path.join(targetPaths.dataDir, 'pgdata') },
-    { source: path.join(sourceRoot, 'uploads'), target: path.join(targetPaths.dataDir, 'uploads') },
-    { source: path.join(sourceRoot, 'recordings'), target: path.join(targetPaths.dataDir, 'recordings') },
-    { source: path.join(sourceRoot, 'recording-playable'), target: path.join(targetPaths.dataDir, 'recording-playable') },
-    { source: path.join(sourceRoot, 'models'), target: path.join(targetPaths.dataDir, 'models') },
+    {
+      source: path.join(sourceRoot, 'pgdata'),
+      target: path.join(targetPaths.dataDir, 'pgdata'),
+    },
+    {
+      source: path.join(sourceRoot, 'uploads'),
+      target: path.join(targetPaths.dataDir, 'uploads'),
+    },
+    {
+      source: path.join(sourceRoot, 'recordings'),
+      target: path.join(targetPaths.dataDir, 'recordings'),
+    },
+    {
+      source: path.join(sourceRoot, 'recording-playable'),
+      target: path.join(targetPaths.dataDir, 'recording-playable'),
+    },
+    {
+      source: path.join(sourceRoot, 'models'),
+      target: path.join(targetPaths.dataDir, 'models'),
+    },
     { source: path.join(sourceRoot, 'config'), target: targetPaths.configDir },
   ].sort((left, right) => right.source.length - left.source.length);
 
@@ -244,21 +278,29 @@ function migrateLocalRuntime(options = {}) {
   }
   if (options.dryRun) return result;
 
-  for (const fileName of ['.recording-assets.json', '.recording-storage-settings.json']) {
+  for (const fileName of [
+    '.recording-assets.json',
+    '.recording-storage-settings.json',
+  ]) {
     const filePath = path.join(targetPaths.configDir, fileName);
-    if (rewriteJsonFile(filePath, mappings)) result.rewrittenFiles.push(fileName);
+    if (rewriteJsonFile(filePath, mappings))
+      result.rewrittenFiles.push(fileName);
   }
   if (result.copiedFiles > 0 || result.rewrittenFiles.length > 0) {
     result.status = 'migrated';
   }
   fs.mkdirSync(targetPaths.stateDir, { recursive: true });
   copyFileAtomicallyFromContent(
-    `${JSON.stringify({
-      completedAt: new Date().toISOString(),
-      sourceRoot,
-      targetHome: targetPaths.homeDir,
-      version: MIGRATION_VERSION,
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        completedAt: new Date().toISOString(),
+        sourceRoot,
+        targetHome: targetPaths.homeDir,
+        version: MIGRATION_VERSION,
+      },
+      null,
+      2,
+    )}\n`,
     markerPath,
   );
   return result;
