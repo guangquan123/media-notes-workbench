@@ -38,22 +38,42 @@ describe('Windows installer configuration', () => {
     expect(script).not.toContain('{localappdata}\\MediaNotesWorkbench\\logs');
   });
 
-  it('waits for a temporary Node stop command before deleting installed files', () => {
-    const uninstallRun = script.split('[UninstallRun]')[1] || '';
-
-    expect(uninstallRun).toContain(
-      'Filename: "{sys}\\wscript.exe"',
-    );
-    expect(uninstallRun).toContain(
-      'Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""',
-    );
-    expect(uninstallRun).toContain('Flags: runhidden waituntilterminated');
-    expect(uninstallRun).toContain('RunOnceId: "StopWorkbench"');
-    expect(uninstallRun).toContain('StatusMsg: "正在停止本地服务，请稍候…"');
-    expect(script).toContain(
+  it('shows the expanded local-data path and keeps data by default', () => {
+    expect(script).toContain('ConfirmUninstall=确定要卸载 %1 吗？');
+    expect(script).not.toContain(
       'ConfirmUninstall=卸载前会停止本地服务；本地笔记、配置和历史数据默认保留在 {localappdata}\\MediaNotesWorkbench。确定继续卸载吗？',
     );
+    expect(script).toContain('function GetDefaultUserDataDirectory(): String;');
+    expect(script).toContain(
+      "Result := ExpandConstant('{localappdata}\\MediaNotesWorkbench');",
+    );
+    expect(script).toContain('function SelectUserDataAction(): Boolean;');
+    expect(script).toContain('RemoveUserData := False;');
+    expect(script).toContain('MB_YESNOCANCEL or MB_DEFBUTTON2');
+    expect(script).toContain("'选择“是”会卸载应用并永久删除上面的目录；'");
+    expect(script).toContain("'选择“否”会仅卸载应用并保留本地数据（推荐）；'");
+    expect(script).toContain("'选择“取消”会取消整个卸载。'");
+    expect(script).toContain('if UninstallSilent then');
+    expect(script).toContain('静默卸载默认保留本地数据');
+  });
+
+  it('stops the service once and deletes only selected default local data', () => {
+    expect(script).not.toContain('[UninstallRun]');
+    expect(script).toContain('function StopWorkbenchService(): Boolean;');
     expect(script).toContain('function InitializeUninstall(): Boolean;');
+    expect(script).toContain('Result := SelectUserDataAction();');
+    expect(script).toContain(
+      'procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);',
+    );
+    expect(script).toContain('if CurUninstallStep = usUninstall then');
+    expect(script).toContain('if not StopWorkbenchService() then');
+    expect(script).toContain('else if CurUninstallStep = usPostUninstall then');
+    expect(script).toContain('procedure RemoveSelectedUserData();');
+    expect(script).toContain('if not RemoveUserData then');
+    expect(script).toContain(
+      'if UserDataDirectory <> GetDefaultUserDataDirectory() then',
+    );
+    expect(script).toContain('DelTree(UserDataDirectory, True, True, True)');
     expect(script).toContain('卸载已取消');
   });
 

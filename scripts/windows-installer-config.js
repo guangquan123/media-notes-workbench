@@ -62,7 +62,7 @@ WizardSizePercent=110
 
 [Messages]
 WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 11.
-ConfirmUninstall=卸载前会停止本地服务；本地笔记、配置和历史数据默认保留在 {localappdata}\\MediaNotesWorkbench。确定继续卸载吗？
+ConfirmUninstall=确定要卸载 %1 吗？
 
 [Files]
 Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -76,11 +76,61 @@ Name: "{group}\\Restart Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; 
 Name: "{group}\\Open Media Notes Logs"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\open-logs.vbs"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 
-[UninstallRun]
-Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\run-hidden.vbs"" ""{app}\\runtime\\node.exe"" ""{app}\\scripts\\installed-stop.js"""; WorkingDir: "{app}"; StatusMsg: "正在停止本地服务，请稍候…"; Flags: runhidden waituntilterminated; RunOnceId: "StopWorkbench"
-
 [Code]
-function InitializeUninstall(): Boolean;
+var
+  RemoveUserData: Boolean;
+  UserDataDirectory: String;
+
+function GetDefaultUserDataDirectory(): String;
+begin
+  Result := ExpandConstant('{localappdata}\\MediaNotesWorkbench');
+end;
+
+function SelectUserDataAction(): Boolean;
+var
+  Choice: Integer;
+begin
+  Result := True;
+  RemoveUserData := False;
+  UserDataDirectory := GetDefaultUserDataDirectory();
+
+  if UninstallSilent then
+  begin
+    Log('静默卸载默认保留本地数据：' + UserDataDirectory);
+    exit;
+  end;
+
+  if not DirExists(UserDataDirectory) then
+  begin
+    MsgBox(
+      '未发现本地数据目录。应用文件将被卸载。'#13#10#13#10 +
+      '数据目录：'#13#10 + UserDataDirectory,
+      mbInformation, MB_OK);
+    exit;
+  end;
+
+  Choice := MsgBox(
+    '请选择如何处理当前 Windows 用户的本地数据：'#13#10#13#10 +
+    UserDataDirectory + #13#10#13#10 +
+    '该目录包含本地笔记、配置、历史记录、附件、缓存和日志。'#13#10 +
+    '选择“是”会卸载应用并永久删除上面的目录；'#13#10 +
+    '选择“否”会仅卸载应用并保留本地数据（推荐）；'#13#10 +
+    '选择“取消”会取消整个卸载。'#13#10#13#10 +
+    '用户自行配置的外部数据目录不会被自动删除。',
+    mbConfirmation, MB_YESNOCANCEL or MB_DEFBUTTON2);
+
+  if Choice = IDYES then
+  begin
+    RemoveUserData := True;
+    Log('用户选择删除本地数据：' + UserDataDirectory);
+  end
+  else if Choice = IDNO then
+    Log('用户选择保留本地数据：' + UserDataDirectory)
+  else
+    Result := False;
+end;
+
+function StopWorkbenchService(): Boolean;
 var
   ResultCode: Integer;
   RuntimeNode: String;
@@ -105,6 +155,42 @@ begin
       mbError, MB_OK);
     Result := False;
   end;
+end;
+
+procedure RemoveSelectedUserData();
+begin
+  if not RemoveUserData then
+    exit;
+  if UserDataDirectory <> GetDefaultUserDataDirectory() then
+  begin
+    Log('拒绝删除非默认本地数据目录：' + UserDataDirectory);
+    exit;
+  end;
+  if not DirExists(UserDataDirectory) then
+    exit;
+  if not DelTree(UserDataDirectory, True, True, True) then
+    MsgBox(
+      '应用文件已卸载，但部分本地数据无法删除。请关闭正在使用该目录的程序后，手动处理：'#13#10#13#10 +
+      UserDataDirectory,
+      mbError, MB_OK)
+  else
+    Log('已删除本地数据：' + UserDataDirectory);
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := SelectUserDataAction();
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    if not StopWorkbenchService() then
+      Abort;
+  end
+  else if CurUninstallStep = usPostUninstall then
+    RemoveSelectedUserData();
 end;
 
 
