@@ -62,18 +62,17 @@ function writeLauncherEndpoint(stateDir, endpoint) {
 
   let lastError;
   for (let attempt = 1; attempt <= 8; attempt += 1) {
-    const temporary = `${target}.${process.pid}.${attempt}.tmp`;
     try {
-      fs.writeFileSync(temporary, JSON.stringify(payload), 'utf8');
-      fs.renameSync(temporary, target);
+      // Windows can keep a just-read JSON file open briefly. Replacing an
+      // existing file with renameSync then fails with EBADF on some systems,
+      // even though the current user owns the file. This is only a small
+      // launcher hint: readers ignore an incomplete JSON read and poll again,
+      // so a direct overwrite is safer than letting a file-replace race block
+      // the whole application startup.
+      fs.writeFileSync(target, JSON.stringify(payload), 'utf8');
       return payload;
     } catch (error) {
       lastError = error;
-      try {
-        fs.unlinkSync(temporary);
-      } catch {
-        // A failed temporary state file is never read by the launcher.
-      }
       if (!isRetryableEndpointWriteError(error) || attempt === 8) break;
       waitBeforeRetry();
     }

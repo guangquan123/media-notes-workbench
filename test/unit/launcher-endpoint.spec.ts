@@ -30,6 +30,12 @@ describe('launcher endpoint state', () => {
         clientPort: 8082,
         clientBasePath: '',
       });
+      writeLauncherEndpoint(stateDir, {
+        clientHost: '127.0.0.1',
+        clientPort: 8083,
+        clientBasePath: '/',
+      });
+      expect(readLauncherEndpoint(stateDir)?.clientPort).toBe(8083);
     } finally {
       rmSync(stateDir, { recursive: true, force: true });
     }
