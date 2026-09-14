@@ -22,6 +22,7 @@ import {
 } from 'node:fs/promises';
 import { availableParallelism, homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { resolveMediaToolCommand } from '../../common/utils/bundled-media-tools';
 import { getLocalDataDir } from '../../common/utils/local-runtime-paths';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
@@ -4730,6 +4731,9 @@ export class NoteJobsService implements OnModuleInit {
   }
 
   private commandExists(command: string): Promise<boolean> {
+    if (resolveMediaToolCommand(command) !== command) {
+      return Promise.resolve(true);
+    }
     const locator = process.platform === 'win32' ? 'where' : 'which';
     return this.runCommand(locator, [command])
       .then(() => true)
@@ -4756,7 +4760,8 @@ export class NoteJobsService implements OnModuleInit {
         reject(error);
         return;
       }
-      const invocation = resolveCliInvocation(command, args);
+      const resolvedCommand: string = resolveMediaToolCommand(command);
+      const invocation = resolveCliInvocation(resolvedCommand, args);
       const child = spawn(invocation.command, invocation.args, {
         cwd,
         env: getCliEnvironment(),

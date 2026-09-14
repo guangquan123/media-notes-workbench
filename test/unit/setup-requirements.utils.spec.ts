@@ -80,6 +80,29 @@ describe('setup requirements', () => {
     );
   });
 
+  it('does not require platform downloading for browser recording alone', () => {
+    const checks = getRequiredEnvironmentChecks({
+      readiness: BASE_READINESS,
+      selectedCapabilities: ['recording'],
+      storageReady: true,
+    });
+
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ffmpeg',
+          required: true,
+          status: 'unavailable',
+        }),
+        expect.objectContaining({
+          id: 'yt_dlp',
+          required: false,
+          status: 'not_required',
+        }),
+      ]),
+    );
+  });
+
   it('makes a connector mandatory only after external sync was selected', () => {
     const actions = buildSetupRequiredActions({
       aiModelSettings: {

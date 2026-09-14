@@ -296,17 +296,19 @@ const SetupPage: React.FC = () => {
         setStatus(nextStatus);
         setStep(getInitialStep(nextStatus, requestedCapability));
         const requested: SetupCapability | undefined = requestedCapability;
-        if (nextStatus.selectedCapabilities.length > 0 || requested) {
-          const requestedCapabilities: SetupCapability[] = requested
-            ? ['documents', requested]
-            : [];
-          setSelectedCapabilities(
-            uniqueCapabilities([
-              ...nextStatus.selectedCapabilities,
-              ...requestedCapabilities,
-            ]),
-          );
-        }
+        const requestedCapabilities: SetupCapability[] = requested
+          ? ['documents', requested]
+          : [];
+        // A route-specific setup request means the user is enabling that one
+        // entry now. Do not revive unrelated capabilities from an incomplete
+        // earlier wizard run, or their dependencies become false blockers.
+        setSelectedCapabilities(
+          requested
+            ? requestedCapabilities
+            : nextStatus.selectedCapabilities.length > 0
+              ? uniqueCapabilities(nextStatus.selectedCapabilities)
+              : ['documents'],
+        );
         setAiSettings(nextSettings);
         setTranscriptionMode(nextSettings.transcriptionMode);
         setTranscriptionProviderId(nextSettings.transcriptionModel?.providerId || '');
@@ -683,6 +685,10 @@ const SetupPage: React.FC = () => {
     try {
       const nextStatus: SetupStatusResponse = await resetSetupProgress();
       setStatus(nextStatus);
+      setSelectedCapabilities(
+        requestedCapability ? ['documents', requestedCapability] : ['documents'],
+      );
+      setEnvironment(null);
       setStep('welcome');
       setCompleted(false);
     } catch (nextError) {
