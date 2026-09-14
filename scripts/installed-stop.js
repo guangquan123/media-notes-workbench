@@ -18,6 +18,8 @@ const { applyRuntimePathEnvironment } = require('./runtime-paths.js');
 const runtimePaths = applyRuntimePathEnvironment(process.env, {
   cwd: appRoot,
 });
+const { readLauncherEndpoint } = require('./launcher-endpoint.js');
+const activeEndpoint = readLauncherEndpoint(runtimePaths.stateDir);
 const runtimeNode = path.join(appRoot, 'runtime', 'node.exe');
 process.env.LOG_DIR = runtimePaths.logDir;
 process.env.WORKBENCH_CACHE_DIR = runtimePaths.cacheDir;
@@ -26,5 +28,9 @@ process.env.WORKBENCH_DATA_DIR = runtimePaths.dataDir;
 process.env.WORKBENCH_HOME = runtimePaths.homeDir;
 process.env.WORKBENCH_RUNTIME_NODE = runtimeNode;
 process.env.WORKBENCH_STATE_DIR = runtimePaths.stateDir;
+if (activeEndpoint) {
+  process.env.CLIENT_DEV_HOST = activeEndpoint.clientHost;
+  process.env.CLIENT_DEV_PORT = String(activeEndpoint.clientPort);
+}
 
 require('./stop.js');

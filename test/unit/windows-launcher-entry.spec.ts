@@ -153,8 +153,9 @@ describe('Windows launcher entry', () => {
       'utf8',
     );
 
-    expect(installedLauncher).toContain('if (await waitForReady(2500))');
+    expect(installedLauncher).toContain('if (await reuseRunningWorkbench())');
     expect(installedLauncher).toContain('acknowledgeReadyService();');
+    expect(installedLauncher).toContain('await selectClientEndpoint();');
     expect(installedLauncher).toContain("'launcher-operation.token'");
     expect(installedLauncher).toContain("'launcher-ready.token'");
   });
@@ -316,6 +317,8 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain('fs.renameSync(temporaryPath, launcherProgressPath)');
     expect(launcher).toContain('function readLauncherProgress()');
     expect(launcher).toContain('readLauncherProgress()');
+    expect(launcher).toContain('function readLauncherEndpoint()');
+    expect(launcher).toContain('launcher-endpoint.json');
   });
 
   it('publishes weighted stage progress and detects stale heartbeats', () => {

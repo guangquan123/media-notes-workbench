@@ -5,6 +5,11 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const {
+  findAvailablePort,
+  readLauncherEndpoint,
+  writeLauncherEndpoint,
+} = require('./launcher-endpoint.js');
 
 const appRoot = path.resolve(
   process.env.WORKBENCH_APP_ROOT || path.resolve(__dirname, '..'),
@@ -31,10 +36,12 @@ const cacheDir = runtimePaths.cacheDir;
 const runtimeNode = path.join(appRoot, 'runtime', 'node.exe');
 const serverScript = path.join(appRoot, 'scripts', 'dev-windows.js');
 const clientHost = process.env.CLIENT_DEV_HOST || '127.0.0.1';
-const clientPort = Number(process.env.CLIENT_DEV_PORT || 8081);
-const clientBasePath =
+const preferredClientPort = Number(process.env.CLIENT_DEV_PORT || 8081);
+const preferredClientBasePath =
   `${process.env.CLIENT_BASE_PATH || '/'}`.replace(/\/+$/u, '') || '';
-const appUrl = `http://${clientHost}:${clientPort}${clientBasePath}/`;
+let clientPort = preferredClientPort;
+let clientBasePath = preferredClientBasePath;
+let appUrl = `http://${clientHost}:${clientPort}${clientBasePath}/`;
 
 function ensureDirectories() {
   for (const directory of [dataRoot, configDir, cacheDir, stateDir, logDir]) {
@@ -89,6 +96,56 @@ function openBrowser() {
   browser.unref();
 }
 
+function setClientEndpoint(endpoint) {
+  clientPort = Number(endpoint.clientPort);
+  clientBasePath =
+    `${endpoint.clientBasePath || '/'}`.replace(/\/+$/u, '') || '';
+  appUrl = `http://${clientHost}:${clientPort}${clientBasePath}/`;
+}
+
+async function reuseRunningWorkbench() {
+  const rememberedEndpoint = readLauncherEndpoint(stateDir);
+  const endpoints = [
+    rememberedEndpoint,
+    {
+      clientHost,
+      clientPort: preferredClientPort,
+      clientBasePath: preferredClientBasePath,
+    },
+  ].filter(
+    (endpoint, index, all) =>
+      endpoint &&
+      endpoint.clientHost === clientHost &&
+      all.findIndex(
+        (candidate) =>
+          candidate &&
+          candidate.clientHost === endpoint.clientHost &&
+          candidate.clientPort === endpoint.clientPort &&
+          candidate.clientBasePath === endpoint.clientBasePath,
+      ) === index,
+  );
+
+  for (const endpoint of endpoints) {
+    setClientEndpoint(endpoint);
+    if (await waitForReady(2500)) return true;
+  }
+  return false;
+}
+
+async function selectClientEndpoint() {
+  const selectedPort = await findAvailablePort({
+    host: clientHost,
+    preferredPort: preferredClientPort,
+  });
+  const endpoint = writeLauncherEndpoint(stateDir, {
+    clientHost,
+    clientPort: selectedPort,
+    clientBasePath: preferredClientBasePath,
+  });
+  setClientEndpoint(endpoint);
+  return endpoint;
+}
+
 function acknowledgeReadyService() {
   // The visible Windows launcher creates a unique operation token before it
   // starts this process. When an already-running service is reused, it still
@@ -124,11 +181,16 @@ async function main() {
   // still open. Reuse a verified local workbench instead of spawning a second
   // static server on the same port, which previously made the second launch
   // fail with EADDRINUSE and look like the application was stuck.
-  if (await waitForReady(2500)) {
+  if (await reuseRunningWorkbench()) {
     acknowledgeReadyService();
     openBrowser();
     return;
   }
+
+  // A development server or another local program can legitimately use the
+  // default port. The installed product owns neither process, so safely use
+  // the next free loopback port and publish it for the visible launcher.
+  await selectClientEndpoint();
 
   const child = spawn(runtimeNode, [serverScript, '--skip-build'], {
     cwd: appRoot,

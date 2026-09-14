@@ -266,6 +266,17 @@
     return values;
   }
   function readEnvFile(name) { return readEnvFileAt(root, name); }
+  function readLauncherEndpoint() {
+    if (!fso) return null;
+    try {
+      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-endpoint.json"), 1, false, 0);
+      var endpoint = JSON.parse(file.ReadAll());
+      file.Close();
+      var port = Number(endpoint.clientPort);
+      if (!endpoint || typeof endpoint.clientHost !== "string" || !endpoint.clientHost || isNaN(port) || port < 1 || port > 65535) return null;
+      return { clientHost: endpoint.clientHost, clientPort: String(Math.floor(port)), clientBasePath: String(endpoint.clientBasePath || "") };
+    } catch (e) { return null; }
+  }
 
   function loadConfig() {
     var values = readEnvFile(".env");
@@ -279,6 +290,12 @@
     config.clientHost = values.CLIENT_DEV_HOST || config.clientHost;
     config.clientPort = values.CLIENT_DEV_PORT || config.clientPort;
     config.basePath = values.CLIENT_BASE_PATH || "";
+    var endpoint = readLauncherEndpoint();
+    if (endpoint) {
+      config.clientHost = endpoint.clientHost;
+      config.clientPort = endpoint.clientPort;
+      config.basePath = endpoint.clientBasePath;
+    }
     if (config.basePath === "/") config.basePath = "";
     if (config.basePath.charAt(0) !== "/" && config.basePath) config.basePath = "/" + config.basePath;
     config.basePath = config.basePath.replace(/\/+$/, "");
@@ -525,6 +542,7 @@
   }
   function poll() {
     if (finished || failed) return;
+    loadConfig();
     var startupFailure = readLauncherFailure();
     if (startupFailure) { setFailure(startupFailure.stage || "启动失败", formatLauncherFailure(startupFailure), startupFailure.code); return; }
     var progress = readLauncherProgress();
