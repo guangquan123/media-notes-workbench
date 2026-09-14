@@ -147,6 +147,18 @@ describe('Windows launcher entry', () => {
     expect(installedLauncher).toContain('!signal?.aborted');
   });
 
+  it('reuses a verified workbench when the desktop icon is clicked again', () => {
+    const installedLauncher = readFileSync(
+      resolve(root, 'scripts', 'installed-launcher.js'),
+      'utf8',
+    );
+
+    expect(installedLauncher).toContain('if (await waitForReady(2500))');
+    expect(installedLauncher).toContain('acknowledgeReadyService();');
+    expect(installedLauncher).toContain("'launcher-operation.token'");
+    expect(installedLauncher).toContain("'launcher-ready.token'");
+  });
+
   it('runs installed stop logic in the current temporary Node process', () => {
     const installedStop = readFileSync(
       resolve(root, 'scripts', 'installed-stop.js'),

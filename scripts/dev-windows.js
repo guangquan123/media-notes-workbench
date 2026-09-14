@@ -828,7 +828,7 @@ async function waitForPort(name, host, port, child, timeoutMs = 120000) {
   }
   throw new Error(
     `等待 ${name} 端口 ${host}:${port} 超时（${Math.round(timeoutMs / 1000)}s）。` +
-      `若端口被其他进程占用，先运行 npm run stop，或执行: netstat -ano | findstr :${port} 查占用进程`,
+      '请关闭占用该本地地址的程序后重新启动工作台。',
   );
 }
 
@@ -1048,7 +1048,7 @@ async function main() {
         continue;
       }
       throw new Error(
-        `${pName} 端口 ${pHost}:${pPort} 已被占用。先运行 npm run stop，或执行: netstat -ano | findstr :${pPort} 查占用进程后结束它`,
+        `${pName} 端口 ${pHost}:${pPort} 已被占用。请关闭占用该本地地址的程序后重新启动工作台。`,
       );
     }
   }

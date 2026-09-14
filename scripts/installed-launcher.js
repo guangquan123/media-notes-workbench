@@ -89,6 +89,28 @@ function openBrowser() {
   browser.unref();
 }
 
+function acknowledgeReadyService() {
+  // The visible Windows launcher creates a unique operation token before it
+  // starts this process. When an already-running service is reused, it still
+  // needs the matching acknowledgement; otherwise the launcher UI can keep
+  // waiting even though the workbench is already usable.
+  try {
+    const operationToken = fs
+      .readFileSync(path.join(stateDir, 'launcher-operation.token'), 'utf8')
+      .trim();
+    if (operationToken) {
+      fs.writeFileSync(
+        path.join(stateDir, 'launcher-ready.token'),
+        operationToken,
+        'utf8',
+      );
+    }
+  } catch {
+    // Direct command-line launches do not have an operation token. The
+    // running service itself remains the source of truth in that case.
+  }
+}
+
 async function main() {
   if (process.platform === 'win32' && !fs.existsSync(runtimeNode)) {
     throw new Error(`安装包缺少内置运行时: ${runtimeNode}`);
@@ -97,6 +119,16 @@ async function main() {
     throw new Error(`安装包缺少启动脚本: ${serverScript}`);
   }
   ensureDirectories();
+
+  // A customer can click the desktop icon again while the first window is
+  // still open. Reuse a verified local workbench instead of spawning a second
+  // static server on the same port, which previously made the second launch
+  // fail with EADDRINUSE and look like the application was stuck.
+  if (await waitForReady(2500)) {
+    acknowledgeReadyService();
+    openBrowser();
+    return;
+  }
 
   const child = spawn(runtimeNode, [serverScript, '--skip-build'], {
     cwd: appRoot,
