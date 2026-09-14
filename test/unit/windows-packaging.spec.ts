@@ -75,6 +75,12 @@ describe('Windows packaging safeguards', () => {
 
     expect(buildScript).toContain('dir /b /ad');
     expect(buildScript).toContain('2^>nul');
+    expect(buildScript).toContain('if not errorlevel 1 goto npm_ready');
+    expect(buildScript).toContain(':npm_ready');
+    expect(buildScript).toContain(':npm_missing');
+    expect(buildScript).not.toContain('if errorlevel 1 (');
+    expect(buildScript).toContain('release\\windows\\VERSION\\installer\\');
+    expect(buildScript).not.toContain('<version>');
     expect(buildScript).not.toMatch(/for \/d %%D in \("%~dp0\.tmp\\node-portable/iu);
   });
 
