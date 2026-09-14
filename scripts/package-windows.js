@@ -143,6 +143,8 @@ function writeInstallerScript() {
     sourcePath: appStage,
     iconPath,
     version,
+    compression: process.env.WORKBENCH_INNO_COMPRESSION || 'fast',
+    solidCompression: process.env.WORKBENCH_INNO_SOLID_COMPRESSION === 'yes',
   });
   fs.writeFileSync(installerPath, content, 'utf8');
 }

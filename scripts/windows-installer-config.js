@@ -6,10 +6,25 @@ function normalizePath(value) {
 }
 
 const APP_ID = 'A8F7FD44-40D9-4AF7-9F80-2A7A1D90F2DA';
+const INNO_COMPRESSION_LEVELS = new Set(['fast', 'normal', 'max', 'ultra']);
 
-function buildInstallerScript({ sourcePath, version, iconPath }) {
+function buildInstallerScript({
+  sourcePath,
+  version,
+  iconPath,
+  compression = 'fast',
+  solidCompression = false,
+}) {
   if (!sourcePath) throw new Error('sourcePath is required');
   if (!version) throw new Error('version is required');
+  if (!INNO_COMPRESSION_LEVELS.has(compression)) {
+    throw new Error(
+      `compression must be one of: ${Array.from(INNO_COMPRESSION_LEVELS).join(', ')}`,
+    );
+  }
+  if (typeof solidCompression !== 'boolean') {
+    throw new Error('solidCompression must be a boolean');
+  }
 
   const normalizedSourcePath = normalizePath(sourcePath);
   const normalizedIconPath = normalizePath(
@@ -40,8 +55,8 @@ ArchitecturesAllowed=x64compatible and not arm64
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=.
 OutputBaseFilename=Media-Notes-Workbench-{#AppVersion}-Setup
-Compression=lzma2/max
-SolidCompression=yes
+Compression=lzma2/${compression}
+SolidCompression=${solidCompression ? 'yes' : 'no'}
 WizardStyle=modern
 WizardSizePercent=110
 

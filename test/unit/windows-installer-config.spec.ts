@@ -83,6 +83,33 @@ describe('Windows installer configuration', () => {
     );
   });
 
+  it('uses fast compression by default and allows a validated override', () => {
+    expect(script).toContain('Compression=lzma2/fast');
+    expect(script).toContain('SolidCompression=no');
+
+    const fastScript = buildInstallerScript({
+      sourcePath: '../app',
+      version: '2.2.5',
+      compression: 'fast',
+    });
+    expect(fastScript).toContain('Compression=lzma2/fast');
+    expect(fastScript).toContain('SolidCompression=no');
+    const compactScript = buildInstallerScript({
+      sourcePath: '../app',
+      version: '2.2.5',
+      compression: 'normal',
+      solidCompression: true,
+    });
+    expect(compactScript).toContain('SolidCompression=yes');
+    expect(() =>
+      buildInstallerScript({
+        sourcePath: '../app',
+        version: '2.2.5',
+        compression: 'unsafe',
+      }),
+    ).toThrow('compression must be one of');
+  });
+
   it('normalizes and embeds the verified absolute source and icon paths', () => {
     const absoluteScript = buildInstallerScript({
       sourcePath: 'D:\\build output\\app',
