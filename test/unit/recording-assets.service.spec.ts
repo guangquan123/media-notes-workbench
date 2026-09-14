@@ -11,6 +11,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
+import { Test } from '@nestjs/testing';
 import { RecordingAssetsService } from '@server/modules/recording-assets/recording-assets.service';
 import type { CreateRecordingAssetRequest } from '@shared/api.interface';
 
@@ -40,15 +41,24 @@ describe('RecordingAssetsService', () => {
   afterEach(async () => { await rm(baseDir, { force: true, recursive: true }); });
 
   it('persists a created recording so it survives service recreation', async () => {
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     await service.create('owner-1', createInput('upload-1'));
-    const restored = await new RecordingAssetsService(baseDir, false).list('owner-1');
+    const restored = await RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    }).list('owner-1');
     expect(restored.totalItems).toBe(1);
     expect(restored.items[0].title).toBe('周会录音');
   });
 
   it('links a conversion job and updates the recording only when the job finishes', async () => {
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     const input = createInput('upload-1');
     input.capturedAt = '2026-09-04T06:18:00.000Z';
     const created = await service.create('owner-1', input);
@@ -74,7 +84,10 @@ describe('RecordingAssetsService', () => {
 
   it('queues M4A generation before archive while preserving the source file', async () => {
     await writeFile(join(baseDir, 'data', 'uploads', 'upload-1'), 'audio');
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     const created = await service.create('owner-1', createInput('upload-1'));
     await service.updateSettings('owner-1', { archivePath: join(baseDir, 'archive'), autoArchive: false, checkDiskSpace: true });
     const result = await service.archive('owner-1', created.item.id);
@@ -85,7 +98,10 @@ describe('RecordingAssetsService', () => {
   });
 
   it('keeps the recording visible and marks archive failure when the source is missing', async () => {
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     const created = await service.create('owner-1', createInput('missing'));
     const result = await service.archive('owner-1', created.item.id);
     expect(result.archived).toBe(false);
@@ -94,7 +110,10 @@ describe('RecordingAssetsService', () => {
   });
 
   it('queues only owned legacy bin archives for M4A repair', async () => {
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     const created = await service.create('owner-1', createInput('upload-1'));
     const manifestPath = join(baseDir, '.recording-assets.json');
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
@@ -126,7 +145,7 @@ describe('RecordingAssetsService', () => {
         '-y',
         sourcePath,
       ]);
-      const service = new RecordingAssetsService(baseDir);
+      const service = RecordingAssetsService.createForTest({ baseDir });
       const created = await service.create('owner-1', createInput('upload-1'));
       await service.updateSettings('owner-1', {
         archivePath: join(baseDir, 'archive'),
@@ -167,7 +186,7 @@ describe('RecordingAssetsService', () => {
         '-y',
         sourcePath,
       ]);
-      const service = new RecordingAssetsService(baseDir);
+      const service = RecordingAssetsService.createForTest({ baseDir });
       const input = createInput('upload-1');
       input.fileName = 'meeting.m4a';
       input.media.fileName = 'meeting.m4a';
@@ -208,7 +227,10 @@ describe('RecordingAssetsService', () => {
         '-y',
         sourcePath,
       ]);
-      const creator = new RecordingAssetsService(baseDir, false);
+      const creator = RecordingAssetsService.createForTest({
+        baseDir,
+        backgroundEnabled: false,
+      });
       const created = await creator.create('owner-1', createInput('upload-1'));
       await copyFile(sourcePath, legacyPath);
       await rm(sourcePath);
@@ -219,7 +241,7 @@ describe('RecordingAssetsService', () => {
       manifest.items[0].archivePath = legacyPath;
       await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`, 'utf8');
 
-      const worker = new RecordingAssetsService(baseDir);
+      const worker = RecordingAssetsService.createForTest({ baseDir });
       expect(await worker.repairLegacyArchives('owner-1')).toEqual({
         queued: 1,
         total: 1,
@@ -239,8 +261,40 @@ describe('RecordingAssetsService', () => {
   );
 
   it('does not expose another owners recording', async () => {
-    const service = new RecordingAssetsService(baseDir, false);
+    const service = RecordingAssetsService.createForTest({
+      baseDir,
+      backgroundEnabled: false,
+    });
     await service.create('owner-1', createInput('upload-1'));
     expect((await service.list('owner-2')).items).toEqual([]);
+  });
+
+  it('starts through Nest dependency injection and initializes the configured directories', async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        RecordingAssetsService,
+      ],
+    }).compile();
+    const runtimeService = moduleRef.get(RecordingAssetsService);
+    expect(runtimeService).toBeInstanceOf(RecordingAssetsService);
+    await moduleRef.close();
+
+    const configDir = join(baseDir, 'runtime', 'config');
+    const archiveDir = join(baseDir, 'recordings');
+    const service = RecordingAssetsService.createForTest({
+      baseDir: configDir,
+      backgroundEnabled: false,
+    });
+    const settings = await service.updateSettings('owner-1', {
+      archivePath: archiveDir,
+      autoArchive: true,
+      checkDiskSpace: true,
+    });
+
+    expect(settings.archivePath).toBe(archiveDir);
+    expect(existsSync(archiveDir)).toBe(true);
+    expect(
+      existsSync(join(configDir, '.recording-storage-settings.json')),
+    ).toBe(true);
   });
 });

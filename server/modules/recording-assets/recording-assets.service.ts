@@ -3,7 +3,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import type {
   CreateRecordingAssetRequest,
@@ -34,7 +33,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
@@ -51,6 +50,11 @@ interface AssetManifest {
 }
 interface StoredSettings extends RecordingStorageSettings {
   ownerId: string;
+}
+
+export interface RecordingAssetsServiceOptions {
+  backgroundEnabled?: boolean;
+  baseDir?: string;
 }
 
 const DEFAULT_ARCHIVE_PATH = join(getLocalDataDir(), 'recordings');
@@ -74,17 +78,27 @@ interface AudioProbe {
 @Injectable()
 export class RecordingAssetsService {
   private readonly logger = new Logger(RecordingAssetsService.name);
-  private readonly manifestPath: string;
-  private readonly settingsPath: string;
-  private readonly uploadsPath: string;
-  private readonly playablePath: string;
-  private readonly backgroundEnabled: boolean;
+  private manifestPath: string;
+  private settingsPath: string;
+  private uploadsPath: string;
+  private playablePath: string;
+  private backgroundEnabled: boolean;
   private readonly activePlayableTasks = new Set<string>();
 
-  constructor(
-    @Optional() baseDir?: string,
-    @Optional() backgroundEnabled = true,
-  ) {
+  constructor() {
+    this.configure({});
+  }
+
+  static createForTest(
+    options: RecordingAssetsServiceOptions,
+  ): RecordingAssetsService {
+    const service = new RecordingAssetsService();
+    service.configure(options);
+    return service;
+  }
+
+  private configure(options: RecordingAssetsServiceOptions): void {
+    const { backgroundEnabled = true, baseDir } = options;
     const usesDefaultPaths = !baseDir;
     const resolvedBaseDir = baseDir || getLocalConfigDir();
     this.backgroundEnabled = backgroundEnabled;
@@ -364,9 +378,18 @@ export class RecordingAssetsService {
       throw new BadRequestException('请填写录音归档目录');
     if (!isAbsolute(input.archivePath))
       throw new BadRequestException('归档目录必须是绝对路径');
+    const archivePath: string = resolve(input.archivePath);
+    try {
+      await mkdir(archivePath, { recursive: true });
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : String(error);
+      this.logger.warn(`无法创建录音归档目录: ${message}`);
+      throw new BadRequestException('无法访问录音归档目录，请检查路径和权限');
+    }
     const next: StoredSettings = {
       ...input,
-      archivePath: resolve(input.archivePath),
+      archivePath,
       ownerId,
       updatedAt: new Date().toISOString(),
     };
@@ -693,6 +716,7 @@ export class RecordingAssetsService {
     }
   }
   private async saveAssets(items: StoredAsset[]): Promise<void> {
+    await mkdir(dirname(this.manifestPath), { recursive: true });
     const tempPath = `${this.manifestPath}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(
       tempPath,
@@ -714,6 +738,7 @@ export class RecordingAssetsService {
     }
   }
   private async saveSettings(settings: StoredSettings): Promise<void> {
+    await mkdir(dirname(this.settingsPath), { recursive: true });
     const tempPath = `${this.settingsPath}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(tempPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
     await rename(tempPath, this.settingsPath);

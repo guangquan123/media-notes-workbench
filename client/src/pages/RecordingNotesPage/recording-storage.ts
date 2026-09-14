@@ -35,9 +35,14 @@ const SESSION_STORE = 'sessions';
 const CHUNK_STORE = 'chunks';
 const memorySessions = new Map<string, StoredRecordingSession>();
 const memoryChunks = new Map<string, StoredRecordingChunk>();
+let indexedDbUnavailable = false;
 
 function hasIndexedDb(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.indexedDB);
+  return (
+    !indexedDbUnavailable &&
+    typeof window !== 'undefined' &&
+    Boolean(window.indexedDB)
+  );
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -69,8 +74,15 @@ function openDatabase(): Promise<IDBDatabase> {
 
 export async function checkRecordingStorage(): Promise<void> {
   if (!hasIndexedDb()) return;
-  const database: IDBDatabase = await openDatabase();
-  database.close();
+  try {
+    const database: IDBDatabase = await openDatabase();
+    database.close();
+  } catch {
+    // Some privacy modes and embedded browsers expose IndexedDB but reject the
+    // first open request. Keep the recording workflow usable by selecting the
+    // existing in-memory recovery store for this browser session.
+    indexedDbUnavailable = true;
+  }
 }
 
 function waitForTransaction(transaction: IDBTransaction): Promise<void> {
