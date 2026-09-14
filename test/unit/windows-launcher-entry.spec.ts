@@ -306,6 +306,63 @@ describe('Windows launcher entry', () => {
     expect(launcher).toContain('readLauncherProgress()');
   });
 
+  it('publishes weighted stage progress and detects stale heartbeats', () => {
+    const devWindows = readFileSync(
+      resolve(root, 'scripts', 'dev-windows.js'),
+      'utf8',
+    );
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+
+    expect(devWindows).toContain("require('./launcher-state.js')");
+    expect(devWindows).toContain('stageProgress');
+    expect(devWindows).toContain('percent');
+    expect(launcher).toContain('isLauncherProgressStale');
+    expect(launcher).toContain('启动状态暂时没有更新');
+  });
+
+  it('probes backend, frontend, and API endpoints in parallel', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+    const pollStart = launcher.indexOf('function poll()');
+    const retryStart = launcher.indexOf('function retry()', pollStart);
+    const poll = launcher.slice(pollStart, retryStart);
+
+    expect(poll).toContain('probeTargets');
+    expect(poll).toContain('probeCompleted');
+    expect(poll).toContain('httpRequestAsync(serverUrl()');
+    expect(poll).toContain('httpRequestAsync(workbenchUrl()');
+    expect(poll).toContain('httpRequestAsync(runtimeUrl()');
+    expect(poll).toContain('finishPollCycle(snapshot)');
+    expect(poll).not.toContain('httpRequestAsync(serverUrl(), function(backendResponse) {\n      snapshot.backend');
+  });
+
+  it('fails fast when the HTTP probing ActiveX component is unavailable', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+
+    expect(launcher).toContain('probeUnavailable');
+    expect(launcher).toContain('无法检查本地服务');
+    expect(launcher).toContain('Windows 启动组件不可用');
+  });
+
+  it('offers a copyable diagnostic action on startup failure', () => {
+    const launcher = readFileSync(
+      resolve(root, 'scripts', 'workbench-launcher.hta'),
+      'utf8',
+    );
+
+    expect(launcher).toContain('copyDiagnostics');
+    expect(launcher).toContain('复制诊断信息');
+    expect(launcher).toContain('window.clipboardData');
+  });
+
   it('keeps the HTA responsive while probing unavailable services', () => {
     const launcher = readFileSync(
       resolve(root, 'scripts', 'workbench-launcher.hta'),
