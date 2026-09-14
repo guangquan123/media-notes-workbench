@@ -339,8 +339,8 @@ const SetupPage: React.FC = () => {
         .then((response): void => {
           if (!mounted) return;
           setTranscriptionModels(response.items);
-          if (!transcriptionModel && response.items[0]) {
-            setTranscriptionModel(response.items[0].id);
+          if (response.items[0]) {
+            setTranscriptionModel((current) => current || response.items[0].id);
           }
         })
         .catch((nextError: unknown): void => {
@@ -353,7 +353,7 @@ const SetupPage: React.FC = () => {
     return (): void => {
       mounted = false;
     };
-  }, [step, transcriptionMode, transcriptionProviderId, tencentSettings, transcriptionModel]);
+  }, [step, transcriptionMode, transcriptionProviderId, tencentSettings]);
 
   useEffect((): void => {
     if (providerPresetId === 'custom') return;
@@ -601,6 +601,16 @@ const SetupPage: React.FC = () => {
           providerId: transcriptionProviderId,
         });
       } else {
+        const missingTencentFields: string[] = [
+          !tencentForm.secretId.trim() && !tencentSettings?.secretId ? 'SecretId' : '',
+          !tencentForm.secretKey.trim() && !tencentSettings?.secretKeyConfigured ? 'SecretKey' : '',
+          !tencentForm.region.trim() ? '腾讯云地域' : '',
+          !tencentForm.bucket.trim() ? 'COS 存储桶' : '',
+        ].filter(Boolean);
+        if (missingTencentFields.length > 0) {
+          setError(`请补充：${missingTencentFields.join('、')}。`);
+          return;
+        }
         const saved: TencentAsrSettings = await updateTencentAsrSettings({
           ...tencentForm,
           enabled: true,
