@@ -76,7 +76,6 @@ const Layout = () => {
         nextBackendHealthState(current, true),
       );
       setBackendFailure('');
-      setRuntimeTransition(null);
     } catch (error) {
       setBackendFailure(describeBackendFailure(error));
       setBackendHealth((current: BackendHealthState) =>
