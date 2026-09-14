@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
+import { writeLocalTextFile } from '../../common/utils/local-file-write';
 import type {
   ConnectorSettingsResponse,
   ConnectorTestResponse,
@@ -340,12 +340,10 @@ export class ConnectorRegistryService {
   }
 
   private async save(config: StoredConnectorConfig): Promise<void> {
-    const tempPath = `${this.configPath}.${randomUUID()}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
-    await rename(tempPath, this.configPath);
+    await writeLocalTextFile(
+      this.configPath,
+      `${JSON.stringify(config, null, 2)}\n`,
+    );
     this.current = config;
   }
 }

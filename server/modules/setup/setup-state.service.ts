@@ -1,8 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile, rename } from 'node:fs/promises';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
+import { writeLocalTextFile } from '../../common/utils/local-file-write';
 import type {
   SetupCapability,
   SetupStatus,
@@ -238,13 +237,10 @@ export class SetupStateService {
       ...state,
       updatedAt: new Date().toISOString(),
     };
-    const temporaryPath: string = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
-    await mkdir(dirname(this.statePath), { recursive: true });
-    await writeFile(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
-    await rename(temporaryPath, this.statePath);
+    await writeLocalTextFile(
+      this.statePath,
+      `${JSON.stringify(next, null, 2)}\n`,
+    );
     this.current = next;
     return next;
   }

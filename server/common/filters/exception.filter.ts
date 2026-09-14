@@ -1,12 +1,22 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { BusinessException } from '../interfaces/exception.interface';
 import { HTTP_STATUS_TO_RESPONSE_CODE_MAP, ResponseCode } from '../constants/api_response_code';
 import { ApiErrorResponse } from '../interfaces/api_response.interface';
+import { LocalFilePersistenceError } from '../utils/local-file-write';
 
 // 全局异常过滤器，用于捕获所有未处理的异常
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -59,15 +69,34 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           timestamp: Date.now(),
         },
       };
+    } else if (exception instanceof LocalFilePersistenceError) {
+      httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
+      errorResponse = {
+        error: {
+          code: ResponseCode.SERVICE_UNAVAILABLE,
+          details:
+            '首次配置尚未保存。处理完成后，直接点击原来的按钮再次尝试即可。',
+          message: exception.message,
+          timestamp: Date.now(),
+        },
+      };
     } else {
       // 未知异常
       httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+      const stack: string | undefined =
+        exception instanceof Error ? exception.stack : undefined;
+      const detail: string =
+        exception instanceof Error && exception.message
+          ? exception.message
+          : String(exception);
+      this.logger.error(`未处理的服务异常：${detail}`, stack);
       errorResponse = {
         error: {
           code: ResponseCode.INTERNAL_ERROR,
-          message: '服务器内部错误',
-          stack: (exception as Error).stack,
-          cause: (exception as Error).cause as string,
+          details:
+            '请重试当前操作；若仍然出现，请打开本机日志并提供发生时间。',
+          message:
+            '后台服务遇到未预期错误。请重试；若问题持续，请打开本机日志查看详情。',
           timestamp: Date.now(),
         },
       };

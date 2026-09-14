@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
+import { writeLocalTextFile } from '../../common/utils/local-file-write';
 import type {
   AiModelCapability,
   AiModelSettings,
@@ -474,12 +475,10 @@ export class ModelProviderSettingsService {
   }
 
   private async save(config: StoredModelProviderConfig): Promise<void> {
-    const tempPath: string = `${this.configPath}.${randomUUID()}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
-    await rename(tempPath, this.configPath);
+    await writeLocalTextFile(
+      this.configPath,
+      `${JSON.stringify(config, null, 2)}\n`,
+    );
     this.current = config;
   }
 

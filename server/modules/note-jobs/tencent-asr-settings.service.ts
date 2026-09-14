@@ -2,8 +2,9 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import COS from 'cos-nodejs-sdk-v5';
 import * as TencentCloud from 'tencentcloud-sdk-nodejs';
 import { createHash } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { getLocalConfigPath } from '../../common/utils/local-runtime-paths';
+import { writeLocalTextFile } from '../../common/utils/local-file-write';
 import type {
   TencentAsrQuotaStatus,
   TencentAsrSettings,
@@ -77,12 +78,10 @@ export class TencentAsrSettingsService {
     if (next.region && !/^ap-[a-z0-9-]+$/u.test(next.region)) {
       throw new BadRequestException('腾讯云地域应类似 ap-shanghai。');
     }
-    const tempPath = `${this.configPath}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(next, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
-    await rename(tempPath, this.configPath);
+    await writeLocalTextFile(
+      this.configPath,
+      `${JSON.stringify(next, null, 2)}\n`,
+    );
     this.current = next;
     return this.getPublicSettings();
   }

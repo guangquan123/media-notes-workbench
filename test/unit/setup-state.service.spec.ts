@@ -1,3 +1,4 @@
+import * as fsPromises from 'node:fs/promises';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -62,6 +63,34 @@ describe('setup state', () => {
       });
       await expect(readFile(statePath, 'utf8')).resolves.toContain('environment');
     } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
+  it('falls back to a direct write when Windows rejects an atomic rename', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'setup-state-'));
+    const statePath = join(baseDir, '.setup-state.json');
+    const renameError: NodeJS.ErrnoException = new Error(
+      'EBADF: bad file descriptor',
+    );
+    renameError.code = 'EBADF';
+    const renameSpy = jest
+      .spyOn(fsPromises, 'rename')
+      .mockRejectedValueOnce(renameError);
+    try {
+      const service = new SetupStateService(statePath);
+      await service.updateProgress({
+        currentStep: 'environment',
+        selectedCapabilities: ['documents'],
+      });
+
+      await expect(readFile(statePath, 'utf8')).resolves.toContain('environment');
+      const entries: string[] = await readdir(baseDir);
+      expect(entries.some((entry: string): boolean => entry.endsWith('.tmp'))).toBe(
+        false,
+      );
+    } finally {
+      renameSpy.mockRestore();
       await rm(baseDir, { force: true, recursive: true });
     }
   });
