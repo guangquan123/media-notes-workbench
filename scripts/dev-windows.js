@@ -171,6 +171,7 @@ const {
   buildLauncherProgress,
   classifyLauncherFailure,
 } = require('./launcher-state.js');
+const { removeStalePgliteLock } = require('./pglite-recovery.js');
 
 const fileRetryState = new Int32Array(new SharedArrayBuffer(4));
 
@@ -1049,6 +1050,14 @@ async function main() {
       }
       throw new Error(
         `${pName} 端口 ${pHost}:${pPort} 已被占用。请关闭占用该本地地址的程序后重新启动工作台。`,
+      );
+    }
+  }
+  if (installedRuntime && !backendAlreadyRunning) {
+    const recovery = removeStalePgliteLock(runtimePaths.dataDir);
+    if (recovery.removed) {
+      writeLine(
+        '[dev-windows] 已清理上次异常退出留下的本地数据库锁，正在安全恢复服务',
       );
     }
   }

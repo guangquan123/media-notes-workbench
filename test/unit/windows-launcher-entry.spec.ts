@@ -131,6 +131,10 @@ describe('Windows launcher entry', () => {
     expect(devWindows).toContain('项目正在启动');
     expect(devWindows).toContain('为避免假启动已停止');
     expect(devWindows).toContain('resolveExistingLauncherState');
+    expect(devWindows).toContain('removeStalePgliteLock');
+    expect(devWindows).toContain(
+      '已清理上次异常退出留下的本地数据库锁，正在安全恢复服务',
+    );
   });
 
   it('stops waiting when the installed service launcher exits before readiness', () => {
