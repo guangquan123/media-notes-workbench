@@ -6,6 +6,7 @@ const net = require('node:net');
 const path = require('node:path');
 
 const ENDPOINT_FILE_NAME = 'launcher-endpoint.json';
+const retryState = new Int32Array(new SharedArrayBuffer(4));
 
 function parsePort(value) {
   const port = Number.parseInt(String(value), 10);
@@ -18,6 +19,14 @@ function normalizeBasePath(value) {
 
 function endpointPath(stateDir) {
   return path.join(stateDir, ENDPOINT_FILE_NAME);
+}
+
+function isRetryableEndpointWriteError(error) {
+  return ['EACCES', 'EBADF', 'EBUSY', 'EPERM'].includes(error?.code);
+}
+
+function waitBeforeRetry(milliseconds = 100) {
+  Atomics.wait(retryState, 0, 0, milliseconds);
 }
 
 function readLauncherEndpoint(stateDir) {
@@ -45,15 +54,31 @@ function writeLauncherEndpoint(stateDir, endpoint) {
 
   fs.mkdirSync(stateDir, { recursive: true });
   const target = endpointPath(stateDir);
-  const temporary = `${target}.${process.pid}.tmp`;
   const payload = {
     clientHost: endpoint.clientHost,
     clientPort,
     clientBasePath: normalizeBasePath(endpoint.clientBasePath),
   };
-  fs.writeFileSync(temporary, JSON.stringify(payload), 'utf8');
-  fs.renameSync(temporary, target);
-  return payload;
+
+  let lastError;
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    const temporary = `${target}.${process.pid}.${attempt}.tmp`;
+    try {
+      fs.writeFileSync(temporary, JSON.stringify(payload), 'utf8');
+      fs.renameSync(temporary, target);
+      return payload;
+    } catch (error) {
+      lastError = error;
+      try {
+        fs.unlinkSync(temporary);
+      } catch {
+        // A failed temporary state file is never read by the launcher.
+      }
+      if (!isRetryableEndpointWriteError(error) || attempt === 8) break;
+      waitBeforeRetry();
+    }
+  }
+  throw lastError;
 }
 
 function isPortAvailable(host, port) {
@@ -96,6 +121,7 @@ module.exports = {
   endpointPath,
   findAvailablePort,
   isPortAvailable,
+  isRetryableEndpointWriteError,
   readLauncherEndpoint,
   writeLauncherEndpoint,
 };

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 const {
   findAvailablePort,
+  isRetryableEndpointWriteError,
   readLauncherEndpoint,
   writeLauncherEndpoint,
 } = require('../../scripts/launcher-endpoint.js');
@@ -50,5 +51,11 @@ describe('launcher endpoint state', () => {
     } finally {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
     }
+  });
+
+  it('retries only transient Windows endpoint-file errors', () => {
+    expect(isRetryableEndpointWriteError({ code: 'EBADF' })).toBe(true);
+    expect(isRetryableEndpointWriteError({ code: 'EPERM' })).toBe(true);
+    expect(isRetryableEndpointWriteError({ code: 'EINVAL' })).toBe(false);
   });
 });
