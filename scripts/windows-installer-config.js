@@ -45,6 +45,8 @@ CreateUninstallRegKey=yes
 UninstallDisplayIcon={app}\\dist\\client\\app-icon.ico
 UninstallDisplayName=Media Notes Workbench
 PrivilegesRequired=admin
+CloseApplications=no
+RestartApplications=no
 DisableDirPage=no
 DirExistsWarning=yes
 AppendDefaultDirName=yes
@@ -191,6 +193,19 @@ begin
       mbError, MB_OK);
     Result := False;
   end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  NeedsRestart := False;
+  Log('安装前停止 Media Notes Workbench 本地服务。');
+  if StopWorkbenchService() then
+    Result := ''
+  else
+    Result :=
+      'Media Notes Workbench 仍在运行，安装程序无法安全更新运行时文件。' +
+      #13#10#13#10 +
+      '请从开始菜单停止 Media Notes Workbench 后重试。';
 end;
 
 procedure RemoveSelectedUserData();

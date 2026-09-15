@@ -60,6 +60,15 @@ describe('Windows installer configuration', () => {
   it('stops the service once and deletes only selected default local data', () => {
     expect(script).not.toContain('[UninstallRun]');
     expect(script).toContain('function StopWorkbenchService(): Boolean;');
+    expect(script).toContain('CloseApplications=no');
+    expect(script).toContain('RestartApplications=no');
+    expect(script).toContain(
+      'function PrepareToInstall(var NeedsRestart: Boolean): String;',
+    );
+    expect(script).toContain(
+      "Log('安装前停止 Media Notes Workbench 本地服务。');",
+    );
+    expect(script).toContain("if StopWorkbenchService() then");
     expect(script).toContain('function InitializeUninstall(): Boolean;');
     expect(script).toContain('Result := SelectUserDataAction();');
     expect(script).toContain(
