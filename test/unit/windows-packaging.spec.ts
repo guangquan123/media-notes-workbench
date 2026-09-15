@@ -37,6 +37,24 @@ describe('Windows packaging safeguards', () => {
     expect(restart).toContain("'installed-launcher.js'");
   });
 
+  it('treats bundled media tools as hard installer dependencies', () => {
+    const packager = readFileSync(
+      resolve(root, 'scripts', 'package-windows.js'),
+      'utf8',
+    );
+    const installerConfig = readFileSync(
+      resolve(root, 'scripts', 'windows-installer-config.js'),
+      'utf8',
+    );
+
+    expect(packager).toContain("'ffmpeg.exe'");
+    expect(packager).toContain("'ffprobe.exe'");
+    expect(packager).toContain("'yt-dlp.exe'");
+    expect(packager).toContain('缺少必需的内置媒体工具');
+    expect(installerConfig).toContain('VerifyBundledTools');
+    expect(installerConfig).toContain('ssPostInstall');
+  });
+
   it('ships the endpoint coordinator required by the installed launcher', () => {
     const packager = readFileSync(
       resolve(root, 'scripts', 'package-windows.js'),

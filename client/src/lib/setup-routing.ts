@@ -37,7 +37,7 @@ export function getPreviousSetupStep(
   capabilities: SetupCapability[],
 ): SetupStep | undefined {
   if (currentStep === 'environment') return 'welcome';
-  if (currentStep === 'provider') return 'environment';
+  if (currentStep === 'provider') return 'welcome';
   if (currentStep === 'capabilities') return 'provider';
   if (currentStep === 'transcription') return 'capabilities';
   if (currentStep === 'connector') {

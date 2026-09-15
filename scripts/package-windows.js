@@ -31,6 +31,12 @@ const installerPath = path.join(
 const buildLockPath = `${outputRoot}.lock`;
 let buildLockFd;
 
+const REQUIRED_BUNDLED_TOOL_FILES = [
+  'ffmpeg.exe',
+  'ffprobe.exe',
+  'yt-dlp.exe',
+];
+
 const PROTECTED_OUTPUT_SEGMENTS = new Set([
   '.git',
   'client',
@@ -347,9 +353,15 @@ copy(
 );
 copy(runtimeNode, path.join(appStage, 'runtime', 'node.exe'));
 const bundledToolsDir = path.join(rootDir, 'tools');
-if (fs.existsSync(bundledToolsDir)) {
-  copy(bundledToolsDir, path.join(appStage, 'tools'));
+if (!fs.existsSync(bundledToolsDir)) {
+  fail('缺少内置媒体工具目录: tools');
 }
+for (const toolFile of REQUIRED_BUNDLED_TOOL_FILES) {
+  if (!fs.existsSync(path.join(bundledToolsDir, toolFile))) {
+    fail(`缺少必需的内置媒体工具: tools/${toolFile}`);
+  }
+}
+copy(bundledToolsDir, path.join(appStage, 'tools'));
 fs.mkdirSync(path.join(appStage, 'scripts'), { recursive: true });
 copyRuntimeScripts(
   path.join(rootDir, 'scripts'),
@@ -380,11 +392,7 @@ const manifest = {
     runtime: 'runtime/node.exe',
     runtimeSha256: hashFile(path.join(appStage, 'runtime', 'node.exe')),
   },
-  tools: fs.existsSync(path.join(appStage, 'tools'))
-    ? fs
-        .readdirSync(path.join(appStage, 'tools'))
-        .filter((fileName) => /\.(?:exe|cmd)$/iu.test(fileName))
-    : [],
+  tools: REQUIRED_BUNDLED_TOOL_FILES,
 };
 fs.writeFileSync(
   path.join(appStage, 'package-manifest.json'),

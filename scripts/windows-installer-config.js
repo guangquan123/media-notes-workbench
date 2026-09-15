@@ -65,7 +65,8 @@ WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 1
 ConfirmUninstall=确定要卸载 %1 吗？
 
 [Files]
-Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Excludes: "tools\\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "${normalizedSourcePath}/tools/*"; DestDir: "{app}\\tools"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "${normalizedSourcePath}/package-manifest.json"; DestDir: "{app}"; DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]
@@ -80,6 +81,41 @@ Name: "{group}\\Uninstall Media Notes Workbench"; Filename: "{uninstallexe}"; Ic
 var
   RemoveUserData: Boolean;
   UserDataDirectory: String;
+
+function VerifyBundledTools(): Boolean;
+var
+  Missing: String;
+begin
+  Result := True;
+  Missing := '';
+  if not FileExists(ExpandConstant('{app}\\tools\\ffmpeg.exe')) then
+    Missing := Missing + 'ffmpeg.exe, ';
+  if not FileExists(ExpandConstant('{app}\\tools\\ffprobe.exe')) then
+    Missing := Missing + 'ffprobe.exe, ';
+  if not FileExists(ExpandConstant('{app}\\tools\\yt-dlp.exe')) then
+    Missing := Missing + 'yt-dlp.exe, ';
+  if not FileExists(ExpandConstant('{app}\\tools\\avcodec-62.dll')) then
+    Missing := Missing + 'avcodec-62.dll, ';
+  if not FileExists(ExpandConstant('{app}\\tools\\avformat-62.dll')) then
+    Missing := Missing + 'avformat-62.dll, ';
+  if not FileExists(ExpandConstant('{app}\\tools\\avutil-60.dll')) then
+    Missing := Missing + 'avutil-60.dll, ';
+  if Missing <> '' then
+  begin
+    MsgBox(
+      '媒体处理依赖未能完整安装：' + Missing + #13#10#13#10 +
+      '请重新运行安装程序；如果问题仍然存在，请查看安装日志。',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    if not VerifyBundledTools() then
+      Abort;
+end;
 
 function GetDefaultUserDataDirectory(): String;
 begin

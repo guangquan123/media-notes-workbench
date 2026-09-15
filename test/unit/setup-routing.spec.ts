@@ -34,6 +34,6 @@ describe('setup routing', () => {
     expect(getPreviousSetupStep('connector', ['documents', 'local_video'])).toBe(
       'transcription',
     );
-    expect(getPreviousSetupStep('provider', ['documents'])).toBe('environment');
+    expect(getPreviousSetupStep('provider', ['documents'])).toBe('welcome');
   });
 });

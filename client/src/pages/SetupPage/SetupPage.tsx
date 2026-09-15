@@ -109,7 +109,6 @@ const PROVIDER_PRESETS: readonly ProviderPreset[] = [
 
 const SETUP_STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
   { id: 'welcome', label: '使用场景' },
-  { id: 'environment', label: '环境检查' },
   { id: 'provider', label: 'AI 服务' },
   { id: 'capabilities', label: '处理能力' },
   { id: 'transcription', label: '语音转文字' },
@@ -194,7 +193,7 @@ function getInitialStep(
     return 'welcome';
   }
   const action = status.requiredActions[0]?.action;
-  if (action === 'repair_storage') return 'environment';
+  if (action === 'repair_storage') return 'welcome';
   if (action === 'configure_summary') return 'provider';
   if (action === 'configure_transcription') return 'transcription';
   if (action === 'configure_connector') return 'connector';
@@ -205,7 +204,7 @@ function getInitialStep(
     return 'review';
   }
   if (status.status === 'needs_repair') return 'provider';
-  return status.currentStep;
+  return status.currentStep === 'environment' ? 'provider' : status.currentStep;
 }
 
 function getSafeReturnTo(value: string | null): string {
@@ -468,7 +467,12 @@ const SetupPage: React.FC = () => {
     setWorking(true);
     setError('');
     try {
-      await saveProgress('environment');
+      const result: SetupEnvironmentResponse = await validateSetupEnvironment();
+      if (!result.storageReady) {
+        setError('本机数据目录不可用，请检查磁盘空间或文件权限后重试。');
+        return;
+      }
+      await saveProgress('provider');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
