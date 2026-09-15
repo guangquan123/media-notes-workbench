@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
+import {
+  getCliEnvironment,
+  resolveCliInvocation,
+} from '../../common/utils/cli-command';
 
 interface CommandResult {
   stdout: string;
@@ -121,7 +124,13 @@ export class DingTalkAuthService {
           resolved = true;
           clearTimeout(timer);
           this.sessions.delete(sessionId);
-          reject(error);
+          reject(
+            (error as NodeJS.ErrnoException).code === 'ENOENT'
+              ? new Error(
+                  '未检测到钉钉连接工具 dws，请先安装或启用钉钉工作台 CLI。',
+                )
+              : error,
+          );
         }
       });
       child.on('close', (code) => {
@@ -211,7 +220,16 @@ export class DingTalkAuthService {
           message: `钉钉连接正常（${parsed.user_name || '已登录'}）`,
         };
       return { ok: false, message: '钉钉未登录或授权已失效' };
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        /未检测到钉钉连接工具|ENOENT|dws/i.test(error.message)
+      ) {
+        return {
+          ok: false,
+          message: '未检测到钉钉连接工具 dws，请先安装或启用钉钉工作台 CLI。',
+        };
+      }
       return { ok: false, message: '钉钉连接测试失败' };
     }
   }
@@ -262,6 +280,14 @@ export class DingTalkAuthService {
       );
       child.on('error', (error) => {
         clearTimeout(timer);
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          reject(
+            new Error(
+              '未检测到钉钉连接工具 dws，请先安装或启用钉钉工作台 CLI。',
+            ),
+          );
+          return;
+        }
         reject(error);
       });
       child.on('close', (code) => {

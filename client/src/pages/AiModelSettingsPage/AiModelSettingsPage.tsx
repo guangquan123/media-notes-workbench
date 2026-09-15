@@ -516,9 +516,17 @@ export default function AiModelSettingsPage({
   const currentLlmLabel: string = settings.summaryModel
     ? `${settings.summaryModel.providerName} · ${settings.summaryModel.model}`
     : '使用妙搭内置 AI';
-  const providerReady: boolean = settings.providers.some(isSelectableProvider);
+  const localWhisperReady: boolean = Boolean(
+    readiness?.whisperCli && readiness.whisperModel,
+  );
+  const tencentReady: boolean = Boolean(readiness?.tencentAsr);
+  const providerReady: boolean =
+    settings.providers.some(isSelectableProvider) ||
+    (transcriptionMode === 'tencent_asr' && tencentReady);
   const transcriptionReady: boolean =
-    transcriptionMode === 'tencent_asr' || Boolean(settings.transcriptionModel);
+    transcriptionMode === 'tencent_asr'
+      ? tencentReady
+      : Boolean(settings.transcriptionModel);
   const modelsReady: boolean =
     Boolean(settings.summaryModel) && transcriptionReady;
   const steps: Array<{
@@ -732,83 +740,184 @@ export default function AiModelSettingsPage({
                 </p>
               </div>
               <div
-                className={`grid gap-3 rounded-xl border p-4 ${readiness?.whisperCli && readiness.whisperModel ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/70'}`}
+                className={`grid gap-3 rounded-xl border p-4 ${localWhisperReady ? 'border-emerald-200 bg-emerald-50/70' : 'border-blue-100 bg-blue-50/60'}`}
               >
                 <div className="flex items-start gap-3">
                   <Mic2
-                    className={`mt-0.5 size-5 ${readiness?.whisperCli && readiness.whisperModel ? 'text-emerald-700' : 'text-amber-700'}`}
+                    className={`mt-0.5 size-5 ${localWhisperReady ? 'text-emerald-700' : 'text-blue-700'}`}
                   />
                   <div>
                     <p className="font-medium">本地 Whisper 模型</p>
                     <p className="mt-1 text-xs leading-5 text-black/55">
-                      {readiness?.whisperCli && readiness.whisperModel
+                      {localWhisperReady
                         ? '引擎和模型已就绪。视频笔记会优先使用本地转录，数据不会离开本机。'
-                        : '本地 Whisper 用于离线转录和云端失败时的兜底。安装包默认不内置大体积模型；也可以直接选择腾讯云 ASR 或兼容 API。'}
+                        : '本地 Whisper 用于离线转录和云端失败时的兜底；已配置腾讯云 ASR 或兼容 API 时，可以直接处理视频。'}
                     </p>
                   </div>
                   <span
-                    className={`ml-auto shrink-0 rounded-full px-2 py-1 text-xs font-medium ${readiness?.whisperCli && readiness.whisperModel ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}
+                    className={`ml-auto shrink-0 rounded-full px-2 py-1 text-xs font-medium ${localWhisperReady ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}
                   >
-                    {readiness?.whisperCli && readiness.whisperModel
-                      ? '已验证'
-                      : '待配置'}
+                    {localWhisperReady ? '已验证' : '可选'}
                   </span>
                 </div>
                 {readiness &&
                   (!readiness.whisperCli || !readiness.whisperModel) && (
-                    <p className="border-t border-amber-200 pt-3 text-xs text-amber-900">
-                      缺少：{!readiness.whisperCli ? '本地转录引擎' : ''}
+                    <p className="border-t border-blue-100 pt-3 text-xs text-blue-950">
+                      未安装：{!readiness.whisperCli ? '本地转录引擎' : ''}
                       {!readiness.whisperCli && !readiness.whisperModel
                         ? '、'
                         : ''}
-                      {!readiness.whisperModel ? 'Whisper 模型文件' : ''}
-                      。可选路径：%LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
+                      {!readiness.whisperModel ? 'Whisper 模型文件' : ''}。
+                      如需离线或故障兜底，可放入
+                      %LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
+                      后点击“重新检测”。
                     </p>
                   )}
               </div>
-              <div className="grid gap-3 rounded-xl border border-black/8 bg-white p-4">
-                <div>
-                  <p className="font-medium">转录方式</p>
-                  <p className="mt-1 text-xs text-black/45">
-                    保存时会同时记住默认方式和对应模型。
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    aria-pressed={transcriptionMode === 'custom_api'}
-                    className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`}
-                    onClick={(): void => setTranscriptionMode('custom_api')}
-                    type="button"
-                  >
-                    <p className="font-medium">我的 API 模型</p>
-                    <p className="mt-1 text-xs leading-5 text-black/50">
-                      使用下方提供者和转录模型。
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                <div className="grid gap-3 rounded-xl border border-black/8 bg-white p-4">
+                  <div>
+                    <p className="font-medium">转录模型</p>
+                    <p className="mt-1 text-xs text-black/45">
+                      先选择转录方式，再选择对应的语音模型。
                     </p>
-                  </button>
-                  <button
-                    aria-pressed={transcriptionMode === 'tencent_asr'}
-                    className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`}
-                    onClick={(): void => setTranscriptionMode('tencent_asr')}
-                    type="button"
-                  >
-                    <p className="font-medium">腾讯 ASR</p>
-                    <p className="mt-1 text-xs leading-5 text-black/50">
-                      使用已配置的腾讯云 ASR 资源包。
-                    </p>
-                  </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <button
+                      aria-pressed={transcriptionMode === 'custom_api'}
+                      className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`}
+                      onClick={(): void => setTranscriptionMode('custom_api')}
+                      type="button"
+                    >
+                      <p className="font-medium">我的 API 模型</p>
+                      <p className="mt-1 text-xs leading-5 text-black/50">
+                        使用下方提供者和转录模型。
+                      </p>
+                    </button>
+                    <button
+                      aria-pressed={transcriptionMode === 'tencent_asr'}
+                      className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-[#3370ff] bg-[#eef3ff]' : 'border-black/8 bg-white'}`}
+                      onClick={(): void => setTranscriptionMode('tencent_asr')}
+                      type="button"
+                    >
+                      <p className="font-medium">腾讯 ASR</p>
+                      <p className="mt-1 text-xs leading-5 text-black/50">
+                        使用已配置的腾讯云 ASR 资源包。
+                      </p>
+                    </button>
+                  </div>
+                  {transcriptionMode === 'custom_api' && (
+                    <div className="grid gap-4 border-t border-black/8 pt-4">
+                      <div className="grid gap-2">
+                        <Label>模型服务提供者</Label>
+                        <Select
+                          value={asrProviderId}
+                          onValueChange={(value: string): void =>
+                            selectModelProvider(value, 'transcription')
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择已启用的提供者" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {settings.providers
+                              .filter(isSelectableProvider)
+                              .map(
+                                (
+                                  provider: ModelServiceProvider,
+                                ): React.ReactNode => (
+                                  <SelectItem
+                                    key={provider.id}
+                                    value={provider.id}
+                                  >
+                                    {provider.name}
+                                  </SelectItem>
+                                ),
+                              )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>转录模型</Label>
+                        <div className="flex gap-2">
+                          <Select
+                            disabled={loadingCapability === 'transcription'}
+                            value={asrModel}
+                            onValueChange={setAsrModel}
+                          >
+                            <SelectTrigger className="min-w-0 flex-1">
+                              {loadingCapability === 'transcription' ? (
+                                <span className="flex items-center gap-2 text-black/45">
+                                  <LoaderCircle className="size-4 animate-spin" />
+                                  正在加载模型…
+                                </span>
+                              ) : (
+                                <SelectValue placeholder="选择转录模型" />
+                              )}
+                            </SelectTrigger>
+                            <SelectContent>
+                              {asrModels.length ? (
+                                asrModels.map(
+                                  (
+                                    model: ModelProviderModel,
+                                  ): React.ReactNode => (
+                                    <SelectItem key={model.id} value={model.id}>
+                                      {model.name || model.id}
+                                    </SelectItem>
+                                  ),
+                                )
+                              ) : (
+                                <SelectItem
+                                  disabled
+                                  value="__no_transcription_models__"
+                                >
+                                  暂无转录模型
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            aria-label="刷新转录模型"
+                            disabled={
+                              !asrProviderId ||
+                              refreshingProviderId === asrProviderId
+                            }
+                            onClick={(): void =>
+                              void refreshModels(asrProviderId, 'transcription')
+                            }
+                            size="icon"
+                            variant="outline"
+                          >
+                            <RefreshCw
+                              className={`size-4 ${loadingCapability === 'transcription' ? 'animate-spin' : ''}`}
+                            />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {transcriptionMode === 'tencent_asr' && (
+                    <TranscriptionSettingsPage embedded />
+                  )}
                 </div>
-                {transcriptionMode === 'custom_api' && (
-                  <div className="grid gap-4 border-t border-black/8 pt-4">
+                <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-4">
+                  <div>
+                    <p className="font-medium">总结模型</p>
+                    <p className="mt-1 text-xs text-black/45">
+                      用于摘要、行动项和结构化输出。
+                    </p>
+                  </div>
+                  <div className="grid gap-4">
                     <div className="grid gap-2">
                       <Label>模型服务提供者</Label>
                       <Select
-                        value={asrProviderId}
+                        value={llmProviderId}
                         onValueChange={(value: string): void =>
-                          selectModelProvider(value, 'transcription')
+                          selectModelProvider(value, 'llm')
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="选择已启用的提供者" />
+                          <SelectValue placeholder="上方选择提供者" />
                         </SelectTrigger>
                         <SelectContent>
                           {settings.providers.filter(isSelectableProvider).map(
@@ -824,26 +933,26 @@ export default function AiModelSettingsPage({
                       </Select>
                     </div>
                     <div className="grid gap-2">
-                      <Label>转录模型</Label>
+                      <Label>总结模型</Label>
                       <div className="flex gap-2">
                         <Select
-                          disabled={loadingCapability === 'transcription'}
-                          value={asrModel}
-                          onValueChange={setAsrModel}
+                          disabled={loadingCapability === 'llm'}
+                          value={llmModel}
+                          onValueChange={setLlmModel}
                         >
                           <SelectTrigger className="min-w-0 flex-1">
-                            {loadingCapability === 'transcription' ? (
+                            {loadingCapability === 'llm' ? (
                               <span className="flex items-center gap-2 text-black/45">
                                 <LoaderCircle className="size-4 animate-spin" />
                                 正在加载模型…
                               </span>
                             ) : (
-                              <SelectValue placeholder="选择转录模型" />
+                              <SelectValue placeholder="选择总结模型" />
                             )}
                           </SelectTrigger>
                           <SelectContent>
-                            {asrModels.length ? (
-                              asrModels.map(
+                            {llmModels.length ? (
+                              llmModels.map(
                                 (
                                   model: ModelProviderModel,
                                 ): React.ReactNode => (
@@ -853,119 +962,29 @@ export default function AiModelSettingsPage({
                                 ),
                               )
                             ) : (
-                              <SelectItem
-                                disabled
-                                value="__no_transcription_models__"
-                              >
-                                暂无转录模型
+                              <SelectItem disabled value="__no_llm_models__">
+                                暂无总结模型
                               </SelectItem>
                             )}
                           </SelectContent>
                         </Select>
                         <Button
-                          aria-label="刷新转录模型"
+                          aria-label="刷新总结模型"
                           disabled={
-                            !asrProviderId ||
-                            refreshingProviderId === asrProviderId
+                            !llmProviderId ||
+                            refreshingProviderId === llmProviderId
                           }
                           onClick={(): void =>
-                            void refreshModels(asrProviderId, 'transcription')
+                            void refreshModels(llmProviderId, 'llm')
                           }
                           size="icon"
                           variant="outline"
                         >
                           <RefreshCw
-                            className={`size-4 ${loadingCapability === 'transcription' ? 'animate-spin' : ''}`}
+                            className={`size-4 ${loadingCapability === 'llm' ? 'animate-spin' : ''}`}
                           />
                         </Button>
                       </div>
-                    </div>
-                  </div>
-                )}
-                {transcriptionMode === 'tencent_asr' && (
-                  <TranscriptionSettingsPage embedded />
-                )}
-              </div>
-              <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-5">
-                <div>
-                  <p className="font-medium">LLM 总结模型</p>
-                  <p className="mt-1 text-xs text-black/45">
-                    用于摘要、行动项和结构化输出。
-                  </p>
-                </div>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label>模型服务提供者</Label>
-                    <Select
-                      value={llmProviderId}
-                      onValueChange={(value: string): void =>
-                        selectModelProvider(value, 'llm')
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="上方选择提供者" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {settings.providers.filter(isSelectableProvider).map(
-                          (provider: ModelServiceProvider): React.ReactNode => (
-                            <SelectItem key={provider.id} value={provider.id}>
-                              {provider.name}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>总结模型</Label>
-                    <div className="flex gap-2">
-                      <Select
-                        disabled={loadingCapability === 'llm'}
-                        value={llmModel}
-                        onValueChange={setLlmModel}
-                      >
-                        <SelectTrigger className="min-w-0 flex-1">
-                          {loadingCapability === 'llm' ? (
-                            <span className="flex items-center gap-2 text-black/45">
-                              <LoaderCircle className="size-4 animate-spin" />
-                              正在加载模型…
-                            </span>
-                          ) : (
-                            <SelectValue placeholder="选择总结模型" />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          {llmModels.length ? (
-                            llmModels.map(
-                              (model: ModelProviderModel): React.ReactNode => (
-                                <SelectItem key={model.id} value={model.id}>
-                                  {model.name || model.id}
-                                </SelectItem>
-                              ),
-                            )
-                          ) : (
-                            <SelectItem disabled value="__no_llm_models__">
-                              暂无总结模型
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        aria-label="刷新总结模型"
-                        disabled={
-                          !llmProviderId ||
-                          refreshingProviderId === llmProviderId
-                        }
-                        onClick={(): void =>
-                          void refreshModels(llmProviderId, 'llm')
-                        }
-                        size="icon"
-                        variant="outline"
-                      >
-                        <RefreshCw
-                          className={`size-4 ${loadingCapability === 'llm' ? 'animate-spin' : ''}`}
-                        />
-                      </Button>
                     </div>
                   </div>
                 </div>

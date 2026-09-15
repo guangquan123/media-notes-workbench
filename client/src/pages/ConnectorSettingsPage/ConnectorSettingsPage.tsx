@@ -94,18 +94,21 @@ function createDrafts(): Drafts {
 function friendlyError(error: unknown): string {
   const response =
     error && typeof error === 'object'
-      ? (error as {
-          response?: {
-            data?: { error?: { message?: unknown } };
-            status?: unknown;
-          };
-        }).response
+      ? (
+          error as {
+            response?: {
+              data?: { error?: { message?: unknown } };
+              status?: unknown;
+            };
+          }
+        ).response
       : undefined;
   const status = response?.status;
   const backendMessage = response?.data?.error?.message;
   const raw = error instanceof Error ? error.message : String(error);
-  if (status === 500 || /status code 500/i.test(raw)) {
-    return '服务暂时不可用，请稍后重试。';
+  const diagnostic = `${raw} ${typeof backendMessage === 'string' ? backendMessage : ''}`;
+  if (/dws(?:\.cmd)?|enoent|not found|找不到系统文件/i.test(diagnostic)) {
+    return '未检测到钉钉连接工具 dws。请先安装或启用钉钉工作台 CLI，再重新扫码授权；本地保存模式不受影响。';
   }
   if (status === 404 || /status code 404/i.test(raw))
     return '连接器服务未启动，请重启服务后重试。';
@@ -115,6 +118,9 @@ function friendlyError(error: unknown): string {
   if (/timeout|超时/i.test(raw)) return '请求超时，请稍后重试。';
   if (typeof backendMessage === 'string' && backendMessage.trim()) {
     return backendMessage;
+  }
+  if (status === 500 || /status code 500/i.test(raw)) {
+    return '钉钉授权服务暂时不可用，请稍后重试；如果持续失败，请检查 dws 命令行工具是否已安装。';
   }
   return raw || '操作失败，请重试。';
 }
@@ -864,8 +870,11 @@ export default function ConnectorSettingsPage({
                     <ScanLine className="mt-0.5 size-5 shrink-0 text-black/60" />
                     <div>
                       <h3 className="font-semibold" id="auth-title">
-                        扫码授权
+                        第一步：扫码授权
                       </h3>
+                      <p className="mt-1 text-xs text-black/50">
+                        用手机完成平台授权，完成后系统会自动进入连接验证。
+                      </p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -955,8 +964,11 @@ export default function ConnectorSettingsPage({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="font-semibold" id="connection-test-title">
-                      连接状态
+                      第二步：验证连接
                     </h3>
+                    <p className="mt-1 text-xs text-black/50">
+                      授权成功后点击验证，确认当前账号具备写入文档和待办的权限。
+                    </p>
                   </div>
                   <Button
                     disabled={testState === 'running' || !hasReadyConnection}
@@ -969,7 +981,7 @@ export default function ConnectorSettingsPage({
                     ) : (
                       <RefreshCw className="size-4" />
                     )}
-                    重新验证
+                    验证连接
                   </Button>
                 </div>
                 <div
