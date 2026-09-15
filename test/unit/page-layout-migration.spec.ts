@@ -9,12 +9,29 @@ describe('page layout migration contracts', () => {
   it('keeps the runtime Layout boundary unchanged while adding opt-in layout rules', () => {
     const layout = read('client/src/components/Layout.tsx');
     const styles = read('client/src/page-layout.css');
+    const entry = read('client/src/index.tsx');
 
     expect(layout).toContain('data-launcher-page-ready="true"');
     expect(layout).toContain('/api/runtime/launcher-ready');
     expect(styles).toContain('.page-layout--task');
     expect(styles).toContain('.page-layout--settings');
     expect(styles).toContain('.page-layout--data');
+    expect(styles).toContain('.guided-page__container');
+    expect(entry).toContain("import './page-layout.css';");
+  });
+
+  it('keeps guided task surfaces on the available desktop canvas', () => {
+    const sources: string[] = [
+      read('client/src/pages/SetupPage/SetupPage.tsx'),
+      read('client/src/pages/RecordingNotesPage/RecordingNotesPage.tsx'),
+      read('client/src/pages/MediaNotePage/MediaNotePage.tsx'),
+      read('client/src/pages/PairedMediaNotesPage/PairedMediaNotesPage.tsx'),
+    ];
+
+    for (const source of sources) {
+      expect(source).toContain('guided-page__container');
+      expect(source).toContain('max-w-none');
+    }
   });
 
   it('uses natural content height for the entry cards instead of a fixed blank area', () => {
@@ -32,16 +49,22 @@ describe('page layout migration contracts', () => {
     );
   });
 
-  it('gives task pages a bounded desktop work area and restores document scroll on mobile', () => {
+  it('keeps task pages in natural document flow so content and CTA cannot be clipped', () => {
     const styles = read('client/src/page-layout.css');
 
-    expect(styles).toContain('max-height: 100dvh');
-    expect(styles).toContain('overflow-y: auto');
-    expect(styles).toContain('@media (max-width: 1023px)');
+    expect(styles).toContain('max-height: none');
+    expect(styles).toContain('.page-layout--task .page-layout__panel');
     expect(styles).toContain('overflow: visible');
+    expect(styles).not.toMatch(
+      /@media \(min-width: 1024px\)[\s\S]*?\.page-layout--task\s*\{[\s\S]*?height:\s*100dvh;[\s\S]*?overflow:\s*hidden;/,
+    );
+    expect(styles).not.toMatch(
+      /\.page-layout--task \.page-layout__panel\s*\{[\s\S]*?overflow-y:\s*auto;/,
+    );
+    expect(styles).toContain('@media (max-width: 1023px)');
   });
 
-  it('keeps the video task CTA within compact desktop panels', () => {
+  it('keeps the video task CTA in normal flow within compact desktop panels', () => {
     const styles = read('client/src/page-layout.css');
 
     expect(styles).toMatch(
@@ -50,6 +73,33 @@ describe('page layout migration contracts', () => {
     expect(styles).toContain('.video-panel .space-y-5 > :not([hidden])');
     expect(styles).toContain(
       '.video-panel [aria-label="选择笔记风格"] > button',
+    );
+    expect(styles).toContain('.video-panel .video-submit');
+    expect(styles).not.toMatch(
+      /\.page-layout--task \.video-panel \.video-submit\s*\{[\s\S]*?position:\s*sticky;/,
+    );
+  });
+
+  it('protects media detail pages from parent clipping and nested panel scrolling', () => {
+    const styles = read('client/src/pages/MediaNotePage/detail-pages-compact.css');
+
+    expect(styles).toMatch(
+      /\.media-note-page,[\s\S]*?\.paired-media-page\s*\{[\s\S]*?overflow:\s*visible;/,
+    );
+    expect(styles).toMatch(
+      /\.media-note-page__panel,[\s\S]*?\.paired-media-page__panel\s*\{[\s\S]*?overflow:\s*visible;/,
+    );
+    expect(styles).toContain('.media-note-page__container');
+  });
+
+  it('uses one compact height contract for both homepage entry columns', () => {
+    const styles = read('client/src/index.css');
+
+    expect(styles).toMatch(
+      /@media \(min-width: 901px\) and \(max-height: 850px\)[\s\S]*?\.entry-secondary-grid\s*\{[\s\S]*?height:\s*338px;/,
+    );
+    expect(styles).toMatch(
+      /@media \(min-width: 901px\) and \(max-height: 850px\)[\s\S]*?\.entry-secondary-grid \.entry-card\s*\{[\s\S]*?min-height:\s*0;/,
     );
   });
 

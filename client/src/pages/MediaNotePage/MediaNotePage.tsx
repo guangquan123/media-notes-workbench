@@ -573,7 +573,7 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
       className="media-note-page page-layout--task bg-[#f7f7f5] text-[#161616]"
       style={{ '--media-accent': copy.accent } as CSSProperties}
     >
-      <div className="media-note-page__container page-layout__container mx-auto flex max-w-6xl flex-col px-5 py-7 md:px-10 md:py-10">
+      <div className="guided-page__container media-note-page__container page-layout__container mx-auto flex w-full max-w-none flex-col px-5 py-7 md:px-10 md:py-10">
         <header className="media-note-page__header flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div

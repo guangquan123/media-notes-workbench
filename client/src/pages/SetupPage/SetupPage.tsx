@@ -780,8 +780,8 @@ const SetupPage: React.FC = () => {
   );
 
   return (
-    <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-slate-950 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-5xl">
+    <main className="guided-page min-h-screen bg-[#f4f7fb] px-4 py-6 text-slate-950 sm:px-6 sm:py-10">
+      <div className="guided-page__container mx-auto w-full max-w-none">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="flex size-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-900/10">

@@ -753,7 +753,7 @@ export default function RecordingNotesPage() {
 
   return (
     <main className="recording-notes-page min-h-screen bg-[#eef2f6] text-[#111827]">
-      <div className="recording-notes-page__container mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-3 md:px-6 md:py-3">
+      <div className="guided-page__container recording-notes-page__container mx-auto flex min-h-screen w-full max-w-none flex-col px-4 py-3 md:px-6 md:py-3">
         <header className="flex items-center justify-between gap-4 border-b border-black/10 pb-3">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-lg bg-[#111827] text-white shadow-sm">
@@ -784,7 +784,7 @@ export default function RecordingNotesPage() {
         </header>
 
         <section className="flex-1 py-2 md:py-3">
-          <div className="recording-notes-page__surface mx-auto max-w-4xl rounded-2xl border border-black/10 bg-white/95 p-4 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:px-7 md:py-5">
+          <div className="guided-page__surface recording-notes-page__surface mx-auto w-full max-w-none rounded-2xl border border-black/10 bg-white/95 p-4 shadow-[0_18px_42px_rgba(15,23,42,.08)] md:px-7 md:py-5">
             <RecordingStepRail phase={phase} />
             {phase === 'setup' && (
               <SetupPanel

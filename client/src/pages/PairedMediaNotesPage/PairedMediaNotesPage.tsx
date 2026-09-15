@@ -271,7 +271,7 @@ export default function PairedMediaNotesPage() {
 
   return (
     <main className="paired-media-page min-h-screen overflow-auto bg-[#f6f7f5] text-[#111315]">
-      <div className="paired-media-page__container mx-auto min-h-screen max-w-7xl px-5 py-7 md:px-10 md:py-10">
+      <div className="guided-page__container paired-media-page__container mx-auto min-h-screen w-full max-w-none px-5 py-7 md:px-10 md:py-10">
         <header className="paired-media-page__header flex flex-col gap-4 border-b border-black/8 pb-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-2xl bg-[#4d5dff] text-white">
