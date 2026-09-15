@@ -7,6 +7,20 @@ export interface CliInvocation {
 }
 
 const windowsCliCache = new Map<string, CliInvocation>();
+const BUNDLED_LARK_CLI_ENTRYPOINT = [
+  'node_modules',
+  '@larksuite',
+  'cli',
+  'scripts',
+  'run.js',
+];
+const BUNDLED_LARK_CLI_BINARY = [
+  'node_modules',
+  '@larksuite',
+  'cli',
+  'bin',
+  process.platform === 'win32' ? 'lark-cli.exe' : 'lark-cli',
+];
 const PROXY_ENV_NAMES = [
   'ALL_PROXY',
   'HTTP_PROXY',
@@ -41,11 +55,14 @@ export function resolveCliInvocation(
   command: string,
   args: string[],
 ): CliInvocation {
+  const baseName = command.replace(/\.cmd$/iu, '').toLowerCase();
+  const bundledInvocation = resolveBundledLarkCliInvocation(baseName, args);
+  if (bundledInvocation) return bundledInvocation;
+
   if (process.platform !== 'win32') {
     return { args, command };
   }
 
-  const baseName = command.replace(/\.cmd$/iu, '').toLowerCase();
   if (baseName !== 'lark-cli' && baseName !== 'dws') {
     return { args, command };
   }
@@ -72,6 +89,24 @@ export function resolveCliInvocation(
   };
   windowsCliCache.set(baseName, invocation);
   return { ...invocation, args: [...invocation.args, ...args] };
+}
+
+export function hasBundledLarkCli(appRoot = process.cwd()): boolean {
+  return (
+    existsSync(join(appRoot, ...BUNDLED_LARK_CLI_ENTRYPOINT)) &&
+    existsSync(join(appRoot, ...BUNDLED_LARK_CLI_BINARY))
+  );
+}
+
+function resolveBundledLarkCliInvocation(
+  baseName: string,
+  args: string[],
+): CliInvocation | null {
+  if (baseName !== 'lark-cli' || !hasBundledLarkCli()) return null;
+  return {
+    args: [join(process.cwd(), ...BUNDLED_LARK_CLI_ENTRYPOINT), ...args],
+    command: process.execPath,
+  };
 }
 
 function findWindowsShim(name: string): string | null {

@@ -100,6 +100,8 @@ for (const relativePath of [
   'dist/client/index.html',
   'dist/shared',
   'dist/node_modules',
+  'node_modules/@larksuite/cli/bin/lark-cli.exe',
+  'dist/node_modules/@larksuite/cli/bin/lark-cli.exe',
   'scripts/installed-launcher.js',
   'scripts/runtime-tools.js',
   'client/public/app-icon.ico',

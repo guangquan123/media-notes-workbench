@@ -1,6 +1,8 @@
 import {
   getCliEnvironment,
+  hasBundledLarkCli,
   hasKnownDeadLoopbackProxy,
+  resolveCliInvocation,
 } from '../../server/common/utils/cli-command';
 
 describe('connector CLI environment', () => {
@@ -38,5 +40,18 @@ describe('connector CLI environment', () => {
         HTTPS_PROXY: 'http://proxy.example.test:8080',
       }),
     ).toBe(false);
+  });
+
+  it('uses the bundled Lark CLI with the active Node runtime', () => {
+    const invocation = resolveCliInvocation('lark-cli.cmd', ['--version']);
+
+    expect(hasBundledLarkCli()).toBe(true);
+    expect(invocation.command).toBe(process.execPath);
+    expect(invocation.args).toEqual(
+      expect.arrayContaining([
+        '--version',
+        expect.stringContaining('node_modules'),
+      ]),
+    );
   });
 });

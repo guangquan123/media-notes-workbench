@@ -17,6 +17,7 @@ const ROOT_PACKAGE_JSON = path.join(ROOT_DIR, 'package.json');
 const ROOT_NODE_MODULES = path.join(ROOT_DIR, 'node_modules');
 const OUT_NODE_MODULES = path.join(DIST_DIR, 'node_modules');
 const OUT_PACKAGE_JSON = path.join(DIST_DIR, 'package.json');
+const REQUIRED_RUNTIME_PACKAGES = ['@larksuite/cli'];
 
 // Server 入口文件
 const SERVER_ENTRY = path.join(DIST_SERVER_DIR, 'main.js');
@@ -227,6 +228,10 @@ async function smartPrune() {
     for (const packageName of Object.keys(originalPackage.dependencies || {})) {
       requiredPackages.add(packageName);
     }
+  }
+
+  for (const packageName of REQUIRED_RUNTIME_PACKAGES) {
+    requiredPackages.add(packageName);
   }
 
   console.log(`📦 静态分析需要 ${requiredPackages.size} 个 npm 包`);

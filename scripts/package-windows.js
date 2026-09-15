@@ -36,6 +36,13 @@ const REQUIRED_BUNDLED_TOOL_FILES = [
   'ffprobe.exe',
   'yt-dlp.exe',
 ];
+const BUNDLED_LARK_CLI_PATH = path.join(
+  'node_modules',
+  '@larksuite',
+  'cli',
+  'bin',
+  'lark-cli.exe',
+);
 
 const PROTECTED_OUTPUT_SEGMENTS = new Set([
   '.git',
@@ -351,6 +358,10 @@ copy(
   path.join(rootDir, 'dist', 'node_modules'),
   path.join(appStage, 'node_modules'),
 );
+const bundledLarkCliPath = path.join(appStage, BUNDLED_LARK_CLI_PATH);
+if (!fs.existsSync(bundledLarkCliPath)) {
+  fail(`缺少内置飞书授权组件: ${BUNDLED_LARK_CLI_PATH}`);
+}
 copy(runtimeNode, path.join(appStage, 'runtime', 'node.exe'));
 const bundledToolsDir = path.join(rootDir, 'tools');
 if (!fs.existsSync(bundledToolsDir)) {
@@ -391,6 +402,8 @@ const manifest = {
     sharedDirectory: 'dist/shared',
     runtime: 'runtime/node.exe',
     runtimeSha256: hashFile(path.join(appStage, 'runtime', 'node.exe')),
+    larkCli: BUNDLED_LARK_CLI_PATH.replace(/\\/gu, '/'),
+    larkCliSha256: hashFile(bundledLarkCliPath),
   },
   tools: REQUIRED_BUNDLED_TOOL_FILES,
 };

@@ -1,7 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { getCliEnvironment, resolveCliInvocation } from '../../common/utils/cli-command';
+import {
+  getCliEnvironment,
+  hasBundledLarkCli,
+  resolveCliInvocation,
+} from '../../common/utils/cli-command';
 
 interface CommandResult { stdout: string; stderr: string; }
 
@@ -92,6 +100,7 @@ export class FeishuAuthService {
   }
 
   async initiate(appId?: string, appSecret?: string): Promise<FeishuAuthInitiate> {
+    this.assertCliAvailable();
     if (appId && appSecret) {
       await this.configureApp(appId, appSecret);
     }
@@ -161,7 +170,19 @@ export class FeishuAuthService {
   }
 
   async logout(): Promise<void> {
+    this.assertCliAvailable();
     await this.run(this.cli(), ['auth', 'logout']);
+  }
+
+  private assertCliAvailable(): void {
+    if (hasBundledLarkCli()) return;
+
+    const invocation = resolveCliInvocation(this.cli(), ['--version']);
+    if (invocation.command !== this.cli()) return;
+
+    throw new ServiceUnavailableException(
+      '飞书授权组件未随应用安装。请重新安装最新版多媒体笔记工作台后重试。',
+    );
   }
 
   private killTree(child: { pid?: number; kill: (signal?: NodeJS.Signals) => boolean }): void {

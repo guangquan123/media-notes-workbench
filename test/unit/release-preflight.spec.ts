@@ -15,6 +15,7 @@ describe('release preflight wiring', () => {
     expect(preflight).toContain("'package-lock.json'");
     expect(preflight).toContain("process.argv.includes('--strict-media')");
     expect(preflight).toContain("['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe']");
+    expect(preflight).toContain("node_modules/@larksuite/cli/bin/lark-cli.exe");
     expect(preflight).toContain("readJson('tools/tool-manifest.json')");
     expect(preflight).toContain("manifest.modelPolicy !== 'external-only'");
     expect(preflight).toContain("createHash('sha256')");
@@ -33,7 +34,9 @@ describe('release preflight wiring', () => {
 
     expect(packager).toContain("const bundledToolsDir = path.join(rootDir, 'tools')");
     expect(packager).toContain("copy(bundledToolsDir, path.join(appStage, 'tools'))");
-    expect(packager).toContain('tools: fs.existsSync(path.join(appStage, \'tools\'))');
+    expect(packager).toContain("const BUNDLED_LARK_CLI_PATH");
+    expect(packager).toContain('缺少内置飞书授权组件');
+    expect(packager).toContain('tools: REQUIRED_BUNDLED_TOOL_FILES');
     expect(launcher).toContain("require('./runtime-tools.js')");
     expect(launcher).toContain('applyBundledToolPath(process.env, appRoot)');
   });

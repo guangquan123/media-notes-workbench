@@ -29,6 +29,7 @@ function assertPrerequisites() {
   const requiredFiles = [
     'node_modules/@nestjs/cli/bin/nest.js',
     'node_modules/vite/bin/vite.js',
+    'node_modules/@larksuite/cli/bin/lark-cli.exe',
     'tools/ffmpeg.exe',
     'tools/ffprobe.exe',
     'tools/yt-dlp.exe',

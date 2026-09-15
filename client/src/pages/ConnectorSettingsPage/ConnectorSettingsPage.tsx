@@ -92,12 +92,30 @@ function createDrafts(): Drafts {
 }
 
 function friendlyError(error: unknown): string {
+  const response =
+    error && typeof error === 'object'
+      ? (error as {
+          response?: {
+            data?: { error?: { message?: unknown } };
+            status?: unknown;
+          };
+        }).response
+      : undefined;
+  const status = response?.status;
+  const backendMessage = response?.data?.error?.message;
   const raw = error instanceof Error ? error.message : String(error);
-  if (/status code 500/i.test(raw)) return '服务暂时不可用，请稍后重试。';
-  if (/status code 404/i.test(raw))
+  if (status === 500 || /status code 500/i.test(raw)) {
+    return '服务暂时不可用，请稍后重试。';
+  }
+  if (status === 404 || /status code 404/i.test(raw))
     return '连接器服务未启动，请重启服务后重试。';
-  if (/status code 401|403/i.test(raw)) return '登录状态已失效，请重新登录。';
+  if (status === 401 || status === 403 || /status code 401|403/i.test(raw)) {
+    return '登录状态已失效，请重新登录。';
+  }
   if (/timeout|超时/i.test(raw)) return '请求超时，请稍后重试。';
+  if (typeof backendMessage === 'string' && backendMessage.trim()) {
+    return backendMessage;
+  }
   return raw || '操作失败，请重试。';
 }
 

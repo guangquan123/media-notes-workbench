@@ -11,6 +11,7 @@
     "@lark-apaas/file-service": "^0.1.2",
     "@lark-apaas/fullstack-nestjs-core": "^1.1.54",
     "@lark-apaas/nestjs-authnpaas": "^1.0.4",
+    "@larksuite/cli": "^1.0.95",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^10.4.20",
     "@nestjs/config": "^3.3.0",
