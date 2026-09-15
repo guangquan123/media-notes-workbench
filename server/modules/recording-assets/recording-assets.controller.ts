@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -109,10 +110,14 @@ export class RecordingAssetsController {
 
   @NeedLogin()
   @Post()
-  create(
+  async create(
     @Req() req: AuthenticatedRequest,
     @Body() body: CreateRecordingAssetRequest,
   ) {
+    const settings = await this.service.getSettings(req.userContext.userId);
+    if (settings.updatedAt === new Date(0).toISOString()) {
+      throw new BadRequestException('请先配置并确认录音本地保存目录');
+    }
     return this.service.create(req.userContext.userId, body);
   }
 

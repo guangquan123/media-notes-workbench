@@ -203,6 +203,7 @@ export async function getSetupStatus(): Promise<SetupStatusResponse> {
 export async function updateSetupProgress(input: {
   currentStep: SetupStep;
   selectedCapabilities: SetupCapability[];
+  skippedStep?: SetupStep;
 }): Promise<SetupStatusResponse> {
   const response = await axiosForBackend({
     url: '/api/setup/progress',

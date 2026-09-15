@@ -283,7 +283,9 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1.03fr) minmax(0, 1.45fr);
   gap: 12px;
+  align-items: stretch;
   flex: 1;
+  min-height: 0;
 }
 
 .entry-primary-stack {
@@ -385,7 +387,13 @@ body {
 .entry-secondary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  min-height: 0;
+}
+
+.entry-secondary-grid .entry-card {
+  min-height: 0;
 }
 
 .entry-card {

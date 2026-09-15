@@ -25,6 +25,7 @@ import type {
   ModelProviderConnectionStatus,
   ModelReference,
   ModelServiceProvider,
+  SystemReadiness,
   TranscriptionMode,
   UpdateModelServiceProviderRequest,
 } from '@shared/api.interface';
@@ -32,6 +33,7 @@ import {
   createModelServiceProvider,
   deleteModelServiceProvider,
   getAiModelSettings,
+  getReadiness,
   getModelProviderModels,
   testModelServiceProvider,
   updateAiModelSettings,
@@ -117,6 +119,7 @@ export default function AiModelSettingsPage({
   const Root = embedded ? 'section' : 'main';
   const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
+  const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [tab, setTab] = useState<AiSettingsTab>(
     getInitialTab(searchParams.get('tab'), initialTab),
   );
@@ -142,6 +145,12 @@ export default function AiModelSettingsPage({
       .catch((): void => {
         toast.error('无法读取模型服务配置');
       });
+  }, []);
+
+  useEffect((): void => {
+    void getReadiness()
+      .then((next: SystemReadiness): void => setReadiness(next))
+      .catch((): void => setReadiness(null));
   }, []);
 
   useEffect((): void => {
@@ -473,6 +482,27 @@ export default function AiModelSettingsPage({
           {tab === 'models' && (
             <div className="space-y-5">
               <div><h2 className="text-xl font-semibold">模型配置</h2><p className="mt-1 text-xs text-black/50">在这里一次性选择转录方式、转录模型和总结模型。</p></div>
+              <div className={`grid gap-3 rounded-xl border p-4 ${readiness?.whisperCli && readiness.whisperModel ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/70'}`}>
+                <div className="flex items-start gap-3">
+                  <Mic2 className={`mt-0.5 size-5 ${readiness?.whisperCli && readiness.whisperModel ? 'text-emerald-700' : 'text-amber-700'}`} />
+                  <div>
+                    <p className="font-medium">本地 Whisper 模型</p>
+                    <p className="mt-1 text-xs leading-5 text-black/55">
+                      {readiness?.whisperCli && readiness.whisperModel
+                        ? '引擎和模型已就绪。视频笔记会优先使用本地转录，数据不会离开本机。'
+                        : '视频笔记必须先准备 whisper-cli 和模型文件。请在安装包中放入模型后重新检测。'}
+                    </p>
+                  </div>
+                  <span className={`ml-auto shrink-0 rounded-full px-2 py-1 text-xs font-medium ${readiness?.whisperCli && readiness.whisperModel ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {readiness?.whisperCli && readiness.whisperModel ? '已验证' : '待配置'}
+                  </span>
+                </div>
+                {readiness && (!readiness.whisperCli || !readiness.whisperModel) && (
+                  <p className="border-t border-amber-200 pt-3 text-xs text-amber-900">
+                    缺少：{!readiness.whisperCli ? '本地转录引擎' : ''}{!readiness.whisperCli && !readiness.whisperModel ? '、' : ''}{!readiness.whisperModel ? 'Whisper 模型文件' : ''}
+                  </p>
+                )}
+              </div>
               <div className="grid gap-3 rounded-xl border border-black/8 bg-white p-4">
                 <div><p className="font-medium">转录方式</p><p className="mt-1 text-xs text-black/45">保存时会同时记住默认方式和对应模型。</p></div>
                 <div className="grid gap-3 sm:grid-cols-2">

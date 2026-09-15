@@ -438,6 +438,19 @@ export class NoteJobsService implements OnModuleInit {
     options: CreateJobOptions = {},
   ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
+    const requiresLocalWhisper: boolean = [
+      'platform',
+      'video',
+      'paired',
+    ].includes(validatedInput.sourceType);
+    if (requiresLocalWhisper) {
+      const readiness: SystemReadiness = await this.getReadiness();
+      if (!readiness.whisperCli || !readiness.whisperModel) {
+        throw new BadRequestException(
+          '视频笔记必须先配置并验证本地 Whisper 模型，请前往参数配置。',
+        );
+      }
+    }
     const requiresTranscription: boolean = [
       'platform',
       'video',

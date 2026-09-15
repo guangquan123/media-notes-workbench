@@ -88,6 +88,10 @@ export function buildSetupRequiredActions(
       check.required && check.status === 'unavailable',
   );
   const requiresMedia: boolean = needsMediaProcessing(input.selectedCapabilities);
+  const requiresLocalWhisper: boolean = input.selectedCapabilities.some(
+    (capability: SetupCapability): boolean =>
+      capability === 'local_video' || capability === 'platform_video',
+  );
   const requiresConnector: boolean = input.selectedCapabilities.includes(
     'external_sync',
   );
@@ -99,6 +103,15 @@ export function buildSetupRequiredActions(
     actions.push({ action: 'configure_summary', label: '配置总结模型' });
   }
   if (
+    requiresLocalWhisper &&
+    (!input.readiness.whisperCli || !input.readiness.whisperModel)
+  ) {
+    actions.push({
+      action: 'configure_transcription',
+      capability: 'local_video',
+      label: '配置本地 Whisper 模型',
+    });
+  } else if (
     requiresMedia &&
     (!input.aiModelSettings.transcriptionModel ||
       input.aiModelSettings.transcriptionMode !== 'custom_api') &&

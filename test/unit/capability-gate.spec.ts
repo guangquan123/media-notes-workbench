@@ -68,7 +68,7 @@ describe('capability gate', () => {
     );
     expect(result.issues.map((issue) => issue.label)).toEqual([
       '音视频处理组件',
-      '语音转文字',
+      '本地 Whisper 模型',
     ]);
   });
 

@@ -61,6 +61,11 @@ export default function RecordingStorageSettings() {
         </div>
       </div>
       <div className="mt-6 space-y-5">
+        {settings.updatedAt === '1970-01-01T00:00:00.000Z' && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            首次使用录音前，请确认保存目录并保存一次。系统会先验证目录可写，确认后才允许开始录音。
+          </div>
+        )}
         <div>
           <label
             className="text-sm font-medium"

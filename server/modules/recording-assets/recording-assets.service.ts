@@ -381,6 +381,12 @@ export class RecordingAssetsService {
     const archivePath: string = resolve(input.archivePath);
     try {
       await mkdir(archivePath, { recursive: true });
+      const writeTestPath: string = join(
+        archivePath,
+        `.workbench-write-test-${process.pid}-${Date.now()}`,
+      );
+      await writeFile(writeTestPath, '', { encoding: 'utf8', flag: 'wx' });
+      await unlink(writeTestPath);
     } catch (error) {
       const message: string =
         error instanceof Error ? error.message : String(error);

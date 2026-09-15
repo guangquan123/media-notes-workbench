@@ -267,12 +267,27 @@
     return values;
   }
   function readEnvFile(name) { return readEnvFileAt(root, name); }
+  function readUtf8File(path) {
+    if (!fso) return "";
+    var stream = null;
+    try {
+      stream = new ActiveXObject("ADODB.Stream");
+      stream.Type = 2;
+      stream.Charset = "utf-8";
+      stream.Open();
+      stream.LoadFromFile(path);
+      var value = stream.ReadText(-1);
+      stream.Close();
+      return String(value || "").replace(/^\uFEFF/, "");
+    } catch (e) {
+      try { if (stream) stream.Close(); } catch (closeError) {}
+      return "";
+    }
+  }
   function readLauncherEndpoint() {
     if (!fso) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-endpoint.json"), 1, false, 0);
-      var endpoint = JSON.parse(file.ReadAll());
-      file.Close();
+      var endpoint = JSON.parse(readUtf8File(fso.BuildPath(stateRoot, "launcher-endpoint.json")));
       var port = Number(endpoint.clientPort);
       if (!endpoint || typeof endpoint.clientHost !== "string" || !endpoint.clientHost || isNaN(port) || port < 1 || port > 65535) return null;
       return { clientHost: endpoint.clientHost, clientPort: String(Math.floor(port)), clientBasePath: String(endpoint.clientBasePath || "") };
@@ -433,7 +448,7 @@
   }
   function readLogTail() {
     if (!fso) return "";
-    try { var file = fso.OpenTextFile(fso.BuildPath(logRoot, "dev.std.log"), 1, false, 0); var text = file.ReadAll(); file.Close(); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
+    try { var text = readUtf8File(fso.BuildPath(logRoot, "dev.std.log")); return text.length > 5000 ? text.substring(text.length - 5000) : text; } catch (e) { return ""; }
   }
   function createOperationToken() {
     if (!fso) return "";
@@ -466,9 +481,7 @@
   function readLauncherFailure() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-failure.json"), 1, false, 0);
-      var value = window.JSON.parse(file.ReadAll());
-      file.Close();
+      var value = window.JSON.parse(readUtf8File(fso.BuildPath(stateRoot, "launcher-failure.json")));
       if (!value || value.operationToken !== operationToken) return null;
       return value;
     } catch (e) { return null; }
@@ -476,9 +489,7 @@
   function readLauncherRecovery() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-recovery.json"), 1, false, 0);
-      var value = window.JSON.parse(file.ReadAll());
-      file.Close();
+      var value = window.JSON.parse(readUtf8File(fso.BuildPath(stateRoot, "launcher-recovery.json")));
       if (!value || value.operationToken !== operationToken) return null;
       return value;
     } catch (e) { return null; }
@@ -486,9 +497,7 @@
   function readLauncherProgress() {
     if (!fso || !operationToken || !window.JSON || !window.JSON.parse) return null;
     try {
-      var file = fso.OpenTextFile(fso.BuildPath(stateRoot, "launcher-progress.json"), 1, false, 0);
-      var value = window.JSON.parse(file.ReadAll());
-      file.Close();
+      var value = window.JSON.parse(readUtf8File(fso.BuildPath(stateRoot, "launcher-progress.json")));
       if (!value || value.operationToken !== operationToken) return null;
       return value;
     } catch (e) { return null; }

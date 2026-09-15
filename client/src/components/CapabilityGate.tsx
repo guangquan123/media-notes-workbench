@@ -1,11 +1,20 @@
 import { AlertTriangle, ArrowRight, LoaderCircle, Settings2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { getAiModelSettings, getReadiness } from '@/api';
+import {
+  getAiModelSettings,
+  getReadiness,
+  getRecordingStorageSettings,
+} from '@/api';
 import { Button } from '@/components/ui/button';
 import { getCapabilityGateResult, type CapabilityGateIssue } from '@/lib/capability-gate';
 import { isLocalRuntime } from '@/lib/runtime';
-import type { AiModelSettings, SetupCapability, SystemReadiness } from '@shared/api.interface';
+import type {
+  AiModelSettings,
+  RecordingStorageSettings,
+  SetupCapability,
+  SystemReadiness,
+} from '@shared/api.interface';
 
 interface CapabilityGateProps {
   capability: SetupCapability;
@@ -13,10 +22,14 @@ interface CapabilityGateProps {
 }
 
 function buildSettingsUrl(
-  section: CapabilityGateIssue['actionSection'],
+  issue: CapabilityGateIssue | undefined,
   returnTo: string,
 ): string {
-  const params = new URLSearchParams({ section, returnTo });
+  const params = new URLSearchParams({
+    section: issue?.actionSection || 'setup',
+    returnTo,
+  });
+  if (issue?.actionTab) params.set('tab', issue.actionTab);
   return `/settings?${params.toString()}`;
 }
 
@@ -27,17 +40,30 @@ export default function CapabilityGate({
   const location = useLocation();
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [aiSettings, setAiSettings] = useState<AiModelSettings | null>(null);
+  const [recordingStorage, setRecordingStorage] =
+    useState<RecordingStorageSettings | null>(null);
   const [error, setError] = useState<string>('');
   const returnTo: string = `${location.pathname}${location.search}${location.hash}`;
 
   useEffect((): (() => void) => {
     let mounted = true;
-    Promise.all([getReadiness(), getAiModelSettings()])
-      .then(([nextReadiness, nextAiSettings]: [SystemReadiness, AiModelSettings]): void => {
-        if (!mounted) return;
-        setReadiness(nextReadiness);
-        setAiSettings(nextAiSettings);
-      })
+    const settingsRequest: Promise<RecordingStorageSettings | null> =
+      capability === 'recording'
+        ? getRecordingStorageSettings()
+        : Promise.resolve(null);
+    Promise.all([getReadiness(), getAiModelSettings(), settingsRequest])
+      .then(
+        ([nextReadiness, nextAiSettings, nextRecordingStorage]: [
+          SystemReadiness,
+          AiModelSettings,
+          RecordingStorageSettings | null,
+        ]): void => {
+          if (!mounted) return;
+          setReadiness(nextReadiness);
+          setAiSettings(nextAiSettings);
+          setRecordingStorage(nextRecordingStorage);
+        },
+      )
       .catch((): void => {
         if (mounted) setError('暂时无法读取能力配置，请稍后重试。');
       });
@@ -54,9 +80,10 @@ export default function CapabilityGate({
             readiness,
             aiSettings,
             isLocalRuntime(),
+            recordingStorage,
           )
         : null,
-    [aiSettings, capability, readiness],
+    [aiSettings, capability, readiness, recordingStorage],
   );
 
   if (!readiness && !error) {
@@ -92,10 +119,7 @@ export default function CapabilityGate({
 
   const issues: CapabilityGateIssue[] = gate?.issues || [];
   const firstIssue: CapabilityGateIssue | undefined = issues[0];
-  const settingsUrl: string = buildSettingsUrl(
-    firstIssue?.actionSection || 'setup',
-    returnTo,
-  );
+  const settingsUrl: string = buildSettingsUrl(firstIssue, returnTo);
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <section className="w-full max-w-xl rounded-2xl border border-amber-200 bg-white p-8 shadow-sm">

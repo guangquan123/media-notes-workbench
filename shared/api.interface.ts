@@ -1044,6 +1044,7 @@ export interface SetupStatusResponse {
   migratedFromLegacy: boolean;
   requiredActions: SetupRequiredAction[];
   selectedCapabilities: SetupCapability[];
+  skippedSteps: SetupStep[];
   status: SetupStatus;
   validations: SetupValidationSummary[];
 }
@@ -1051,6 +1052,7 @@ export interface SetupStatusResponse {
 export interface UpdateSetupProgressRequest {
   currentStep: SetupStep;
   selectedCapabilities: SetupCapability[];
+  skippedStep?: SetupStep;
 }
 
 export interface SetupEnvironmentCheck {

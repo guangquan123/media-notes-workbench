@@ -50,6 +50,9 @@ export function normalizeSetupStatus(value: unknown): SetupStatusResponse {
     selectedCapabilities: Array.isArray(status.selectedCapabilities)
       ? status.selectedCapabilities
       : [],
+    skippedSteps: Array.isArray(status.skippedSteps)
+      ? (status.skippedSteps as SetupStep[])
+      : [],
     status: SETUP_STATUSES.includes(status.status as SetupStatus)
       ? (status.status as SetupStatus)
       : 'not_started',

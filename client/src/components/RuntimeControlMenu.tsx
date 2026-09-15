@@ -1,7 +1,15 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactElement,
+} from 'react';
 import {
   CheckCircle2,
   Clock3,
+  EyeOff,
+  GripVertical,
   Power,
   RefreshCw,
   RotateCw,
@@ -39,6 +47,18 @@ export const RUNTIME_TRANSITION_EVENT = 'workbench-runtime-transition';
 
 type RuntimeTransition = 'restarting' | 'stopping';
 
+interface RuntimeControlPosition {
+  left: number;
+  top: number;
+}
+
+const DEFAULT_RUNTIME_CONTROL_POSITION: RuntimeControlPosition = {
+  left: 20,
+  top: 88,
+};
+const RUNTIME_CONTROL_POSITION_KEY = 'workbench-runtime-control-position';
+const RUNTIME_CONTROL_HIDDEN_KEY = 'workbench-runtime-control-hidden';
+
 function stateLabel(state: RuntimeControlState): string {
   if (state === 'draining') return '任务完成后停止';
   if (state === 'stopping') return '正在停止';
@@ -62,6 +82,74 @@ export default function RuntimeControlMenu(): ReactElement {
   const [error, setError] = useState<string>('');
   const [operationMessage, setOperationMessage] = useState<string>('');
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
+  const [position, setPosition] = useState<RuntimeControlPosition>(() => {
+    try {
+      const stored: unknown = JSON.parse(
+        window.localStorage.getItem(RUNTIME_CONTROL_POSITION_KEY) || 'null',
+      );
+      if (
+        stored &&
+        typeof stored === 'object' &&
+        'left' in stored &&
+        'top' in stored &&
+        typeof stored.left === 'number' &&
+        typeof stored.top === 'number'
+      ) {
+        return stored as RuntimeControlPosition;
+      }
+    } catch {
+      // Use the safe default when an older browser blocks local storage.
+    }
+    return DEFAULT_RUNTIME_CONTROL_POSITION;
+  });
+  const [hidden, setHidden] = useState<boolean>(() =>
+    window.localStorage.getItem(RUNTIME_CONTROL_HIDDEN_KEY) === 'true',
+  );
+  const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
+
+  useEffect((): void => {
+    window.localStorage.setItem(
+      RUNTIME_CONTROL_POSITION_KEY,
+      JSON.stringify(position),
+    );
+  }, [position]);
+
+  useEffect((): void => {
+    window.localStorage.setItem(RUNTIME_CONTROL_HIDDEN_KEY, String(hidden));
+  }, [hidden]);
+
+  const clampPosition = (next: RuntimeControlPosition): RuntimeControlPosition => ({
+    left: Math.max(8, Math.min(next.left, window.innerWidth - 190)),
+    top: Math.max(56, Math.min(next.top, window.innerHeight - 58)),
+  });
+
+  const handleDragStart = (event: PointerEvent<HTMLButtonElement>): void => {
+    if (event.button !== 0) return;
+    dragRef.current = {
+      offsetX: event.clientX - position.left,
+      offsetY: event.clientY - position.top,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleDragMove = (event: PointerEvent<HTMLButtonElement>): void => {
+    if (!dragRef.current) return;
+    setPosition(
+      clampPosition({
+        left: event.clientX - dragRef.current.offsetX,
+        top: event.clientY - dragRef.current.offsetY,
+      }),
+    );
+  };
+
+  const handleDragEnd = (): void => {
+    dragRef.current = null;
+  };
+
+  const restorePosition = (): void => {
+    setPosition(DEFAULT_RUNTIME_CONTROL_POSITION);
+    setHidden(false);
+  };
 
   const refresh = async (): Promise<void> => {
     try {
@@ -166,7 +254,10 @@ export default function RuntimeControlMenu(): ReactElement {
 
   return (
     <>
-      <div className="fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
+      <div
+        className="fixed z-40"
+        style={{ left: position.left, top: position.top }}
+      >
         {!expanded && (
           <Button
             aria-expanded={expanded}
@@ -174,12 +265,17 @@ export default function RuntimeControlMenu(): ReactElement {
             className="rounded-full border-slate-800 bg-slate-950 px-4 text-white shadow-lg shadow-slate-950/20 hover:bg-slate-800"
             data-ai-section-type="button"
             onClick={() => setExpanded(true)}
+            onPointerDown={handleDragStart}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragEnd}
             size="sm"
             title="本地服务控制"
             variant="default"
           >
+            <GripVertical aria-hidden="true" className="size-3.5 opacity-60" />
             <Server className="size-4" />
-            <span>本地服务</span>
+            {!hidden && <span>本地服务</span>}
           </Button>
         )}
         {expanded && (
@@ -274,6 +370,29 @@ export default function RuntimeControlMenu(): ReactElement {
                   variant="ghost"
                 >
                   <RotateCw className="size-4" />重启
+                </Button>
+                <Button
+                  aria-label="隐藏本地服务按钮"
+                  data-ai-section-type="button"
+                  onClick={(): void => {
+                    setHidden(true);
+                    setExpanded(false);
+                  }}
+                  size="sm"
+                  title="隐藏按钮（之后仍可从这里恢复）"
+                  variant="ghost"
+                >
+                  <EyeOff className="size-4" />
+                  隐藏按钮
+                </Button>
+                <Button
+                  aria-label="恢复本地服务按钮位置"
+                  data-ai-section-type="button"
+                  onClick={restorePosition}
+                  size="sm"
+                  variant="ghost"
+                >
+                  恢复左上
                 </Button>
               </div>
             )}

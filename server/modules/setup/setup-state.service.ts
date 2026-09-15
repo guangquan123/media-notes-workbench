@@ -24,8 +24,9 @@ export interface StoredSetupState {
   completedSteps: SetupStep[];
   currentStep: SetupStep;
   migratedFromLegacy: boolean;
-  schemaVersion: 1;
+  schemaVersion: 2;
   selectedCapabilities: SetupCapability[];
+  skippedSteps: SetupStep[];
   status: SetupStatus;
   updatedAt: string;
   validations: StoredSetupValidation[];
@@ -54,8 +55,9 @@ function createDefaultState(): StoredSetupState {
     completedSteps: [],
     currentStep: 'welcome',
     migratedFromLegacy: false,
-    schemaVersion: 1,
+    schemaVersion: 2,
     selectedCapabilities: [],
+    skippedSteps: [],
     status: 'not_started',
     updatedAt: new Date().toISOString(),
     validations: [],
@@ -137,8 +139,11 @@ function normalizeState(input: unknown): StoredSetupState {
       : [],
     currentStep: isSetupStep(record.currentStep) ? record.currentStep : 'welcome',
     migratedFromLegacy: record.migratedFromLegacy === true,
-    schemaVersion: 1,
+    schemaVersion: 2,
     selectedCapabilities: Array.from(new Set(capabilities)),
+    skippedSteps: Array.isArray(record.skippedSteps)
+      ? Array.from(new Set(record.skippedSteps.filter(isSetupStep)))
+      : [],
     status: isSetupStatus(record.status) ? record.status : 'not_started',
     updatedAt: typeof record.updatedAt === 'string'
       ? record.updatedAt
@@ -177,15 +182,25 @@ export class SetupStateService {
   async updateProgress(input: {
     currentStep: SetupStep;
     selectedCapabilities: SetupCapability[];
+    skippedStep?: SetupStep;
   }): Promise<StoredSetupState> {
     const current: StoredSetupState = await this.get();
     const stepIndex: number = SETUP_STEPS.indexOf(input.currentStep);
-    const completedSteps: SetupStep[] = SETUP_STEPS.slice(0, stepIndex);
+    const skippedSteps: SetupStep[] = Array.from(
+      new Set([
+        ...current.skippedSteps,
+        ...(input.skippedStep ? [input.skippedStep] : []),
+      ]),
+    );
+    const completedSteps: SetupStep[] = SETUP_STEPS.slice(0, stepIndex).filter(
+      (step: SetupStep): boolean => !skippedSteps.includes(step),
+    );
     return this.save({
       ...current,
       completedSteps,
       currentStep: input.currentStep,
       selectedCapabilities: Array.from(new Set(input.selectedCapabilities)),
+      skippedSteps,
       status: 'in_progress',
     });
   }
@@ -206,7 +221,9 @@ export class SetupStateService {
     return this.save({
       ...current,
       completedAt: new Date().toISOString(),
-      completedSteps: [...SETUP_STEPS],
+      completedSteps: SETUP_STEPS.filter(
+        (step: SetupStep): boolean => !current.skippedSteps.includes(step),
+      ),
       currentStep: 'review',
       status: 'completed',
     });

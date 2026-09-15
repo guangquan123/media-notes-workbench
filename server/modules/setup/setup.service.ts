@@ -154,6 +154,7 @@ export class SetupService {
         (state.status === 'not_started' && aiModelSettings.providers.length > 0),
       requiredActions: uniqueActions,
       selectedCapabilities: state.selectedCapabilities,
+      skippedSteps: state.skippedSteps,
       status,
       validations: state.validations,
     };
@@ -162,6 +163,7 @@ export class SetupService {
   async updateProgress(input: {
     currentStep: SetupStatusResponse['currentStep'];
     selectedCapabilities: SetupStatusResponse['selectedCapabilities'];
+    skippedStep?: SetupStatusResponse['currentStep'];
   }): Promise<SetupStatusResponse> {
     await this.setupStateService.updateProgress(input);
     return this.getStatus();
