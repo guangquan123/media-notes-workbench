@@ -67,8 +67,7 @@ WindowsVersionNotSupported=Media Notes Workbench requires 64-bit Windows 10 or 1
 ConfirmUninstall=确定要卸载 %1 吗？
 
 [Files]
-Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Excludes: "tools\\*"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "${normalizedSourcePath}/tools/*"; DestDir: "{app}\\tools"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "${normalizedSourcePath}/package-manifest.json"; DestDir: "{app}"; DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]

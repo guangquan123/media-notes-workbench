@@ -101,6 +101,16 @@ describe('Windows installer configuration', () => {
     expect(script).not.toContain('Type: filesandordirs; Name: "{app}"');
   });
 
+  it('does not exclude nested node_modules tools directories from the install', () => {
+    expect(script).not.toContain('Excludes: "tools\\\\*"');
+    expect(script).not.toContain(
+      'Source: "../app/tools/*"; DestDir: "{app}\\\\tools"',
+    );
+    expect(script).toContain(
+      'Source: "../app/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs',
+    );
+  });
+
   it('allows only supported Windows 10 and 11 native x64 systems', () => {
     expect(script).toContain('MinVersion=10.0');
     expect(script).toContain(
