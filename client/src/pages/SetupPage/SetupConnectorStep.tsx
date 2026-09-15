@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  HardDrive,
   LoaderCircle,
 } from 'lucide-react';
 import { useState, type ReactElement } from 'react';
@@ -23,6 +24,7 @@ export default function SetupConnectorStep({
   working,
 }: SetupConnectorStepProps): ReactElement {
   const [error, setError] = useState<string>('');
+  const [destination, setDestination] = useState<'local' | 'external'>('local');
 
   const handleContinue = async (): Promise<void> => {
     setError('');
@@ -56,14 +58,54 @@ export default function SetupConnectorStep({
             第 6 步 · 选择笔记输出位置
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            连接飞书或钉钉
+            笔记准备保存在哪里？
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            已选择外部同步。笔记会保存在本机，同时发送到你选择并验证过的唯一输出位置。
+            这一步不会再自动跳过。可以先保存到本机，也可以现在完成飞书或钉钉授权。
           </p>
         </div>
       </div>
-      <ConnectorSettingsPage embedded />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          aria-pressed={destination === 'local'}
+          className={`rounded-xl border p-4 text-left transition ${destination === 'local' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`}
+          onClick={(): void => {
+            setDestination('local');
+            setError('');
+          }}
+          type="button"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <HardDrive className="size-4 text-blue-600" />
+            仅保存到本机
+          </span>
+          <span className="mt-2 block text-xs leading-5 text-slate-500">
+            笔记和原始资料保存在本机，之后仍可在参数配置中接入协作平台。
+          </span>
+        </button>
+        <button
+          aria-pressed={destination === 'external'}
+          className={`rounded-xl border p-4 text-left transition ${destination === 'external' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`}
+          onClick={(): void => {
+            setDestination('external');
+            setError('');
+          }}
+          type="button"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <CheckCircle2 className="size-4 text-blue-600" />
+            同步到飞书或钉钉
+          </span>
+          <span className="mt-2 block text-xs leading-5 text-slate-500">
+            本机保留一份，同时把结果发送到已授权并验证过的输出位置。
+          </span>
+        </button>
+      </div>
+      {destination === 'external' && (
+        <div className="mt-6">
+          <ConnectorSettingsPage embedded />
+        </div>
+      )}
       {error && (
         <p className="mt-5 text-sm text-red-700" role="alert">
           {error}
@@ -80,20 +122,24 @@ export default function SetupConnectorStep({
           返回
         </Button>
         <div className="flex flex-wrap justify-end gap-2">
+          {destination === 'external' && (
+            <Button
+              data-ai-section-type="button"
+              disabled={working}
+              onClick={(): void => void onSkip()}
+              variant="ghost"
+            >
+              仅保存本机
+            </Button>
+          )}
           <Button
             data-ai-section-type="button"
             disabled={working}
-            onClick={(): void => void onSkip()}
-            variant="ghost"
+            onClick={(): void =>
+              void (destination === 'local' ? onSkip() : handleContinue())
+            }
           >
-            跳过，稍后配置
-          </Button>
-          <Button
-            data-ai-section-type="button"
-            disabled={working}
-            onClick={(): void => void handleContinue()}
-          >
-            已授权并继续
+            {destination === 'local' ? '保存本机并继续' : '已授权并继续'}
             {working ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : (

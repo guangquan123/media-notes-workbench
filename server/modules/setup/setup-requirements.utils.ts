@@ -27,12 +27,16 @@ function needsMediaProcessing(capabilities: SetupCapability[]): boolean {
 }
 
 export function getRequiredEnvironmentChecks(
-  input: Pick<SetupRequirementInput, 'readiness' | 'selectedCapabilities' | 'storageReady'>,
+  input: Pick<
+    SetupRequirementInput,
+    'readiness' | 'selectedCapabilities' | 'storageReady'
+  >,
 ): SetupEnvironmentCheck[] {
-  const requiresMedia: boolean = needsMediaProcessing(input.selectedCapabilities);
-  const requiresPlatformVideo: boolean = input.selectedCapabilities.includes(
-    'platform_video',
+  const requiresMedia: boolean = needsMediaProcessing(
+    input.selectedCapabilities,
   );
+  const requiresPlatformVideo: boolean =
+    input.selectedCapabilities.includes('platform_video');
   return [
     {
       detail: input.storageReady
@@ -80,21 +84,17 @@ export function buildSetupRequiredActions(
   input: SetupRequirementInput,
 ): SetupRequiredAction[] {
   const actions: SetupRequiredAction[] = [];
-  const environmentChecks: SetupEnvironmentCheck[] = getRequiredEnvironmentChecks(
-    input,
-  );
+  const environmentChecks: SetupEnvironmentCheck[] =
+    getRequiredEnvironmentChecks(input);
   const hasUnavailableEnvironment: boolean = environmentChecks.some(
     (check: SetupEnvironmentCheck): boolean =>
       check.required && check.status === 'unavailable',
   );
-  const requiresMedia: boolean = needsMediaProcessing(input.selectedCapabilities);
-  const requiresLocalWhisper: boolean = input.selectedCapabilities.some(
-    (capability: SetupCapability): boolean =>
-      capability === 'local_video' || capability === 'platform_video',
+  const requiresMedia: boolean = needsMediaProcessing(
+    input.selectedCapabilities,
   );
-  const requiresConnector: boolean = input.selectedCapabilities.includes(
-    'external_sync',
-  );
+  const requiresConnector: boolean =
+    input.selectedCapabilities.includes('external_sync');
 
   if (hasUnavailableEnvironment) {
     actions.push({ action: 'repair_storage', label: '修复本机运行环境' });
@@ -103,15 +103,6 @@ export function buildSetupRequiredActions(
     actions.push({ action: 'configure_summary', label: '配置总结模型' });
   }
   if (
-    requiresLocalWhisper &&
-    (!input.readiness.whisperCli || !input.readiness.whisperModel)
-  ) {
-    actions.push({
-      action: 'configure_transcription',
-      capability: 'local_video',
-      label: '配置本地 Whisper 模型',
-    });
-  } else if (
     requiresMedia &&
     (!input.aiModelSettings.transcriptionModel ||
       input.aiModelSettings.transcriptionMode !== 'custom_api') &&

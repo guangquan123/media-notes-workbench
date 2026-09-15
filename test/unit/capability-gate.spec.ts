@@ -1,4 +1,7 @@
-import type { AiModelSettings, SystemReadiness } from '../../shared/api.interface';
+import type {
+  AiModelSettings,
+  SystemReadiness,
+} from '../../shared/api.interface';
 import { getCapabilityGateResult } from '../../client/src/lib/capability-gate';
 
 const BASE_READINESS: SystemReadiness = {
@@ -68,7 +71,7 @@ describe('capability gate', () => {
     );
     expect(result.issues.map((issue) => issue.label)).toEqual([
       '音视频处理组件',
-      '本地 Whisper 模型',
+      '语音转文字',
     ]);
   });
 
@@ -85,5 +88,22 @@ describe('capability gate', () => {
         label: '飞书或钉钉连接器',
       }),
     ]);
+  });
+
+  it('allows video workflows to use a configured cloud transcription service', () => {
+    const result = getCapabilityGateResult(
+      'local_video',
+      {
+        ...BASE_READINESS,
+        customApiTranscription: true,
+        tencentAsr: false,
+        tencentAsrEnabled: false,
+      },
+      AI_SETTINGS,
+      true,
+    );
+
+    expect(result.ready).toBe(true);
+    expect(result.issues).toEqual([]);
   });
 });

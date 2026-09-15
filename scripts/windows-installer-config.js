@@ -70,6 +70,9 @@ ConfirmUninstall=确定要卸载 %1 吗？
 Source: "${normalizedSourcePath}/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "${normalizedSourcePath}/package-manifest.json"; DestDir: "{app}"; DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall
 
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"; Check: CanRemoveApplicationDirectory
+
 [Icons]
 Name: "{autodesktop}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\workbench-launcher.vbs"" ""start"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
 Name: "{group}\\Media Notes Workbench"; Filename: "{sys}\\wscript.exe"; Parameters: """{app}\\scripts\\workbench-launcher.vbs"" ""start"""; WorkingDir: "{app}"; IconFilename: "{app}\\dist\\client\\app-icon.ico"
@@ -121,6 +124,20 @@ end;
 function GetDefaultUserDataDirectory(): String;
 begin
   Result := ExpandConstant('{localappdata}\\MediaNotesWorkbench');
+end;
+
+function CanRemoveApplicationDirectory(): Boolean;
+var
+  ApplicationDirectory: String;
+  InstallMarker: String;
+begin
+  ApplicationDirectory := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
+  InstallMarker := ApplicationDirectory + '\\.media-notes-workbench-install-marker';
+  Result :=
+    (ApplicationDirectory <> ExtractFileDrive(ApplicationDirectory) + '\\') and
+    FileExists(InstallMarker);
+  if not Result then
+    Log('跳过应用目录完整清理：安装标记缺失或目录范围不安全。');
 end;
 
 function SelectUserDataAction(): Boolean;

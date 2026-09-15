@@ -394,14 +394,9 @@ export class NoteJobsService implements OnModuleInit {
       tencentAsr,
       customApiTranscription,
       tencentAsrEnabled: tencentAsr,
-      ready:
-        mediaDependenciesReady && documentReady,
-      platformReady:
-        ytDlp &&
-        mediaDependenciesReady &&
-        documentReady,
-      mediaReady:
-        mediaDependenciesReady && documentReady,
+      ready: mediaDependenciesReady && documentReady,
+      platformReady: ytDlp && mediaDependenciesReady && documentReady,
+      mediaReady: mediaDependenciesReady && documentReady,
       documentReady,
       pdfReady: documentReady,
       connectorReady,
@@ -438,16 +433,20 @@ export class NoteJobsService implements OnModuleInit {
     options: CreateJobOptions = {},
   ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
-    const requiresLocalWhisper: boolean = [
+    const requiresVideoTranscriptionCheck: boolean = [
       'platform',
       'video',
       'paired',
     ].includes(validatedInput.sourceType);
-    if (requiresLocalWhisper) {
+    if (requiresVideoTranscriptionCheck) {
       const readiness: SystemReadiness = await this.getReadiness();
-      if (!readiness.whisperCli || !readiness.whisperModel) {
+      if (
+        !(readiness.whisperCli && readiness.whisperModel) &&
+        !readiness.tencentAsr &&
+        !readiness.customApiTranscription
+      ) {
         throw new BadRequestException(
-          '视频笔记必须先配置并验证本地 Whisper 模型，请前往参数配置。',
+          '视频笔记必须先配置一种语音转文字方式（腾讯云 ASR、兼容 API 或本地 Whisper），请前往参数配置。',
         );
       }
     }
@@ -463,7 +462,10 @@ export class NoteJobsService implements OnModuleInit {
         )
       : undefined;
     const executionInput = transcriptionSelection
-      ? { ...validatedInput, transcriptionProvider: transcriptionSelection.mode }
+      ? {
+          ...validatedInput,
+          transcriptionProvider: transcriptionSelection.mode,
+        }
       : validatedInput;
     const sourceType: NoteSourceType = validatedInput.sourceType;
     const sourcePlatform =
@@ -528,7 +530,8 @@ export class NoteJobsService implements OnModuleInit {
       createdAt: now,
       updatedAt: now,
       transcriptionOptions:
-        validatedInput.sourceType === 'video' || validatedInput.sourceType === 'audio'
+        validatedInput.sourceType === 'video' ||
+        validatedInput.sourceType === 'audio'
           ? validatedInput.transcriptionOptions
           : undefined,
       visualOptions: validatedInput.visualOptions,
@@ -1228,7 +1231,9 @@ export class NoteJobsService implements OnModuleInit {
       let keyFrames: KeyFrame[] = [];
       let transcript = '';
       let archiveTranscript = '';
-      const transcriptionProviders = new Set<Exclude<TranscriptionProvider, 'mixed'>>();
+      const transcriptionProviders = new Set<
+        Exclude<TranscriptionProvider, 'mixed'>
+      >();
       const transcriptionModels = new Set<string>();
       const transcriptionProviderNames = new Set<string>();
       if (input.sourceType === 'paired' && preparedPairedMedia) {
@@ -2169,7 +2174,10 @@ export class NoteJobsService implements OnModuleInit {
       const firstResult: CustomApiTranscriptResult | undefined = results[0];
       if (!firstResult) throw new Error('自定义 API 转录未返回结果');
       const segments: TranscriptSegment[] = results.flatMap(
-        (result: CustomApiTranscriptResult, index: number): TranscriptSegment[] => {
+        (
+          result: CustomApiTranscriptResult,
+          index: number,
+        ): TranscriptSegment[] => {
           const offsetMs: number = index * TIMESTAMPED_AUDIO_CHUNK_MS;
           return result.segments.map(
             (segment: TranscriptSegment): TranscriptSegment => ({
@@ -2289,9 +2297,7 @@ export class NoteJobsService implements OnModuleInit {
             '--model',
             this.whisperModelPath,
             '--language',
-            transcriptionOptions?.languageMode === 'mixed'
-              ? 'auto'
-              : 'zh',
+            transcriptionOptions?.languageMode === 'mixed' ? 'auto' : 'zh',
             '--output-json',
             '--output-file',
             outputBase,
@@ -3721,11 +3727,7 @@ export class NoteJobsService implements OnModuleInit {
     const job: NoteJob = this.get(id, ownerId);
     if (job.sourceType !== 'audio') return topic;
     const linkedRecordingTitle: string | undefined =
-      await this.recordingAssetsService.getLinkedJobTitle(
-        ownerId,
-        id,
-        topic,
-      );
+      await this.recordingAssetsService.getLinkedJobTitle(ownerId, id, topic);
     return (
       linkedRecordingTitle || buildRecordingMeetingTitle(job.createdAt, topic)
     );

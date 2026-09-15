@@ -68,7 +68,11 @@ describe('setup requirements', () => {
 
     expect(checks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'ffmpeg', required: true, status: 'unavailable' }),
+        expect.objectContaining({
+          id: 'ffmpeg',
+          required: true,
+          status: 'unavailable',
+        }),
       ]),
     );
     expect(actions).toEqual(
@@ -139,5 +143,29 @@ describe('setup requirements', () => {
     expect(actions).toEqual([
       { action: 'configure_connector', label: '配置同步位置' },
     ]);
+  });
+
+  it('does not require local Whisper when video has cloud transcription', () => {
+    const actions = buildSetupRequiredActions({
+      aiModelSettings: {
+        providers: [],
+        summaryModel: {
+          model: 'summary-model',
+          providerId: 'provider-1',
+          providerName: 'Provider',
+        },
+        transcriptionMode: 'tencent_asr',
+      },
+      readiness: {
+        ...BASE_READINESS,
+        ffmpeg: true,
+        tencentAsr: true,
+        tencentAsrEnabled: true,
+      },
+      selectedCapabilities: ['local_video'],
+      storageReady: true,
+    });
+
+    expect(actions).toEqual([]);
   });
 });

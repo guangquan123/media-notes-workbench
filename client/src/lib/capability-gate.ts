@@ -20,13 +20,9 @@ export interface CapabilityGateResult {
 function hasTranscription(readiness: SystemReadiness): boolean {
   return Boolean(
     readiness.tencentAsr ||
-      readiness.customApiTranscription ||
-      (readiness.whisperCli && readiness.whisperModel),
+    readiness.customApiTranscription ||
+    (readiness.whisperCli && readiness.whisperModel),
   );
-}
-
-function hasLocalWhisper(readiness: SystemReadiness): boolean {
-  return Boolean(readiness.whisperCli && readiness.whisperModel);
 }
 
 export function getCapabilityGateResult(
@@ -69,12 +65,13 @@ export function getCapabilityGateResult(
   }
   const videoCapability: boolean =
     capability === 'local_video' || capability === 'platform_video';
-  if (videoCapability && !hasLocalWhisper(readiness)) {
+  if (videoCapability && !hasTranscription(readiness)) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',
-      label: '本地 Whisper 模型',
-      reason: '视频笔记必须使用已安装并验证通过的本地 Whisper 模型。',
+      label: '语音转文字',
+      reason:
+        '视频笔记需要一种可用的转录方式；可以选择腾讯云 ASR、兼容 API，或额外配置本地 Whisper。',
     });
   } else if (mediaCapability && !hasTranscription(readiness)) {
     issues.push({

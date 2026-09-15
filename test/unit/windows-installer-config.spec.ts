@@ -68,7 +68,7 @@ describe('Windows installer configuration', () => {
     expect(script).toContain(
       "Log('安装前停止 Media Notes Workbench 本地服务。');",
     );
-    expect(script).toContain("if StopWorkbenchService() then");
+    expect(script).toContain('if StopWorkbenchService() then');
     expect(script).toContain('Chr(13) + Chr(10) + Chr(13) + Chr(10) +');
     expect(script).toContain('function InitializeUninstall(): Boolean;');
     expect(script).toContain('Result := SelectUserDataAction();');
@@ -98,8 +98,14 @@ describe('Windows installer configuration', () => {
     expect(script).toContain(
       'DestName: ".media-notes-workbench-install-marker"; Flags: ignoreversion uninsneveruninstall',
     );
-    expect(script).not.toContain('[UninstallDelete]');
-    expect(script).not.toContain('Type: filesandordirs; Name: "{app}"');
+    expect(script).toContain('[UninstallDelete]');
+    expect(script).toContain(
+      'Type: filesandordirs; Name: "{app}"; Check: CanRemoveApplicationDirectory',
+    );
+    expect(script).toContain(
+      'function CanRemoveApplicationDirectory(): Boolean;',
+    );
+    expect(script).toContain('FileExists(InstallMarker)');
   });
 
   it('does not exclude nested node_modules tools directories from the install', () => {

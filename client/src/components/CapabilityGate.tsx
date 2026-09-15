@@ -1,4 +1,10 @@
-import { AlertTriangle, ArrowRight, LoaderCircle, Settings2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  LoaderCircle,
+  Settings2,
+} from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -7,7 +13,10 @@ import {
   getRecordingStorageSettings,
 } from '@/api';
 import { Button } from '@/components/ui/button';
-import { getCapabilityGateResult, type CapabilityGateIssue } from '@/lib/capability-gate';
+import {
+  getCapabilityGateResult,
+  type CapabilityGateIssue,
+} from '@/lib/capability-gate';
 import { isLocalRuntime } from '@/lib/runtime';
 import type {
   AiModelSettings,
@@ -102,14 +111,26 @@ export default function CapabilityGate({
       <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
         <section className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-8 shadow-sm">
           <AlertTriangle className="size-7 text-amber-600" />
-          <h1 className="mt-5 text-xl font-semibold text-slate-950">暂时无法开始</h1>
+          <h1 className="mt-5 text-xl font-semibold text-slate-950">
+            暂时无法开始
+          </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">{error}</p>
-          <Button className="mt-6" asChild>
-            <Link to={`/settings?section=setup&returnTo=${encodeURIComponent(returnTo)}`}>
-              打开参数配置
-              <Settings2 className="size-4" />
-            </Link>
-          </Button>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button asChild variant="ghost">
+              <Link to={returnTo}>
+                <ArrowLeft className="size-4" />
+                返回
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link
+                to={`/settings?section=setup&returnTo=${encodeURIComponent(returnTo)}`}
+              >
+                打开参数配置
+                <Settings2 className="size-4" />
+              </Link>
+            </Button>
+          </div>
         </section>
       </main>
     );
@@ -121,28 +142,64 @@ export default function CapabilityGate({
   const firstIssue: CapabilityGateIssue | undefined = issues[0];
   const settingsUrl: string = buildSettingsUrl(firstIssue, returnTo);
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <section className="w-full max-w-xl rounded-2xl border border-amber-200 bg-white p-8 shadow-sm">
-        <div className="flex size-12 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-          <AlertTriangle className="size-6" />
-        </div>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">需要补充配置</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">这项功能还不能开始</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">完成下面的配置后再回来，系统会自动重新检查并继续当前入口。</p>
-        <div className="mt-6 grid gap-3">
-          {issues.map((issue: CapabilityGateIssue): ReactNode => (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4" key={issue.label}>
-              <p className="text-sm font-semibold text-slate-900">需要配置：{issue.label}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{issue.reason}</p>
+    <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f4f7fb_0%,#eef3ff_100%)] p-6">
+      <section className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,35,60,0.12)]">
+        <div className="border-b border-slate-100 bg-slate-950 px-7 py-6 text-white sm:px-9">
+          <div className="flex items-start gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-amber-300 text-amber-950">
+              <AlertTriangle className="size-6" />
             </div>
-          ))}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">
+                需要补充配置
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+                这项功能还不能开始
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                完成下面的配置后返回，系统会自动重新检查当前入口。
+              </p>
+            </div>
+          </div>
         </div>
-        <Button className="mt-7" asChild>
-          <Link to={settingsUrl}>
-            去参数配置
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        <div className="p-7 sm:p-9">
+          <div className="grid gap-3">
+            {issues.map(
+              (issue: CapabilityGateIssue): ReactNode => (
+                <div
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                  key={issue.label}
+                >
+                  <p className="text-sm font-semibold text-slate-900">
+                    需要配置：{issue.label}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    {issue.reason}
+                  </p>
+                </div>
+              ),
+            )}
+          </div>
+          <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs leading-5 text-blue-950">
+            本地 Whisper
+            模型是离线转录和云端失败时的兜底能力；如果已经配置腾讯云 ASR 或兼容
+            API，视频仍可直接处理，不需要再准备本地模型。
+          </div>
+          <div className="mt-7 flex flex-wrap justify-between gap-3">
+            <Button asChild variant="ghost">
+              <Link to={returnTo}>
+                <ArrowLeft className="size-4" />
+                返回入口
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to={settingsUrl}>
+                去参数配置
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       </section>
     </main>
   );
