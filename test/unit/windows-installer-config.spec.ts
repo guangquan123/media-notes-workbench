@@ -69,6 +69,7 @@ describe('Windows installer configuration', () => {
       "Log('安装前停止 Media Notes Workbench 本地服务。');",
     );
     expect(script).toContain("if StopWorkbenchService() then");
+    expect(script).toContain('Chr(13) + Chr(10) + Chr(13) + Chr(10) +');
     expect(script).toContain('function InitializeUninstall(): Boolean;');
     expect(script).toContain('Result := SelectUserDataAction();');
     expect(script).toContain(

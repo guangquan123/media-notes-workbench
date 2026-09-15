@@ -203,7 +203,7 @@ begin
   else
     Result :=
       'Media Notes Workbench 仍在运行，安装程序无法安全更新运行时文件。' +
-      #13#10#13#10 +
+      Chr(13) + Chr(10) + Chr(13) + Chr(10) +
       '请从开始菜单停止 Media Notes Workbench 后重试。';
 end;
 
