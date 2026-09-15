@@ -140,7 +140,10 @@ export class SetupService {
         ) === index,
     );
     const shouldRepair: boolean =
-      state.status === 'completed' && uniqueActions.length > 0;
+      state.status === 'completed' &&
+      uniqueActions.some(
+        (action: SetupRequiredAction): boolean => action.action === 'repair_storage',
+      );
     const status = shouldRepair ? 'needs_repair' : state.status;
     return {
       completedAt: state.completedAt,
@@ -275,8 +278,11 @@ export class SetupService {
 
   async complete(): Promise<SetupStatusResponse> {
     const status: SetupStatusResponse = await this.getStatus();
-    if (status.requiredActions.length > 0) {
-      throw new BadRequestException('仍有必要配置尚未完成，请先处理提示项');
+    const blockingActions: SetupRequiredAction[] = status.requiredActions.filter(
+      (action: SetupRequiredAction): boolean => action.action === 'repair_storage',
+    );
+    if (blockingActions.length > 0) {
+      throw new BadRequestException('本机数据保存尚未就绪，请先修复存储配置');
     }
     await this.setupStateService.markCompleted();
     return this.getStatus();

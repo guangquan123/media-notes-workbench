@@ -528,6 +528,18 @@ const SetupPage: React.FC = () => {
     }
   };
 
+  const handleSkipTo = async (nextStep: SetupStep): Promise<void> => {
+    setWorking(true);
+    setError('');
+    try {
+      await saveProgress(nextStep);
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const handleProviderNext = async (): Promise<void> => {
     setWorking(true);
     setError('');
@@ -730,6 +742,15 @@ const SetupPage: React.FC = () => {
     );
   }
 
+  const pendingActionLabels: string[] = (status?.requiredActions || [])
+    .filter((action): boolean => action.action !== 'repair_storage')
+    .map((action): string => action.label);
+  const summaryConfigured: boolean = Boolean(aiSettings?.summaryModel || model.trim());
+  const transcriptionConfigured: boolean = Boolean(
+    aiSettings?.transcriptionModel ||
+      (transcriptionMode === 'tencent_asr' && tencentSettings?.configured),
+  );
+
   if (completed) {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
@@ -906,7 +927,10 @@ const SetupPage: React.FC = () => {
                 )}
                 <div className="mt-8 flex flex-wrap justify-between gap-3">
                   <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button>
-                  {environment && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>{missingEnvironmentLabels.length > 0 ? '重新检查' : '继续'}{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button>}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {environment && missingEnvironmentLabels.length > 0 && environment.storageReady && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleSkipTo('provider')} variant="ghost">跳过组件，稍后配置</Button>}
+                    {environment && <Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleEnvironmentNext()}>{missingEnvironmentLabels.length > 0 ? '重新检查' : '继续'}{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button>}
+                  </div>
                 </div>
               </div>
             )}
@@ -928,7 +952,7 @@ const SetupPage: React.FC = () => {
                   <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-slate-700">高级设置（通常不需要修改）<ChevronDown className="size-4 transition group-open:rotate-180" /></summary>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="grid gap-2"><Label htmlFor="setup-base-url">API 地址</Label><Input id="setup-base-url" value={baseUrl} onChange={(event): void => { setBaseUrl(event.target.value); setUrlNotice(''); }} placeholder="https://api.example.com/v1" />{urlNotice && <p className="text-xs text-amber-700">{urlNotice}</p>}</div>{providerPresetId === 'custom' && <div className="grid gap-2"><Label htmlFor="setup-provider-name">服务名称</Label><Input id="setup-provider-name" value={providerName} onChange={(event): void => setProviderName(event.target.value)} placeholder="例如：公司内部模型" /></div>}</div>
                 </details>
-                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working || (selectedPreset.requiresApiKey && !apiKey && !providerId)} onClick={(): void => void handleProviderNext()}>连接并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><div className="flex flex-wrap justify-end gap-2"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleSkipTo(hasMediaCapability(selectedCapabilities) ? 'transcription' : requiresExternalSync ? 'connector' : 'review')} variant="ghost">跳过，稍后配置</Button><Button data-ai-section-type="button" disabled={working || (selectedPreset.requiresApiKey && !apiKey && !providerId)} onClick={(): void => void handleProviderNext()}>连接并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div></div>
               </div>
             )}
 
@@ -938,7 +962,7 @@ const SetupPage: React.FC = () => {
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">确认总结模型</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">系统会用它把原文整理成结构化笔记。列表由刚刚连接的服务自动读取。</p>
                 <div className="mt-7 grid gap-5"><div className="grid gap-2"><Label htmlFor="setup-model">总结模型</Label>{models.length > 0 ? <Select value={model} onValueChange={setModel}><SelectTrigger id="setup-model"><SelectValue placeholder="选择总结模型" /></SelectTrigger><SelectContent>{models.map((item: ModelProviderModel): React.ReactNode => <SelectItem key={item.id} value={item.id}>{item.name || item.id}</SelectItem>)}</SelectContent></Select> : <Input id="setup-model" value={model} onChange={(event): void => setModel(event.target.value)} placeholder="例如：deepseek-chat" />}<p className="text-xs text-slate-500">没有自动列表时，填写服务商提供的模型 ID 即可。</p></div><div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><p className="text-sm font-medium text-blue-950">本次会启用</p><div className="mt-2 flex flex-wrap gap-2">{selectedCapabilityLabels.map((label: string): React.ReactNode => <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-600" key={label}>{label}</span>)}</div></div></div>
-                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleCapabilitiesNext()}>验证并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><div className="flex flex-wrap justify-end gap-2"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleSkipTo(hasMediaCapability(selectedCapabilities) ? 'transcription' : requiresExternalSync ? 'connector' : 'review')} variant="ghost">跳过，稍后配置</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleCapabilitiesNext()}>验证并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div></div>
               </div>
             )}
 
@@ -950,7 +974,7 @@ const SetupPage: React.FC = () => {
                 <div className="mt-7 grid gap-3 sm:grid-cols-2"><button aria-pressed={transcriptionMode === 'custom_api'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'custom_api' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} onClick={(): void => setTranscriptionMode('custom_api')} type="button"><span className="flex items-center gap-2 text-sm font-medium"><Mic2 className="size-4 text-blue-600" />沿用刚刚的 AI 服务</span><span className="mt-2 block text-xs leading-5 text-slate-500">如果服务支持语音模型，无需再填一套账号。</span></button><button aria-pressed={transcriptionMode === 'tencent_asr'} className={`rounded-xl border p-4 text-left transition ${transcriptionMode === 'tencent_asr' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'}`} onClick={(): void => setTranscriptionMode('tencent_asr')} type="button"><span className="flex items-center gap-2 text-sm font-medium"><Waypoints className="size-4 text-blue-600" />腾讯云 ASR</span><span className="mt-2 block text-xs leading-5 text-slate-500">识别效果稳定，需要腾讯云 SecretId、SecretKey 和 COS。</span></button></div>
                 {transcriptionMode === 'custom_api' && <div className="mt-6 grid gap-4"><div className="grid gap-2"><Label htmlFor="setup-transcription-provider">转录服务提供者</Label><Select value={transcriptionProviderId} onValueChange={(value: string): void => { setTranscriptionProviderId(value); setTranscriptionModel(''); }}><SelectTrigger id="setup-transcription-provider"><SelectValue placeholder="选择已配置的提供者" /></SelectTrigger><SelectContent>{(aiSettings?.providers || []).filter((provider: ModelServiceProvider): boolean => provider.enabled && provider.configured).map((provider: ModelServiceProvider): React.ReactNode => <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="setup-transcription-model">转录模型</Label>{transcriptionModels.length > 0 ? <Select value={transcriptionModel} onValueChange={setTranscriptionModel}><SelectTrigger id="setup-transcription-model"><SelectValue placeholder="选择转录模型" /></SelectTrigger><SelectContent>{transcriptionModels.map((item: ModelProviderModel): React.ReactNode => <SelectItem key={item.id} value={item.id}>{item.name || item.id}</SelectItem>)}</SelectContent></Select> : <Input id="setup-transcription-model" value={transcriptionModel} onChange={(event): void => setTranscriptionModel(event.target.value)} placeholder={transcriptionLoading ? '正在读取模型列表…' : '例如：whisper-1'} />}<p className="text-xs leading-5 text-slate-500">没有模型列表时可以直接填写模型 ID。</p></div></div>}
                 {transcriptionMode === 'tencent_asr' && <div className="mt-6 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2"><div className="grid gap-2"><Label htmlFor="setup-tencent-secret-id">SecretId</Label><Input id="setup-tencent-secret-id" value={tencentForm.secretId} onChange={(event): void => setTencentForm((current) => ({ ...current, secretId: event.target.value }))} placeholder={tencentSettings?.secretId || 'AKID…'} /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-secret-key">SecretKey</Label><Input id="setup-tencent-secret-key" type="password" value={tencentForm.secretKey} onChange={(event): void => setTencentForm((current) => ({ ...current, secretKey: event.target.value }))} placeholder={tencentSettings?.secretKeyConfigured ? '已保存；留空表示不修改' : '请输入 SecretKey'} /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-region">腾讯云地域</Label><Input id="setup-tencent-region" value={tencentForm.region} onChange={(event): void => setTencentForm((current) => ({ ...current, region: event.target.value }))} placeholder="ap-shanghai" /></div><div className="grid gap-2"><Label htmlFor="setup-tencent-bucket">COS 存储桶</Label><Input id="setup-tencent-bucket" value={tencentForm.bucket} onChange={(event): void => setTencentForm((current) => ({ ...current, bucket: event.target.value }))} placeholder="bucket-name" /></div><p className="text-xs leading-5 text-amber-700 sm:col-span-2">腾讯云识别和 COS 可能产生费用，验证时会访问你的腾讯云账户。</p></div>}
-                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleTranscriptionNext()}>验证转录并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
+                <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><div className="flex flex-wrap justify-end gap-2"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleSkipTo(requiresExternalSync ? 'connector' : 'review')} variant="ghost">跳过，稍后配置</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleTranscriptionNext()}>验证转录并继续{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div></div>
               </div>
             )}
 
@@ -958,6 +982,7 @@ const SetupPage: React.FC = () => {
               <SetupConnectorStep
                 onBack={(): void => void handleBack()}
                 onContinue={handleConnectorNext}
+                onSkip={(): Promise<void> => handleSkipTo('review')}
                 working={working}
               />
             )}
@@ -967,7 +992,16 @@ const SetupPage: React.FC = () => {
                 <p className="text-sm font-medium text-blue-700">第 7 步 · 自动验证</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">可以开始了</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">关键配置已经验证。点击完成后，直接进入第一篇笔记。</p>
-                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div>{requiresExternalSync ? <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">飞书或钉钉输出连接器已授权并验证</span></div> : <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4"><FileText className="size-5 text-blue-600" /><span className="text-sm text-blue-950">未配置外部同步，笔记将保存为本地 Markdown 文件</span></div>}<div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
+                <div className="mt-7 grid gap-3">
+                  <div className={`flex items-center gap-3 rounded-xl border p-4 ${summaryConfigured ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/70'}`}>
+                    {summaryConfigured ? <Check className="size-5 text-emerald-600" /> : <AlertTriangle className="size-5 text-amber-600" />}
+                    <span className="text-sm text-slate-900">{summaryConfigured ? `总结模型已配置 · ${model || aiSettings?.summaryModel?.model || '已配置'}` : '总结模型尚未配置，可稍后在参数配置中补齐'}</span>
+                  </div>
+                  {requiresExternalSync ? <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4"><AlertTriangle className="size-5 text-amber-600" /><span className="text-sm text-slate-900">外部同步尚未确认，稍后可在参数配置中授权飞书或钉钉</span></div> : <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4"><FileText className="size-5 text-blue-600" /><span className="text-sm text-blue-950">未配置外部同步，笔记将保存为本地 Markdown 文件</span></div>}
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>
+                  {hasMediaCapability(selectedCapabilities) && <div className={`flex items-center gap-3 rounded-xl border p-4 ${transcriptionConfigured ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/70'}`}>{transcriptionConfigured ? <Check className="size-5 text-emerald-600" /> : <AlertTriangle className="size-5 text-amber-600" />}<span className="text-sm text-slate-900">{transcriptionConfigured ? '音视频转录已配置' : '音视频转录尚未配置，可在需要处理音视频时再补齐'}</span></div>}
+                  {pendingActionLabels.length > 0 && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-600">待配置项：{pendingActionLabels.join('、')}。完成引导后仍可进入工作台，使用对应功能时系统会再次提示。</div>}
+                </div>
                 <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>完成并进入工作台{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
             )}

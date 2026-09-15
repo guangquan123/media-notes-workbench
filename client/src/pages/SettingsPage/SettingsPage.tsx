@@ -91,8 +91,14 @@ function getSelectedSection(section: string | null): SettingsSection {
   return 'setup';
 }
 
+function getSafeReturnTo(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
+  return value;
+}
+
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const returnTo: string = getSafeReturnTo(searchParams.get('returnTo'));
   const selectedSection: SettingsSection = getSelectedSection(
     searchParams.get('section'),
   );
@@ -101,7 +107,7 @@ export default function SettingsPage() {
     '开始使用';
 
   const selectSection = (section: SettingsSection): void => {
-    setSearchParams({ section }, { replace: true });
+    setSearchParams({ section, returnTo }, { replace: true });
   };
 
   return (
@@ -129,7 +135,7 @@ export default function SettingsPage() {
               size="sm"
               variant="outline"
             >
-              <Link to="/">
+              <Link to={returnTo}>
                 <ArrowLeft className="size-3.5" />
                 返回入口
               </Link>

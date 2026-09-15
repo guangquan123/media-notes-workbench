@@ -20,6 +20,7 @@ import PairedMediaNotesPage from './pages/PairedMediaNotesPage/PairedMediaNotesP
 import AiModelSettingsPage from './pages/AiModelSettingsPage/AiModelSettingsPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import SetupPage from './pages/SetupPage/SetupPage';
+import CapabilityGate from './components/CapabilityGate';
 
 const RoutesComponent = () => {
   return (
@@ -27,15 +28,15 @@ const RoutesComponent = () => {
       <Route element={<Layout />}>
         <Route index element={<EntryPage />} />
         <Route path="setup" element={<SetupPage />} />
-        <Route path="video-notes" element={<HomePage />} />
-        <Route path="local-video-notes" element={<LocalVideoNotesPage />} />
-        <Route path="audio-notes" element={<AudioNotesPage />} />
-        <Route path="recording-notes" element={<RecordingNotesPage />} />
+        <Route path="video-notes" element={<CapabilityGate capability="platform_video"><HomePage /></CapabilityGate>} />
+        <Route path="local-video-notes" element={<CapabilityGate capability="local_video"><LocalVideoNotesPage /></CapabilityGate>} />
+        <Route path="audio-notes" element={<CapabilityGate capability="local_audio"><AudioNotesPage /></CapabilityGate>} />
+        <Route path="recording-notes" element={<CapabilityGate capability="recording"><RecordingNotesPage /></CapabilityGate>} />
         <Route path="recording-library" element={<RecordingLibraryPage />} />
         <Route path="recording-library/:id" element={<RecordingPlayerPage />} />
-        <Route path="paired-media-notes" element={<PairedMediaNotesPage />} />
-        <Route path="document-notes" element={<PdfNotesPage />} />
-        <Route path="pdf-notes" element={<PdfNotesPage />} />
+        <Route path="paired-media-notes" element={<CapabilityGate capability="local_video"><PairedMediaNotesPage /></CapabilityGate>} />
+        <Route path="document-notes" element={<CapabilityGate capability="documents"><PdfNotesPage /></CapabilityGate>} />
+        <Route path="pdf-notes" element={<CapabilityGate capability="documents"><PdfNotesPage /></CapabilityGate>} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="note-templates" element={<NoteTemplatesPage />} />
         <Route

@@ -129,7 +129,7 @@ const Layout = () => {
       .then((status): void => {
         if (!mounted) return;
         const isSetupRoute: boolean = /(^|\/)setup(?:\/|$)/u.test(location.pathname);
-        if (status.status === 'completed' && status.requiredActions.length === 0) {
+        if (status.status === 'completed') {
           if (isSetupRoute) navigate('/', { replace: true });
         } else if (!isSetupRoute) {
           navigate(

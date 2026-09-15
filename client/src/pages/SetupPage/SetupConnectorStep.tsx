@@ -12,12 +12,14 @@ import { Button } from '@/components/ui/button';
 interface SetupConnectorStepProps {
   onBack: () => void;
   onContinue: () => Promise<void>;
+  onSkip: () => Promise<void>;
   working: boolean;
 }
 
 export default function SetupConnectorStep({
   onBack,
   onContinue,
+  onSkip,
   working,
 }: SetupConnectorStepProps): ReactElement {
   const [error, setError] = useState<string>('');
@@ -77,18 +79,28 @@ export default function SetupConnectorStep({
           <ArrowLeft className="size-4" />
           返回
         </Button>
-        <Button
-          data-ai-section-type="button"
-          disabled={working}
-          onClick={(): void => void handleContinue()}
-        >
-          已授权并继续
-          {working ? (
-            <LoaderCircle className="size-4 animate-spin" />
-          ) : (
-            <ArrowRight className="size-4" />
-          )}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            data-ai-section-type="button"
+            disabled={working}
+            onClick={(): void => void onSkip()}
+            variant="ghost"
+          >
+            跳过，稍后配置
+          </Button>
+          <Button
+            data-ai-section-type="button"
+            disabled={working}
+            onClick={(): void => void handleContinue()}
+          >
+            已授权并继续
+            {working ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <ArrowRight className="size-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
