@@ -380,6 +380,11 @@ export class NoteJobsService implements OnModuleInit {
       this.connectorRegistryService.isActiveConnectorReady(),
       this.connectorRegistryService.getActiveConnector(),
     ]);
+    const localRuntime: boolean = isLocalRuntime();
+    const documentReady: boolean = localRuntime || connectorReady;
+    const mediaDependenciesReady: boolean =
+      ffmpeg &&
+      (tencentAsr || customApiTranscription || (whisperCli && whisperModel));
     return {
       ytDlp,
       ffmpeg,
@@ -390,20 +395,15 @@ export class NoteJobsService implements OnModuleInit {
       customApiTranscription,
       tencentAsrEnabled: tencentAsr,
       ready:
-        ffmpeg &&
-        connectorReady &&
-        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
+        mediaDependenciesReady && documentReady,
       platformReady:
         ytDlp &&
-        ffmpeg &&
-        connectorReady &&
-        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
+        mediaDependenciesReady &&
+        documentReady,
       mediaReady:
-        ffmpeg &&
-        connectorReady &&
-        (tencentAsr || customApiTranscription || (whisperCli && whisperModel)),
-      documentReady: connectorReady,
-      pdfReady: connectorReady,
+        mediaDependenciesReady && documentReady,
+      documentReady,
+      pdfReady: documentReady,
       connectorReady,
       connectorType,
     };
@@ -1161,7 +1161,7 @@ export class NoteJobsService implements OnModuleInit {
     try {
       this.update(id, 'checking', 6, '正在检查本机依赖…');
       const readiness = await this.getReadiness();
-      if (!readiness.connectorReady) {
+      if (!readiness.connectorReady && !isLocalRuntime()) {
         throw new Error(
           '当前连接器未配置或不可用，请先在连接器设置中完成配置。',
         );
@@ -3753,7 +3753,10 @@ export class NoteJobsService implements OnModuleInit {
     markdown: string,
     media: readonly DocumentMediaAsset[] = [],
   ): Promise<LarkDocumentPublishResult> {
-    if (isLocalRuntime()) {
+    const localRuntime: boolean = isLocalRuntime();
+    const connectorReady: boolean =
+      await this.connectorRegistryService.isActiveConnectorReady();
+    if (localRuntime && !connectorReady) {
       return this.localDocumentService.create(title, markdown, media.length);
     }
     if (
@@ -4519,8 +4522,14 @@ export class NoteJobsService implements OnModuleInit {
     title: string,
     documentUrl: string,
   ): Promise<readonly string[]> {
-    if (isLocalRuntime()) {
+    const connectorReady: boolean =
+      await this.connectorRegistryService.isActiveConnectorReady();
+    if (isLocalRuntime() && !connectorReady) {
       this.patch(jobId, { message: '完成！笔记已保存到本机。' });
+      return [];
+    }
+    if (!connectorReady) {
+      this.patch(jobId, { message: '笔记已生成，但外部待办未创建。' });
       return [];
     }
     const connectorType =

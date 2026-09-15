@@ -50,7 +50,14 @@ export function getPreviousSetupStep(
     return requiresTranscription ? 'transcription' : 'capabilities';
   }
   if (currentStep === 'review') {
-    return 'connector';
+    if (capabilities.includes('external_sync')) return 'connector';
+    const requiresTranscription: boolean = capabilities.some(
+      (capability: SetupCapability): boolean =>
+        ['local_audio', 'local_video', 'recording', 'platform_video'].includes(
+          capability,
+        ),
+    );
+    return requiresTranscription ? 'transcription' : 'capabilities';
   }
   return undefined;
 }

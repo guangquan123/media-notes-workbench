@@ -91,6 +91,7 @@ export function buildSetupReadiness(
   const connectorReady = Boolean(
     input.readiness.connectorReady ?? input.readiness.larkCli,
   );
+  const localRuntime: boolean = input.runtime?.mode === 'local';
   const connectorLabel = getConnectorLabel(input);
   const transcriptionReady = Boolean(
     input.readiness.tencentAsr ||
@@ -98,10 +99,12 @@ export function buildSetupReadiness(
       (input.readiness.whisperCli && input.readiness.whisperModel),
   );
   const localMediaReady = Boolean(
-    connectorReady && input.readiness.ffmpeg && transcriptionReady,
+    (localRuntime || connectorReady) &&
+      input.readiness.ffmpeg &&
+      transcriptionReady,
   );
   const documentReady = Boolean(
-    connectorReady && input.readiness.documentReady,
+    (localRuntime || connectorReady) && input.readiness.documentReady,
   );
   const platformMediaReady = Boolean(localMediaReady && input.readiness.ytDlp);
   const runtimeKnown = Boolean(input.runtime);
@@ -125,17 +128,17 @@ export function buildSetupReadiness(
     platformMediaSourceReady ? '平台视频链接' : '',
   ].filter(Boolean);
 
-  const localMediaActionSection: SetupActionSection = !connectorReady
+  const localMediaActionSection: SetupActionSection = !localRuntime && !connectorReady
     ? 'connectors'
     : 'model';
   const localMediaActionLabel =
     localMediaActionSection === 'connectors'
       ? '配置输出位置'
       : '配置模型服务与转录';
-  const documentActionSection: SetupActionSection = connectorReady
+  const documentActionSection: SetupActionSection = localRuntime || connectorReady
     ? 'model'
     : 'connectors';
-  const documentActionLabel = connectorReady ? '配置模型服务与转录' : '配置输出位置';
+  const documentActionLabel = localRuntime || connectorReady ? '配置模型服务与转录' : '配置输出位置';
 
   const modelItem: SetupCapabilityItem = !runtimeKnown
     ? {
@@ -190,15 +193,19 @@ export function buildSetupReadiness(
       id: 'connector',
       label: '笔记输出位置',
       description: connectorReady
-        ? `${connectorLabel}连接器已就绪，生成结果有明确保存位置。`
-        : '当前输出连接器未就绪，任务无法可靠保存结果。',
+        ? `${connectorLabel}连接器已就绪，生成结果会同步到外部平台。`
+        : localRuntime
+          ? '未配置外部连接器时，生成结果会保存为本地 Markdown。'
+          : '当前输出连接器未就绪，平台运行时需要先完成配置。',
       details: connectorReady
         ? [`当前结果将同步到${connectorLabel}。`]
-        : ['请先完成飞书或钉钉连接器授权。'],
-      required: true,
-      status: connectorReady ? 'ready' : 'action',
-      actionLabel: connectorReady ? undefined : '选择输出位置',
-      actionSection: connectorReady ? undefined : 'connectors',
+        : localRuntime
+          ? ['飞书或钉钉属于可选增强能力，可在需要时再配置。']
+          : ['请先完成飞书或钉钉连接器授权。'],
+      required: !localRuntime,
+      status: connectorReady ? 'ready' : localRuntime ? 'optional' : 'action',
+      actionLabel: connectorReady || localRuntime ? undefined : '选择输出位置',
+      actionSection: connectorReady || localRuntime ? undefined : 'connectors',
     },
     modelItem,
     {
@@ -229,7 +236,9 @@ export function buildSetupReadiness(
         ? 'PDF、Word、PPT 和文本资料可直接生成笔记。'
         : documentReady
           ? '文档解析和输出位置已就绪，仍需完成总结模型配置。'
-          : '文档解析可用，但需要先完成输出连接器配置。',
+          : localRuntime
+            ? '文档解析可用，结果默认保存为本地 Markdown。'
+            : '文档解析可用，但需要先完成输出连接器配置。',
       details: [
         '文档入口不依赖 ffmpeg、yt-dlp 或语音转录引擎。',
         ...(documentReady && !generationReady
@@ -266,7 +275,9 @@ export function buildSetupReadiness(
   ];
 
   const coreReady = Boolean(
-    connectorReady && localMediaSourceReady && documentSourceReady,
+    (localRuntime || connectorReady) &&
+      localMediaSourceReady &&
+      documentSourceReady,
   );
   if (coreReady) {
     return {

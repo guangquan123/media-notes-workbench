@@ -8,6 +8,10 @@ export interface MediaNoteConnectorCopy {
   successToast: string;
 }
 
+export function isLocalMarkdownDocument(url: string | undefined): boolean {
+  return Boolean(url && /\/api\/note-jobs\/local-documents\//u.test(url));
+}
+
 const CONNECTOR_COPY: Record<ConnectorType, MediaNoteConnectorCopy> = {
   feishu: {
     completionDescription: '现在可以打开并检查学习笔记。',
@@ -27,6 +31,16 @@ const CONNECTOR_COPY: Record<ConnectorType, MediaNoteConnectorCopy> = {
 
 export function getMediaNoteConnectorCopy(
   connector: ConnectorType | undefined,
+  localMarkdown: boolean = false,
 ): MediaNoteConnectorCopy {
+  if (localMarkdown) {
+    return {
+      completionDescription: '文件已保存到本机，可以查看或下载 Markdown。',
+      completionTitle: '本地 Markdown 已生成',
+      documentActionLabel: '查看 Markdown 笔记',
+      publishingLabel: '保存到本机',
+      successToast: 'Markdown 笔记已保存到本机',
+    };
+  }
   return CONNECTOR_COPY[connector || 'feishu'];
 }

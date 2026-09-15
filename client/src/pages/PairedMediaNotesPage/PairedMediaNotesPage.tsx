@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Check,
+  Download,
   FileAudio,
   FileVideo,
   LoaderCircle,
@@ -14,7 +15,12 @@ import { Link } from 'react-router-dom';
 import { resolveLocalDocumentUrl } from '@/lib/local-http';
 import { toast } from 'sonner';
 
-import { createNoteJob, getNoteJob, getReadiness } from '@/api';
+import {
+  createNoteJob,
+  downloadLocalDocument,
+  getNoteJob,
+  getReadiness,
+} from '@/api';
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import { FrameReviewPanel } from '@/components/note-visuals/FrameReviewPanel';
 import { VisualOptionsPanel } from '@/components/note-visuals/VisualOptionsPanel';
@@ -30,6 +36,7 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { formatFileSize } from '@/utils/file-size';
 import { getUploadFailureMessage } from '@/utils/upload-error';
+import { downloadBlob } from '@/utils/download';
 import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
 import type {
   NoteJob,
@@ -38,6 +45,7 @@ import type {
   PairedMediaAlignmentMode,
   SystemReadiness,
 } from '@shared/api.interface';
+import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connector.utils';
 import { PairedMediaUploadSlot } from './PairedMediaUploadSlot';
 import {
   AUDIO_ACCEPT,
@@ -235,11 +243,18 @@ export default function PairedMediaNotesPage() {
     ? 'uploading'
     : getPairedLogicalStage(job?.stage);
   const connectorLabel: string = getConnectorLabel(readiness?.connectorType);
+  const localMarkdown: boolean = isLocalMarkdownDocument(job?.documentUrl);
   const displayMessage: string | undefined =
     readiness?.connectorType === 'dingtalk'
       ? job?.message?.replace(/飞书/gu, connectorLabel)
       : job?.message;
-  const processStages = getPairedProcessStages(connectorLabel).filter(
+  const processStages = getPairedProcessStages(
+    localMarkdown ? '本机' : connectorLabel,
+  ).map(([stage, label]) =>
+    stage === 'publishing' && localMarkdown
+      ? ([stage, '保存到本机'] as const)
+      : ([stage, label] as const),
+  ).filter(
     ([stage]) =>
       stage !== 'extracting-frames' ||
       shouldShowVisualProcessingStage(
@@ -480,8 +495,9 @@ export default function PairedMediaNotesPage() {
                   ))}
                   {job?.stage === 'completed' && (
                     <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-                      双路转写、关键画面和冲突清单已经写入{connectorLabel}
-                      文档。
+                      {localMarkdown
+                        ? '双路转写、关键画面和冲突清单已经保存为本地 Markdown。'
+                        : `双路转写、关键画面和冲突清单已经写入${connectorLabel}文档。`}
                     </div>
                   )}
                 </div>
@@ -497,8 +513,27 @@ export default function PairedMediaNotesPage() {
                         )
                       }
                     >
-                      打开{connectorLabel}笔记
+                      {localMarkdown ? '打开 Markdown 笔记' : `打开${connectorLabel}笔记`}
                       <ArrowUpRight className="size-4" />
+                    </Button>
+                  )}
+                  {job?.documentUrl && localMarkdown && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
+                      onClick={async (): Promise<void> => {
+                        try {
+                          const blob: Blob = await downloadLocalDocument(
+                            job.documentUrl || '',
+                          );
+                          downloadBlob(blob, '双源会议学习笔记.md');
+                        } catch {
+                          toast.error('Markdown 下载失败，请稍后重试');
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      下载 Markdown
+                      <Download className="size-4" />
                     </Button>
                   )}
                   {job && ['completed', 'failed'].includes(job.stage) && (

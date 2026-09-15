@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Response } from 'express';
 import { LocalDocumentService } from './local-document.service';
@@ -11,13 +11,15 @@ export class LocalDocumentController {
   @Get(':id')
   async get(
     @Param('id') id: string,
+    @Query('download') download: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ): Promise<string> {
     const document = await this.localDocumentService.read(id);
     response.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     response.setHeader(
       'Content-Disposition',
-      `inline; filename*=UTF-8''${encodeURIComponent(document.fileName)}`,
+      `${download === '1' ? 'attachment' : 'inline'}; ` +
+        `filename*=UTF-8''${encodeURIComponent(document.fileName)}`,
     );
     return document.content;
   }

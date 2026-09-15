@@ -21,11 +21,15 @@ import {
   TriangleAlert,
   UploadCloud,
   Volume2,
+  Download,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import NoteStyleSelector from '@/components/NoteStyleSelector';
 import RecordingAudioPlayer from '@/components/RecordingAudioPlayer';
 import { resolveLocalDocumentUrl } from '@/lib/local-http';
+import { downloadLocalDocument } from '@/api';
+import { downloadBlob } from '@/utils/download';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -56,6 +60,7 @@ import {
   RECORDING_PROCESS_STAGES,
 } from './recording-processing.utils';
 import type { RecoverableRecording } from './recording-storage';
+import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connector.utils';
 import type {
   RecorderDeviceState,
   RecorderMetrics,
@@ -786,6 +791,7 @@ export function ProcessingPanel({
 }: ProcessingPanelProps) {
   const stageIndex: number = getRecordingProcessStageIndex(job?.stage);
   const completed: boolean = job?.stage === 'completed';
+  const localMarkdown: boolean = isLocalMarkdownDocument(job?.documentUrl);
   const transcriptionLabel: string = getTranscriptionProviderLabel(
     job?.transcriptionProvider,
     job?.transcriptionModel,
@@ -835,7 +841,7 @@ export function ProcessingPanel({
               ) : (
                 <span className="size-4 rounded-full border border-current" />
               )}
-              {label}
+              {stage === 'publishing' && localMarkdown ? '保存到本机' : label}
             </span>
           </div>
         ))}
@@ -862,8 +868,25 @@ export function ProcessingPanel({
             window.open(resolveLocalDocumentUrl(job.documentUrl), '_blank', 'noopener,noreferrer')
           }
         >
-          打开总结笔记
+          {localMarkdown ? '打开 Markdown 笔记' : '打开总结笔记'}
           <ArrowUpRight />
+        </Button>
+      )}
+      {completed && job?.documentUrl && localMarkdown && (
+        <Button
+          className="mt-3 w-full"
+          onClick={async (): Promise<void> => {
+            try {
+              const blob: Blob = await downloadLocalDocument(job.documentUrl || '');
+              downloadBlob(blob, '录音学习笔记.md');
+            } catch {
+              toast.error('Markdown 下载失败，请稍后重试');
+            }
+          }}
+          variant="outline"
+        >
+          下载 Markdown
+          <Download />
         </Button>
       )}
       {completed && job?.rawDocumentUrl && (

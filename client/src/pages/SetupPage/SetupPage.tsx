@@ -58,7 +58,6 @@ import type {
   TencentAsrSettings,
   TranscriptionMode,
 } from '@shared/api.interface';
-import { isLocalRuntime } from '@/lib/runtime';
 import { getPreviousSetupStep } from '@/lib/setup-routing';
 import SetupConnectorStep from './SetupConnectorStep';
 
@@ -199,6 +198,12 @@ function getInitialStep(
   if (action === 'configure_summary') return 'provider';
   if (action === 'configure_transcription') return 'transcription';
   if (action === 'configure_connector') return 'connector';
+  if (
+    status.currentStep === 'connector' &&
+    !status.selectedCapabilities.includes('external_sync')
+  ) {
+    return 'review';
+  }
   if (status.status === 'needs_repair') return 'provider';
   return status.currentStep;
 }
@@ -281,14 +286,9 @@ const SetupPage: React.FC = () => {
       ) || PROVIDER_PRESETS[0],
     [providerPresetId],
   );
-  const visibleCapabilities = useMemo(
-    () =>
-      isLocalRuntime()
-        ? CAPABILITIES.filter(
-            ({ id }: { id: SetupCapability }): boolean => id !== 'external_sync',
-          )
-        : CAPABILITIES,
-    [],
+  const visibleCapabilities = useMemo(() => CAPABILITIES, []);
+  const requiresExternalSync: boolean = selectedCapabilities.includes(
+    'external_sync',
   );
 
   useEffect((): (() => void) => {
@@ -601,7 +601,13 @@ const SetupPage: React.FC = () => {
         model: model.trim(),
         providerId,
       });
-      await saveProgress(hasMediaCapability(selectedCapabilities) ? 'transcription' : 'connector');
+      await saveProgress(
+        hasMediaCapability(selectedCapabilities)
+          ? 'transcription'
+          : requiresExternalSync
+            ? 'connector'
+            : 'review',
+      );
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -660,7 +666,7 @@ const SetupPage: React.FC = () => {
         setTencentSettings(saved);
         await validateSetupTencentAsr();
       }
-      await saveProgress('connector');
+      await saveProgress(requiresExternalSync ? 'connector' : 'review');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -861,7 +867,7 @@ const SetupPage: React.FC = () => {
                 </div>
                 <div className="mt-5 flex items-start gap-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span>笔记和原始资料默认保存在这台电脑上。完成笔记前，需要授权飞书或钉钉作为笔记输出位置。</span>
+                  <span>笔记和原始资料默认保存在这台电脑上。需要自动同步到飞书或钉钉时，再勾选“外部同步”并完成授权。</span>
                 </div>
                 <div className="mt-8 flex justify-end">
                   <Button data-ai-section-type="button" disabled={working || selectedCapabilities.length === 0} onClick={(): void => void handleWelcomeNext()}>
@@ -961,7 +967,7 @@ const SetupPage: React.FC = () => {
                 <p className="text-sm font-medium text-blue-700">第 7 步 · 自动验证</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight">可以开始了</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">关键配置已经验证。点击完成后，直接进入第一篇笔记。</p>
-                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">飞书或钉钉输出连接器已授权并验证</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
+                <div className="mt-7 grid gap-3"><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">AI 服务已连接 · {providerName || '已配置'}</span></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">总结模型已验证 · {model}</span></div>{requiresExternalSync ? <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">飞书或钉钉输出连接器已授权并验证</span></div> : <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4"><FileText className="size-5 text-blue-600" /><span className="text-sm text-blue-950">未配置外部同步，笔记将保存为本地 Markdown 文件</span></div>}<div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">本机数据保存已检查</span></div>{hasMediaCapability(selectedCapabilities) && <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><Check className="size-5 text-emerald-600" /><span className="text-sm text-emerald-950">音视频转录已验证，可以直接处理</span></div>}</div>
                 <div className="mt-8 flex justify-between gap-3"><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleBack()} variant="ghost"><ArrowLeft className="size-4" />返回</Button><Button data-ai-section-type="button" disabled={working} onClick={(): void => void handleComplete()}>完成并进入工作台{working ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</Button></div>
               </div>
             )}

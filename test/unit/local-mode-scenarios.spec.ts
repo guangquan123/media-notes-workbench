@@ -16,7 +16,7 @@ describe('Windows local runtime with external connectors', () => {
     await rm(baseDir, { recursive: true, force: true });
   });
 
-  it('keeps the local runtime while requiring Feishu or DingTalk for output', async () => {
+  it('keeps external connector settings optional for local Markdown output', async () => {
     const registry = new ConnectorRegistryService(baseDir);
     const settings = await registry.getSettings();
 

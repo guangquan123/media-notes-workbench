@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Check,
+  Download,
   FileAudio,
   FileText,
   FileVideo,
@@ -22,6 +23,7 @@ import {
   cancelNoteJob,
   createRecordingAsset,
   createNoteJob,
+  downloadLocalDocument,
   getConnectorSettings,
   getNoteJob,
   getReadiness,
@@ -51,8 +53,12 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import { getUploadFailureMessage } from '@/utils/upload-error';
 import { formatFileSize } from '@/utils/file-size';
+import { downloadBlob } from '@/utils/download';
 import { shouldShowVisualProcessingStage } from '@/utils/note-process-stages';
-import { getMediaNoteConnectorCopy } from './media-note-connector.utils';
+import {
+  getMediaNoteConnectorCopy,
+  isLocalMarkdownDocument,
+} from './media-note-connector.utils';
 import './detail-pages-compact.css';
 import type {
   NoteJob,
@@ -233,8 +239,15 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
     sourceType,
     job?.visualOptions || visualOptions,
   );
-  const currentConnector = activeConnector || readiness?.connectorType;
-  const connectorCopy = getMediaNoteConnectorCopy(currentConnector);
+  const localMarkdown: boolean = isLocalMarkdownDocument(job?.documentUrl);
+  const currentConnector =
+    readiness?.connectorReady === false
+      ? undefined
+      : activeConnector || readiness?.connectorType;
+  const connectorCopy = getMediaNoteConnectorCopy(
+    currentConnector,
+    localMarkdown,
+  );
   const baseProcessStages =
     sourceType === 'document'
       ? PDF_PROCESS_STAGES
@@ -354,9 +367,12 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
         const next: NoteJob = await getNoteJob(job.id);
         if (cancelled) return;
         setJob(next);
-        if (next.stage === 'completed') {
-          toast.success(connectorCopy.successToast);
-        }
+        if (next.stage === 'completed')
+          toast.success(
+            isLocalMarkdownDocument(next.documentUrl)
+              ? 'Markdown 笔记已保存到本机'
+              : connectorCopy.successToast,
+          );
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
         // A temporary polling error should not interrupt the server-side task.
@@ -868,6 +884,26 @@ export default function MediaNotePage({ sourceType }: MediaNotePageProps) {
                     >
                       {connectorCopy.documentActionLabel}
                       <ArrowUpRight className="ml-2 size-4" />
+                    </Button>
+                  )}
+                  {job?.documentUrl && localMarkdown && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
+                      onClick={async (): Promise<void> => {
+                        try {
+                          const blob: Blob = await downloadLocalDocument(
+                            job.documentUrl || '',
+                          );
+                          downloadBlob(blob, '学习笔记.md');
+                          toast.success('Markdown 下载已开始');
+                        } catch {
+                          toast.error('Markdown 下载失败，请稍后重试');
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      下载 Markdown
+                      <Download className="ml-2 size-4" />
                     </Button>
                   )}
                   {job?.rawDocumentUrl && (

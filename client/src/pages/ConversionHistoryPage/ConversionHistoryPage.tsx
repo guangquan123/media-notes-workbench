@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import type { DateRange } from 'react-day-picker';
 
 import {
+  downloadLocalDocument,
   downloadRawTranscript,
   getNoteConversionHistory,
   markNoteProcessed,
@@ -76,6 +77,7 @@ import {
 import { getVisualOptionsCopy } from './conversion-history-visual.utils';
 import { getQualityWarningCopy } from './conversion-history-quality.utils';
 import { useHistoryReprocessing } from './useHistoryReprocessing';
+import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connector.utils';
 
 const PAGE_SIZE = 10;
 
@@ -353,6 +355,17 @@ export default function ConversionHistoryPage() {
       toast.success('原文下载已开始');
     } catch {
       toast.error('原文下载失败，请稍后重试');
+    }
+  };
+
+  const downloadMarkdown = async (record: NoteConversionRecord): Promise<void> => {
+    if (!record.documentUrl) return;
+    try {
+      const blob: Blob = await downloadLocalDocument(record.documentUrl);
+      downloadBlob(blob, `${record.title || '学习笔记'}.md`);
+      toast.success('Markdown 下载已开始');
+    } catch {
+      toast.error('Markdown 下载失败，请稍后重试');
     }
   };
 
@@ -696,6 +709,9 @@ export default function ConversionHistoryPage() {
                     canDeleteSource ||
                     canFullReprocess;
                   const actionRunning: boolean = actionJobId === record.jobId;
+                  const localMarkdown: boolean = isLocalMarkdownDocument(
+                    record.documentUrl || undefined,
+                  );
                   return (
                     <article
                       className={`group grid gap-3 px-4 py-3.5 transition hover:bg-black/[0.012] md:gap-4 ${
@@ -874,7 +890,7 @@ export default function ConversionHistoryPage() {
                                 rel="noopener noreferrer"
                                 target="_blank"
                               >
-                                查看总结笔记
+                                {localMarkdown ? '查看 Markdown 笔记' : '查看总结笔记'}
                                 <ArrowUpRight className="size-4" />
                               </a>
                             </Button>
@@ -914,6 +930,14 @@ export default function ConversionHistoryPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start">
+                                {localMarkdown ? (
+                                  <DropdownMenuItem
+                                    onClick={() => void downloadMarkdown(record)}
+                                  >
+                                    下载 Markdown
+                                    <Download className="size-4" />
+                                  </DropdownMenuItem>
+                                ) : null}
                                 {record.rawDocumentUrl ? (
                                   <DropdownMenuItem asChild>
                                     <a

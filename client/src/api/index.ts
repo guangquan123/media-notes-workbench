@@ -661,6 +661,17 @@ export async function downloadRawTranscript(jobId: string): Promise<Blob> {
   return response.data;
 }
 
+export async function downloadLocalDocument(url: string): Promise<Blob> {
+  const separator: string = url.includes('?') ? '&' : '?';
+  const response = await axiosForBackend({
+    url: `${url}${separator}download=1`,
+    method: 'GET',
+    responseType: 'blob',
+    timeout: JOB_READ_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
 export async function getNoteSourceSnapshot(
   jobId: string,
 ): Promise<NoteSourceSnapshotResponse> {

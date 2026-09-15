@@ -57,7 +57,7 @@ export default function SetupConnectorStep({
             连接飞书或钉钉
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            笔记会保存在本机，同时发送到你选择并验证过的唯一输出位置。
+            已选择外部同步。笔记会保存在本机，同时发送到你选择并验证过的唯一输出位置。
           </p>
         </div>
       </div>

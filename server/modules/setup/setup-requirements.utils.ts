@@ -88,7 +88,9 @@ export function buildSetupRequiredActions(
       check.required && check.status === 'unavailable',
   );
   const requiresMedia: boolean = needsMediaProcessing(input.selectedCapabilities);
-  const requiresConnector: boolean = input.selectedCapabilities.length > 0;
+  const requiresConnector: boolean = input.selectedCapabilities.includes(
+    'external_sync',
+  );
 
   if (hasUnavailableEnvironment) {
     actions.push({ action: 'repair_storage', label: '修复本机运行环境' });

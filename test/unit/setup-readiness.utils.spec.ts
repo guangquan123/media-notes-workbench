@@ -140,6 +140,27 @@ describe('setup readiness', () => {
     expect(result.summary).toContain('本地音视频');
   });
 
+  it('treats the connector as an optional enhancement in local runtime', () => {
+    const result = build({
+      readiness: {
+        connectorReady: false,
+        documentReady: true,
+        mediaReady: true,
+        platformReady: false,
+      },
+    });
+
+    expect(result.items.find((item) => item.id === 'connector')).toMatchObject({
+      required: false,
+      status: 'optional',
+    });
+    expect(result.items.find((item) => item.id === 'documents')).toMatchObject({
+      status: 'ready',
+      actionSection: undefined,
+    });
+    expect(result.availableSourceLabels).toContain('文档资料');
+  });
+
   it('accepts Tencent ASR as the Whisper alternative while still requiring ffmpeg', () => {
     const withTencentAsr = build({
       readiness: {

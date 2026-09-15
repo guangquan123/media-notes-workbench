@@ -22,11 +22,14 @@ describe('setup routing', () => {
     );
   });
 
-  it('keeps connector setup between capabilities and final review', () => {
-    expect(getPreviousSetupStep('review', ['documents'])).toBe('connector');
+  it('skips optional connector setup for local note workflows', () => {
+    expect(getPreviousSetupStep('review', ['documents'])).toBe('capabilities');
     expect(getPreviousSetupStep('review', ['documents', 'local_video'])).toBe(
-      'connector',
+      'transcription',
     );
+    expect(
+      getPreviousSetupStep('review', ['documents', 'external_sync']),
+    ).toBe('connector');
     expect(getPreviousSetupStep('connector', ['documents'])).toBe('capabilities');
     expect(getPreviousSetupStep('connector', ['documents', 'local_video'])).toBe(
       'transcription',

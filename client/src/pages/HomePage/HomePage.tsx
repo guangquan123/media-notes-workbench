@@ -24,6 +24,7 @@ import { Progress } from '@/components/ui/progress';
 import { SummaryModelProgress } from '@/components/SummaryModelProgress';
 import {
   createNoteJob,
+  downloadLocalDocument,
   downloadRawTranscript,
   getNoteJob,
   getReadiness,
@@ -38,6 +39,7 @@ import type {
   SystemReadiness,
 } from '@shared/api.interface';
 import { buildPlatformNoteJobRequest } from './home-page.utils';
+import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connector.utils';
 
 const STAGE_LABELS = [
   ['downloading', '拉取视频', Headphones],
@@ -116,6 +118,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const running = job && !['completed', 'failed'].includes(job.stage);
+  const localMarkdown: boolean = isLocalMarkdownDocument(job?.documentUrl);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +157,13 @@ export default function HomePage() {
         const next = await getNoteJob(job.id);
         if (cancelled) return;
         setJob(next);
-        if (next.stage === 'completed') toast.success('飞书学习笔记已经创建');
+        if (next.stage === 'completed') {
+          toast.success(
+            isLocalMarkdownDocument(next.documentUrl)
+              ? 'Markdown 笔记已保存到本机'
+              : '外部学习笔记已经创建',
+          );
+        }
         if (next.stage === 'failed') toast.error(next.error || '处理失败');
       } catch {
         // A transient polling failure should not stop the task.
@@ -177,7 +186,6 @@ export default function HomePage() {
       !readiness.ffmpeg && 'ffmpeg',
       !readiness.whisperCli && 'Whisper',
       !readiness.whisperModel && 'Whisper 模型',
-      readiness.connectorReady === false && '当前连接器',
     ].filter(Boolean);
     return missing.length
       ? `缺少：${missing.join('、')}`
@@ -349,6 +357,11 @@ export default function HomePage() {
                     ([stage]) => stage !== 'extracting-frames',
                   )
               ).map(([stage, label, Icon], index) => {
+                const stageLabel: string =
+                  stage === 'publishing' &&
+                  (localMarkdown || readiness?.connectorReady === false)
+                    ? '保存到本机'
+                    : label;
                 const currentStage = getLogicalStage(job?.stage);
                 const visibleStages = shouldShowVisualProcessingStage(
                   job?.sourceType || 'platform',
@@ -377,7 +390,7 @@ export default function HomePage() {
                         <Icon className="size-4" />
                       )}
                     </div>
-                    <span>{label}</span>
+                    <span>{stageLabel}</span>
                   </div>
                 );
               })}
@@ -545,10 +558,12 @@ export default function HomePage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">
-                            飞书文档创建成功
+                            {localMarkdown ? '本地 Markdown 已生成' : '外部文档创建成功'}
                           </p>
                           <p className="mt-0.5 text-xs text-emerald-800/60">
-                            现在可以打开检查学习笔记
+                            {localMarkdown
+                              ? '文件已保存到本机，可以打开或下载。'
+                              : '现在可以打开检查学习笔记'}
                           </p>
                         </div>
                       </div>
@@ -568,8 +583,28 @@ export default function HomePage() {
                         )
                       }
                     >
-                      打开总结笔记
+                      {localMarkdown ? '打开 Markdown 笔记' : '打开总结笔记'}
                       <ArrowUpRight className="ml-2 size-4" />
+                    </Button>
+                  )}
+                  {job.documentUrl && localMarkdown && (
+                    <Button
+                      className="h-11 w-full rounded-xl border-black/10 bg-white text-black hover:bg-black/5"
+                      onClick={async (): Promise<void> => {
+                        try {
+                          const blob: Blob = await downloadLocalDocument(
+                            job.documentUrl || '',
+                          );
+                          downloadBlob(blob, '学习笔记.md');
+                          toast.success('Markdown 下载已开始');
+                        } catch {
+                          toast.error('Markdown 下载失败，请稍后重试');
+                        }
+                      }}
+                      variant="outline"
+                    >
+                      下载 Markdown
+                      <Download className="ml-2 size-4" />
                     </Button>
                   )}
                   {job.rawDocumentUrl && (
