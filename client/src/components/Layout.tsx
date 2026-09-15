@@ -168,7 +168,7 @@ const Layout = () => {
         className="min-h-screen w-full min-w-0 max-w-full"
         data-launcher-page-ready="true"
       >
-      {isLocalRuntime() && !isSetupRoute && <RuntimeControlMenu />}
+      {isLocalRuntime() && <RuntimeControlMenu />}
       {backendHealth.unavailable && (
         <div
           className={`sticky top-0 z-50 border-b px-4 py-3 shadow-sm ${
