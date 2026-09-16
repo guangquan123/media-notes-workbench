@@ -34,7 +34,17 @@ const RoutesComponent = () => {
         <Route path="recording-notes" element={<CapabilityGate capability="recording"><RecordingNotesPage /></CapabilityGate>} />
         <Route path="recording-library" element={<RecordingLibraryPage />} />
         <Route path="recording-library/:id" element={<RecordingPlayerPage />} />
-        <Route path="paired-media-notes" element={<CapabilityGate capability="local_video"><PairedMediaNotesPage /></CapabilityGate>} />
+        <Route
+          path="paired-media-notes"
+          element={
+            <CapabilityGate
+              capability="local_video"
+              featureName="双源会议 / 培训笔记"
+            >
+              <PairedMediaNotesPage />
+            </CapabilityGate>
+          }
+        />
         <Route path="document-notes" element={<CapabilityGate capability="documents"><PdfNotesPage /></CapabilityGate>} />
         <Route path="pdf-notes" element={<CapabilityGate capability="documents"><PdfNotesPage /></CapabilityGate>} />
         <Route path="settings" element={<SettingsPage />} />

@@ -73,6 +73,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import {
+  findModelProviderPreset,
+  inferModelProviderPresetId,
+  MODEL_PROVIDER_PRESETS,
+  type ModelProviderPreset,
+} from '@/lib/model-provider-presets';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 
 type AiSettingsTab = 'providers' | 'models' | 'transcription';
@@ -97,9 +103,9 @@ interface ProviderTestState {
 
 const EMPTY_PROVIDER_FORM: ProviderFormState = {
   apiKey: '',
-  baseUrl: '',
+  baseUrl: MODEL_PROVIDER_PRESETS[0].baseUrl,
   enabled: true,
-  name: '',
+  name: MODEL_PROVIDER_PRESETS[0].name,
 };
 
 function getProvider(
@@ -187,6 +193,7 @@ export default function AiModelSettingsPage({
   const [transcriptionMode, setTranscriptionMode] =
     useState<TranscriptionMode>('tencent_asr');
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
+  const [providerPresetId, setProviderPresetId] = useState<string>('openai');
   const [editingProviderId, setEditingProviderId] = useState<string | null>(
     null,
   );
@@ -333,12 +340,14 @@ export default function AiModelSettingsPage({
 
   const openCreateProvider = (): void => {
     setEditingProviderId(null);
+    setProviderPresetId('openai');
     setProviderForm(EMPTY_PROVIDER_FORM);
     setProviderDialogOpen(true);
   };
 
   const openEditProvider = (provider: ModelServiceProvider): void => {
     setEditingProviderId(provider.id);
+    setProviderPresetId(inferModelProviderPresetId(provider.baseUrl));
     setProviderForm({
       apiKey: '',
       baseUrl: provider.baseUrl,
@@ -346,6 +355,26 @@ export default function AiModelSettingsPage({
       name: provider.name,
     });
     setProviderDialogOpen(true);
+  };
+
+  const selectProviderPreset = (presetId: string): void => {
+    const preset: ModelProviderPreset | undefined =
+      findModelProviderPreset(presetId);
+    if (!preset) return;
+    setProviderPresetId(preset.id);
+    setProviderForm(
+      (current: ProviderFormState): ProviderFormState => ({
+        ...current,
+        baseUrl:
+          preset.id === 'custom' && editingProviderId
+            ? current.baseUrl
+            : preset.baseUrl,
+        name:
+          preset.id === 'custom' && editingProviderId
+            ? current.name
+            : preset.name,
+      }),
+    );
   };
 
   const testProvider = async (
@@ -1109,6 +1138,27 @@ export default function AiModelSettingsPage({
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-2">
+              <Label htmlFor="provider-preset">服务类型</Label>
+              <Select
+                onValueChange={selectProviderPreset}
+                value={providerPresetId}
+              >
+                <SelectTrigger className="w-full" id="provider-preset">
+                  <SelectValue placeholder="选择模型服务提供者" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODEL_PROVIDER_PRESETS.map((preset: ModelProviderPreset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-5 text-black/45">
+                {findModelProviderPreset(providerPresetId)?.description}
+              </p>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="provider-name">提供者名称</Label>
               <Input
                 id="provider-name"
@@ -1116,6 +1166,7 @@ export default function AiModelSettingsPage({
                 onChange={(event): void =>
                   setProviderForm({ ...providerForm, name: event.target.value })
                 }
+                readOnly={providerPresetId !== 'custom'}
                 placeholder="例如：公司内部模型 API"
               />
             </div>
@@ -1130,6 +1181,7 @@ export default function AiModelSettingsPage({
                     baseUrl: event.target.value,
                   })
                 }
+                readOnly={providerPresetId !== 'custom'}
                 placeholder="https://api.example.com/v1"
               />
             </div>
@@ -1146,7 +1198,11 @@ export default function AiModelSettingsPage({
                   })
                 }
                 placeholder={
-                  editingProviderId ? '已保存；留空则不变' : '请输入 API Key'
+                  editingProviderId
+                    ? '已保存；留空则不变'
+                    : findModelProviderPreset(providerPresetId)?.requiresApiKey
+                      ? '请输入 API Key'
+                      : '本地服务可留空'
                 }
               />
             </div>

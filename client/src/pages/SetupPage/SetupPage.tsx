@@ -58,54 +58,14 @@ import type {
   TencentAsrSettings,
   TranscriptionMode,
 } from '@shared/api.interface';
+import {
+  findModelProviderPreset,
+  inferModelProviderPresetId,
+  MODEL_PROVIDER_PRESETS,
+  type ModelProviderPreset,
+} from '@/lib/model-provider-presets';
 import { getPreviousSetupStep } from '@/lib/setup-routing';
 import SetupConnectorStep from './SetupConnectorStep';
-
-interface ProviderPreset {
-  baseUrl: string;
-  id: string;
-  name: string;
-  requiresApiKey: boolean;
-}
-
-const PROVIDER_PRESETS: readonly ProviderPreset[] = [
-  {
-    baseUrl: 'https://api.openai.com/v1',
-    id: 'openai',
-    name: 'OpenAI',
-    requiresApiKey: true,
-  },
-  {
-    baseUrl: 'https://api.deepseek.com/v1',
-    id: 'deepseek',
-    name: 'DeepSeek',
-    requiresApiKey: true,
-  },
-  {
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    id: 'qwen',
-    name: '通义千问',
-    requiresApiKey: true,
-  },
-  {
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    id: 'zhipu',
-    name: '智谱',
-    requiresApiKey: true,
-  },
-  {
-    baseUrl: 'http://127.0.0.1:11434/v1',
-    id: 'ollama',
-    name: 'Ollama 本地模型',
-    requiresApiKey: false,
-  },
-  {
-    baseUrl: '',
-    id: 'custom',
-    name: '其他兼容服务',
-    requiresApiKey: true,
-  },
-];
 
 const SETUP_STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
   { id: 'welcome', label: '使用场景' },
@@ -295,11 +255,9 @@ const SetupPage: React.FC = () => {
   const [completed, setCompleted] = useState<boolean>(false);
   const environmentValidationInFlight = useRef<boolean>(false);
 
-  const selectedPreset: ProviderPreset = useMemo(
-    (): ProviderPreset =>
-      PROVIDER_PRESETS.find(
-        (preset: ProviderPreset): boolean => preset.id === providerPresetId,
-      ) || PROVIDER_PRESETS[0],
+  const selectedPreset: ModelProviderPreset = useMemo(
+    (): ModelProviderPreset =>
+      findModelProviderPreset(providerPresetId) || MODEL_PROVIDER_PRESETS[0],
     [providerPresetId],
   );
   const visibleCapabilities = useMemo(() => CAPABILITIES, []);
@@ -349,17 +307,7 @@ const SetupPage: React.FC = () => {
             setProviderName(existing.name);
             setBaseUrl(existing.baseUrl);
             setApiKey('');
-            setProviderPresetId(
-              PROVIDER_PRESETS.some(
-                (preset: ProviderPreset): boolean =>
-                  preset.baseUrl === existing.baseUrl,
-              )
-                ? PROVIDER_PRESETS.find(
-                    (preset: ProviderPreset): boolean =>
-                      preset.baseUrl === existing.baseUrl,
-                  )?.id || 'custom'
-                : 'custom',
-            );
+            setProviderPresetId(inferModelProviderPresetId(existing.baseUrl));
           }
           if (nextSettings.summaryModel?.model) {
             setModel(nextSettings.summaryModel.model);
@@ -462,9 +410,8 @@ const SetupPage: React.FC = () => {
   };
 
   const handleProviderPresetChange = (nextPresetId: string): void => {
-    const nextPreset: ProviderPreset | undefined = PROVIDER_PRESETS.find(
-      (preset: ProviderPreset): boolean => preset.id === nextPresetId,
-    );
+    const nextPreset: ModelProviderPreset | undefined =
+      findModelProviderPreset(nextPresetId);
     if (!nextPreset) return;
     const matchingProvider: ModelServiceProvider | undefined =
       nextPreset.id === 'custom'
@@ -1205,9 +1152,10 @@ const SetupPage: React.FC = () => {
                   选择你已有的服务，然后粘贴 API Key。地址和服务名称会自动填好。
                 </p>
                 <div className="mt-7 grid gap-3 sm:grid-cols-2">
-                  {PROVIDER_PRESETS.filter(
-                    (preset: ProviderPreset): boolean => preset.id !== 'custom',
-                  ).map((preset: ProviderPreset): React.ReactNode => {
+                  {MODEL_PROVIDER_PRESETS.filter(
+                    (preset: ModelProviderPreset): boolean =>
+                      preset.id !== 'custom',
+                  ).map((preset: ModelProviderPreset): React.ReactNode => {
                     const selected: boolean = providerPresetId === preset.id;
                     return (
                       <button
@@ -1224,9 +1172,7 @@ const SetupPage: React.FC = () => {
                             {preset.name}
                           </span>
                           <span className="mt-1 block text-xs text-slate-500">
-                            {preset.id === 'ollama'
-                              ? '本机运行 · 不需要 Key'
-                              : 'OpenAI 兼容接口'}
+                            {preset.description}
                           </span>
                         </span>
                         {selected && (

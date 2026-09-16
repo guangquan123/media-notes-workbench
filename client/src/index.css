@@ -620,13 +620,13 @@ body {
   }
 
   .entry-workspace {
-    align-items: start;
+    align-items: stretch;
   }
 
   .entry-primary-stack {
+    height: 338px;
     min-height: 338px;
-    align-content: start;
-    grid-template-rows: 82px auto;
+    grid-template-rows: 82px minmax(0, 1fr);
   }
 
   .entry-direct-record {

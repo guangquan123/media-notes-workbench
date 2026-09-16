@@ -21,7 +21,22 @@ const BASE_READINESS: SystemReadiness = {
 };
 
 const AI_SETTINGS: AiModelSettings = {
-  providers: [],
+  providers: [
+    {
+      apiKeyConfigured: true,
+      baseUrl: 'https://api.example.com/v1',
+      configured: true,
+      enabled: true,
+      id: 'provider-1',
+      models: [
+        {
+          capabilities: ['llm'],
+          id: 'summary-model',
+        },
+      ],
+      name: 'Provider',
+    },
+  ],
   summaryModel: {
     model: 'summary-model',
     providerId: 'provider-1',
@@ -53,6 +68,51 @@ describe('capability gate', () => {
         }),
       ]),
     );
+  });
+
+  it('does not require transcription or media tools for documents', () => {
+    const result = getCapabilityGateResult(
+      'documents',
+      {
+        ...BASE_READINESS,
+        ffmpeg: false,
+        tencentAsr: false,
+        tencentAsrEnabled: false,
+      },
+      AI_SETTINGS,
+      true,
+    );
+
+    expect(result).toEqual({ issues: [], ready: true });
+  });
+
+  it('does not require a summary model for connector-only setup', () => {
+    const result = getCapabilityGateResult(
+      'external_sync',
+      { ...BASE_READINESS, connectorReady: false },
+      { providers: [], transcriptionMode: 'tencent_asr' },
+      true,
+    );
+
+    expect(result.issues.map((issue) => issue.label)).toEqual([
+      '飞书或钉钉连接器',
+    ]);
+  });
+
+  it('requires an output location for documents outside local runtime', () => {
+    const result = getCapabilityGateResult(
+      'documents',
+      {
+        ...BASE_READINESS,
+        connectorReady: false,
+        documentReady: false,
+        pdfReady: false,
+      },
+      AI_SETTINGS,
+      false,
+    );
+
+    expect(result.issues.map((issue) => issue.label)).toEqual(['笔记输出位置']);
   });
 
   it('reports media dependencies without requiring a connector locally', () => {

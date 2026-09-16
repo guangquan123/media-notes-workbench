@@ -1,5 +1,7 @@
 import type {
   AiModelSettings,
+  ModelReference,
+  ModelServiceProvider,
   RecordingStorageSettings,
   SetupCapability,
   SystemReadiness,
@@ -17,12 +19,36 @@ export interface CapabilityGateResult {
   ready: boolean;
 }
 
+const NOTE_CAPABILITIES: readonly SetupCapability[] = [
+  'documents',
+  'local_audio',
+  'local_video',
+  'recording',
+  'platform_video',
+];
+
+const MEDIA_CAPABILITIES: readonly SetupCapability[] = [
+  'local_audio',
+  'local_video',
+  'recording',
+  'platform_video',
+];
+
 function hasTranscription(readiness: SystemReadiness): boolean {
   return Boolean(
     readiness.tencentAsr ||
     readiness.customApiTranscription ||
     (readiness.whisperCli && readiness.whisperModel),
   );
+}
+
+function hasSummaryModel(aiSettings: AiModelSettings | null): boolean {
+  const reference: ModelReference | undefined = aiSettings?.summaryModel;
+  if (!reference) return false;
+  const provider: ModelServiceProvider | undefined = aiSettings.providers.find(
+    (item: ModelServiceProvider): boolean => item.id === reference.providerId,
+  );
+  return Boolean(provider?.configured && provider.enabled);
 }
 
 export function getCapabilityGateResult(
@@ -33,7 +59,10 @@ export function getCapabilityGateResult(
   recordingStorage: RecordingStorageSettings | null = null,
 ): CapabilityGateResult {
   const issues: CapabilityGateIssue[] = [];
-  if (localRuntime && !aiSettings?.summaryModel) {
+  const noteCapability: boolean = NOTE_CAPABILITIES.includes(capability);
+  const mediaCapability: boolean = MEDIA_CAPABILITIES.includes(capability);
+
+  if (noteCapability && localRuntime && !hasSummaryModel(aiSettings)) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',
@@ -50,12 +79,6 @@ export function getCapabilityGateResult(
     });
   }
 
-  const mediaCapability: boolean = [
-    'local_audio',
-    'local_video',
-    'recording',
-    'platform_video',
-  ].includes(capability);
   if (mediaCapability && !readiness.ffmpeg) {
     issues.push({
       actionSection: 'setup',
@@ -93,15 +116,11 @@ export function getCapabilityGateResult(
       reason: '开始录音前必须先配置一个可写的本地保存目录。',
     });
   }
-  if (
-    mediaCapability &&
-    !readiness.documentReady &&
-    !readiness.connectorReady
-  ) {
+  if (noteCapability && !readiness.documentReady) {
     issues.push({
       actionSection: 'connectors',
       label: '笔记输出位置',
-      reason: '当前运行模式需要先配置一个可用的输出位置。',
+      reason: '当前运行模式需要先配置一个可用的飞书或钉钉输出位置。',
     });
   }
   if (capability === 'platform_video' && !readiness.ytDlp) {

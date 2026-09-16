@@ -28,7 +28,17 @@ import type {
 interface CapabilityGateProps {
   capability: SetupCapability;
   children: ReactNode;
+  featureName?: string;
 }
+
+const CAPABILITY_NAMES: Record<SetupCapability, string> = {
+  documents: '文档笔记',
+  external_sync: '外部同步',
+  local_audio: '录音文件笔记',
+  local_video: '本地视频笔记',
+  platform_video: '视频学习笔记',
+  recording: '实时录音笔记',
+};
 
 function buildSettingsUrl(
   issue: CapabilityGateIssue | undefined,
@@ -45,6 +55,7 @@ function buildSettingsUrl(
 export default function CapabilityGate({
   capability,
   children,
+  featureName,
 }: CapabilityGateProps) {
   const location = useLocation();
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
@@ -79,7 +90,7 @@ export default function CapabilityGate({
     return (): void => {
       mounted = false;
     };
-  }, [location.pathname]);
+  }, [capability, location.pathname]);
 
   const gate = useMemo(
     () =>
@@ -117,7 +128,7 @@ export default function CapabilityGate({
           <p className="mt-2 text-sm leading-6 text-slate-600">{error}</p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Button asChild variant="ghost">
-              <Link to={returnTo}>
+              <Link to="/">
                 <ArrowLeft className="size-4" />
                 返回
               </Link>
@@ -141,6 +152,10 @@ export default function CapabilityGate({
   const issues: CapabilityGateIssue[] = gate?.issues || [];
   const firstIssue: CapabilityGateIssue | undefined = issues[0];
   const settingsUrl: string = buildSettingsUrl(firstIssue, returnTo);
+  const capabilityName: string = featureName || CAPABILITY_NAMES[capability];
+  const hasTranscriptionIssue: boolean = issues.some(
+    (issue: CapabilityGateIssue): boolean => issue.label === '语音转文字',
+  );
   return (
     <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#f4f7fb_0%,#eef3ff_100%)] p-6">
       <section className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,35,60,0.12)]">
@@ -154,7 +169,7 @@ export default function CapabilityGate({
                 需要补充配置
               </p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-                这项功能还不能开始
+                {capabilityName}还不能开始
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 完成下面的配置后返回，系统会自动重新检查当前入口。
@@ -180,14 +195,16 @@ export default function CapabilityGate({
               ),
             )}
           </div>
-          <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs leading-5 text-blue-950">
-            本地 Whisper
-            模型是离线转录和云端失败时的兜底能力；如果已经配置腾讯云 ASR 或兼容
-            API，视频仍可直接处理，不需要再准备本地模型。
-          </div>
+          {hasTranscriptionIssue && (
+            <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs leading-5 text-blue-950">
+              本地 Whisper
+              模型是离线转录和云端失败时的兜底能力；如果已经配置腾讯云 ASR
+              或兼容 API，就不需要再准备本地模型。
+            </div>
+          )}
           <div className="mt-7 flex flex-wrap justify-between gap-3">
             <Button asChild variant="ghost">
-              <Link to={returnTo}>
+              <Link to="/">
                 <ArrowLeft className="size-4" />
                 返回入口
               </Link>
