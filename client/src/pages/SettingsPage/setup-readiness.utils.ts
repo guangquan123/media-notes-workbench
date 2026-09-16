@@ -155,10 +155,10 @@ export function buildSetupReadiness(
     : externalModelRequired
       ? {
           id: 'model',
-          label: 'LLM 总结模型',
+          label: '总结模型',
           description: unifiedSummaryReady || externalModelReady
             ? `本地模式已配置 ${input.aiModelSettings?.summaryModel?.model || input.externalModel?.model || 'LLM 模型'}。`
-            : '本地模式需要先在统一模型配置中选择一个 LLM 总结模型。',
+            : '本地模式需要先在统一模型配置中选择一个总结模型。',
           details: externalModelReady
             ? ['API Key 仅以脱敏状态读取。']
             : [
@@ -173,7 +173,7 @@ export function buildSetupReadiness(
         }
       : {
           id: 'model',
-          label: 'LLM 总结模型',
+          label: '总结模型',
           description: unifiedSummaryReady
             ? `已启用 ${input.aiModelSettings?.summaryModel?.providerName || 'API 提供者'} · ${input.aiModelSettings?.summaryModel?.model || 'LLM 模型'}。`
             : externalModelReady
