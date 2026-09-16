@@ -195,11 +195,18 @@ export class SetupStateService {
     const completedSteps: SetupStep[] = SETUP_STEPS.slice(0, stepIndex).filter(
       (step: SetupStep): boolean => !skippedSteps.includes(step),
     );
+    const selectedCapabilities: SetupCapability[] =
+      input.skippedStep === 'connector'
+        ? input.selectedCapabilities.filter(
+            (capability: SetupCapability): boolean =>
+              capability !== 'external_sync',
+          )
+        : input.selectedCapabilities;
     return this.save({
       ...current,
       completedSteps,
       currentStep: input.currentStep,
-      selectedCapabilities: Array.from(new Set(input.selectedCapabilities)),
+      selectedCapabilities: Array.from(new Set(selectedCapabilities)),
       skippedSteps,
       status: 'in_progress',
     });

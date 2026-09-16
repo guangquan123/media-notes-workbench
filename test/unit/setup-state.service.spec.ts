@@ -67,6 +67,24 @@ describe('setup state', () => {
     }
   });
 
+  it('removes external sync when the connector step is explicitly skipped', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'setup-state-'));
+    const statePath = join(baseDir, '.setup-state.json');
+    try {
+      const service = new SetupStateService(statePath);
+      const state = await service.updateProgress({
+        currentStep: 'review',
+        selectedCapabilities: ['documents', 'external_sync'],
+        skippedStep: 'connector',
+      });
+
+      expect(state.selectedCapabilities).toEqual(['documents']);
+      expect(state.skippedSteps).toContain('connector');
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
   it('falls back to a direct write when Windows rejects an atomic rename', async () => {
     const baseDir = await mkdtemp(join(tmpdir(), 'setup-state-'));
     const statePath = join(baseDir, '.setup-state.json');

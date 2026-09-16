@@ -433,10 +433,11 @@ const SetupPage: React.FC = () => {
   const saveProgress = async (
     nextStep: SetupStep,
     skippedStep?: SetupStep,
+    nextCapabilities: SetupCapability[] = selectedCapabilities,
   ): Promise<void> => {
     const nextStatus: SetupStatusResponse = await updateSetupProgress({
       currentStep: nextStep,
-      selectedCapabilities: uniqueCapabilities(selectedCapabilities),
+      selectedCapabilities: uniqueCapabilities(nextCapabilities),
       skippedStep,
     });
     setStatus(nextStatus);
@@ -727,7 +728,29 @@ const SetupPage: React.FC = () => {
     setWorking(true);
     setError('');
     try {
-      await saveProgress('review');
+      const externalSyncCapabilities: SetupCapability[] = uniqueCapabilities([
+        ...selectedCapabilities,
+        'external_sync',
+      ]);
+      setSelectedCapabilities(externalSyncCapabilities);
+      await saveProgress('review', undefined, externalSyncCapabilities);
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleConnectorSkip = async (): Promise<void> => {
+    const localOnlyCapabilities: SetupCapability[] =
+      selectedCapabilities.filter(
+        (capability: SetupCapability): boolean => capability !== 'external_sync',
+      );
+    setSelectedCapabilities(localOnlyCapabilities);
+    setWorking(true);
+    setError('');
+    try {
+      await saveProgress('review', 'connector', localOnlyCapabilities);
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -1651,7 +1674,7 @@ const SetupPage: React.FC = () => {
               <SetupConnectorStep
                 onBack={(): void => void handleBack()}
                 onContinue={handleConnectorNext}
-                onSkip={(): Promise<void> => handleSkipTo('review')}
+                onSkip={handleConnectorSkip}
                 working={working}
               />
             )}
