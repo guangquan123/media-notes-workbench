@@ -2,6 +2,7 @@ import {
   Boxes,
   CheckCircle2,
   Cloud,
+  Download,
   LoaderCircle,
   Mic2,
   Pencil,
@@ -28,6 +29,7 @@ import type {
   SystemReadiness,
   TranscriptionMode,
   UpdateModelServiceProviderRequest,
+  WhisperPackStatus,
 } from '@shared/api.interface';
 import {
   createModelServiceProvider,
@@ -35,6 +37,8 @@ import {
   getAiModelSettings,
   getReadiness,
   getModelProviderModels,
+  getWhisperPackStatus,
+  installWhisperPack,
   testModelServiceProvider,
   updateAiModelSettings,
   updateModelServiceProvider,
@@ -154,7 +158,10 @@ export default function AiModelSettingsPage({
   const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
+  const [whisperPackStatus, setWhisperPackStatus] =
+    useState<WhisperPackStatus | null>(null);
   const [refreshingReadiness, setRefreshingReadiness] = useState(false);
+  const [installingWhisperPack, setInstallingWhisperPack] = useState(false);
   const [tab, setTab] = useState<AiSettingsTab>(
     getInitialTab(searchParams.get('tab'), initialTab),
   );
@@ -194,13 +201,16 @@ export default function AiModelSettingsPage({
       .catch((): void => {
         toast.error('无法读取模型服务配置');
       });
+    void getWhisperPackStatus()
+      .then((next: WhisperPackStatus): void => setWhisperPackStatus(next))
+      .catch((): void => setWhisperPackStatus(null));
   }, []);
 
   const refreshReadiness = useCallback(
     async (announce: boolean): Promise<void> => {
       setRefreshingReadiness(true);
       try {
-        const next: SystemReadiness = await getReadiness();
+        const next: SystemReadiness = await getReadiness(announce);
         setReadiness(next);
         if (announce) toast.success('本机环境已重新检测');
       } catch {
@@ -216,6 +226,23 @@ export default function AiModelSettingsPage({
   useEffect((): void => {
     void refreshReadiness(false);
   }, [refreshReadiness]);
+
+  const installOfflineTranscriptionPack = async (): Promise<void> => {
+    if (installingWhisperPack) return;
+    setInstallingWhisperPack(true);
+    try {
+      const result = await installWhisperPack();
+      setWhisperPackStatus(result.status);
+      await refreshReadiness(false);
+      toast.success(result.message);
+    } catch (error) {
+      const message: string =
+        error instanceof Error ? error.message : '离线转录包安装失败';
+      toast.error(message);
+    } finally {
+      setInstallingWhisperPack(false);
+    }
+  };
 
   useEffect((): void => {
     if (!settings) return;
@@ -788,6 +815,23 @@ export default function AiModelSettingsPage({
                         className={`size-4 ${refreshingReadiness ? 'animate-spin' : ''}`}
                       />
                     </Button>
+                    {!localWhisperReady && whisperPackStatus?.supported && (
+                      <Button
+                        disabled={installingWhisperPack}
+                        onClick={(): void =>
+                          void installOfflineTranscriptionPack()
+                        }
+                        size="sm"
+                        variant="outline"
+                      >
+                        {installingWhisperPack ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <Download className="size-4" />
+                        )}
+                        {installingWhisperPack ? '正在安装…' : '安装离线转录包'}
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {readiness &&
@@ -798,11 +842,19 @@ export default function AiModelSettingsPage({
                         ? '、'
                         : ''}
                       {!readiness.whisperModel ? 'Whisper 模型文件' : ''}。
-                      如需离线或故障兜底，请将模型放入{' '}
-                      <code className="break-all rounded bg-blue-100 px-1">
-                        %LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
-                      </code>{' '}
-                      后点击右侧刷新按钮重新检测。
+                      {whisperPackStatus?.supported
+                        ? '可点击“安装离线转录包”自动下载并校验引擎与模型；安装包本身不包含大模型文件。'
+                        : '如需离线或故障兜底，请准备 whisper-cli 与模型文件，再点击右侧刷新按钮重新检测。'}
+                      {!whisperPackStatus?.supported && (
+                        <>
+                          {' '}
+                          模型路径为{' '}
+                          <code className="break-all rounded bg-blue-100 px-1">
+                            %LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
+                          </code>
+                          。
+                        </>
+                      )}
                     </p>
                   )}
               </div>

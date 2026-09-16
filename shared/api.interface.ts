@@ -523,6 +523,21 @@ export interface SystemReadiness {
   connectorReady?: boolean;
 }
 
+export interface WhisperPackStatus {
+  cliPath: string;
+  cliReady: boolean;
+  modelPath: string;
+  modelReady: boolean;
+  packReady: boolean;
+  supported: boolean;
+  version: string;
+}
+
+export interface WhisperPackInstallResponse {
+  message: string;
+  status: WhisperPackStatus;
+}
+
 export interface TencentAsrSettings {
   asrRegion: string;
   bucket: string;

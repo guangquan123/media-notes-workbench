@@ -36,9 +36,12 @@ import type {
   UpdateAiModelSettingsRequest,
   UpdateModelServiceProviderRequest,
   RegenerateRawDocumentResponse,
+  WhisperPackInstallResponse,
+  WhisperPackStatus,
 } from '@shared/api.interface';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
+import { WhisperPackService } from './whisper-pack.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { TencentAsrSettingsService } from './tencent-asr-settings.service';
@@ -82,11 +85,24 @@ export class NoteJobsController {
     private readonly tencentAsrSettingsService: TencentAsrSettingsService,
     private readonly externalModelSettingsService: ExternalModelSettingsService,
     private readonly modelProviderSettingsService: ModelProviderSettingsService,
+    private readonly whisperPackService: WhisperPackService,
   ) {}
 
   @Get('readiness')
   readiness() {
     return this.noteJobsService.getReadiness();
+  }
+
+  @NeedLogin()
+  @Get('whisper-pack')
+  whisperPack(): Promise<WhisperPackStatus> {
+    return this.whisperPackService.getStatus();
+  }
+
+  @NeedLogin()
+  @Post('whisper-pack/install')
+  installWhisperPack(): Promise<WhisperPackInstallResponse> {
+    return this.whisperPackService.install();
   }
 
   @NeedLogin()

@@ -5,6 +5,7 @@ import { NoteJobsController } from './note-jobs.controller';
 import { LocalDocumentController } from './local-document.controller';
 import { NoteHistoryService } from './note-history.service';
 import { NoteJobsService } from './note-jobs.service';
+import { WhisperPackService } from './whisper-pack.service';
 import { NoteTemplateService } from './note-template.service';
 import { NoteReviewTaskService } from './note-review-task.service';
 import { FrameExtractionService } from './frame-extraction.service';
@@ -40,6 +41,7 @@ import { RecordingAssetsModule } from '../recording-assets/recording-assets.modu
   providers: [
     NoteHistoryService,
     NoteJobsService,
+    WhisperPackService,
     NoteReviewTaskService,
     NoteTemplateService,
     FrameExtractionService,

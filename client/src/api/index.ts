@@ -88,6 +88,8 @@ import type {
   StopRuntimeRequest,
   RuntimeControlOperation,
   RuntimeControlSession,
+  WhisperPackInstallResponse,
+  WhisperPackStatus,
 } from '@shared/api.interface';
 
 interface CachedRequestState<T> {
@@ -171,7 +173,10 @@ async function runtimeControlRequest<T>(
   }
 }
 
-export async function getReadiness(): Promise<SystemReadiness> {
+export async function getReadiness(
+  forceRefresh = false,
+): Promise<SystemReadiness> {
+  if (forceRefresh) noteJobsReadinessState.value = null;
   return requestWithCache(noteJobsReadinessState, async () => {
     const response = await axiosForBackend({
       url: '/api/note-jobs/readiness',
@@ -180,6 +185,25 @@ export async function getReadiness(): Promise<SystemReadiness> {
     });
     return response.data;
   });
+}
+
+export async function getWhisperPackStatus(): Promise<WhisperPackStatus> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/whisper-pack',
+    method: 'GET',
+    timeout: READINESS_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+export async function installWhisperPack(): Promise<WhisperPackInstallResponse> {
+  const response = await axiosForBackend({
+    url: '/api/note-jobs/whisper-pack/install',
+    method: 'POST',
+    timeout: 300_000,
+  });
+  noteJobsReadinessState.value = null;
+  return response.data;
 }
 
 export async function getRuntimeStatus(): Promise<RuntimeStatus> {

@@ -8,6 +8,9 @@ const BUNDLED_MEDIA_TOOL_FILENAMES = new Map<string, string>([
   ['yt-dlp', 'yt-dlp.exe'],
 ]);
 
+const LOCAL_WHISPER_CLI_FILENAME =
+  process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
+
 function getMediaToolName(command: string): string {
   return basename(command).replace(/\.exe$/iu, '').toLowerCase();
 }
@@ -20,6 +23,14 @@ export function getBundledMediaToolPath(
   command: string,
   appRoot: string = getLocalRuntimePaths().appRoot,
 ): string | undefined {
+  if (getMediaToolName(command) === 'whisper-cli') {
+    const localPath: string = join(
+      getLocalRuntimePaths().dataDir,
+      'tools',
+      LOCAL_WHISPER_CLI_FILENAME,
+    );
+    return existsSync(localPath) ? localPath : undefined;
+  }
   const fileName: string | undefined = BUNDLED_MEDIA_TOOL_FILENAMES.get(
     getMediaToolName(command),
   );
