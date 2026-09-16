@@ -85,6 +85,29 @@ describe('setup state', () => {
     }
   });
 
+  it('clears a stale skip marker when a skipped step is completed later', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'setup-state-'));
+    const statePath = join(baseDir, '.setup-state.json');
+    try {
+      const service = new SetupStateService(statePath);
+      await service.updateProgress({
+        currentStep: 'transcription',
+        selectedCapabilities: ['documents', 'local_audio'],
+        skippedStep: 'transcription',
+      });
+
+      const state = await service.updateProgress({
+        currentStep: 'connector',
+        selectedCapabilities: ['documents', 'local_audio'],
+      });
+
+      expect(state.skippedSteps).not.toContain('transcription');
+      expect(state.completedSteps).toContain('transcription');
+    } finally {
+      await rm(baseDir, { force: true, recursive: true });
+    }
+  });
+
   it('falls back to a direct write when Windows rejects an atomic rename', async () => {
     const baseDir = await mkdtemp(join(tmpdir(), 'setup-state-'));
     const statePath = join(baseDir, '.setup-state.json');

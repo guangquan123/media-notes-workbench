@@ -186,12 +186,18 @@ export class SetupStateService {
   }): Promise<StoredSetupState> {
     const current: StoredSetupState = await this.get();
     const stepIndex: number = SETUP_STEPS.indexOf(input.currentStep);
+    // Moving forward without an explicit skip means the step we just left
+    // has now been completed. Clear an older skip marker so a later repair
+    // or revisit is reflected accurately in persisted setup state.
+    const revisitedStep: SetupStep | undefined =
+      input.skippedStep === undefined &&
+      stepIndex > SETUP_STEPS.indexOf(current.currentStep)
+        ? current.currentStep
+        : undefined;
     const skippedSteps: SetupStep[] = Array.from(
-      new Set([
-        ...current.skippedSteps,
-        ...(input.skippedStep ? [input.skippedStep] : []),
-      ]),
+      new Set(current.skippedSteps.filter((step) => step !== revisitedStep)),
     );
+    if (input.skippedStep) skippedSteps.push(input.skippedStep);
     const completedSteps: SetupStep[] = SETUP_STEPS.slice(0, stepIndex).filter(
       (step: SetupStep): boolean => !skippedSteps.includes(step),
     );
