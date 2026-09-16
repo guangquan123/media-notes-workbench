@@ -5,6 +5,7 @@ import type {
   SetupRequiredAction,
   SystemReadiness,
 } from '@shared/api.interface';
+import { hasConfiguredModel } from '@shared/model-settings.utils';
 
 export interface SetupRequirementInput {
   aiModelSettings: AiModelSettings;
@@ -23,6 +24,14 @@ const MEDIA_CAPABILITIES: readonly SetupCapability[] = [
 function needsMediaProcessing(capabilities: SetupCapability[]): boolean {
   return capabilities.some((capability: SetupCapability): boolean =>
     MEDIA_CAPABILITIES.includes(capability),
+  );
+}
+
+function hasTranscription(readiness: SystemReadiness): boolean {
+  return Boolean(
+    readiness.tencentAsr ||
+      readiness.customApiTranscription ||
+      (readiness.whisperCli && readiness.whisperModel),
   );
 }
 
@@ -99,16 +108,10 @@ export function buildSetupRequiredActions(
   if (hasUnavailableEnvironment) {
     actions.push({ action: 'repair_storage', label: '修复本机运行环境' });
   }
-  if (!input.aiModelSettings.summaryModel) {
+  if (!hasConfiguredModel(input.aiModelSettings, 'llm')) {
     actions.push({ action: 'configure_summary', label: '配置总结模型' });
   }
-  if (
-    requiresMedia &&
-    (!input.aiModelSettings.transcriptionModel ||
-      input.aiModelSettings.transcriptionMode !== 'custom_api') &&
-    !input.readiness.tencentAsr &&
-    !(input.readiness.whisperCli && input.readiness.whisperModel)
-  ) {
+  if (requiresMedia && !hasTranscription(input.readiness)) {
     actions.push({
       action: 'configure_transcription',
       capability: 'local_audio',

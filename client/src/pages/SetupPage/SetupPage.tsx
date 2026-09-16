@@ -58,6 +58,7 @@ import type {
   TencentAsrSettings,
   TranscriptionMode,
 } from '@shared/api.interface';
+import { hasConfiguredModel } from '@shared/model-settings.utils';
 import {
   findModelProviderPreset,
   inferModelProviderPresetId,
@@ -295,7 +296,13 @@ const SetupPage: React.FC = () => {
             nextSettings.transcriptionModel?.providerId || '',
           );
           setTranscriptionModel(nextSettings.transcriptionModel?.model || '');
+          const summaryProvider: ModelServiceProvider | undefined =
+            nextSettings.providers.find(
+              (provider: ModelServiceProvider): boolean =>
+                provider.id === nextSettings.summaryModel?.providerId,
+            );
           const existing: ModelServiceProvider | undefined =
+            summaryProvider ||
             nextSettings.providers.find(
               (provider: ModelServiceProvider): boolean => provider.enabled,
             );
@@ -758,13 +765,16 @@ const SetupPage: React.FC = () => {
   const pendingActionLabels: string[] = (status?.requiredActions || [])
     .filter((action): boolean => action.action !== 'repair_storage')
     .map((action): string => action.label);
-  const summaryConfigured: boolean = Boolean(
-    aiSettings?.summaryModel || model.trim(),
-  );
-  const transcriptionConfigured: boolean = Boolean(
-    aiSettings?.transcriptionModel ||
-    (transcriptionMode === 'tencent_asr' && tencentSettings?.configured),
-  );
+  const summaryConfigured: boolean = hasConfiguredModel(aiSettings, 'llm');
+  const selectedTranscriptionConfigured: boolean =
+    transcriptionMode === 'custom_api'
+      ? hasConfiguredModel(aiSettings, 'transcription')
+      : Boolean(tencentSettings?.enabled && tencentSettings.configured);
+  const transcriptionConfigured: boolean = status
+    ? !status.requiredActions.some(
+        (action): boolean => action.action === 'configure_transcription',
+      )
+    : selectedTranscriptionConfigured;
 
   if (completed) {
     return (

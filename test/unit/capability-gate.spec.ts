@@ -166,4 +166,75 @@ describe('capability gate', () => {
     expect(result.ready).toBe(true);
     expect(result.issues).toEqual([]);
   });
+
+  it('requires recording storage only for the recording entry', () => {
+    const missingStorage = {
+      archivePath: '',
+      autoArchive: true,
+      checkDiskSpace: true,
+      updatedAt: '1970-01-01T00:00:00.000Z',
+    };
+
+    expect(
+      getCapabilityGateResult(
+        'recording',
+        BASE_READINESS,
+        AI_SETTINGS,
+        true,
+        missingStorage,
+      ).issues.map((issue) => issue.label),
+    ).toContain('录音本地保存位置');
+    expect(
+      getCapabilityGateResult(
+        'local_audio',
+        BASE_READINESS,
+        AI_SETTINGS,
+        true,
+        missingStorage,
+      ).issues.map((issue) => issue.label),
+    ).not.toContain('录音本地保存位置');
+  });
+
+  it('requires yt-dlp only for the platform video entry', () => {
+    const withoutDownloader: SystemReadiness = {
+      ...BASE_READINESS,
+      ytDlp: false,
+    };
+
+    expect(
+      getCapabilityGateResult(
+        'platform_video',
+        withoutDownloader,
+        AI_SETTINGS,
+        true,
+      ).issues.map((issue) => issue.label),
+    ).toContain('平台视频下载组件');
+    expect(
+      getCapabilityGateResult(
+        'local_video',
+        withoutDownloader,
+        AI_SETTINGS,
+        true,
+      ).issues.map((issue) => issue.label),
+    ).not.toContain('平台视频下载组件');
+  });
+
+  it('rejects a summary model whose provider is disabled', () => {
+    const settings: AiModelSettings = {
+      ...AI_SETTINGS,
+      providers: AI_SETTINGS.providers.map((provider) => ({
+        ...provider,
+        enabled: false,
+      })),
+    };
+
+    expect(
+      getCapabilityGateResult(
+        'documents',
+        BASE_READINESS,
+        settings,
+        true,
+      ).issues.map((issue) => issue.label),
+    ).toContain('总结模型');
+  });
 });

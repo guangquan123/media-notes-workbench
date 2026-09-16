@@ -20,6 +20,8 @@ describe('model provider presets', () => {
         'kimi',
         'hunyuan',
         'siliconflow',
+        'qianfan',
+        'minimax',
         'ollama',
         'custom',
       ]),

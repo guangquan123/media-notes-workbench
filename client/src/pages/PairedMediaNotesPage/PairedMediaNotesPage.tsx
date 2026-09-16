@@ -432,7 +432,7 @@ export default function PairedMediaNotesPage() {
                 </Button>
                 {readiness && !readiness.mediaReady && (
                   <p className="mt-3 text-center text-xs text-amber-700">
-                    本机 ffmpeg 或 Whisper 环境尚未就绪
+                    ffmpeg 或语音转文字能力尚未就绪
                   </p>
                 )}
               </>

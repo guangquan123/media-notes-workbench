@@ -1,4 +1,5 @@
 import type {
+  AiModelSettings,
   ConnectorSettingsResponse,
   ExternalModelSettings,
   RuntimeStatus,
@@ -82,6 +83,7 @@ const MODEL_READY: ExternalModelSettings = {
 
 function build(
   overrides: {
+    aiModelSettings?: AiModelSettings | null;
     externalModel?: ExternalModelSettings | null;
     readiness?: Partial<SystemReadiness>;
     runtime?: RuntimeStatus | null;
@@ -89,6 +91,7 @@ function build(
   } = {},
 ) {
   return buildSetupReadiness({
+    aiModelSettings: overrides.aiModelSettings,
     connectors: CONNECTORS,
     externalModel:
       overrides.externalModel === undefined
@@ -227,6 +230,37 @@ describe('setup readiness', () => {
       result.items.find((item) => item.id === 'local-media'),
     ).toMatchObject({
       actionSection: 'model',
+      status: 'action',
+    });
+  });
+
+  it('does not accept a unified model reference backed by a disabled provider', () => {
+    const result = build({
+      aiModelSettings: {
+        providers: [
+          {
+            apiKeyConfigured: true,
+            baseUrl: 'https://models.example.com/v1',
+            configured: true,
+            enabled: false,
+            id: 'provider-1',
+            models: [],
+            name: 'Disabled provider',
+          },
+        ],
+        summaryModel: {
+          model: 'summary-model',
+          providerId: 'provider-1',
+          providerName: 'Disabled provider',
+        },
+        transcriptionMode: 'tencent_asr',
+      },
+      externalModel: null,
+    });
+
+    expect(result.status).toBe('blocked');
+    expect(result.items.find((item) => item.id === 'model')).toMatchObject({
+      required: true,
       status: 'action',
     });
   });

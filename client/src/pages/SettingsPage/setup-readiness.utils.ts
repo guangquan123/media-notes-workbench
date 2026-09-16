@@ -6,6 +6,7 @@ import type {
   SystemReadiness,
   TencentAsrSettings,
 } from '@shared/api.interface';
+import { hasConfiguredModel } from '@shared/model-settings.utils';
 
 export type SetupActionSection =
   | 'ai'
@@ -112,7 +113,10 @@ export function buildSetupReadiness(
     input.externalModel?.enabled && input.externalModel.configured,
   );
   const externalModelRequired = input.runtime?.mode === 'local';
-  const unifiedSummaryReady = Boolean(input.aiModelSettings?.summaryModel);
+  const unifiedSummaryReady = hasConfiguredModel(
+    input.aiModelSettings,
+    'llm',
+  );
   const summaryModelReady = unifiedSummaryReady || externalModelReady;
   const generationReady = Boolean(
     runtimeKnown && (!externalModelRequired || summaryModelReady),

@@ -1,11 +1,10 @@
 import type {
   AiModelSettings,
-  ModelReference,
-  ModelServiceProvider,
   RecordingStorageSettings,
   SetupCapability,
   SystemReadiness,
 } from '@shared/api.interface';
+import { hasConfiguredModel } from '@shared/model-settings.utils';
 
 export interface CapabilityGateIssue {
   actionSection: 'ai' | 'connectors' | 'recordings' | 'setup';
@@ -42,15 +41,6 @@ function hasTranscription(readiness: SystemReadiness): boolean {
   );
 }
 
-function hasSummaryModel(aiSettings: AiModelSettings | null): boolean {
-  const reference: ModelReference | undefined = aiSettings?.summaryModel;
-  if (!reference) return false;
-  const provider: ModelServiceProvider | undefined = aiSettings.providers.find(
-    (item: ModelServiceProvider): boolean => item.id === reference.providerId,
-  );
-  return Boolean(provider?.configured && provider.enabled);
-}
-
 export function getCapabilityGateResult(
   capability: SetupCapability,
   readiness: SystemReadiness,
@@ -62,7 +52,7 @@ export function getCapabilityGateResult(
   const noteCapability: boolean = NOTE_CAPABILITIES.includes(capability);
   const mediaCapability: boolean = MEDIA_CAPABILITIES.includes(capability);
 
-  if (noteCapability && localRuntime && !hasSummaryModel(aiSettings)) {
+  if (noteCapability && localRuntime && !hasConfiguredModel(aiSettings, 'llm')) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',

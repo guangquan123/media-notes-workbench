@@ -64,6 +64,20 @@ const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
     requiresApiKey: true,
   },
   {
+    baseUrl: 'https://qianfan.baidubce.com/v2',
+    description: '百度千帆 OpenAI 兼容接口',
+    id: 'qianfan',
+    name: '百度千帆',
+    requiresApiKey: true,
+  },
+  {
+    baseUrl: 'https://api.minimaxi.com/v1',
+    description: 'MiniMax 国内 OpenAI 兼容接口',
+    id: 'minimax',
+    name: 'MiniMax',
+    requiresApiKey: true,
+  },
+  {
     baseUrl: 'http://127.0.0.1:11434/v1',
     description: '本机运行，不需要 API Key',
     id: 'ollama',

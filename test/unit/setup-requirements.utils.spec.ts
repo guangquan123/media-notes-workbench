@@ -12,6 +12,26 @@ const EMPTY_MODELS: AiModelSettings = {
   transcriptionMode: 'tencent_asr',
 };
 
+const CONFIGURED_SUMMARY_MODEL: AiModelSettings = {
+  providers: [
+    {
+      apiKeyConfigured: true,
+      baseUrl: 'https://models.example.com/v1',
+      configured: true,
+      enabled: true,
+      id: 'provider-1',
+      models: [],
+      name: 'Provider',
+    },
+  ],
+  summaryModel: {
+    model: 'summary-model',
+    providerId: 'provider-1',
+    providerName: 'Provider',
+  },
+  transcriptionMode: 'tencent_asr',
+};
+
 const BASE_READINESS: SystemReadiness = {
   connectorReady: false,
   documentReady: false,
@@ -109,14 +129,7 @@ describe('setup requirements', () => {
 
   it('does not require a connector for local note workflows', () => {
     const actions = buildSetupRequiredActions({
-      aiModelSettings: {
-        ...EMPTY_MODELS,
-        summaryModel: {
-          model: 'summary-model',
-          providerId: 'provider-1',
-          providerName: 'Provider',
-        },
-      },
+      aiModelSettings: CONFIGURED_SUMMARY_MODEL,
       readiness: BASE_READINESS,
       selectedCapabilities: ['documents'],
       storageReady: true,
@@ -127,14 +140,7 @@ describe('setup requirements', () => {
 
   it('requires a connector only when external sync is selected', () => {
     const actions = buildSetupRequiredActions({
-      aiModelSettings: {
-        ...EMPTY_MODELS,
-        summaryModel: {
-          model: 'summary-model',
-          providerId: 'provider-1',
-          providerName: 'Provider',
-        },
-      },
+      aiModelSettings: CONFIGURED_SUMMARY_MODEL,
       readiness: BASE_READINESS,
       selectedCapabilities: ['documents', 'external_sync'],
       storageReady: true,
@@ -147,15 +153,7 @@ describe('setup requirements', () => {
 
   it('does not require local Whisper when video has cloud transcription', () => {
     const actions = buildSetupRequiredActions({
-      aiModelSettings: {
-        providers: [],
-        summaryModel: {
-          model: 'summary-model',
-          providerId: 'provider-1',
-          providerName: 'Provider',
-        },
-        transcriptionMode: 'tencent_asr',
-      },
+      aiModelSettings: CONFIGURED_SUMMARY_MODEL,
       readiness: {
         ...BASE_READINESS,
         ffmpeg: true,
@@ -167,5 +165,79 @@ describe('setup requirements', () => {
     });
 
     expect(actions).toEqual([]);
+  });
+
+  it('accepts the local Whisper fallback as transcription readiness', () => {
+    const actions = buildSetupRequiredActions({
+      aiModelSettings: CONFIGURED_SUMMARY_MODEL,
+      readiness: {
+        ...BASE_READINESS,
+        ffmpeg: true,
+        whisperCli: true,
+        whisperModel: true,
+      },
+      selectedCapabilities: ['local_audio'],
+      storageReady: true,
+    });
+
+    expect(actions).not.toContainEqual(
+      expect.objectContaining({ action: 'configure_transcription' }),
+    );
+  });
+
+  it('does not accept a model reference backed by a disabled provider', () => {
+    const actions = buildSetupRequiredActions({
+      aiModelSettings: {
+        providers: [
+          {
+            apiKeyConfigured: true,
+            baseUrl: 'https://models.example.com/v1',
+            configured: true,
+            enabled: false,
+            id: 'provider-1',
+            models: [],
+            name: 'Disabled provider',
+          },
+        ],
+        summaryModel: {
+          model: 'summary-model',
+          providerId: 'provider-1',
+          providerName: 'Disabled provider',
+        },
+        transcriptionMode: 'tencent_asr',
+      },
+      readiness: BASE_READINESS,
+      selectedCapabilities: ['documents'],
+      storageReady: true,
+    });
+
+    expect(actions).toContainEqual({
+      action: 'configure_summary',
+      label: '配置总结模型',
+    });
+  });
+
+  it('requires transcription when a stale custom model reference is unusable', () => {
+    const actions = buildSetupRequiredActions({
+      aiModelSettings: {
+        providers: [],
+        summaryModel: undefined,
+        transcriptionMode: 'custom_api',
+        transcriptionModel: {
+          model: 'whisper-1',
+          providerId: 'missing-provider',
+          providerName: 'Missing provider',
+        },
+      },
+      readiness: BASE_READINESS,
+      selectedCapabilities: ['local_audio'],
+      storageReady: true,
+    });
+
+    expect(actions).toContainEqual({
+      action: 'configure_transcription',
+      capability: 'local_audio',
+      label: '配置语音转文字',
+    });
   });
 });
