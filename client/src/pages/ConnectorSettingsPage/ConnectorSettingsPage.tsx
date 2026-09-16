@@ -967,7 +967,7 @@ export default function ConnectorSettingsPage({
                       第二步：验证连接
                     </h3>
                     <p className="mt-1 text-xs text-black/50">
-                      授权成功后点击验证，确认当前账号具备写入文档和待办的权限。
+                      授权成功后点击验证，确认授权状态和连接工具可用；不会创建文档或待办。
                     </p>
                   </div>
                   <Button

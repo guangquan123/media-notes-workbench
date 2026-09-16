@@ -14,7 +14,7 @@ import {
   Server,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import type {
@@ -154,6 +154,7 @@ export default function AiModelSettingsPage({
   const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
+  const [refreshingReadiness, setRefreshingReadiness] = useState(false);
   const [tab, setTab] = useState<AiSettingsTab>(
     getInitialTab(searchParams.get('tab'), initialTab),
   );
@@ -195,11 +196,26 @@ export default function AiModelSettingsPage({
       });
   }, []);
 
+  const refreshReadiness = useCallback(
+    async (announce: boolean): Promise<void> => {
+      setRefreshingReadiness(true);
+      try {
+        const next: SystemReadiness = await getReadiness();
+        setReadiness(next);
+        if (announce) toast.success('本机环境已重新检测');
+      } catch {
+        setReadiness(null);
+        toast.error('环境检测失败，请稍后重试');
+      } finally {
+        setRefreshingReadiness(false);
+      }
+    },
+    [],
+  );
+
   useEffect((): void => {
-    void getReadiness()
-      .then((next: SystemReadiness): void => setReadiness(next))
-      .catch((): void => setReadiness(null));
-  }, []);
+    void refreshReadiness(false);
+  }, [refreshReadiness]);
 
   useEffect((): void => {
     if (!settings) return;
@@ -526,7 +542,7 @@ export default function AiModelSettingsPage({
   const transcriptionReady: boolean =
     transcriptionMode === 'tencent_asr'
       ? tencentReady
-      : Boolean(settings.transcriptionModel);
+      : Boolean(readiness?.customApiTranscription);
   const modelsReady: boolean =
     Boolean(settings.summaryModel) && transcriptionReady;
   const steps: Array<{
@@ -747,30 +763,46 @@ export default function AiModelSettingsPage({
                     className={`mt-0.5 size-5 ${localWhisperReady ? 'text-emerald-700' : 'text-blue-700'}`}
                   />
                   <div>
-                    <p className="font-medium">本地 Whisper 模型</p>
+                    <p className="font-medium">本地 Whisper（可选）</p>
                     <p className="mt-1 text-xs leading-5 text-black/55">
                       {localWhisperReady
-                        ? '引擎和模型已就绪。视频笔记会优先使用本地转录，数据不会离开本机。'
-                        : '本地 Whisper 用于离线转录和云端失败时的兜底；已配置腾讯云 ASR 或兼容 API 时，可以直接处理视频。'}
+                        ? '引擎和模型已就绪，可用于离线转录；腾讯 ASR 失败时也可作为本地兜底。'
+                        : '用于离线转录和腾讯 ASR 失败时的本地兜底；已配置腾讯 ASR 或兼容 API 时，不会阻塞视频处理。安装包默认不内置大模型文件。'}
                     </p>
                   </div>
-                  <span
-                    className={`ml-auto shrink-0 rounded-full px-2 py-1 text-xs font-medium ${localWhisperReady ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}
-                  >
-                    {localWhisperReady ? '已验证' : '可选'}
-                  </span>
+                  <div className="ml-auto flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${localWhisperReady ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}
+                    >
+                      {localWhisperReady ? '已就绪' : '可选'}
+                    </span>
+                    <Button
+                      aria-label="重新检测本地 Whisper"
+                      disabled={refreshingReadiness}
+                      onClick={(): void => void refreshReadiness(true)}
+                      size="icon"
+                      title="重新检测本地 Whisper"
+                      variant="ghost"
+                    >
+                      <RefreshCw
+                        className={`size-4 ${refreshingReadiness ? 'animate-spin' : ''}`}
+                      />
+                    </Button>
+                  </div>
                 </div>
                 {readiness &&
                   (!readiness.whisperCli || !readiness.whisperModel) && (
                     <p className="border-t border-blue-100 pt-3 text-xs text-blue-950">
-                      未安装：{!readiness.whisperCli ? '本地转录引擎' : ''}
+                      当前缺少：{!readiness.whisperCli ? '本地转录引擎' : ''}
                       {!readiness.whisperCli && !readiness.whisperModel
                         ? '、'
                         : ''}
                       {!readiness.whisperModel ? 'Whisper 模型文件' : ''}。
-                      如需离线或故障兜底，可放入
-                      %LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
-                      后点击“重新检测”。
+                      如需离线或故障兜底，请将模型放入{' '}
+                      <code className="break-all rounded bg-blue-100 px-1">
+                        %LOCALAPPDATA%\\MediaNotesWorkbench\\data\\models\\ggml-base-q5_1.bin
+                      </code>{' '}
+                      后点击右侧刷新按钮重新检测。
                     </p>
                   )}
               </div>

@@ -42,4 +42,17 @@ describe('DingTalkAuthService', () => {
       '钉钉授权用户信息未返回 userId',
     );
   });
+
+  it('explains when the DingTalk CLI is unavailable during connection testing', async () => {
+    const service = new DingTalkAuthService();
+    const runner: CommandRunner = async () => {
+      throw new Error('未检测到钉钉连接工具 dws');
+    };
+    (service as unknown as { run: CommandRunner }).run = runner;
+
+    await expect(service.testConnection()).resolves.toEqual({
+      message: '未检测到钉钉连接工具 dws，请先安装或启用钉钉工作台 CLI。',
+      ok: false,
+    });
+  });
 });

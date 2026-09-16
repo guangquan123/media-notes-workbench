@@ -181,11 +181,15 @@ export default function HomePage() {
 
   const readinessText = useMemo(() => {
     if (!readiness) return '正在检查本机环境…';
+    const transcriptionReady: boolean = Boolean(
+      readiness.tencentAsr ||
+        readiness.customApiTranscription ||
+        (readiness.whisperCli && readiness.whisperModel),
+    );
     const missing = [
       !readiness.ytDlp && 'yt-dlp',
       !readiness.ffmpeg && 'ffmpeg',
-      !readiness.whisperCli && 'Whisper',
-      !readiness.whisperModel && 'Whisper 模型',
+      !transcriptionReady && '语音转文字（腾讯 ASR、API 或本地 Whisper）',
     ].filter(Boolean);
     return missing.length
       ? `缺少：${missing.join('、')}`
