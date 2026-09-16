@@ -11,7 +11,7 @@ import {
   rename,
   rm,
 } from 'node:fs/promises';
-import { basename, extname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import type {
@@ -193,7 +193,7 @@ export class WhisperPackService {
     cliSourcePath: string,
     destination: string,
   ): Promise<void> {
-    const sourceDirectory: string = join(cliSourcePath, '..');
+    const sourceDirectory: string = dirname(cliSourcePath);
     const entries = await readdir(sourceDirectory, { withFileTypes: true });
     await mkdir(destination, { recursive: true });
     for (const entry of entries) {

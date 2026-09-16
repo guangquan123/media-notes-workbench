@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getLocalDataDir } from '../../common/utils/local-runtime-paths';
 
@@ -23,7 +22,7 @@ export const WHISPER_PACK_MANIFEST: WhisperPackManifest = {
   binaryUrl:
     'https://github.com/ggml-org/whisper.cpp/releases/download/b5130/whisper-bin-x64.zip',
   modelSha256:
-    '1472da3b8dde27b952b515a60bbea06532be2639bcecc5a6c9dd248bed11865d',
+    '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898',
   modelUrl:
     'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin',
   modelFileName: 'ggml-base-q5_1.bin',
@@ -50,8 +49,4 @@ export function isWhisperPackSupported(): boolean {
 
 export function sha256Matches(actual: string, expected: string): boolean {
   return actual.trim().toLowerCase() === expected.trim().toLowerCase();
-}
-
-export function isWhisperCliPath(path: string): boolean {
-  return existsSync(path);
 }
