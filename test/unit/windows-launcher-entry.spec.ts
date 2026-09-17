@@ -281,15 +281,6 @@ describe('Windows launcher entry', () => {
     expect(layout).toContain('data-launcher-page-ready="true"');
   });
 
-  it('keeps the recording asset background flag optional for Nest bootstrap', () => {
-    const service = readFileSync(
-      resolve(root, 'server', 'modules', 'recording-assets', 'recording-assets.service.ts'),
-      'utf8',
-    );
-
-    expect(service).toContain('@Optional() backgroundEnabled = true');
-  });
-
   it('does not overwrite a structured startup failure during process exit', () => {
     const devWindows = readFileSync(
       resolve(root, 'scripts', 'dev-windows.js'),

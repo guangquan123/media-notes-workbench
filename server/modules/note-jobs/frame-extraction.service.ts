@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { resolveMediaToolCommand } from '../../common/utils/bundled-media-tools';
 
 export interface FrameAnalysis {
   chartDesc: string;
@@ -238,7 +239,7 @@ async function runCommand(
   args: string[],
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const childProcess = spawn(command, args, {
+    const childProcess = spawn(resolveMediaToolCommand(command), args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: process.platform === 'win32',
     });
@@ -261,7 +262,7 @@ async function runCommandBuffer(
   args: string[],
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const childProcess = spawn(command, args, {
+    const childProcess = spawn(resolveMediaToolCommand(command), args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: process.platform === 'win32',
     });

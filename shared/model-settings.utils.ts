@@ -3,7 +3,12 @@ import type {
   AiModelSettings,
   ModelReference,
   ModelServiceProvider,
+  SystemReadiness,
+  TranscriptionMode,
+  TranscriptionProvider,
 } from './api.interface';
+
+type AvailableTranscriptionProvider = Exclude<TranscriptionProvider, 'mixed'>;
 
 function getModelReference(
   settings: AiModelSettings,
@@ -30,4 +35,37 @@ function hasConfiguredModel(
   return Boolean(provider?.configured && provider.enabled);
 }
 
-export { hasConfiguredModel };
+function hasAvailableTranscription(readiness: SystemReadiness): boolean {
+  return Boolean(
+    readiness.tencentAsr ||
+    readiness.customApiTranscription ||
+    (readiness.whisperCli && readiness.whisperModel),
+  );
+}
+
+function isLocalWhisperReady(readiness: SystemReadiness): boolean {
+  return readiness.whisperCli && readiness.whisperModel;
+}
+
+function resolveAvailableTranscriptionProvider(
+  readiness: SystemReadiness,
+  selectedMode: TranscriptionMode,
+): AvailableTranscriptionProvider | undefined {
+  if (selectedMode === 'custom_api' && readiness.customApiTranscription) {
+    return 'custom_api';
+  }
+  if (selectedMode === 'tencent_asr' && readiness.tencentAsr) {
+    return 'tencent_asr';
+  }
+  if (readiness.customApiTranscription) return 'custom_api';
+  if (readiness.tencentAsr) return 'tencent_asr';
+  return isLocalWhisperReady(readiness) ? 'local_whisper' : undefined;
+}
+
+export {
+  hasAvailableTranscription,
+  hasConfiguredModel,
+  isLocalWhisperReady,
+  resolveAvailableTranscriptionProvider,
+};
+export type { AvailableTranscriptionProvider };

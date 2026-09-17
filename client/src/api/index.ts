@@ -6,6 +6,12 @@ import {
 } from '@/lib/local-http';
 import { isLocalRuntime } from '@/lib/runtime';
 import { normalizeSetupStatus } from '@/lib/setup-status';
+import {
+  createCachedRequestState,
+  invalidateCachedRequest,
+  requestWithCache,
+  type CachedRequestState,
+} from '@/lib/request-cache';
 
 export const axiosForBackend: any = isLocalRuntime()
   ? localAxiosForBackend
@@ -92,49 +98,10 @@ import type {
   WhisperPackStatus,
 } from '@shared/api.interface';
 
-interface CachedRequestState<T> {
-  promise: Promise<T> | null;
-  resolvedAt: number;
-  value: T | null;
-}
-
 const READINESS_TIMEOUT_MS = 12000;
 const JOB_READ_TIMEOUT_MS = 8000;
 const JOB_WRITE_TIMEOUT_MS = 15000;
 const READINESS_CACHE_TTL_MS = 30000;
-
-function createCachedRequestState<T>(): CachedRequestState<T> {
-  return {
-    promise: null,
-    resolvedAt: 0,
-    value: null,
-  };
-}
-
-async function requestWithCache<T>(
-  state: CachedRequestState<T>,
-  request: () => Promise<T>,
-): Promise<T> {
-  const now = Date.now();
-  if (state.value && now - state.resolvedAt < READINESS_CACHE_TTL_MS) {
-    return state.value;
-  }
-  if (state.promise) {
-    return state.promise;
-  }
-
-  state.promise = request()
-    .then((value: T) => {
-      state.value = value;
-      state.resolvedAt = Date.now();
-      return value;
-    })
-    .finally(() => {
-      state.promise = null;
-    });
-
-  return state.promise;
-}
 
 const noteJobsReadinessState = createCachedRequestState<SystemReadiness>();
 const articleExportReadinessState =
@@ -176,15 +143,19 @@ async function runtimeControlRequest<T>(
 export async function getReadiness(
   forceRefresh = false,
 ): Promise<SystemReadiness> {
-  if (forceRefresh) noteJobsReadinessState.value = null;
-  return requestWithCache(noteJobsReadinessState, async () => {
-    const response = await axiosForBackend({
-      url: '/api/note-jobs/readiness',
-      method: 'GET',
-      timeout: READINESS_TIMEOUT_MS,
-    });
-    return response.data;
-  });
+  if (forceRefresh) invalidateCachedRequest(noteJobsReadinessState);
+  return requestWithCache(
+    noteJobsReadinessState,
+    READINESS_CACHE_TTL_MS,
+    async () => {
+      const response = await axiosForBackend({
+        url: '/api/note-jobs/readiness',
+        method: 'GET',
+        timeout: READINESS_TIMEOUT_MS,
+      });
+      return response.data;
+    },
+  );
 }
 
 export async function getWhisperPackStatus(): Promise<WhisperPackStatus> {
@@ -202,7 +173,7 @@ export async function installWhisperPack(): Promise<WhisperPackInstallResponse> 
     method: 'POST',
     timeout: 300_000,
   });
-  noteJobsReadinessState.value = null;
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -375,6 +346,7 @@ export async function updateTencentAsrSettings(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -423,6 +395,7 @@ export async function updateAiModelSettings(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -435,6 +408,7 @@ export async function createModelServiceProvider(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -448,6 +422,7 @@ export async function updateModelServiceProvider(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -457,6 +432,7 @@ export async function deleteModelServiceProvider(id: string): Promise<void> {
     method: 'DELETE',
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
 }
 
 export async function getModelProviderModels(
@@ -492,6 +468,7 @@ export async function updateExternalModelSettings(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -799,14 +776,18 @@ export async function publishNoteTemplate(
 }
 
 export async function getArticleExportReadiness(): Promise<ArticleExportReadiness> {
-  return requestWithCache(articleExportReadinessState, async () => {
-    const response = await axiosForBackend({
-      url: '/api/article-export/readiness',
-      method: 'GET',
-      timeout: READINESS_TIMEOUT_MS,
-    });
-    return response.data;
-  });
+  return requestWithCache(
+    articleExportReadinessState,
+    READINESS_CACHE_TTL_MS,
+    async () => {
+      const response = await axiosForBackend({
+        url: '/api/article-export/readiness',
+        method: 'GET',
+        timeout: READINESS_TIMEOUT_MS,
+      });
+      return response.data;
+    },
+  );
 }
 
 export async function createArticleExportJob(
@@ -868,6 +849,7 @@ export async function updateConnectorConfig(
     data: input,
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -880,6 +862,7 @@ export async function setActiveConnector(
     data: { connector },
     timeout: JOB_WRITE_TIMEOUT_MS,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 
@@ -945,6 +928,9 @@ export async function completeFeishuAuth(
     data: { sessionId },
     timeout: 30000,
   });
+  if (response.data.completed) {
+    invalidateCachedRequest(noteJobsReadinessState);
+  }
   return response.data;
 }
 
@@ -975,6 +961,9 @@ export async function completeDingTalkAuth(
     data: { sessionId },
     timeout: 30000,
   });
+  if (response.data.completed) {
+    invalidateCachedRequest(noteJobsReadinessState);
+  }
   return response.data;
 }
 
@@ -984,6 +973,7 @@ export async function logoutConnector(connector: ConnectorType): Promise<void> {
     method: 'POST',
     timeout: 30000,
   });
+  invalidateCachedRequest(noteJobsReadinessState);
   return response.data;
 }
 

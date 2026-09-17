@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Boxes,
   CheckCircle2,
   Cloud,
@@ -80,6 +81,8 @@ import {
   type ModelProviderPreset,
 } from '@/lib/model-provider-presets';
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
+import { isLocalRuntime } from '@/lib/runtime';
+import { buildAiModelReadinessSummary } from './ai-model-readiness.utils';
 
 type AiSettingsTab = 'providers' | 'models' | 'transcription';
 
@@ -579,28 +582,14 @@ export default function AiModelSettingsPage({
     );
   }
 
-  const currentAsrLabel: string =
-    transcriptionMode === 'tencent_asr'
-      ? '腾讯 ASR 资源包'
-      : settings.transcriptionModel
-        ? `${settings.transcriptionModel.providerName} · ${settings.transcriptionModel.model}`
-        : '尚未配置 API 转录模型';
-  const currentLlmLabel: string = settings.summaryModel
-    ? `${settings.summaryModel.providerName} · ${settings.summaryModel.model}`
-    : '使用妙搭内置 AI';
   const localWhisperReady: boolean = Boolean(
     readiness?.whisperCli && readiness.whisperModel,
   );
-  const tencentReady: boolean = Boolean(readiness?.tencentAsr);
-  const providerReady: boolean =
-    settings.providers.some(isSelectableProvider) ||
-    (transcriptionMode === 'tencent_asr' && tencentReady);
-  const transcriptionReady: boolean =
-    transcriptionMode === 'tencent_asr'
-      ? tencentReady
-      : Boolean(readiness?.customApiTranscription);
-  const modelsReady: boolean =
-    Boolean(settings.summaryModel) && transcriptionReady;
+  const modelReadiness = buildAiModelReadinessSummary(
+    settings,
+    readiness,
+    isLocalRuntime(),
+  );
   const steps: Array<{
     detail: string;
     id: AiSettingsTab;
@@ -608,18 +597,20 @@ export default function AiModelSettingsPage({
     ready: boolean;
   }> = [
     {
-      detail: providerReady ? '连接已配置' : '先添加 API 地址和密钥',
+      detail: modelReadiness.providerReady
+        ? '连接已配置'
+        : '先添加 API 地址和密钥',
       id: 'providers',
       label: '模型服务提供者',
-      ready: providerReady,
+      ready: modelReadiness.providerReady,
     },
     {
-      detail: modelsReady
+      detail: modelReadiness.modelsReady
         ? '转录方式与总结模型已选择'
         : '选择转录方式和具体模型',
       id: 'models',
       label: '模型配置',
-      ready: modelsReady,
+      ready: modelReadiness.modelsReady,
     },
   ];
 
@@ -1102,11 +1093,18 @@ export default function AiModelSettingsPage({
                   </div>
                 </div>
               </div>
-              <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              <div
+                className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${modelReadiness.modelsReady ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}
+              >
+                {modelReadiness.modelsReady ? (
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                ) : (
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                )}
                 <span>
-                  当前组合：转录 <b>{currentAsrLabel}</b>；总结{' '}
-                  <b>{currentLlmLabel}</b>
+                  当前组合：转录{' '}
+                  <b>{modelReadiness.currentTranscriptionLabel}</b>；总结{' '}
+                  <b>{modelReadiness.currentSummaryLabel}</b>
                 </span>
               </div>
               <div className="flex justify-end">

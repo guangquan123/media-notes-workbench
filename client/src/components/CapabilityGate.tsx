@@ -71,7 +71,7 @@ export default function CapabilityGate({
       capability === 'recording'
         ? getRecordingStorageSettings()
         : Promise.resolve(null);
-    Promise.all([getReadiness(), getAiModelSettings(), settingsRequest])
+    Promise.all([getReadiness(true), getAiModelSettings(), settingsRequest])
       .then(
         ([nextReadiness, nextAiSettings, nextRecordingStorage]: [
           SystemReadiness,

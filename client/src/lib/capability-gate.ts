@@ -4,7 +4,10 @@ import type {
   SetupCapability,
   SystemReadiness,
 } from '@shared/api.interface';
-import { hasConfiguredModel } from '@shared/model-settings.utils';
+import {
+  hasAvailableTranscription,
+  hasConfiguredModel,
+} from '@shared/model-settings.utils';
 
 export interface CapabilityGateIssue {
   actionSection: 'ai' | 'connectors' | 'recordings' | 'setup';
@@ -33,14 +36,6 @@ const MEDIA_CAPABILITIES: readonly SetupCapability[] = [
   'platform_video',
 ];
 
-function hasTranscription(readiness: SystemReadiness): boolean {
-  return Boolean(
-    readiness.tencentAsr ||
-    readiness.customApiTranscription ||
-    (readiness.whisperCli && readiness.whisperModel),
-  );
-}
-
 export function getCapabilityGateResult(
   capability: SetupCapability,
   readiness: SystemReadiness,
@@ -52,7 +47,11 @@ export function getCapabilityGateResult(
   const noteCapability: boolean = NOTE_CAPABILITIES.includes(capability);
   const mediaCapability: boolean = MEDIA_CAPABILITIES.includes(capability);
 
-  if (noteCapability && localRuntime && !hasConfiguredModel(aiSettings, 'llm')) {
+  if (
+    noteCapability &&
+    localRuntime &&
+    !hasConfiguredModel(aiSettings, 'llm')
+  ) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',
@@ -78,7 +77,7 @@ export function getCapabilityGateResult(
   }
   const videoCapability: boolean =
     capability === 'local_video' || capability === 'platform_video';
-  if (videoCapability && !hasTranscription(readiness)) {
+  if (videoCapability && !hasAvailableTranscription(readiness)) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',
@@ -86,7 +85,7 @@ export function getCapabilityGateResult(
       reason:
         '视频笔记需要一种可用的转录方式；可以选择腾讯云 ASR、兼容 API，或额外配置本地 Whisper。',
     });
-  } else if (mediaCapability && !hasTranscription(readiness)) {
+  } else if (mediaCapability && !hasAvailableTranscription(readiness)) {
     issues.push({
       actionSection: 'ai',
       actionTab: 'models',

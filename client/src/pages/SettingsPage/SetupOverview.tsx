@@ -101,7 +101,7 @@ const SetupOverview: React.FC<SetupOverviewProps> = ({ onSelectSection }) => {
       modelResult,
       runtimeResult,
     ] = await Promise.allSettled([
-      getReadiness(),
+      getReadiness(true),
       getConnectorSettings(),
       getAiModelSettings(),
       getTencentAsrSettings(),

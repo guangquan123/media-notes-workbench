@@ -115,6 +115,14 @@ describe('setup readiness', () => {
       '本地音视频',
       '平台视频链接',
     ]);
+    expect(
+      result.items.find((item) => item.id === 'local-media')?.details,
+    ).toContain('本地 Whisper 已就绪，可直接离线转录音视频。');
+    expect(
+      result.items.find((item) => item.id === 'local-media')?.details,
+    ).not.toContain(
+      '尚未配置可用的转录方式，请在“模型服务与转录”中选择腾讯 ASR 或 API 模型。',
+    );
   });
 
   it('supports legacy readiness responses that only expose larkCli', () => {

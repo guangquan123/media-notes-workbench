@@ -5,7 +5,10 @@ import type {
   SetupRequiredAction,
   SystemReadiness,
 } from '@shared/api.interface';
-import { hasConfiguredModel } from '@shared/model-settings.utils';
+import {
+  hasAvailableTranscription,
+  hasConfiguredModel,
+} from '@shared/model-settings.utils';
 
 export interface SetupRequirementInput {
   aiModelSettings: AiModelSettings;
@@ -24,14 +27,6 @@ const MEDIA_CAPABILITIES: readonly SetupCapability[] = [
 function needsMediaProcessing(capabilities: SetupCapability[]): boolean {
   return capabilities.some((capability: SetupCapability): boolean =>
     MEDIA_CAPABILITIES.includes(capability),
-  );
-}
-
-function hasTranscription(readiness: SystemReadiness): boolean {
-  return Boolean(
-    readiness.tencentAsr ||
-      readiness.customApiTranscription ||
-      (readiness.whisperCli && readiness.whisperModel),
   );
 }
 
@@ -111,7 +106,7 @@ export function buildSetupRequiredActions(
   if (!hasConfiguredModel(input.aiModelSettings, 'llm')) {
     actions.push({ action: 'configure_summary', label: '配置总结模型' });
   }
-  if (requiresMedia && !hasTranscription(input.readiness)) {
+  if (requiresMedia && !hasAvailableTranscription(input.readiness)) {
     actions.push({
       action: 'configure_transcription',
       capability: 'local_audio',

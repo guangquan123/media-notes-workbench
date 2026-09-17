@@ -6,7 +6,10 @@ import type {
   SystemReadiness,
   TencentAsrSettings,
 } from '@shared/api.interface';
-import { hasConfiguredModel } from '@shared/model-settings.utils';
+import {
+  hasAvailableTranscription,
+  hasConfiguredModel,
+} from '@shared/model-settings.utils';
 
 export type SetupActionSection =
   | 'ai'
@@ -24,12 +27,7 @@ export interface SetupCapabilityItem {
   actionSection?: SetupActionSection;
   description: string;
   details: string[];
-  id:
-    | 'connector'
-    | 'documents'
-    | 'local-media'
-    | 'model'
-    | 'platform-media';
+  id: 'connector' | 'documents' | 'local-media' | 'model' | 'platform-media';
   label: string;
   required: boolean;
   status: SetupCapabilityStatus;
@@ -60,7 +58,9 @@ const CONNECTOR_LABELS: Record<string, string> = {
 function getConnectorLabel(input: SetupReadinessInput): string {
   const type =
     input.connectors?.activeConnector || input.readiness.connectorType;
-  const descriptor = input.connectors?.items?.find((item) => item.type === type);
+  const descriptor = input.connectors?.items?.find(
+    (item) => item.type === type,
+  );
   return descriptor?.label || (type ? CONNECTOR_LABELS[type] || type : '当前');
 }
 
@@ -69,8 +69,10 @@ function buildTranscriptionDetails(input: SetupReadinessInput): string[] {
   if (!input.readiness.ffmpeg) {
     details.push('未检测到 ffmpeg：本地音视频需要它提取和处理音轨。');
   }
-  if (!input.readiness.tencentAsr && !input.readiness.customApiTranscription) {
-    details.push('尚未配置可用的转录方式，请在“模型服务与转录”中选择腾讯 ASR 或 API 模型。');
+  if (!hasAvailableTranscription(input.readiness)) {
+    details.push(
+      '尚未配置可用的转录方式，请在“模型服务与转录”中选择腾讯 ASR 或 API 模型。',
+    );
   }
   if (
     input.tencentAsr?.enabled &&
@@ -82,6 +84,8 @@ function buildTranscriptionDetails(input: SetupReadinessInput): string[] {
     details.push('腾讯 ASR 已就绪，任务会沿用原有腾讯配置。');
   } else if (input.readiness.customApiTranscription) {
     details.push('API 转录已就绪，任务会使用统一模型配置中的转录模型。');
+  } else if (input.readiness.whisperCli && input.readiness.whisperModel) {
+    details.push('本地 Whisper 已就绪，可直接离线转录音视频。');
   }
   return details;
 }
@@ -94,15 +98,11 @@ export function buildSetupReadiness(
   );
   const localRuntime: boolean = input.runtime?.mode === 'local';
   const connectorLabel = getConnectorLabel(input);
-  const transcriptionReady = Boolean(
-    input.readiness.tencentAsr ||
-      input.readiness.customApiTranscription ||
-      (input.readiness.whisperCli && input.readiness.whisperModel),
-  );
+  const transcriptionReady = hasAvailableTranscription(input.readiness);
   const localMediaReady = Boolean(
     (localRuntime || connectorReady) &&
-      input.readiness.ffmpeg &&
-      transcriptionReady,
+    input.readiness.ffmpeg &&
+    transcriptionReady,
   );
   const documentReady = Boolean(
     (localRuntime || connectorReady) && input.readiness.documentReady,
@@ -113,10 +113,7 @@ export function buildSetupReadiness(
     input.externalModel?.enabled && input.externalModel.configured,
   );
   const externalModelRequired = input.runtime?.mode === 'local';
-  const unifiedSummaryReady = hasConfiguredModel(
-    input.aiModelSettings,
-    'llm',
-  );
+  const unifiedSummaryReady = hasConfiguredModel(input.aiModelSettings, 'llm');
   const summaryModelReady = unifiedSummaryReady || externalModelReady;
   const generationReady = Boolean(
     runtimeKnown && (!externalModelRequired || summaryModelReady),
@@ -132,17 +129,16 @@ export function buildSetupReadiness(
     platformMediaSourceReady ? '平台视频链接' : '',
   ].filter(Boolean);
 
-  const localMediaActionSection: SetupActionSection = !localRuntime && !connectorReady
-    ? 'connectors'
-    : 'model';
+  const localMediaActionSection: SetupActionSection =
+    !localRuntime && !connectorReady ? 'connectors' : 'model';
   const localMediaActionLabel =
     localMediaActionSection === 'connectors'
       ? '配置输出位置'
       : '配置模型服务与转录';
-  const documentActionSection: SetupActionSection = localRuntime || connectorReady
-    ? 'model'
-    : 'connectors';
-  const documentActionLabel = localRuntime || connectorReady ? '配置模型服务与转录' : '配置输出位置';
+  const documentActionSection: SetupActionSection =
+    localRuntime || connectorReady ? 'model' : 'connectors';
+  const documentActionLabel =
+    localRuntime || connectorReady ? '配置模型服务与转录' : '配置输出位置';
 
   const modelItem: SetupCapabilityItem = !runtimeKnown
     ? {
@@ -160,9 +156,10 @@ export function buildSetupReadiness(
       ? {
           id: 'model',
           label: '总结模型',
-          description: unifiedSummaryReady || externalModelReady
-            ? `本地模式已配置 ${input.aiModelSettings?.summaryModel?.model || input.externalModel?.model || 'LLM 模型'}。`
-            : '本地模式需要先在统一模型配置中选择一个总结模型。',
+          description:
+            unifiedSummaryReady || externalModelReady
+              ? `本地模式已配置 ${input.aiModelSettings?.summaryModel?.model || input.externalModel?.model || 'LLM 模型'}。`
+              : '本地模式需要先在统一模型配置中选择一个总结模型。',
           details: externalModelReady
             ? ['API Key 仅以脱敏状态读取。']
             : [
@@ -171,9 +168,14 @@ export function buildSetupReadiness(
                   : '当前未启用外部模型；本地模式没有内置模型兜底。',
               ],
           required: true,
-          status: unifiedSummaryReady || externalModelReady ? 'ready' : 'action',
-          actionLabel: unifiedSummaryReady || externalModelReady ? undefined : '配置模型服务与转录',
-          actionSection: unifiedSummaryReady || externalModelReady ? undefined : 'model',
+          status:
+            unifiedSummaryReady || externalModelReady ? 'ready' : 'action',
+          actionLabel:
+            unifiedSummaryReady || externalModelReady
+              ? undefined
+              : '配置模型服务与转录',
+          actionSection:
+            unifiedSummaryReady || externalModelReady ? undefined : 'model',
         }
       : {
           id: 'model',
@@ -187,9 +189,14 @@ export function buildSetupReadiness(
             ? ['提供者和模型均在“模型服务与转录”中统一维护。']
             : ['不配置外部 API Key 也不影响平台内置模型。'],
           required: false,
-          status: unifiedSummaryReady || externalModelReady ? 'ready' : 'optional',
-          actionLabel: unifiedSummaryReady || externalModelReady ? undefined : '配置模型服务与转录',
-          actionSection: unifiedSummaryReady || externalModelReady ? undefined : 'model',
+          status:
+            unifiedSummaryReady || externalModelReady ? 'ready' : 'optional',
+          actionLabel:
+            unifiedSummaryReady || externalModelReady
+              ? undefined
+              : '配置模型服务与转录',
+          actionSection:
+            unifiedSummaryReady || externalModelReady ? undefined : 'model',
         };
 
   const items: SetupCapabilityItem[] = [
@@ -280,8 +287,8 @@ export function buildSetupReadiness(
 
   const coreReady = Boolean(
     (localRuntime || connectorReady) &&
-      localMediaSourceReady &&
-      documentSourceReady,
+    localMediaSourceReady &&
+    documentSourceReady,
   );
   if (coreReady) {
     return {

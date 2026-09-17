@@ -73,6 +73,11 @@ import {
 } from './note-jobs.utils';
 import { mapWithConcurrency } from '@shared/async.utils';
 import {
+  hasAvailableTranscription,
+  isLocalWhisperReady,
+  resolveAvailableTranscriptionProvider,
+} from '@shared/model-settings.utils';
+import {
   captureRetainedNoteSource,
   retainedNoteSourceContentMatches,
   summarizeRetainedNoteSource,
@@ -433,34 +438,45 @@ export class NoteJobsService implements OnModuleInit {
     options: CreateJobOptions = {},
   ): Promise<NoteJob> {
     const validatedInput = validateNoteJobRequest(input);
-    const requiresVideoTranscriptionCheck: boolean = [
-      'platform',
-      'video',
-      'paired',
-    ].includes(validatedInput.sourceType);
-    if (requiresVideoTranscriptionCheck) {
-      const readiness: SystemReadiness = await this.getReadiness();
-      if (
-        !(readiness.whisperCli && readiness.whisperModel) &&
-        !readiness.tencentAsr &&
-        !readiness.customApiTranscription
-      ) {
-        throw new BadRequestException(
-          '视频笔记必须先配置一种语音转文字方式（腾讯云 ASR、兼容 API 或本地 Whisper），请前往参数配置。',
-        );
-      }
-    }
     const requiresTranscription: boolean = [
       'platform',
       'video',
       'audio',
       'paired',
     ].includes(validatedInput.sourceType);
-    const transcriptionSelection = requiresTranscription
-      ? await this.modelProviderSettingsService.getTranscriptionSelection(
-          validatedInput.transcriptionProvider,
-        )
-      : undefined;
+    const transcriptionReadiness: SystemReadiness | undefined =
+      requiresTranscription ? await this.getReadiness() : undefined;
+    if (
+      transcriptionReadiness &&
+      !hasAvailableTranscription(transcriptionReadiness)
+    ) {
+      throw new BadRequestException(
+        '音视频笔记必须先配置一种语音转文字方式（腾讯云 ASR、兼容 API 或本地 Whisper），请前往参数配置。',
+      );
+    }
+    let transcriptionSelection:
+      | Awaited<
+          ReturnType<ModelProviderSettingsService['getTranscriptionSelection']>
+        >
+      | undefined;
+    if (requiresTranscription && transcriptionReadiness) {
+      const requestedMode =
+        validatedInput.transcriptionProvider ||
+        (await this.modelProviderSettingsService.getTranscriptionMode());
+      const availableProvider = resolveAvailableTranscriptionProvider(
+        transcriptionReadiness,
+        requestedMode,
+      );
+      if (
+        availableProvider === 'custom_api' ||
+        availableProvider === 'tencent_asr'
+      ) {
+        transcriptionSelection =
+          await this.modelProviderSettingsService.getTranscriptionSelection(
+            availableProvider,
+          );
+      }
+    }
     const executionInput = transcriptionSelection
       ? {
           ...validatedInput,
@@ -1202,6 +1218,23 @@ export class NoteJobsService implements OnModuleInit {
       if (input.sourceType === 'platform' && !sourcePlatform) {
         throw new Error('视频平台信息不完整');
       }
+      const requestedTranscriptionMode =
+        input.transcriptionProvider ||
+        (await this.modelProviderSettingsService.getTranscriptionMode());
+      const availableTranscriptionProvider =
+        resolveAvailableTranscriptionProvider(
+          readiness,
+          requestedTranscriptionMode,
+        );
+      if (!availableTranscriptionProvider) {
+        throw new Error('当前没有可用的语音转文字方式，请先完成转录配置');
+      }
+      const transcriptionTargetLabel =
+        availableTranscriptionProvider === 'custom_api'
+          ? 'API 转录模型'
+          : availableTranscriptionProvider === 'tencent_asr'
+            ? '腾讯云 ASR 大模型'
+            : '本地 Whisper';
       const preparedPairedMedia: PreparedPairedMedia | undefined =
         input.sourceType === 'paired'
           ? await this.preparePairedMedia(id, workDir, input.pairedMedia)
@@ -1266,7 +1299,7 @@ export class NoteJobsService implements OnModuleInit {
             id,
             'transcribing',
             44,
-            `正在分别提交两路音频到${input.transcriptionProvider === 'custom_api' ? ' API 转录模型' : '腾讯云 ASR 大模型'}…`,
+            `正在分别使用${transcriptionTargetLabel}处理两路音频…`,
           );
           const [video, auxiliary] = await Promise.all([
             this.transcribeBest(
@@ -1324,7 +1357,7 @@ export class NoteJobsService implements OnModuleInit {
           id,
           'transcribing',
           44,
-          `音频已就绪，正在使用${input.transcriptionProvider === 'custom_api' ? ' API 转录模型' : '腾讯云 ASR 大模型'}转录…`,
+          `音频已就绪，正在使用${transcriptionTargetLabel}转录…`,
         );
         const results: BestTranscriptResult[] = await mapWithConcurrency(
           preparedMedia.audioSources,
@@ -2143,61 +2176,99 @@ export class NoteJobsService implements OnModuleInit {
     transcriptionOptions?: CreateNoteJobRequest['transcriptionOptions'],
     transcriptionProvider?: CreateNoteJobRequest['transcriptionProvider'],
   ): Promise<BestTranscriptResult> {
-    const selectedProvider: Exclude<TranscriptionProvider, 'mixed'> =
+    const requestedProvider =
       transcriptionProvider ||
       (await this.modelProviderSettingsService.getTranscriptionMode());
-    if (selectedProvider === 'custom_api') {
-      const audioParts: string[] = await this.splitAudioIfNeeded(
+    const selectedProvider = resolveAvailableTranscriptionProvider(
+      readiness,
+      requestedProvider,
+    );
+    if (!selectedProvider) {
+      throw new Error('当前没有可用的语音转文字方式');
+    }
+    if (selectedProvider === 'local_whisper') {
+      return this.transcribeWithLocalWhisper(
+        id,
         audioPath,
         workDir,
-        `${prefix}-api`,
+        prefix,
+        transcriptionOptions,
+        readiness,
+        `${requestedProvider === 'custom_api' ? 'API 转录' : '腾讯云 ASR'}尚未就绪`,
       );
-      const results: CustomApiTranscriptResult[] = [];
-      for (let index = 0; index < audioParts.length; index += 1) {
-        const part: string = audioParts[index];
-        const result: CustomApiTranscriptResult =
-          await this.customApiTranscriptionService.transcribe({
-            audioPath: part,
-            transcriptionOptions,
-            onProgress: (message: string): void =>
-              this.update(
-                id,
-                'transcribing',
-                Math.max(44, this.jobs.get(id)?.job.progress || 44),
-                audioParts.length > 1
-                  ? `第 ${index + 1}/${audioParts.length} 段：${message}`
-                  : message,
-              ),
-          });
-        results.push(result);
+    }
+    if (selectedProvider === 'custom_api') {
+      try {
+        const audioParts: string[] = await this.splitAudioIfNeeded(
+          audioPath,
+          workDir,
+          `${prefix}-api`,
+        );
+        const results: CustomApiTranscriptResult[] = [];
+        for (let index = 0; index < audioParts.length; index += 1) {
+          const part: string = audioParts[index];
+          const result: CustomApiTranscriptResult =
+            await this.customApiTranscriptionService.transcribe({
+              audioPath: part,
+              transcriptionOptions,
+              onProgress: (message: string): void =>
+                this.update(
+                  id,
+                  'transcribing',
+                  Math.max(44, this.jobs.get(id)?.job.progress || 44),
+                  audioParts.length > 1
+                    ? `第 ${index + 1}/${audioParts.length} 段：${message}`
+                    : message,
+                ),
+            });
+          results.push(result);
+        }
+        const firstResult: CustomApiTranscriptResult | undefined = results[0];
+        if (!firstResult) throw new Error('自定义 API 转录未返回结果');
+        const segments: TranscriptSegment[] = results.flatMap(
+          (
+            result: CustomApiTranscriptResult,
+            index: number,
+          ): TranscriptSegment[] => {
+            const offsetMs: number = index * TIMESTAMPED_AUDIO_CHUNK_MS;
+            return result.segments.map(
+              (segment: TranscriptSegment): TranscriptSegment => ({
+                endMs: segment.endMs + offsetMs,
+                startMs: segment.startMs + offsetMs,
+                text: segment.text,
+              }),
+            );
+          },
+        );
+        if (segments.length === 0) {
+          throw new Error('API 转录缺少可用的时间段');
+        }
+        return {
+          model: firstResult.model,
+          provider: firstResult.provider,
+          providerName: firstResult.providerName,
+          segments,
+          transcript: results
+            .map(
+              (result: CustomApiTranscriptResult): string => result.transcript,
+            )
+            .filter((transcript: string): boolean => Boolean(transcript.trim()))
+            .join('\n'),
+        };
+      } catch (error) {
+        const message: string =
+          error instanceof Error ? error.message : '未知错误';
+        this.logger.warn(`API 转录失败，准备检查本地兜底能力: ${message}`);
+        return this.transcribeWithLocalWhisper(
+          id,
+          audioPath,
+          workDir,
+          prefix,
+          transcriptionOptions,
+          readiness,
+          `API 转录失败：${message}`,
+        );
       }
-      const firstResult: CustomApiTranscriptResult | undefined = results[0];
-      if (!firstResult) throw new Error('自定义 API 转录未返回结果');
-      const segments: TranscriptSegment[] = results.flatMap(
-        (
-          result: CustomApiTranscriptResult,
-          index: number,
-        ): TranscriptSegment[] => {
-          const offsetMs: number = index * TIMESTAMPED_AUDIO_CHUNK_MS;
-          return result.segments.map(
-            (segment: TranscriptSegment): TranscriptSegment => ({
-              endMs: segment.endMs + offsetMs,
-              startMs: segment.startMs + offsetMs,
-              text: segment.text,
-            }),
-          );
-        },
-      );
-      return {
-        model: firstResult.model,
-        provider: firstResult.provider,
-        providerName: firstResult.providerName,
-        segments,
-        transcript: results
-          .map((result: CustomApiTranscriptResult): string => result.transcript)
-          .filter((transcript: string): boolean => Boolean(transcript.trim()))
-          .join('\n'),
-      };
     }
     try {
       const result: TencentAsrTranscriptResult =
@@ -2229,39 +2300,55 @@ export class NoteJobsService implements OnModuleInit {
       this.logger.warn(
         `腾讯云 ASR 转录失败，准备检查本地兜底能力: ${cloudError}`,
       );
-      if (!readiness.whisperCli || !readiness.whisperModel) {
-        throw new Error(
-          `腾讯云 ASR 高质量转录失败，且本机转录兜底不可用：${cloudError}`,
-        );
-      }
-      this.update(
-        id,
-        'transcribing',
-        Math.max(46, this.jobs.get(id)?.job.progress || 46),
-        quotaFallback
-          ? '腾讯云 ASR 额度不足，正在启用本地转录兜底并执行严格质量门禁…'
-          : '腾讯云 ASR 暂时不可用，正在启用本地转录兜底并执行严格质量门禁…',
-      );
-      this.patch(id, {
-        transcriptionNotice: quotaFallback
-          ? '腾讯云 ASR 额度不足，本次已改用本地 Whisper 转录；请充值/购买资源包后再使用云端 ASR。'
-          : `腾讯云 ASR 未成功，本次已改用本地 Whisper 转录：${cloudError}`,
-      });
-      const segments: TranscriptSegment[] = await this.transcribeTimestamped(
+      return this.transcribeWithLocalWhisper(
         id,
         audioPath,
         workDir,
         prefix,
         transcriptionOptions,
+        readiness,
+        quotaFallback
+          ? '腾讯云 ASR 额度不足；请充值或购买资源包后再使用云端 ASR'
+          : `腾讯云 ASR 转录失败：${cloudError}`,
       );
-      return {
-        model: 'local-whisper',
-        provider: 'local_whisper',
-        providerName: '本地 Whisper',
-        segments,
-        transcript: this.formatTranscriptSegments(segments),
-      };
     }
+  }
+
+  private async transcribeWithLocalWhisper(
+    id: string,
+    audioPath: string,
+    workDir: string,
+    prefix: string,
+    transcriptionOptions: CreateNoteJobRequest['transcriptionOptions'],
+    readiness: SystemReadiness,
+    fallbackReason: string,
+  ): Promise<BestTranscriptResult> {
+    if (!isLocalWhisperReady(readiness)) {
+      throw new Error(`${fallbackReason}，且本机 Whisper 兜底不可用`);
+    }
+    this.update(
+      id,
+      'transcribing',
+      Math.max(46, this.jobs.get(id)?.job.progress || 46),
+      '云端转录不可用，正在启用本地 Whisper 并执行严格质量门禁…',
+    );
+    this.patch(id, {
+      transcriptionNotice: `${fallbackReason}，本次已改用本地 Whisper 转录。`,
+    });
+    const segments: TranscriptSegment[] = await this.transcribeTimestamped(
+      id,
+      audioPath,
+      workDir,
+      prefix,
+      transcriptionOptions,
+    );
+    return {
+      model: 'local-whisper',
+      provider: 'local_whisper',
+      providerName: '本地 Whisper',
+      segments,
+      transcript: this.formatTranscriptSegments(segments),
+    };
   }
 
   private async transcribeTimestamped(

@@ -38,6 +38,7 @@ import type {
   SourcePlatform,
   SystemReadiness,
 } from '@shared/api.interface';
+import { hasAvailableTranscription } from '@shared/model-settings.utils';
 import { buildPlatformNoteJobRequest } from './home-page.utils';
 import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connector.utils';
 
@@ -181,11 +182,7 @@ export default function HomePage() {
 
   const readinessText = useMemo(() => {
     if (!readiness) return '正在检查本机环境…';
-    const transcriptionReady: boolean = Boolean(
-      readiness.tencentAsr ||
-        readiness.customApiTranscription ||
-        (readiness.whisperCli && readiness.whisperModel),
-    );
+    const transcriptionReady: boolean = hasAvailableTranscription(readiness);
     const missing = [
       !readiness.ytDlp && 'yt-dlp',
       !readiness.ffmpeg && 'ffmpeg',
@@ -562,7 +559,9 @@ export default function HomePage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">
-                            {localMarkdown ? '本地 Markdown 已生成' : '外部文档创建成功'}
+                            {localMarkdown
+                              ? '本地 Markdown 已生成'
+                              : '外部文档创建成功'}
                           </p>
                           <p className="mt-0.5 text-xs text-emerald-800/60">
                             {localMarkdown

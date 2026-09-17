@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resolveMediaToolCommand } from '../../server/common/utils/bundled-media-tools';
 
 describe('frame extraction helpers', () => {
   it('parses real pts timestamps and scene metadata from ffmpeg showinfo', () => {
@@ -59,7 +60,7 @@ describe('frame extraction helpers', () => {
     const directory = await mkdtemp(join(tmpdir(), 'frame-extraction-test-'));
     const videoPath = join(directory, 'synthetic.mp4');
     try {
-      await command('ffmpeg', [
+      await command(resolveMediaToolCommand('ffmpeg'), [
         '-hide_banner',
         '-loglevel',
         'error',
