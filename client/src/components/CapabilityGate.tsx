@@ -130,7 +130,7 @@ export default function CapabilityGate({
             <Button asChild variant="ghost">
               <Link to="/">
                 <ArrowLeft className="size-4" />
-                返回
+                返回工作台
               </Link>
             </Button>
             <Button asChild>
@@ -206,7 +206,7 @@ export default function CapabilityGate({
             <Button asChild variant="ghost">
               <Link to="/">
                 <ArrowLeft className="size-4" />
-                返回入口
+                返回工作台
               </Link>
             </Button>
             <Button asChild>

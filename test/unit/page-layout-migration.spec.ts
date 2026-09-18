@@ -129,4 +129,30 @@ describe('page layout migration contracts', () => {
       expect(source).toContain('<Root');
     }
   });
+
+  it('keeps settings navigation visible while long model content scrolls', () => {
+    const settings = read('client/src/pages/SettingsPage/SettingsPage.tsx');
+    const models = read(
+      'client/src/pages/AiModelSettingsPage/AiModelSettingsPage.tsx',
+    );
+
+    expect(settings).toContain('lg:sticky');
+    expect(settings).toContain('lg:max-h-[calc(100vh-5rem)]');
+    const layout = read('client/src/components/Layout.tsx');
+    expect(layout).toContain("location.pathname === '/'");
+    expect(models).toContain('转录模型');
+    expect(models).toContain('总结模型');
+    expect(models).toContain('role="tablist"');
+  });
+
+  it('defaults the recording review player to the original full recording', () => {
+    const panels = read(
+      'client/src/pages/RecordingNotesPage/RecordingPanels.tsx',
+    );
+
+    expect(panels).toContain(
+      'const [smartPlayback, setSmartPlayback] = useState<boolean>(false);',
+    );
+    expect(panels).toContain('切换为完整播放');
+  });
 });

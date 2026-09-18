@@ -633,7 +633,7 @@ export function ReviewPanel({
   onReset,
   recordingUrl,
 }: ReviewPanelProps) {
-  const [smartPlayback, setSmartPlayback] = useState<boolean>(true);
+  const [smartPlayback, setSmartPlayback] = useState<boolean>(false);
   const segments = audioAnalysis?.compressibleSegments || [];
   const smartSummary = getSmartPlaybackSummary(durationMs, segments);
   const canUseSmartPlayback: boolean =
@@ -688,7 +688,7 @@ export function ReviewPanel({
                 type="button"
                 variant="outline"
               >
-                {smartPlayback ? '切换完整播放' : '启用智能播放'}
+                {smartPlayback ? '切换为完整播放' : '启用智能播放'}
               </Button>
             )}
           </div>

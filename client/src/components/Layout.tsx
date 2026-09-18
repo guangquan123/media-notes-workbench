@@ -13,7 +13,11 @@ import { Button } from '@/components/ui/button';
 import RuntimeControlMenu, {
   RUNTIME_TRANSITION_EVENT,
 } from './RuntimeControlMenu';
-import { buildSetupRedirect } from '@/lib/setup-routing';
+import {
+  buildSetupRedirect,
+  getSetupCapabilityForPath,
+} from '@/lib/setup-routing';
+import { getSafeReturnTo } from '@/lib/navigation-return';
 
 const BACKEND_HEALTH_INTERVAL_MS = 5_000;
 const INITIAL_BACKEND_HEALTH: BackendHealthState = {
@@ -130,7 +134,17 @@ const Layout = () => {
         if (!mounted) return;
         const isSetupRoute: boolean = /(^|\/)setup(?:\/|$)/u.test(location.pathname);
         if (status.status === 'completed') {
-          if (isSetupRoute) navigate('/', { replace: true });
+          if (isSetupRoute) {
+            const returnTo: string = getSafeReturnTo(
+              new URLSearchParams(location.search).get('returnTo'),
+            );
+            navigate(returnTo, { replace: true });
+          }
+        } else if (
+          location.pathname === '/' ||
+          getSetupCapabilityForPath(location.pathname)
+        ) {
+          // CapabilityGate owns feature-specific blocked states and actions.
         } else if (!isSetupRoute) {
           navigate(
             buildSetupRedirect(

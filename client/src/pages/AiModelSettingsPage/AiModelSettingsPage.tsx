@@ -84,7 +84,7 @@ import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/Transcr
 import { isLocalRuntime } from '@/lib/runtime';
 import { buildAiModelReadinessSummary } from './ai-model-readiness.utils';
 
-type AiSettingsTab = 'providers' | 'models' | 'transcription';
+type AiSettingsTab = 'providers' | 'models' | 'transcription' | 'summary';
 
 interface AiModelSettingsPageProps {
   embedded?: boolean;
@@ -155,8 +155,9 @@ function getInitialTab(
   fallback: AiSettingsTab,
 ): AiSettingsTab {
   if (value === 'providers' || value === 'models') return value;
-  if (value === 'transcription') return 'models';
-  return fallback === 'transcription' ? 'models' : fallback;
+  if (value === 'transcription' || value === 'summary') return value;
+  if (fallback === 'models') return 'transcription';
+  return fallback === 'providers' ? 'providers' : 'transcription';
 }
 
 export default function AiModelSettingsPage({
@@ -164,7 +165,7 @@ export default function AiModelSettingsPage({
   initialTab = 'providers',
 }: AiModelSettingsPageProps) {
   const Root = embedded ? 'section' : 'main';
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [whisperPackStatus, setWhisperPackStatus] =
@@ -204,6 +205,28 @@ export default function AiModelSettingsPage({
     useState<ProviderFormState>(EMPTY_PROVIDER_FORM);
   const [deletingProvider, setDeletingProvider] =
     useState<ModelServiceProvider | null>(null);
+
+  const changeTab = (nextTab: AiSettingsTab): void => {
+    const normalizedTab: 'providers' | 'transcription' | 'summary' =
+      nextTab === 'providers'
+        ? 'providers'
+        : nextTab === 'summary'
+          ? 'summary'
+          : 'transcription';
+    setTab(normalizedTab);
+    setSearchParams(
+      (current: URLSearchParams): URLSearchParams => {
+        const next: URLSearchParams = new URLSearchParams(current);
+        next.set('tab', normalizedTab);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  useEffect((): void => {
+    setTab(getInitialTab(searchParams.get('tab'), initialTab));
+  }, [initialTab, searchParams]);
 
   useEffect((): void => {
     void getAiModelSettings()
@@ -645,10 +668,14 @@ export default function AiModelSettingsPage({
               {steps.map(
                 (step, index: number): React.ReactNode => (
                   <button
-                    aria-current={tab === step.id ? 'step' : undefined}
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${tab === step.id ? 'border-[#3370ff] bg-[#eef3ff]' : step.ready ? 'border-emerald-200 bg-emerald-50/50' : 'border-black/8 bg-[#fbfbfa]'}`}
+                    aria-current={
+                      (step.id === 'models' ? tab !== 'providers' : tab === step.id)
+                        ? 'step'
+                        : undefined
+                    }
+                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${(step.id === 'models' ? tab !== 'providers' : tab === step.id) ? 'border-[#3370ff] bg-[#eef3ff]' : step.ready ? 'border-emerald-200 bg-emerald-50/50' : 'border-black/8 bg-[#fbfbfa]'}`}
                     key={step.id}
-                    onClick={(): void => setTab(step.id)}
+                    onClick={(): void => changeTab(step.id)}
                     type="button"
                   >
                     <span
@@ -794,16 +821,46 @@ export default function AiModelSettingsPage({
             </div>
           )}
 
-          {tab === 'models' && (
+          {(tab === 'models' || tab === 'transcription' || tab === 'summary') && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold">模型配置</h2>
                 <p className="mt-1 text-xs text-black/50">
-                  在这里一次性选择转录方式、转录模型和总结模型。
+                  分别配置转录模型和总结模型，保存后供笔记任务统一使用。
                 </p>
               </div>
               <div
-                className={`grid gap-3 rounded-xl border p-4 ${localWhisperReady ? 'border-emerald-200 bg-emerald-50/70' : 'border-blue-100 bg-blue-50/60'}`}
+                aria-label="模型能力"
+                className="grid grid-cols-2 gap-2 rounded-xl border border-black/8 bg-white p-2"
+                role="tablist"
+              >
+                <button
+                  aria-selected={tab === 'transcription' || tab === 'models'}
+                  className={`rounded-lg px-3 py-2 text-left text-sm transition ${tab === 'transcription' || tab === 'models' ? 'bg-[#eef3ff] font-semibold text-[#1f4fd1]' : 'text-black/55 hover:bg-black/[.03]'}`}
+                  onClick={(): void => changeTab('transcription')}
+                  role="tab"
+                  type="button"
+                >
+                  <span className="block">转录模型</span>
+                  <span className="mt-1 block text-xs font-normal opacity-70">
+                    语音转文字
+                  </span>
+                </button>
+                <button
+                  aria-selected={tab === 'summary'}
+                  className={`rounded-lg px-3 py-2 text-left text-sm transition ${tab === 'summary' ? 'bg-[#eef3ff] font-semibold text-[#1f4fd1]' : 'text-black/55 hover:bg-black/[.03]'}`}
+                  onClick={(): void => changeTab('summary')}
+                  role="tab"
+                  type="button"
+                >
+                  <span className="block">总结模型</span>
+                  <span className="mt-1 block text-xs font-normal opacity-70">
+                    结构化笔记
+                  </span>
+                </button>
+              </div>
+              <div
+                className={`grid gap-3 rounded-xl border p-4 ${tab === 'summary' ? 'hidden' : ''} ${localWhisperReady ? 'border-emerald-200 bg-emerald-50/70' : 'border-blue-100 bg-blue-50/60'}`}
               >
                 <div className="flex items-start gap-3">
                   <Mic2
@@ -878,8 +935,11 @@ export default function AiModelSettingsPage({
                     </p>
                   )}
               </div>
-              <div className="grid items-start gap-4 lg:grid-cols-2">
-                <div className="grid gap-3 rounded-xl border border-black/8 bg-white p-4">
+              <div className="grid items-start gap-4">
+                <div
+                  className={`grid gap-3 rounded-xl border border-black/8 bg-white p-4 ${tab === 'summary' ? 'hidden' : ''}`}
+                  role="tabpanel"
+                >
                   <div>
                     <p className="font-medium">转录模型</p>
                     <p className="mt-1 text-xs text-black/45">
@@ -1004,7 +1064,10 @@ export default function AiModelSettingsPage({
                     <TranscriptionSettingsPage embedded />
                   )}
                 </div>
-                <div className="grid gap-4 rounded-xl border border-black/8 bg-white p-4">
+                <div
+                  className={`grid gap-4 rounded-xl border border-black/8 bg-white p-4 ${tab !== 'summary' ? 'hidden' : ''}`}
+                  role="tabpanel"
+                >
                   <div>
                     <p className="font-medium">总结模型</p>
                     <p className="mt-1 text-xs text-black/45">

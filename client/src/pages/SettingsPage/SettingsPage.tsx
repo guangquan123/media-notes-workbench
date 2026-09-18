@@ -17,6 +17,10 @@ import AiModelSettingsPage from '@/pages/AiModelSettingsPage/AiModelSettingsPage
 import MediaCleanupSettingsPage from '@/pages/MediaCleanupSettingsPage/MediaCleanupSettingsPage';
 import RecordingStorageSettings from './RecordingStorageSettings';
 import SetupOverview from './SetupOverview';
+import {
+  getSafeReturnTo,
+  hasSafeReturnTo,
+} from '@/lib/navigation-return';
 
 type SettingsSection =
   | 'ai'
@@ -91,14 +95,11 @@ function getSelectedSection(section: string | null): SettingsSection {
   return 'setup';
 }
 
-function getSafeReturnTo(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
-}
-
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const returnTo: string = getSafeReturnTo(searchParams.get('returnTo'));
+  const rawReturnTo: string | null = searchParams.get('returnTo');
+  const returnTo: string = getSafeReturnTo(rawReturnTo);
+  const canReturnToOrigin: boolean = hasSafeReturnTo(rawReturnTo);
   const selectedSection: SettingsSection = getSelectedSection(
     searchParams.get('section'),
   );
@@ -137,15 +138,15 @@ export default function SettingsPage() {
             >
               <Link to={returnTo}>
                 <ArrowLeft className="size-3.5" />
-                返回入口
+                {canReturnToOrigin ? '返回原功能' : '返回工作台'}
               </Link>
             </Button>
           </header>
 
-          <div className="grid gap-5 py-3 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-4">
+          <div className="grid items-start gap-5 py-3 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-4">
             <nav
               aria-label="配置模块"
-              className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible"
+              className="flex gap-2 overflow-x-auto pb-1 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto lg:self-start"
             >
               {SETTINGS_SECTIONS.map(
                 (item: SettingsSectionOption): ReactNode => {
