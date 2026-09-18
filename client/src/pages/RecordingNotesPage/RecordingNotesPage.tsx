@@ -772,7 +772,7 @@ export default function RecordingNotesPage() {
             to="/"
           >
             <ArrowLeft className="size-4" />
-            返回入口
+            返回工作台
           </Link>
           <Link
             className="inline-flex items-center gap-2 rounded-md border border-black/10 bg-white/75 px-3 py-2 text-xs font-semibold text-black/60 transition hover:border-emerald-300 hover:text-emerald-700"

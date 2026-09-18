@@ -326,7 +326,7 @@ export default function HomePage() {
                 to="/"
               >
                 <ArrowLeft className="size-4" />
-                返回入口
+                返回工作台
               </Link>
             </div>
           </div>

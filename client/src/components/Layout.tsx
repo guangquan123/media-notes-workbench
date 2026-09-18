@@ -165,7 +165,7 @@ const Layout = () => {
     return (): void => {
       mounted = false;
     };
-  }, [location.pathname, navigate]);
+  }, [location.hash, location.pathname, location.search, navigate]);
 
   const isSetupRoute: boolean = /(^|\/)setup(?:\/|$)/u.test(location.pathname);
   if (isLocalRuntime() && setupLoading && !isSetupRoute) {

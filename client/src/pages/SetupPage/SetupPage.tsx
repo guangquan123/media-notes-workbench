@@ -66,6 +66,7 @@ import {
   type ModelProviderPreset,
 } from '@/lib/model-provider-presets';
 import { getPreviousSetupStep } from '@/lib/setup-routing';
+import { getSafeReturnTo } from '@/lib/navigation-return';
 import SetupConnectorStep from './SetupConnectorStep';
 
 const SETUP_STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
@@ -173,11 +174,6 @@ function getInitialStep(
   if (action === 'configure_connector') return 'connector';
   if (status.status === 'needs_repair') return 'provider';
   return status.currentStep === 'environment' ? 'provider' : status.currentStep;
-}
-
-function getSafeReturnTo(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
 }
 
 function uniqueCapabilities(values: SetupCapability[]): SetupCapability[] {

@@ -17,6 +17,7 @@ import type {
   NoteTemplateConfig,
 } from '@shared/api.interface';
 import { orderPromptVersions } from '@/pages/NoteTemplatesPage/prompt-version-display.utils';
+import { getSafeReturnTo } from '@/lib/navigation-return';
 
 type DiffType = 'added' | 'removed' | 'changed' | 'context';
 
@@ -136,7 +137,10 @@ export default function NoteTemplatesComparePage() {
   const style = (searchParams.get('style') || 'learning') as NoteStyle;
   const leftId = searchParams.get('left') || '';
   const rightId = searchParams.get('right') || '';
-  const returnTo = searchParams.get('returnTo') || '/settings?section=prompts';
+  const returnTo: string = getSafeReturnTo(
+    searchParams.get('returnTo'),
+    '/settings?section=prompts',
+  );
   const [templates, setTemplates] = useState<NoteTemplateConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | Exclude<DiffType, 'context'>>(

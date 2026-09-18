@@ -370,7 +370,7 @@ export default function ArticleExportPage() {
                 to="/"
               >
                 <ArrowLeft className="size-4" />
-                返回入口
+                返回工作台
               </Link>
               <Link
                 className="inline-flex items-center gap-2 rounded-full border border-[#fb7299]/20 bg-[#fff5f7] px-4 py-2 text-[#be185d] shadow-sm transition hover:border-[#fb7299]/35 hover:bg-[#ffe4ec]"

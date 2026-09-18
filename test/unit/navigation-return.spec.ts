@@ -18,6 +18,7 @@ describe('navigation return helpers', () => {
   it('rejects external and protocol-relative paths', () => {
     expect(getSafeReturnTo('https://example.com')).toBe('/');
     expect(getSafeReturnTo('//example.com')).toBe('/');
+    expect(getSafeReturnTo('/\\evil.com')).toBe('/');
     expect(hasSafeReturnTo('javascript:alert(1)')).toBe(false);
   });
 

@@ -160,7 +160,7 @@ export default function TranscriptionSettingsPage({
       <div className={embedded ? '' : 'mx-auto max-w-2xl'}>
         {!embedded && <header className="flex items-center justify-between border-b border-black/8 pb-5">
           <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-[#3370ff] text-white"><CloudCog className="size-5" /></div><div><p className="text-sm font-semibold">腾讯云高质量转录</p><p className="text-xs text-black/45">私有 COS + ASR 大模型 2.0</p></div></div>
-          <Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回入口</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to="/"><ArrowLeft className="size-4" />返回工作台</Link></Button>
         </header>}
         <section className={`${embedded ? 'pt-0' : 'mt-6'} space-y-4`}>
           <div className="flex items-center justify-between gap-4 rounded-xl border border-black/8 bg-white p-4"><div><p className="font-medium">使用腾讯云 ASR</p><p className="mt-1 text-xs leading-5 text-black/50">开启后，选择腾讯 ASR 的任务会使用此资源包；关闭后请在上方切换到 API 大模型。</p></div><div className="flex shrink-0 items-center gap-2"><span className={`text-xs font-medium ${form.enabled ? 'text-emerald-700' : 'text-black/45'}`}>{form.enabled ? '已开启' : '已关闭'}</span><Switch aria-label="启用腾讯云 ASR" checked={form.enabled} disabled={togglingEnabled} onCheckedChange={(enabled: boolean): void => void toggleEnabled(enabled)} /></div></div>

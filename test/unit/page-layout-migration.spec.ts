@@ -138,8 +138,13 @@ describe('page layout migration contracts', () => {
 
     expect(settings).toContain('lg:sticky');
     expect(settings).toContain('lg:max-h-[calc(100vh-5rem)]');
+    expect(settings).toContain('overflow-x-clip');
+    expect(settings).toContain("hasSafeReturnTo(rawReturnTo) && rawReturnTo !== '/'");
+    expect(settings).toContain("canReturnToOrigin ? '返回原功能' : '返回工作台'");
     const layout = read('client/src/components/Layout.tsx');
     expect(layout).toContain("location.pathname === '/'");
+    expect(layout).toContain('location.search, navigate');
+    expect(layout).toContain('location.hash, location.pathname');
     expect(models).toContain('转录模型');
     expect(models).toContain('总结模型');
     expect(models).toContain('role="tablist"');

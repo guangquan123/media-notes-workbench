@@ -245,7 +245,7 @@ const OperationManualPage = () => {
         </div>
         <Link className="manual-back" to="/">
           <ArrowLeft className="size-4" />
-          返回入口
+          返回工作台
         </Link>
       </header>
 

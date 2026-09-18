@@ -83,6 +83,7 @@ import {
 import TranscriptionSettingsPage from '@/pages/TranscriptionSettingsPage/TranscriptionSettingsPage';
 import { isLocalRuntime } from '@/lib/runtime';
 import { buildAiModelReadinessSummary } from './ai-model-readiness.utils';
+import { getSafeReturnTo, hasSafeReturnTo } from '@/lib/navigation-return';
 
 type AiSettingsTab = 'providers' | 'models' | 'transcription' | 'summary';
 
@@ -166,6 +167,10 @@ export default function AiModelSettingsPage({
 }: AiModelSettingsPageProps) {
   const Root = embedded ? 'section' : 'main';
   const [searchParams, setSearchParams] = useSearchParams();
+  const rawReturnTo: string | null = searchParams.get('returnTo');
+  const returnTo: string = getSafeReturnTo(rawReturnTo);
+  const canReturnToOrigin: boolean =
+    hasSafeReturnTo(rawReturnTo) && rawReturnTo !== '/';
   const [settings, setSettings] = useState<AiModelSettings | null>(null);
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null);
   const [whisperPackStatus, setWhisperPackStatus] =
@@ -655,9 +660,9 @@ export default function AiModelSettingsPage({
               </p>
             </div>
             <Button asChild size="sm" variant="outline">
-              <Link to="/">
+              <Link to={returnTo}>
                 <Mic2 className="size-4" />
-                返回入口
+                {canReturnToOrigin ? '返回原功能' : '返回工作台'}
               </Link>
             </Button>
           </header>
