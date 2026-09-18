@@ -49,6 +49,7 @@ import {
   ReliableRecorder,
   type RecorderDeviceState,
   type RecorderMetrics,
+  type RecorderPersistenceStatus,
   type RecorderPreparation,
   type RecordingResult,
 } from './reliable-recorder';
@@ -70,7 +71,7 @@ type RecordingPhase =
   | 'paused'
   | 'review'
   | 'processing';
-type QualityLevel = 'good' | 'warning' | 'poor';
+type QualityLevel = 'good' | 'quiet' | 'warning' | 'poor';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -86,6 +87,12 @@ function getQualityCopy(level: QualityLevel): {
   }
   if (level === 'warning') {
     return { description: '建议靠近麦克风并避免敲击桌面', label: '需要留意' };
+  }
+  if (level === 'quiet') {
+    return {
+      description: '录音正在正常保存，当前声音较轻或距离较远',
+      label: '声音偏轻',
+    };
   }
   return {
     description: '暂未确认有效声音，请先说话测试',
@@ -125,6 +132,12 @@ export default function RecordingNotesPage() {
   const [durationMs, setDurationMs] = useState<number>(0);
   const [recordingBytes, setRecordingBytes] = useState<number>(0);
   const [chunkCount, setChunkCount] = useState<number>(0);
+  const [persistence, setPersistence] = useState<RecorderPersistenceStatus>({
+    bytes: 0,
+    chunkCount: 0,
+    lastPersistedAt: null,
+    state: 'idle',
+  });
   const [recordingFile, setRecordingFile] = useState<File | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [audioAnalysis, setAudioAnalysis] =
@@ -241,6 +254,9 @@ export default function RecordingNotesPage() {
         );
       },
       onMetrics: (nextMetrics: RecorderMetrics) => setMetrics(nextMetrics),
+      onPersistence: (nextStatus: RecorderPersistenceStatus) => {
+        setPersistence(nextStatus);
+      },
       onAutoStop: (result: RecordingResult) => {
         setStopping(true);
         void handleRecordingResult(result)
@@ -264,25 +280,21 @@ export default function RecordingNotesPage() {
 
   const recorder: ReliableRecorder = recorderRef.current;
   const qualityLevel: QualityLevel =
-    deviceState.state === 'ended' || deviceState.state === 'error'
+    deviceState.state === 'ended' ||
+    deviceState.state === 'error' ||
+    persistence.state === 'error'
       ? 'poor'
-      : deviceState.state === 'muted' ||
-          metrics.clipCount > 0 ||
-          metrics.silentForMs > SILENCE_WARNING_MS
+      : deviceState.state === 'muted' || metrics.clipCount > 0
         ? 'warning'
-        : metrics.inputDetected
+        : metrics.inputDetected && metrics.silentForMs <= SILENCE_WARNING_MS
           ? 'good'
-          : 'poor';
+          : 'quiet';
   const qualityCopy = getQualityCopy(qualityLevel);
   const running: boolean = Boolean(
     job && !['completed', 'cancelled', 'failed'].includes(job.stage),
   );
   const canStart: boolean =
-    deviceState.state === 'ready' &&
-    metrics.inputDetected &&
-    storageReady &&
-    !recoverable &&
-    !preparing;
+    deviceState.state === 'ready' && storageReady && !recoverable && !preparing;
   const canConvert: boolean = Boolean(
     recordingFile &&
     durationMs >= MIN_RECORDING_DURATION_MS &&
@@ -422,8 +434,10 @@ export default function RecordingNotesPage() {
         storageChecked = true;
         setStorageReady(true);
       }
-      const nextPreparation: RecorderPreparation =
-        await recorder.prepare(audioProfile, captureMode);
+      const nextPreparation: RecorderPreparation = await recorder.prepare(
+        audioProfile,
+        captureMode,
+      );
       setPreparation(nextPreparation);
       toast.success(
         `${getRecordingCaptureModeDefinition(captureMode).label}已连接，请完成声音测试`,
@@ -460,12 +474,18 @@ export default function RecordingNotesPage() {
       return;
     }
     if (!canStart) {
-      toast.error('请先完成声音测试，并确认所选来源都有清晰输入');
+      toast.error('请先完成设备检测，并确认录音保护存储已启用');
       return;
     }
     setError(null);
     setRecordingBytes(0);
     setChunkCount(0);
+    setPersistence({
+      bytes: 0,
+      chunkCount: 0,
+      lastPersistedAt: null,
+      state: 'idle',
+    });
     setAudioAnalysis(null);
     setRecordingAssetMedia(null);
     setDurationMs(0);
@@ -743,13 +763,18 @@ export default function RecordingNotesPage() {
     });
   };
 
-  const signalWidth: number = Math.min(100, Math.max(2, metrics.rms * 600));
+  const signalWidth: number = Math.min(
+    100,
+    Math.max(2, Math.pow(Math.min(1, metrics.rms / 0.08), 0.55) * 100),
+  );
   const qualityColor: string =
     qualityLevel === 'good'
       ? 'text-emerald-700'
       : qualityLevel === 'warning'
         ? 'text-amber-700'
-        : 'text-red-700';
+        : qualityLevel === 'quiet'
+          ? 'text-blue-700'
+          : 'text-red-700';
 
   return (
     <main className="recording-notes-page min-h-screen bg-[#eef2f6] text-[#111827]">
@@ -831,6 +856,7 @@ export default function RecordingNotesPage() {
                 deviceState={deviceState}
                 durationMs={durationMs}
                 metrics={metrics}
+                persistence={persistence}
                 onPause={pauseRecording}
                 onResume={resumeRecording}
                 onStop={() => void stopRecording()}

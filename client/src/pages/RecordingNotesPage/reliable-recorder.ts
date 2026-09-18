@@ -34,6 +34,15 @@ export interface RecorderMetrics {
   sources: Partial<Record<RecorderInput, RecorderSourceMetrics>>;
 }
 
+export type RecorderPersistenceState = 'idle' | 'writing' | 'saved' | 'error';
+
+export interface RecorderPersistenceStatus {
+  bytes: number;
+  chunkCount: number;
+  lastPersistedAt: number | null;
+  state: RecorderPersistenceState;
+}
+
 export interface RecorderDeviceState {
   muted: boolean;
   state: 'checking' | 'ready' | 'ended' | 'muted' | 'error';
@@ -56,6 +65,7 @@ export interface ReliableRecorderEvents {
   onError: (error: Error) => void;
   onMetrics: (metrics: RecorderMetrics) => void;
   onAutoStop?: (result: RecordingResult) => void;
+  onPersistence: (status: RecorderPersistenceStatus) => void;
   onStorageWarning: () => void;
 }
 
@@ -107,6 +117,9 @@ export class ReliableRecorder {
   private captureMode: RecordingCaptureMode = DEFAULT_RECORDING_CAPTURE_MODE;
   private chunks: Blob[] = [];
   private chunkCount = 0;
+  private recordingBytes = 0;
+  private persistedBytes = 0;
+  private persistedChunkCount = 0;
   private clipCount = 0;
   private deviceState: RecorderDeviceState = {
     muted: false,
@@ -207,6 +220,9 @@ export class ReliableRecorder {
     this.chunks = [];
     this.activityFrames = [];
     this.chunkCount = 0;
+    this.recordingBytes = 0;
+    this.persistedBytes = 0;
+    this.persistedChunkCount = 0;
     this.clipCount = 0;
     this.storageFailed = false;
     this.storageQueue = Promise.resolve();
@@ -224,8 +240,20 @@ export class ReliableRecorder {
         mimeType,
         title,
       });
+      this.events.onPersistence({
+        bytes: 0,
+        chunkCount: 0,
+        lastPersistedAt: Date.now(),
+        state: 'saved',
+      });
     } catch (error: unknown) {
       this.storageFailed = true;
+      this.events.onPersistence({
+        bytes: 0,
+        chunkCount: 0,
+        lastPersistedAt: null,
+        state: 'error',
+      });
       this.events.onStorageWarning();
       throw new Error(
         error instanceof Error
@@ -242,12 +270,14 @@ export class ReliableRecorder {
       const index: number = this.chunkCount;
       this.chunks.push(event.data);
       this.chunkCount += 1;
-      const bytes: number = this.chunks.reduce(
-        (total: number, chunk: Blob) => total + chunk.size,
-        0,
+      this.recordingBytes += event.data.size;
+      this.events.onChunk(this.recordingBytes, this.chunkCount);
+      this.persistChunk(
+        event.data,
+        index,
+        this.recordingBytes,
+        this.chunkCount,
       );
-      this.events.onChunk(bytes, this.chunkCount);
-      this.persistChunk(event.data, index);
     };
     this.recorder.onerror = () => {
       this.pause();
@@ -508,9 +538,20 @@ export class ReliableRecorder {
     });
   }
 
-  private persistChunk(blob: Blob, index: number): void {
+  private persistChunk(
+    blob: Blob,
+    index: number,
+    targetBytes: number,
+    targetChunkCount: number,
+  ): void {
     if (this.storageFailed || !this.sessionId) return;
     const sessionId: string = this.sessionId;
+    this.events.onPersistence({
+      bytes: this.persistedBytes,
+      chunkCount: this.persistedChunkCount,
+      lastPersistedAt: null,
+      state: 'writing',
+    });
     this.storageQueue = this.storageQueue
       .then(async () => {
         await appendStoredRecordingChunk({
@@ -519,10 +560,24 @@ export class ReliableRecorder {
           index,
           sessionId,
         });
+        this.persistedBytes = targetBytes;
+        this.persistedChunkCount = targetChunkCount;
+        this.events.onPersistence({
+          bytes: this.persistedBytes,
+          chunkCount: targetChunkCount,
+          lastPersistedAt: Date.now(),
+          state: 'saved',
+        });
       })
       .catch(() => {
         this.storageFailed = true;
         this.pause();
+        this.events.onPersistence({
+          bytes: this.persistedBytes,
+          chunkCount: this.persistedChunkCount,
+          lastPersistedAt: null,
+          state: 'error',
+        });
         this.events.onStorageWarning();
       });
   }

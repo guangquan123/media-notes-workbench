@@ -49,6 +49,7 @@ import type { NoteJob, NoteStyle } from '@shared/api.interface';
 import type { TranscriptionLanguageMode } from '@shared/api.interface';
 import {
   type RecordingAudioProfile,
+  formatRecordingBytes,
   formatRecordingDuration,
   getRecordingCaptureModeDefinition,
   type RecordingCaptureMode,
@@ -64,6 +65,7 @@ import { isLocalMarkdownDocument } from '@/pages/MediaNotePage/media-note-connec
 import type {
   RecorderDeviceState,
   RecorderMetrics,
+  RecorderPersistenceStatus,
   RecorderPreparation,
 } from './reliable-recorder';
 
@@ -102,6 +104,7 @@ interface RecordingPanelProps {
   deviceState: RecorderDeviceState;
   durationMs: number;
   metrics: RecorderMetrics;
+  persistence: RecorderPersistenceStatus;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -138,23 +141,40 @@ interface ProcessingPanelProps {
   uploading: boolean;
 }
 
-type RecordingStepPhase = 'setup' | 'recording' | 'paused' | 'review' | 'processing';
+type RecordingStepPhase =
+  | 'setup'
+  | 'recording'
+  | 'paused'
+  | 'review'
+  | 'processing';
 
 export function RecordingStepRail({ phase }: { phase: RecordingStepPhase }) {
   const activeStep: number =
     phase === 'setup' ? 0 : phase === 'recording' || phase === 'paused' ? 1 : 2;
   return (
-    <nav aria-label={`当前步骤：${['准备', '录音', '确认'][activeStep]}`} className="recording-step-rail">
+    <nav
+      aria-label={`当前步骤：${['准备', '录音', '确认'][activeStep]}`}
+      className="recording-step-rail"
+    >
       {['准备', '录音', '确认'].map((label: string, index: number) => (
         <Fragment key={label}>
-          <div className={`recording-step ${index < activeStep ? 'is-done' : ''}`}>
-            <span className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}>
+          <div
+            className={`recording-step ${index < activeStep ? 'is-done' : ''}`}
+          >
+            <span
+              className={`recording-step__node ${index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}`}
+            >
               {index < activeStep ? <Check className="size-4" /> : index + 1}
             </span>
-            <span className={index === activeStep ? 'is-active' : ''}>{label}</span>
+            <span className={index === activeStep ? 'is-active' : ''}>
+              {label}
+            </span>
           </div>
           {index < 2 && (
-            <span className={`recording-step-arrow ${index < activeStep ? 'is-done' : ''}`} aria-hidden="true">
+            <span
+              className={`recording-step-arrow ${index < activeStep ? 'is-done' : ''}`}
+              aria-hidden="true"
+            >
               <ChevronRight className="size-5" />
             </span>
           )}
@@ -254,16 +274,26 @@ export function SetupPanel({
         <div className="recording-recovery" role="alert">
           <div>
             <strong>发现上次未完成的录音</strong>
-            <span>{formatRecordingDuration(recoverable.durationMs)} · 建议先恢复再开始新的录音</span>
+            <span>
+              {formatRecordingDuration(recoverable.durationMs)} ·
+              建议先恢复再开始新的录音
+            </span>
           </div>
           <div className="recording-recovery__actions">
-            <Button onClick={onRecover} size="sm">恢复录音</Button>
-            <Button onClick={onDiscardRecovery} size="sm" variant="outline">丢弃</Button>
+            <Button onClick={onRecover} size="sm">
+              恢复录音
+            </Button>
+            <Button onClick={onDiscardRecovery} size="sm" variant="outline">
+              丢弃
+            </Button>
           </div>
         </div>
       )}
 
-      <section className={`recording-mic-test ${micTone}`} data-mic-state={micState}>
+      <section
+        className={`recording-mic-test ${micTone}`}
+        data-mic-state={micState}
+      >
         <div className="recording-mic-test__header">
           <div>
             <p className="recording-section-label">声音检测</p>
@@ -283,11 +313,19 @@ export function SetupPanel({
         </div>
 
         <div className="recording-mic-steps" aria-label="声音检测进度">
-          {[captureDefinition.connectionStep, captureDefinition.signalStep, '可以开始'].map((label: string, index: number) => (
+          {[
+            captureDefinition.connectionStep,
+            captureDefinition.signalStep,
+            '可以开始',
+          ].map((label: string, index: number) => (
             <div className="recording-mic-step" key={label}>
               <span
                 className={`recording-mic-step__node ${
-                  index < micStep ? 'is-done' : index === micStep ? 'is-active' : ''
+                  index < micStep
+                    ? 'is-done'
+                    : index === micStep
+                      ? 'is-active'
+                      : ''
                 }`}
               >
                 {index < micStep ? <Check className="size-4" /> : index + 1}
@@ -311,7 +349,10 @@ export function SetupPanel({
                 </small>
               </span>
               {index < 2 && (
-                <i className={index < micStep ? 'is-done' : ''} aria-hidden="true" />
+                <i
+                  className={index < micStep ? 'is-done' : ''}
+                  aria-hidden="true"
+                />
               )}
             </div>
           ))}
@@ -321,8 +362,14 @@ export function SetupPanel({
           aria-live="polite"
           className={`recording-meter-row ${micSignalReady ? 'is-detected' : ''}`}
         >
-          <span className="recording-meter-label"><Mic2 className="size-5" />实时音量</span>
-          <div className="recording-meter" aria-label={`实时音量 ${Math.round(meterPercent)}%`}>
+          <span className="recording-meter-label">
+            <Mic2 className="size-5" />
+            实时音量
+          </span>
+          <div
+            className="recording-meter"
+            aria-label={`实时音量 ${Math.round(meterPercent)}%`}
+          >
             {Array.from({ length: 30 }, (_, index: number) => (
               <i
                 className={index < meterActiveBars ? 'is-on' : ''}
@@ -331,32 +378,48 @@ export function SetupPanel({
               />
             ))}
           </div>
-          <span className={`recording-meter-status ${micState === 'success' ? 'is-success' : ''}`}>
+          <span
+            className={`recording-meter-status ${micState === 'success' ? 'is-success' : ''}`}
+          >
             {micState === 'success'
               ? '已检测到声音'
               : micState === 'listening'
                 ? '正在监听'
                 : '等待输入'}
           </span>
-          <span className="recording-meter-level" aria-label={`当前音量 ${Math.round(meterPercent)}%`}>
+          <span
+            className="recording-meter-level"
+            aria-label={`当前音量 ${Math.round(meterPercent)}%`}
+          >
             {Math.round(meterPercent)}%
           </span>
         </div>
         {micState === 'listening' && (
-          <p className="recording-inline-tip"><Info className="size-4" />请靠近麦克风说话，看到绿色音量条再开始。</p>
+          <p className="recording-inline-tip">
+            <Info className="size-4" />
+            请靠近麦克风说话，看到绿色音量条再开始。
+          </p>
         )}
         {micState === 'error' && (
-          <p className="recording-inline-tip is-error"><TriangleAlert className="size-4" />{micDescription}</p>
+          <p className="recording-inline-tip is-error">
+            <TriangleAlert className="size-4" />
+            {micDescription}
+          </p>
         )}
         {preparation?.deviceLabel && micState === 'success' && (
-          <p className="recording-device-copy">当前设备：{preparation.deviceLabel}</p>
+          <p className="recording-device-copy">
+            当前设备：{preparation.deviceLabel}
+          </p>
         )}
         {processingCopy && (
           <p className="recording-device-copy">声音优化：{processingCopy}</p>
         )}
       </section>
 
-      <section className="recording-config-panel" aria-labelledby="recording-config-title">
+      <section
+        className="recording-config-panel"
+        aria-labelledby="recording-config-title"
+      >
         <div className="recording-config-heading">
           <div>
             <p className="recording-section-label">录音设置</p>
@@ -391,67 +454,110 @@ export function SetupPanel({
           onClick={onAdvancedToggle}
           type="button"
         >
-          <span><SlidersHorizontal className="size-4" /><strong>高级设置</strong><small>录音模式、语言、词表</small></span>
-          {advancedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          <span>
+            <SlidersHorizontal className="size-4" />
+            <strong>高级设置</strong>
+            <small>录音模式、语言、词表</small>
+          </span>
+          {advancedOpen ? (
+            <ChevronUp className="size-4" />
+          ) : (
+            <ChevronDown className="size-4" />
+          )}
         </button>
-        {advancedOpen && <div className="recording-advanced-panel">
-          <div className="recording-field recording-field--full">
-            <span>录音来源</span>
-            <div className="recording-capture-options" role="radiogroup" aria-label="录音来源">
-              {(['microphone', 'system', 'mixed'] as RecordingCaptureMode[]).map((mode: RecordingCaptureMode) => {
-                const definition = getRecordingCaptureModeDefinition(mode);
-                const selected: boolean = captureMode === mode;
-                return (
-                  <Button
-                    aria-checked={selected}
-                    className={`recording-capture-option ${selected ? 'is-selected' : ''}`}
-                    key={mode}
-                    onClick={() => onCaptureModeChange(mode)}
-                    role="radio"
-                    type="button"
-                    variant="outline"
-                  >
-                    {mode === 'system' ? <Volume2 className="size-4" /> : <Mic2 className="size-4" />}
-                    {definition.label}
-                  </Button>
-                );
-              })}
+        {advancedOpen && (
+          <div className="recording-advanced-panel">
+            <div className="recording-field recording-field--full">
+              <span>录音来源</span>
+              <div
+                className="recording-capture-options"
+                role="radiogroup"
+                aria-label="录音来源"
+              >
+                {(
+                  ['microphone', 'system', 'mixed'] as RecordingCaptureMode[]
+                ).map((mode: RecordingCaptureMode) => {
+                  const definition = getRecordingCaptureModeDefinition(mode);
+                  const selected: boolean = captureMode === mode;
+                  return (
+                    <Button
+                      aria-checked={selected}
+                      className={`recording-capture-option ${selected ? 'is-selected' : ''}`}
+                      key={mode}
+                      onClick={() => onCaptureModeChange(mode)}
+                      role="radio"
+                      type="button"
+                      variant="outline"
+                    >
+                      {mode === 'system' ? (
+                        <Volume2 className="size-4" />
+                      ) : (
+                        <Mic2 className="size-4" />
+                      )}
+                      {definition.label}
+                    </Button>
+                  );
+                })}
+              </div>
+              {captureMode !== 'microphone' && (
+                <small className="recording-capture-note">
+                  通过浏览器共享音频获取；共享窗口中需勾选“共享音频”，录音不会保存画面。
+                </small>
+              )}
             </div>
-            {captureMode !== 'microphone' && (
-              <small className="recording-capture-note">
-                通过浏览器共享音频获取；共享窗口中需勾选“共享音频”，录音不会保存画面。
-              </small>
-            )}
+            <label className="recording-field">
+              <span>录音模式</span>
+              <Select
+                onValueChange={(value: string) =>
+                  onAudioProfileChange(value as RecordingAudioProfile)
+                }
+                value={audioProfile}
+              >
+                <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fidelity">
+                    原声保真（方言/安静环境）
+                  </SelectItem>
+                  <SelectItem value="clarity">
+                    会议清晰（回声/多人环境）
+                  </SelectItem>
+                  <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="recording-field">
+              <span>语言模式</span>
+              <Select
+                onValueChange={(value: string) =>
+                  onLanguageModeChange(value as TranscriptionLanguageMode)
+                }
+                value={languageMode}
+              >
+                <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">自动识别（推荐）</SelectItem>
+                  <SelectItem value="mandarin">普通话</SelectItem>
+                  <SelectItem value="sichuan">四川话增强</SelectItem>
+                  <SelectItem value="cantonese">粤语</SelectItem>
+                  <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="recording-field recording-field--full">
+              <span>词表（可选）</span>
+              <Input
+                className="h-11 border-black/10 bg-white text-sm font-normal"
+                value={hotwords}
+                onChange={(event) => onHotwordsChange(event.target.value)}
+                placeholder="人名、项目名、术语，用逗号分隔"
+              />
+            </label>
           </div>
-          <label className="recording-field">
-            <span>录音模式</span>
-            <Select onValueChange={(value: string) => onAudioProfileChange(value as RecordingAudioProfile)} value={audioProfile}>
-              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fidelity">原声保真（方言/安静环境）</SelectItem>
-                <SelectItem value="clarity">会议清晰（回声/多人环境）</SelectItem>
-                <SelectItem value="noisy">强噪增强（风扇/街道）</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="recording-field">
-            <span>语言模式</span>
-            <Select onValueChange={(value: string) => onLanguageModeChange(value as TranscriptionLanguageMode)} value={languageMode}>
-              <SelectTrigger className="h-11 w-full border-black/10 bg-white font-normal text-black/75"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动识别（推荐）</SelectItem>
-                <SelectItem value="mandarin">普通话</SelectItem>
-                <SelectItem value="sichuan">四川话增强</SelectItem>
-                <SelectItem value="cantonese">粤语</SelectItem>
-                <SelectItem value="mixed">普通话 + 英语/方言混说</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="recording-field recording-field--full">
-            <span>词表（可选）</span>
-            <Input className="h-11 border-black/10 bg-white text-sm font-normal" value={hotwords} onChange={(event) => onHotwordsChange(event.target.value)} placeholder="人名、项目名、术语，用逗号分隔" />
-          </label>
-        </div>}
+        )}
       </section>
 
       <div className="recording-primary-action">
@@ -462,7 +568,8 @@ export function SetupPanel({
           onClick={onStart}
           type="button"
         >
-          <Mic2 className="size-5" />开始录音
+          <Mic2 className="size-5" />
+          开始录音
         </Button>
         <p className="recording-start-hint">
           {canStart
@@ -473,16 +580,21 @@ export function SetupPanel({
                 ? '正在连接设备，请稍候…'
                 : micState === 'listening'
                   ? '请说一句话，确认有声音输入'
-                : micState === 'error'
-                  ? `${captureDefinition.label}不可用，请重新检测`
-                  : recoverable
-                    ? '请先恢复或丢弃上次未完成的录音'
-                    : storageReady
-                      ? '检测通过后才可开始录音'
-                      : '录音保护存储未就绪，暂不能开始'}
+                  : micState === 'error'
+                    ? `${captureDefinition.label}不可用，请重新检测`
+                    : recoverable
+                      ? '请先恢复或丢弃上次未完成的录音'
+                      : storageReady
+                        ? '检测通过后才可开始录音'
+                        : '录音保护存储未就绪，暂不能开始'}
         </p>
       </div>
-      {!storageReady && <p className="recording-storage-error"><AlertTriangle className="size-4" />录音保护存储不可用，暂不允许开始录音。</p>}
+      {!storageReady && (
+        <p className="recording-storage-error">
+          <AlertTriangle className="size-4" />
+          录音保护存储不可用，暂不允许开始录音。
+        </p>
+      )}
     </div>
   );
 }
@@ -491,6 +603,7 @@ export function RecordingPanel({
   deviceState,
   durationMs,
   metrics,
+  persistence,
   onPause,
   onResume,
   onStop,
@@ -505,6 +618,20 @@ export function RecordingPanel({
 }: RecordingPanelProps) {
   const liveMeterPercent: number = Math.min(100, Math.max(0, signalWidth));
   const liveMeterBars: number = Math.round((liveMeterPercent / 100) * 28);
+  const persistenceLabel: string =
+    persistence.state === 'writing'
+      ? '正在写入本地…'
+      : persistence.state === 'saved'
+        ? `已写入本地 · ${persistence.chunkCount} 段`
+        : persistence.state === 'error'
+          ? '本地写入异常'
+          : '准备保存';
+  const persistenceClass: string =
+    persistence.state === 'error'
+      ? 'recording-persistence recording-persistence--error'
+      : persistence.state === 'writing'
+        ? 'recording-persistence recording-persistence--writing'
+        : 'recording-persistence';
 
   return (
     <div className="recording-live-panel">
@@ -521,15 +648,32 @@ export function RecordingPanel({
           {formatRecordingDuration(durationMs)}
         </span>
       </div>
+      <div className={persistenceClass} role="status" aria-live="polite">
+        <span className="recording-persistence__dot" aria-hidden="true" />
+        <strong>{phase === 'recording' ? '录音已启动' : '录音已暂停'}</strong>
+        <span>
+          {phase === 'recording' ? persistenceLabel : '点击“继续”后恢复写入'}
+        </span>
+      </div>
       <section className="recording-live-volume" aria-label="录音实时音量">
         <div className="recording-live-volume__header">
           <div className="recording-live-volume__label">
             <span className="recording-live-volume__icon" aria-hidden="true">
-              {phase === 'recording' ? <Mic2 className="size-5" /> : <Pause className="size-5" />}
+              {phase === 'recording' ? (
+                <Mic2 className="size-5" />
+              ) : (
+                <Pause className="size-5" />
+              )}
             </span>
             <div>
-              <strong>{phase === 'recording' ? '正在采集声音' : '录音已暂停'}</strong>
-              <span>{phase === 'recording' ? '说话时观察音量条，确认声音持续写入' : '点击“继续”恢复声音采集'}</span>
+              <strong>
+                {phase === 'recording' ? '正在采集声音' : '录音已暂停'}
+              </strong>
+              <span>
+                {phase === 'recording'
+                  ? '音量只反映声音大小，是否保存请看上方写入状态'
+                  : '点击“继续”恢复声音采集'}
+              </span>
             </div>
           </div>
           <div className="recording-live-volume__value" aria-live="polite">
@@ -537,7 +681,10 @@ export function RecordingPanel({
             <span>{qualityLabel}</span>
           </div>
         </div>
-        <div className="recording-live-meter" aria-label={`实时音量 ${Math.round(liveMeterPercent)}%`}>
+        <div
+          className="recording-live-meter"
+          aria-label={`实时音量 ${Math.round(liveMeterPercent)}%`}
+        >
           {Array.from({ length: 28 }, (_, index: number) => (
             <i
               className={index < liveMeterBars ? 'is-on' : ''}
@@ -564,16 +711,22 @@ export function RecordingPanel({
         />
         <StatusLine label="时长" value={formatRecordingDuration(durationMs)} />
         <StatusLine
-          label="静音时长"
+          label="声音状态"
           value={
-            metrics.silentForMs > 0
-              ? formatRecordingDuration(metrics.silentForMs)
-              : '正常'
+            metrics.inputDetected
+              ? metrics.silentForMs > 12_000
+                ? '当前偏安静'
+                : '已检测到声音'
+              : '等待声音'
           }
         />
         <StatusLine
-          label="恢复保护"
-          value={storageReady ? '已启用' : '已暂停录音'}
+          label="已保存"
+          value={
+            persistence.bytes > 0
+              ? formatRecordingBytes(persistence.bytes)
+              : '首段写入中'
+          }
         />
       </div>
       {metrics.clipCount > 0 && (
@@ -582,6 +735,15 @@ export function RecordingPanel({
           检测到声音过大削波，建议把麦克风移远一些或降低输入音量。
         </div>
       )}
+      {phase === 'recording' &&
+        persistence.state !== 'error' &&
+        metrics.inputDetected &&
+        metrics.silentForMs > 12_000 && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            录音仍在正常写入，只是当前声音较轻或距离麦克风较远；如需更清晰，可让发言人靠近麦克风或提高系统输入音量。
+          </div>
+        )}
       {deviceState.state === 'muted' && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -595,11 +757,21 @@ export function RecordingPanel({
         </div>
       )}
       <div className="recording-action-row mt-7 flex flex-wrap justify-center gap-3">
-        <Button className="recording-secondary-button" onClick={onPause} variant="outline" disabled={phase === 'paused'}>
+        <Button
+          className="recording-secondary-button"
+          onClick={onPause}
+          variant="outline"
+          disabled={phase === 'paused'}
+        >
           <Pause />
           暂停
         </Button>
-        <Button className="recording-secondary-button" onClick={onResume} variant="outline" disabled={phase === 'recording'}>
+        <Button
+          className="recording-secondary-button"
+          onClick={onResume}
+          variant="outline"
+          disabled={phase === 'recording'}
+        >
           <Play />
           继续
         </Button>
@@ -656,7 +828,11 @@ export function ReviewPanel({
       </div>
       <div className="recording-review-panel__player mt-8 rounded-xl border border-black/8 bg-[#fbfdfc] p-5">
         <RecordingAudioPlayer
-          ariaLabel={smartPlayback && canUseSmartPlayback ? '录音智能播放' : '录音完整播放'}
+          ariaLabel={
+            smartPlayback && canUseSmartPlayback
+              ? '录音智能播放'
+              : '录音完整播放'
+          }
           durationMs={durationMs}
           skipSegments={segments}
           smartPlayback={smartPlayback && canUseSmartPlayback}
@@ -768,11 +944,19 @@ export function ReviewPanel({
           <UploadCloud />
           转为笔记
         </Button>
-        <Button className="recording-secondary-button" onClick={onDownloadBackup} variant="outline">
+        <Button
+          className="recording-secondary-button"
+          onClick={onDownloadBackup}
+          variant="outline"
+        >
           <FileAudio />
           下载录音备份
         </Button>
-        <Button className="recording-secondary-button" onClick={onReset} variant="outline">
+        <Button
+          className="recording-secondary-button"
+          onClick={onReset}
+          variant="outline"
+        >
           <RefreshCcw />
           重新录音
         </Button>
@@ -865,7 +1049,11 @@ export function ProcessingPanel({
         <Button
           className="mt-7 w-full bg-blue-600 hover:bg-blue-700"
           onClick={() =>
-            window.open(resolveLocalDocumentUrl(job.documentUrl), '_blank', 'noopener,noreferrer')
+            window.open(
+              resolveLocalDocumentUrl(job.documentUrl),
+              '_blank',
+              'noopener,noreferrer',
+            )
           }
         >
           {localMarkdown ? '打开 Markdown 笔记' : '打开总结笔记'}
@@ -877,7 +1065,9 @@ export function ProcessingPanel({
           className="mt-3 w-full"
           onClick={async (): Promise<void> => {
             try {
-              const blob: Blob = await downloadLocalDocument(job.documentUrl || '');
+              const blob: Blob = await downloadLocalDocument(
+                job.documentUrl || '',
+              );
               downloadBlob(blob, '录音学习笔记.md');
             } catch {
               toast.error('Markdown 下载失败，请稍后重试');
@@ -893,7 +1083,11 @@ export function ProcessingPanel({
         <Button
           className="mt-3 w-full"
           onClick={() =>
-            window.open(resolveLocalDocumentUrl(job.rawDocumentUrl), '_blank', 'noopener,noreferrer')
+            window.open(
+              resolveLocalDocumentUrl(job.rawDocumentUrl),
+              '_blank',
+              'noopener,noreferrer',
+            )
           }
           variant="outline"
         >
@@ -940,7 +1134,9 @@ export function StatusLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-black/6 pb-2 text-xs last:border-0 last:pb-0">
       <span className="text-black/45">{label}</span>
-      <strong className="text-right font-semibold text-black/70">{value}</strong>
+      <strong className="text-right font-semibold text-black/70">
+        {value}
+      </strong>
     </div>
   );
 }
