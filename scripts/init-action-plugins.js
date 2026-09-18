@@ -9,6 +9,41 @@ const { spawnSync } = require('node:child_process');
 const projectRoot = path.resolve(__dirname, '..');
 const cliPackage = '@lark-apaas/fullstack-cli@latest';
 const projectNpmCache = path.join(projectRoot, '.tmp', 'npm-cache');
+const initMarkerPath = path.join(
+  projectRoot,
+  '.tmp',
+  'action-plugins-init.json',
+);
+
+function getPluginSignature() {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'),
+  );
+  return JSON.stringify(
+    Object.entries(packageJson.actionPlugins || {}).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  );
+}
+
+function isPluginInitCurrent() {
+  if (!fs.existsSync(initMarkerPath)) return false;
+  try {
+    const marker = JSON.parse(fs.readFileSync(initMarkerPath, 'utf8'));
+    return marker.signature === getPluginSignature();
+  } catch {
+    return false;
+  }
+}
+
+function writePluginInitMarker() {
+  fs.mkdirSync(path.dirname(initMarkerPath), { recursive: true });
+  fs.writeFileSync(
+    initMarkerPath,
+    `${JSON.stringify({ signature: getPluginSignature() }, null, 2)}\n`,
+    'utf8',
+  );
+}
 
 function runNpx() {
   const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
@@ -30,9 +65,7 @@ function findCachedCli() {
   const localAppData = process.env.LOCALAPPDATA;
   const npxRoots = [
     path.join(projectNpmCache, '_npx'),
-    ...(localAppData
-      ? [path.join(localAppData, 'npm-cache', '_npx')]
-      : []),
+    ...(localAppData ? [path.join(localAppData, 'npm-cache', '_npx')] : []),
   ];
   const candidates = npxRoots.flatMap((npxRoot) => {
     if (!fs.existsSync(npxRoot)) return [];
@@ -80,10 +113,16 @@ function runWindowsEsmFallback(cliPath) {
   return result.status ?? 1;
 }
 
-const initialStatus = runNpx();
-if (initialStatus === 0 || process.platform !== 'win32') {
-  process.exitCode = initialStatus;
+if (isPluginInitCurrent()) {
+  process.stdout.write('[action-plugin] 配置未变化，跳过重复初始化\n');
+  process.exitCode = 0;
 } else {
-  const cachedCli = findCachedCli();
-  process.exitCode = cachedCli ? runWindowsEsmFallback(cachedCli) : initialStatus;
+  const initialStatus = runNpx();
+  let finalStatus = initialStatus;
+  if (initialStatus !== 0 && process.platform === 'win32') {
+    const cachedCli = findCachedCli();
+    finalStatus = cachedCli ? runWindowsEsmFallback(cachedCli) : initialStatus;
+  }
+  if (finalStatus === 0) writePluginInitMarker();
+  process.exitCode = finalStatus;
 }

@@ -89,6 +89,16 @@ function stopStream(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
 }
 
+function canRetryMicrophoneCapture(error: unknown): boolean {
+  if (!(error instanceof DOMException)) return false;
+  return [
+    'AbortError',
+    'InvalidStateError',
+    'NotReadableError',
+    'OverconstrainedError',
+  ].includes(error.name);
+}
+
 export class ReliableRecorder {
   private activityFrames: AudioActivityFrame[] = [];
   private readonly events: ReliableRecorderEvents;
@@ -98,9 +108,13 @@ export class ReliableRecorder {
   private chunks: Blob[] = [];
   private chunkCount = 0;
   private clipCount = 0;
-  private deviceState: RecorderDeviceState = { muted: false, state: 'checking' };
+  private deviceState: RecorderDeviceState = {
+    muted: false,
+    state: 'checking',
+  };
   private microphoneStream: MediaStream | null = null;
   private monitorFrame: number | null = null;
+  private muteTimers: Partial<Record<RecorderInput, number>> = {};
   private outputStream: MediaStream | null = null;
   private lastActivityFrameAt = 0;
   private pausedAt = 0;
@@ -143,17 +157,36 @@ export class ReliableRecorder {
     this.events.onDeviceState({ muted: false, state: 'checking' });
     try {
       if (captureMode !== 'system') {
-        this.microphoneStream = await navigator.mediaDevices.getUserMedia({
-          audio: buildRecordingAudioConstraints(profile),
-        });
+        const constraints: MediaTrackConstraints =
+          buildRecordingAudioConstraints(profile);
+        try {
+          this.microphoneStream = await navigator.mediaDevices.getUserMedia({
+            audio: constraints,
+          });
+        } catch (error: unknown) {
+          // Bluetooth headsets often reject processing/sample-rate hints while
+          // switching between stereo and hands-free profiles. Retry with the
+          // browser's native device negotiation before reporting a hard error.
+          if (!canRetryMicrophoneCapture(error)) throw error;
+          this.microphoneStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+        }
         this.assertAudioTrack(this.microphoneStream, '麦克风');
       }
       if (captureMode !== 'microphone') {
         this.systemAudioStream = await navigator.mediaDevices.getDisplayMedia({
           audio: true,
-          video: true,
+          video: {
+            frameRate: { ideal: 1, max: 5 },
+            height: { ideal: 1, max: 720 },
+            width: { ideal: 1, max: 1280 },
+          },
         });
         this.assertAudioTrack(this.systemAudioStream, '共享音频');
+        this.systemAudioStream
+          .getVideoTracks()
+          .forEach((track: MediaStreamTrack) => track.stop());
       }
       await this.createMixedOutput();
       this.setDeviceState({ muted: false, state: 'ready' });
@@ -252,7 +285,8 @@ export class ReliableRecorder {
           try {
             const durationMs: number = this.getDurationMs();
             await this.storageQueue;
-            if (!this.storageFailed) await finishStoredRecording(sessionId, durationMs);
+            if (!this.storageFailed)
+              await finishStoredRecording(sessionId, durationMs);
             const mimeType: string = recorder.mimeType || 'audio/webm';
             const file: File = new File(this.chunks, 'recording.webm', {
               type: mimeType,
@@ -300,6 +334,10 @@ export class ReliableRecorder {
     this.stopped = true;
     if (this.monitorFrame !== null) cancelAnimationFrame(this.monitorFrame);
     this.monitorFrame = null;
+    Object.values(this.muteTimers).forEach((timer: number | undefined) => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    });
+    this.muteTimers = {};
     stopStream(this.microphoneStream);
     stopStream(this.systemAudioStream);
     this.microphoneStream = null;
@@ -320,20 +358,31 @@ export class ReliableRecorder {
 
   private assertCaptureSupport(captureMode: RecordingCaptureMode): void {
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('当前浏览器不支持麦克风录音，请使用最新版 Chrome、Edge 或 Safari');
+      throw new Error(
+        '当前浏览器不支持麦克风录音，请使用最新版 Chrome、Edge 或 Safari',
+      );
     }
-    if (captureMode !== 'microphone' && !navigator.mediaDevices.getDisplayMedia) {
-      throw new Error('当前浏览器不支持共享音频录制，请使用最新版 Chrome 或 Edge');
+    if (
+      captureMode !== 'microphone' &&
+      !navigator.mediaDevices.getDisplayMedia
+    ) {
+      throw new Error(
+        '当前浏览器不支持共享音频录制，请使用最新版 Chrome 或 Edge',
+      );
     }
     if (typeof AudioContext === 'undefined') {
-      throw new Error('当前浏览器不支持声音混音处理，请使用最新版 Chrome、Edge 或 Safari');
+      throw new Error(
+        '当前浏览器不支持声音混音处理，请使用最新版 Chrome、Edge 或 Safari',
+      );
     }
   }
 
   private assertAudioTrack(stream: MediaStream, name: string): void {
     const track: MediaStreamTrack | undefined = stream.getAudioTracks()[0];
     if (!track) {
-      throw new Error(`${name}未提供音频。请重新选择支持音频共享的来源，并勾选共享音频。`);
+      throw new Error(
+        `${name}未提供音频。请重新选择支持音频共享的来源，并勾选共享音频。`,
+      );
     }
     if (track.readyState !== 'live') {
       throw new Error(`${name}音轨未处于可采集状态，请重新授权设备`);
@@ -344,23 +393,38 @@ export class ReliableRecorder {
     const context: AudioContext = new AudioContext();
     try {
       await context.resume();
-      const destination: MediaStreamAudioDestinationNode = context.createMediaStreamDestination();
+      const destination: MediaStreamAudioDestinationNode | null =
+        this.captureMode === 'microphone'
+          ? null
+          : context.createMediaStreamDestination();
       const inputs: RecorderInput[] = getRequiredInputs(this.captureMode);
       inputs.forEach((input: RecorderInput) => {
         const stream: MediaStream | null =
-          input === 'microphone' ? this.microphoneStream : this.systemAudioStream;
+          input === 'microphone'
+            ? this.microphoneStream
+            : this.systemAudioStream;
         if (!stream) throw new Error('声音输入尚未准备好');
-        const source: MediaStreamAudioSourceNode = context.createMediaStreamSource(stream);
+        const source: MediaStreamAudioSourceNode =
+          context.createMediaStreamSource(stream);
         const analyser: AnalyserNode = context.createAnalyser();
         analyser.fftSize = 2_048;
         source.connect(analyser);
-        source.connect(destination);
+        if (destination) {
+          source.connect(destination);
+        } else {
+          // Keep the analyser alive without routing microphone audio back to
+          // the user's headphones or speakers.
+          const silentGain: GainNode = context.createGain();
+          silentGain.gain.value = 0;
+          analyser.connect(silentGain);
+          silentGain.connect(context.destination);
+        }
         this.sourceAnalysers[input] = analyser;
         const track: MediaStreamTrack | undefined = stream.getAudioTracks()[0];
         if (track) this.attachTrackLifecycle(track, input);
       });
       this.audioContext = context;
-      this.outputStream = destination.stream;
+      this.outputStream = destination?.stream || this.microphoneStream;
       this.startMonitoring();
     } catch (error: unknown) {
       await context.close().catch(() => undefined);
@@ -368,39 +432,64 @@ export class ReliableRecorder {
     }
   }
 
-  private attachTrackLifecycle(track: MediaStreamTrack, input: RecorderInput): void {
+  private attachTrackLifecycle(
+    track: MediaStreamTrack,
+    input: RecorderInput,
+  ): void {
     const definition = getRecordingCaptureModeDefinition(this.captureMode);
     const inputLabel: string = input === 'microphone' ? '麦克风' : '共享音频';
     track.onended = () => {
       if (this.stopped) return;
+      this.clearMuteTimer(input);
       this.setDeviceState({ muted: false, state: 'ended' });
-      this.events.onError(new Error(`${inputLabel}连接已断开，当前${definition.label}已停止采集`));
+      this.events.onError(
+        new Error(`${inputLabel}连接已断开，当前${definition.label}已停止采集`),
+      );
       this.stopAfterInputFailure(`${inputLabel}断开后无法保存录音`);
     };
     track.onmute = () => {
       if (this.stopped) return;
       this.setDeviceState({ muted: true, state: 'muted' });
-      this.pause();
-      this.events.onError(new Error(`${inputLabel}被系统静音，录音已自动暂停，请恢复后继续`));
+      this.clearMuteTimer(input);
+      this.muteTimers[input] = window.setTimeout(() => {
+        delete this.muteTimers[input];
+        if (this.stopped || !track.muted) return;
+        this.pause();
+        this.events.onError(
+          new Error(`${inputLabel}被系统静音，录音已自动暂停，请恢复后继续`),
+        );
+      }, 1_500);
     };
     track.onunmute = () => {
+      this.clearMuteTimer(input);
       if (!this.stopped) this.setDeviceState({ muted: false, state: 'ready' });
     };
   }
 
+  private clearMuteTimer(input: RecorderInput): void {
+    const timer: number | undefined = this.muteTimers[input];
+    if (timer !== undefined) window.clearTimeout(timer);
+    delete this.muteTimers[input];
+  }
+
   private getPreparation(): RecorderPreparation {
-    const microphoneTrack: MediaStreamTrack | undefined = this.microphoneStream?.getAudioTracks()[0];
-    const systemTrack: MediaStreamTrack | undefined = this.systemAudioStream?.getAudioTracks()[0];
+    const microphoneTrack: MediaStreamTrack | undefined =
+      this.microphoneStream?.getAudioTracks()[0];
+    const systemTrack: MediaStreamTrack | undefined =
+      this.systemAudioStream?.getAudioTracks()[0];
     const settings: MediaTrackSettings = microphoneTrack?.getSettings() || {};
-    const labels: string[] = [microphoneTrack?.label, systemTrack?.label].filter(
-      (label: string | undefined): label is string => Boolean(label),
-    );
+    const labels: string[] = [
+      microphoneTrack?.label,
+      systemTrack?.label,
+    ].filter((label: string | undefined): label is string => Boolean(label));
     return {
       audioProfile: this.audioProfile,
       autoGainControl: settings.autoGainControl ?? null,
       captureMode: this.captureMode,
       channelCount: settings.channelCount || 1,
-      deviceLabel: labels.join(' + ') || getRecordingCaptureModeDefinition(this.captureMode).label,
+      deviceLabel:
+        labels.join(' + ') ||
+        getRecordingCaptureModeDefinition(this.captureMode).label,
       echoCancellation: settings.echoCancellation ?? null,
       microphoneLabel: microphoneTrack?.label || undefined,
       noiseSuppression: settings.noiseSuppression ?? null,
@@ -413,7 +502,9 @@ export class ReliableRecorder {
     return getRequiredInputs(this.captureMode).every((input: RecorderInput) => {
       const stream: MediaStream | null =
         input === 'microphone' ? this.microphoneStream : this.systemAudioStream;
-      return Boolean(stream?.active && stream.getAudioTracks()[0]?.readyState === 'live');
+      return Boolean(
+        stream?.active && stream.getAudioTracks()[0]?.readyState === 'live',
+      );
     });
   }
 
@@ -451,12 +542,15 @@ export class ReliableRecorder {
     const monitor = (): void => {
       if (!this.audioContext || this.stopped) return;
       const now: number = Date.now();
-      const sourceMetrics: Partial<Record<RecorderInput, RecorderSourceMetrics>> = {};
+      const sourceMetrics: Partial<
+        Record<RecorderInput, RecorderSourceMetrics>
+      > = {};
       let combinedPeak = 0;
       let combinedRms = 0;
       inputs.forEach((input: RecorderInput) => {
         const analyser: AnalyserNode | undefined = this.sourceAnalysers[input];
-        const inputSamples: Uint8Array<ArrayBuffer> | undefined = samples[input];
+        const inputSamples: Uint8Array<ArrayBuffer> | undefined =
+          samples[input];
         if (!analyser || !inputSamples) return;
         analyser.getByteTimeDomainData(inputSamples);
         const { peak, rms } = calculateAudioLevel(inputSamples);
@@ -467,14 +561,21 @@ export class ReliableRecorder {
           inputDetected: this.sourceLastSignals[input] > 0,
           peak,
           rms,
-          silentForMs: this.sourceLastSignals[input] > 0 ? now - this.sourceLastSignals[input] : 0,
+          silentForMs:
+            this.sourceLastSignals[input] > 0
+              ? now - this.sourceLastSignals[input]
+              : 0,
         };
       });
       const inputDetected: boolean = inputs.every(
         (input: RecorderInput) => sourceMetrics[input]?.inputDetected === true,
       );
       const silentForMs: number = inputDetected
-        ? Math.max(...inputs.map((input: RecorderInput) => sourceMetrics[input]?.silentForMs || 0))
+        ? Math.max(
+            ...inputs.map(
+              (input: RecorderInput) => sourceMetrics[input]?.silentForMs || 0,
+            ),
+          )
         : 0;
       if (combinedPeak >= 0.98) this.clipCount += 1;
       this.captureActivityFrame(now, combinedPeak, combinedRms);
@@ -492,19 +593,21 @@ export class ReliableRecorder {
   }
 
   private stopAfterInputFailure(errorPrefix: string): void {
-    if (this.recorder?.state !== 'recording' && this.recorder?.state !== 'paused') return;
+    if (
+      this.recorder?.state !== 'recording' &&
+      this.recorder?.state !== 'paused'
+    )
+      return;
     void this.stop()
       .then((result: RecordingResult) => this.events.onAutoStop?.(result))
       .catch((error: unknown) => {
-        this.events.onError(error instanceof Error ? error : new Error(errorPrefix));
+        this.events.onError(
+          error instanceof Error ? error : new Error(errorPrefix),
+        );
       });
   }
 
-  private captureActivityFrame(
-    now: number,
-    peak: number,
-    rms: number,
-  ): void {
+  private captureActivityFrame(now: number, peak: number, rms: number): void {
     if (this.recorder?.state !== 'recording') return;
     if (now - this.lastActivityFrameAt < 250) return;
     const endMs: number = this.getDurationMs();

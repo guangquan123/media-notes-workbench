@@ -36,7 +36,7 @@ npm.cmd run package:windows:compile
 release/windows/<版本>/installer/Media-Notes-Workbench-<版本>-Setup.exe
 ```
 
-`package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。默认使用管理员权限安装到 `C:\Program Files\Media Notes Workbench`，用户可在安装向导中选择其他目录。安装时会出现一次 UAC 确认，以便把卸载信息可靠登记到 Windows。
+`package:windows:compile` 会依次重新编译服务端、按安装版根路径编译客户端、裁剪生产依赖、生成发布目录，并调用 Inno Setup 编译安装器。默认使用 ZIP 压缩，以避免对包含大量原生媒体文件的安装包进行长时间 LZMA2 压缩；在当前发布目录上实测安装器压缩阶段约 5 分钟。需要更小但更慢的安装器时，可设置 `WORKBENCH_INNO_COMPRESSION=fast`（或 `normal`、`max`、`ultra`）切回 LZMA2。默认使用管理员权限安装到 `C:\Program Files\Media Notes Workbench`，用户可在安装向导中选择其他目录。安装时会出现一次 UAC 确认，以便把卸载信息可靠登记到 Windows。
 
 Windows 打包会先清理上一次生成的 `dist/client`、`dist/server`、source map、精简依赖和 TypeScript 增量缓存，避免历史哈希资源重复进入安装包。依赖裁剪同时跳过 source map、测试和示例目录，以及不会参与运行的 TypeScript 源码、类型声明、README/许可证等文档文件；保留运行所需的 JavaScript、JSON、原生模块、WASM、字体和 PDF.js CMap 资源。
 

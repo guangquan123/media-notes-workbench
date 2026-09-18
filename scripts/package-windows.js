@@ -31,11 +31,7 @@ const installerPath = path.join(
 const buildLockPath = `${outputRoot}.lock`;
 let buildLockFd;
 
-const REQUIRED_BUNDLED_TOOL_FILES = [
-  'ffmpeg.exe',
-  'ffprobe.exe',
-  'yt-dlp.exe',
-];
+const REQUIRED_BUNDLED_TOOL_FILES = ['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe'];
 const BUNDLED_LARK_CLI_PATH = path.join(
   'node_modules',
   '@larksuite',
@@ -250,7 +246,7 @@ function writeInstallerScript() {
     sourcePath: appStage,
     iconPath,
     version,
-    compression: process.env.WORKBENCH_INNO_COMPRESSION || 'fast',
+    compression: process.env.WORKBENCH_INNO_COMPRESSION || 'zip',
     solidCompression: process.env.WORKBENCH_INNO_SOLID_COMPRESSION === 'yes',
   });
   fs.writeFileSync(installerPath, content, 'utf8');

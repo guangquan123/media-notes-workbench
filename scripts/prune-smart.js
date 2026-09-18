@@ -18,16 +18,48 @@ const ROOT_NODE_MODULES = path.join(ROOT_DIR, 'node_modules');
 const OUT_NODE_MODULES = path.join(DIST_DIR, 'node_modules');
 const OUT_PACKAGE_JSON = path.join(DIST_DIR, 'package.json');
 const REQUIRED_RUNTIME_PACKAGES = ['@larksuite/cli'];
+// The application calls officeparser only for office document formats with
+// OCR disabled. Its PDF/OCR dependencies are optional runtime branches and
+// duplicate the dedicated PDF parser already shipped by this application.
+const EXCLUDED_OPTIONAL_RUNTIME_PACKAGES = new Set([
+  'tesseract.js',
+  'tesseract.js-core',
+]);
 
 // Server 入口文件
 const SERVER_ENTRY = path.join(DIST_SERVER_DIR, 'main.js');
 
 // Node.js 内置模块列表
 const BUILTIN_MODULES = new Set([
-  'assert', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns',
-  'events', 'fs', 'http', 'http2', 'https', 'net', 'os', 'path', 'stream',
-  'string_decoder', 'timers', 'tls', 'url', 'util', 'v8', 'vm', 'zlib',
-  'async_hooks', 'perf_hooks', 'worker_threads', 'inspector', 'trace_events'
+  'assert',
+  'buffer',
+  'child_process',
+  'cluster',
+  'crypto',
+  'dgram',
+  'dns',
+  'events',
+  'fs',
+  'http',
+  'http2',
+  'https',
+  'net',
+  'os',
+  'path',
+  'stream',
+  'string_decoder',
+  'timers',
+  'tls',
+  'url',
+  'util',
+  'v8',
+  'vm',
+  'zlib',
+  'async_hooks',
+  'perf_hooks',
+  'worker_threads',
+  'inspector',
+  'trace_events',
 ]);
 const RUNTIME_IGNORED_DIRECTORIES = new Set([
   '.git',
@@ -79,7 +111,9 @@ function extractPackageName(filePath) {
       : afterNodeModules.slice(0, secondSlash);
   }
 
-  return slashIdx === -1 ? afterNodeModules : afterNodeModules.slice(0, slashIdx);
+  return slashIdx === -1
+    ? afterNodeModules
+    : afterNodeModules.slice(0, slashIdx);
 }
 
 /**
@@ -95,14 +129,57 @@ function shouldSkipRuntimeFile(entry) {
   if (entry.isDirectory()) {
     return RUNTIME_IGNORED_DIRECTORIES.has(entry.name);
   }
-  return entry.name.endsWith('.map') ||
-    RUNTIME_IGNORED_EXTENSIONS.some((extension) => entry.name.endsWith(extension));
+  return (
+    entry.name.endsWith('.map') ||
+    RUNTIME_IGNORED_EXTENSIONS.some((extension) =>
+      entry.name.endsWith(extension),
+    )
+  );
+}
+
+// A few runtime packages publish browser and compiler artifacts alongside
+// their Node entry point. They are not loaded by the installed server and
+// account for several megabytes in the release tree.
+function shouldSkipPackageFile(packageName, relativePath, entry) {
+  const normalizedPath = relativePath.replace(/\\/gu, '/');
+
+  if (
+    packageName === 'officeparser' &&
+    (normalizedPath === 'dist/sbom.cdx.json' ||
+      normalizedPath.startsWith('dist/officeparser.browser.') ||
+      normalizedPath === 'node_modules/@napi-rs' ||
+      normalizedPath.startsWith('node_modules/@napi-rs/') ||
+      normalizedPath === 'node_modules/pdfjs-dist' ||
+      normalizedPath.startsWith('node_modules/pdfjs-dist/'))
+  ) {
+    return true;
+  }
+
+  if (packageName === 'typescript') {
+    if (normalizedPath === 'bin' || normalizedPath.startsWith('bin/')) {
+      return true;
+    }
+    if (
+      normalizedPath.startsWith('lib/') &&
+      normalizedPath !== 'lib/typescript.js'
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
  * 递归复制目录（优化版：优先使用硬链接）
  */
-function copyDir(src, dest, stats = { hardLinks: 0, copies: 0, skipped: 0 }) {
+function copyDir(
+  src,
+  dest,
+  stats = { hardLinks: 0, copies: 0, skipped: 0 },
+  packageName = path.basename(src),
+  relativePath = '',
+) {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
   }
@@ -110,7 +187,13 @@ function copyDir(src, dest, stats = { hardLinks: 0, copies: 0, skipped: 0 }) {
   const entries = fs.readdirSync(src, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (shouldSkipRuntimeFile(entry)) {
+    const entryRelativePath = relativePath
+      ? path.join(relativePath, entry.name)
+      : entry.name;
+    if (
+      shouldSkipRuntimeFile(entry) ||
+      shouldSkipPackageFile(packageName, entryRelativePath, entry)
+    ) {
       stats.skipped++;
       continue;
     }
@@ -118,7 +201,7 @@ function copyDir(src, dest, stats = { hardLinks: 0, copies: 0, skipped: 0 }) {
     const destPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
-      copyDir(srcPath, destPath, stats);
+      copyDir(srcPath, destPath, stats, packageName, entryRelativePath);
     } else {
       try {
         // 优先使用硬链接（CI 环境中安全，速度快，节省空间）
@@ -194,7 +277,9 @@ async function smartPrune() {
 
   console.log(`📂 分析入口文件: ${path.relative(ROOT_DIR, SERVER_ENTRY)}`);
 
-  const originalPackage = JSON.parse(fs.readFileSync(ROOT_PACKAGE_JSON, 'utf8'));
+  const originalPackage = JSON.parse(
+    fs.readFileSync(ROOT_PACKAGE_JSON, 'utf8'),
+  );
 
   // 2. 提取 npm 包名（优先使用 NFT；缺少可选工具时按生产依赖降级）
   const requiredPackages = new Set();
@@ -224,7 +309,9 @@ async function smartPrune() {
     }
     console.log(`   ✅ 分析完成，耗时: ${analyzeElapsed}ms\n`);
   } else {
-    console.log('⚠️ 未安装 @vercel/nft，按 package.json 生产依赖进行保守裁剪。');
+    console.log(
+      '⚠️ 未安装 @vercel/nft，按 package.json 生产依赖进行保守裁剪。',
+    );
     for (const packageName of Object.keys(originalPackage.dependencies || {})) {
       requiredPackages.add(packageName);
     }
@@ -291,13 +378,19 @@ async function smartPrune() {
   const actionPluginNames = Object.keys(actionPlugins);
 
   if (actionPluginNames.length > 0) {
-    console.log(`🔌 发现 ${actionPluginNames.length} 个 Action 插件，添加到依赖列表...`);
+    console.log(
+      `🔌 发现 ${actionPluginNames.length} 个 Action 插件，添加到依赖列表...`,
+    );
 
     for (const pluginName of actionPluginNames) {
       requiredPackages.add(pluginName);
 
       // 检查插件的 peerDependencies，也添加进去
-      const pluginPkgPath = path.join(ROOT_NODE_MODULES, pluginName, 'package.json');
+      const pluginPkgPath = path.join(
+        ROOT_NODE_MODULES,
+        pluginName,
+        'package.json',
+      );
       if (fs.existsSync(pluginPkgPath)) {
         try {
           const pluginPkg = JSON.parse(fs.readFileSync(pluginPkgPath, 'utf8'));
@@ -315,6 +408,10 @@ async function smartPrune() {
     console.log(`   ✅ 插件: ${actionPluginNames.join(', ')}`);
   }
 
+  for (const packageName of EXCLUDED_OPTIONAL_RUNTIME_PACKAGES) {
+    requiredPackages.delete(packageName);
+  }
+
   console.log(`📦 总共需要 ${requiredPackages.size} 个 npm 包\n`);
 
   // 6. 选择性复制包（只复制需要的）
@@ -322,12 +419,20 @@ async function smartPrune() {
   const copyStart = Date.now();
 
   const sortedPackages = Array.from(requiredPackages).sort();
-  const { copiedCount, fileStats } = copyPackagesSelectively(sortedPackages, ROOT_NODE_MODULES, OUT_NODE_MODULES);
+  const { copiedCount, fileStats } = copyPackagesSelectively(
+    sortedPackages,
+    ROOT_NODE_MODULES,
+    OUT_NODE_MODULES,
+  );
 
   const copyElapsed = Date.now() - copyStart;
   console.log(`   ✅ 复制完成，耗时: ${copyElapsed}ms`);
-  console.log(`   成功: ${copiedCount.success} 个包，失败: ${copiedCount.failed} 个`);
-  console.log(`   硬链接: ${fileStats.hardLinks} 个文件，复制: ${fileStats.copies} 个文件\n`);
+  console.log(
+    `   成功: ${copiedCount.success} 个包，失败: ${copiedCount.failed} 个`,
+  );
+  console.log(
+    `   硬链接: ${fileStats.hardLinks} 个文件，复制: ${fileStats.copies} 个文件\n`,
+  );
   console.log(`   跳过开发文件/目录: ${fileStats.skipped} 项\n`);
 
   // 7. 生成精简版 package.json
@@ -349,7 +454,7 @@ async function smartPrune() {
     version: originalPackage.version,
     private: true,
     dependencies: prunedDependencies,
-    engines: originalPackage.engines
+    engines: originalPackage.engines,
   };
 
   fs.writeFileSync(OUT_PACKAGE_JSON, JSON.stringify(prunedPackage, null, 2));
@@ -379,7 +484,7 @@ async function smartPrune() {
 }
 
 // 运行智能裁剪
-smartPrune().catch(err => {
+smartPrune().catch((err) => {
   console.error('❌ 智能裁剪失败:', err);
   process.exit(1);
 });
