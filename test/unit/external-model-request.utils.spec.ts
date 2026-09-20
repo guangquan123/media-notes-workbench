@@ -65,6 +65,39 @@ describe('external model request utilities', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('assembles OpenAI-compatible server-sent events into a JSON response', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          [
+            'data: {"choices":[{"delta":{"role":"assistant"}}]}',
+            '',
+            'data: {"choices":[{"delta":{"content":"第一段"}}]}',
+            '',
+            'data: {"choices":[{"delta":{"content":"第二段"},"finish_reason":"stop"}]}',
+            '',
+            'data: [DONE]',
+            '',
+          ].join('\n'),
+          { headers: { 'Content-Type': 'text/event-stream' }, status: 200 },
+        ),
+      );
+
+    await expect(
+      fetchExternalModelJson('https://model.example.com/v1/chat/completions', {
+        method: 'POST',
+      }),
+    ).resolves.toEqual({
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: { content: '第一段第二段' },
+        },
+      ],
+    });
+  });
+
   it('retries retryable HTTP failures and reports the final diagnostic attempt count', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
       json: async (): Promise<unknown> => ({}),

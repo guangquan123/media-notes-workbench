@@ -55,6 +55,18 @@ interface ExternalModelGenerationResult {
   text?: string;
 }
 
+function doesNotSupportStreaming(error: ExternalModelRequestError): boolean {
+  if (
+    error.kind !== 'http_client' ||
+    ![400, 404, 422].includes(error.status ?? 0)
+  ) {
+    return false;
+  }
+  return /(?:stream|server-sent event|sse|not support|unsupported)/iu.test(
+    error.message,
+  );
+}
+
 interface EvaluatedNoteCandidate {
   markdown: string;
   model: PipelineModelResult;
@@ -480,7 +492,10 @@ export class NoteSummaryPipelineService {
     maxTokens: number,
   ): Promise<ExternalModelGenerationResult> {
     try {
-      const request = (requestedMaxTokens: number): Promise<unknown> =>
+      const request = (
+        requestedMaxTokens: number,
+        streaming: boolean,
+      ): Promise<unknown> =>
         fetchExternalModelJson(`${credentials.baseUrl}/chat/completions`, {
           body: JSON.stringify({
             max_tokens: requestedMaxTokens,
@@ -493,7 +508,7 @@ export class NoteSummaryPipelineService {
               { content: instruction, role: 'user' },
             ],
             model: credentials.model,
-            stream: false,
+            stream: streaming,
             temperature: 0.2,
           }),
           headers: {
@@ -507,7 +522,24 @@ export class NoteSummaryPipelineService {
       let lastOutputBudget: number = maxTokens;
       for (const outputBudget of getExternalModelOutputTokenBudgets(maxTokens)) {
         lastOutputBudget = outputBudget;
-        payload = await request(outputBudget);
+        try {
+          payload = await request(outputBudget, true);
+        } catch (error) {
+          if (
+            !isExternalModelRequestError(error) ||
+            !doesNotSupportStreaming(error)
+          ) {
+            throw error;
+          }
+          this.logger.warn(
+            JSON.stringify({
+              event: 'external_model_streaming_fallback',
+              model: credentials.model,
+              outputBudget,
+            }),
+          );
+          payload = await request(outputBudget, false);
+        }
         const content: string | undefined = extractExternalModelText(payload);
         if (content) return { text: content };
         if (!isReasoningOnlyLengthLimitedResponse(payload)) break;

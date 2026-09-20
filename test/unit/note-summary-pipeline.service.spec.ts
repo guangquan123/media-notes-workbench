@@ -92,6 +92,10 @@ describe('NoteSummaryPipelineService', () => {
         generateModelText('生成笔记', 64, 'writer'),
       ).resolves.toEqual(expect.objectContaining({ text: '结构化笔记正文' }));
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const firstBody = JSON.parse(
+        String(fetchSpy.mock.calls[0]?.[1]?.body),
+      ) as { stream?: boolean };
+      expect(firstBody.stream).toBe(true);
       const retryBody = JSON.parse(
         String(fetchSpy.mock.calls[1]?.[1]?.body),
       ) as { max_tokens?: number };
@@ -101,6 +105,61 @@ describe('NoteSummaryPipelineService', () => {
       expect(firstSignal).toBeDefined();
       expect(retrySignal).toBeDefined();
       expect(retrySignal).not.toBe(firstSignal);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('falls back to a buffered request when a provider rejects streaming', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { message: 'stream is unsupported' } }),
+          { headers: { 'Content-Type': 'application/json' }, status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce({
+        json: async (): Promise<unknown> => ({
+          choices: [{ message: { content: '兼容模式正文' } }],
+        }),
+        ok: true,
+        status: 200,
+      } as Response);
+    try {
+      const service = new NoteSummaryPipelineService(
+        { load: jest.fn() } as unknown as CapabilityService,
+        {
+          getCredentials: async () => ({
+            apiKey: 'test-key',
+            baseUrl: 'https://model.example.com/v1',
+            enabled: true,
+            model: 'test-model',
+          }),
+        } as unknown as ExternalModelSettingsService,
+      );
+      const generateModelText = (
+        service as unknown as {
+          generateModelText: (
+            instruction: string,
+            maxTokens: number,
+            pluginInstanceId: string,
+          ) => Promise<{ text: string }>;
+        }
+      ).generateModelText.bind(service);
+
+      await expect(
+        generateModelText('生成笔记', 64, 'writer'),
+      ).resolves.toEqual(expect.objectContaining({ text: '兼容模式正文' }));
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const firstBody = JSON.parse(
+        String(fetchSpy.mock.calls[0]?.[1]?.body),
+      ) as { stream?: boolean };
+      const secondBody = JSON.parse(
+        String(fetchSpy.mock.calls[1]?.[1]?.body),
+      ) as { stream?: boolean };
+      expect(firstBody.stream).toBe(true);
+      expect(secondBody.stream).toBe(false);
     } finally {
       fetchSpy.mockRestore();
     }

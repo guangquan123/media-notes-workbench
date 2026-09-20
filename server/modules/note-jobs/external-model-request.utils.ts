@@ -153,6 +153,79 @@ async function getResponseErrorDetail(response: Response): Promise<string> {
   }
 }
 
+interface StreamChoiceState {
+  content: string;
+  finishReason?: string;
+}
+
+async function readExternalModelStream(response: Response): Promise<unknown> {
+  if (!response.body) return response.json();
+
+  const reader: ReadableStreamDefaultReader<Uint8Array> =
+    response.body.getReader();
+  const decoder: TextDecoder = new TextDecoder();
+  let buffer = '';
+  const choice: StreamChoiceState = { content: '' };
+
+  const consumeEvent = (event: string): void => {
+    const data: string = event
+      .split('\n')
+      .filter((line: string): boolean => line.startsWith('data:'))
+      .map((line: string): string => line.slice(5).trim())
+      .join('');
+    if (!data || data === '[DONE]') return;
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (!payload || typeof payload !== 'object') return;
+    const choices: unknown = (payload as { choices?: unknown }).choices;
+    const firstChoice: unknown = Array.isArray(choices)
+      ? choices[0]
+      : undefined;
+    if (!firstChoice || typeof firstChoice !== 'object') return;
+    const delta: unknown = (firstChoice as { delta?: unknown }).delta;
+    if (delta && typeof delta === 'object') {
+      const content: unknown = (delta as { content?: unknown }).content;
+      if (typeof content === 'string') choice.content += content;
+    }
+    const finishReason: unknown = (firstChoice as { finish_reason?: unknown })
+      .finish_reason;
+    if (typeof finishReason === 'string') choice.finishReason = finishReason;
+  };
+
+  while (true) {
+    const result: ReadableStreamReadResult<Uint8Array> = await reader.read();
+    if (result.done) break;
+    buffer += decoder.decode(result.value, { stream: true });
+    const events: string[] = buffer.split(/\r?\n\r?\n/u);
+    buffer = events.pop() || '';
+    events.forEach(consumeEvent);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) consumeEvent(buffer);
+
+  return {
+    choices: [
+      {
+        finish_reason: choice.finishReason,
+        message: { content: choice.content },
+      },
+    ],
+  };
+}
+
+async function readExternalModelResponse(response: Response): Promise<unknown> {
+  const contentType: string = response.headers?.get?.('content-type') || '';
+  if (/text\/event-stream/iu.test(contentType)) {
+    return readExternalModelStream(response);
+  }
+  return response.json();
+}
+
 function getRetryDelayMs(
   error: ExternalModelRequestError,
   attempt: number,
@@ -204,7 +277,7 @@ async function fetchExternalModelJsonOnce(
         getRetryAfterMs(response),
       );
     }
-    return await response.json();
+    return await readExternalModelResponse(response);
   } catch (error) {
     if (isExternalModelRequestError(error)) throw error;
     if (timedOut) {
