@@ -135,6 +135,27 @@
 }
 
 @media (min-width: 1024px) {
+  .media-note-page.page-layout--task,
+  .paired-media-page.page-layout--task {
+    height: auto;
+    overflow: visible;
+  }
+
+  .media-note-page.page-layout--task .page-layout__container,
+  .paired-media-page.page-layout--task .page-layout__container {
+    height: auto;
+    min-height: 100dvh;
+    max-height: none;
+  }
+
+  .media-note-page.page-layout--task .page-layout__workspace,
+  .paired-media-page.page-layout--task .page-layout__workspace,
+  .media-note-page.page-layout--task .page-layout__panel,
+  .paired-media-page.page-layout--task .page-layout__panel {
+    overflow: visible;
+    max-height: none;
+  }
+
   .media-note-page__layout,
   .paired-media-page__layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;

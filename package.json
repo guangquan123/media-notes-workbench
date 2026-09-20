@@ -244,7 +244,7 @@
     "type:check:server": "tsc --noEmit --project tsconfig.node.json",
     "upgrade": "npx -y @lark-apaas/fullstack-cli@latest sync --disable-gen-openapi"
   },
-  "version": "2.2.5",
+  "version": "2.2.6",
   "allowScripts": {
     "esbuild@0.27.7": true
   }
