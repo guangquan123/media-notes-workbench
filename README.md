@@ -13,7 +13,7 @@
   ·
   <a href="https://github.com/guangquan123/media-notes-workbench/releases/tag/v2026.09.20">查看当前版本</a>
   ·
-  <a href="#从源码运行">从源码运行</a>
+  <a href="#构建-windows-安装包">构建 Windows 安装包</a>
 </p>
 
 <p align="center">
@@ -169,47 +169,18 @@ flowchart LR
 
 绑定信息和已处理消息 ID 只保存在本机运行目录的 `config/.media-inbox-state.json`，电脑需要保持本机服务和飞书 CLI 授权状态。
 
-## 从源码运行
+## 构建 Windows 安装包
 
-### 环境要求
+在 Windows **命令提示符（CMD）**中运行：
 
-| 组件                             | 用途                           | 必需性                   |
-| -------------------------------- | ------------------------------ | ------------------------ |
-| Windows                          | 图形启动器和推荐的本地运行环境 | 推荐                     |
-| Node.js >= 22、npm >= 10         | 前后端运行时                   | 必需                     |
-| `ffmpeg`                         | 音频提取、格式处理和切片       | 视频 / 录音必需          |
-| `yt-dlp`                         | 获取 B 站、抖音视频            | 平台视频必需             |
-| `whisper-cpp` + 本地模型         | 离线转录                       | 与其他可用转录方式二选一 |
-| 腾讯云 COS + ASR 或 API 转录模型 | 云端 / API 转录                | 按需                     |
-| 飞书或钉钉授权                   | 外部文档和待办输出             | 仅外部同步时需要         |
-
-### 安装与启动
-
-```powershell
-npm.cmd install
-npm.cmd run start:windows
+```bat
+cd /d D:\data\codex_space\media-notes-workbench\
+build-windows-installer.cmd
 ```
 
-也可以双击[启动多媒体笔记工作台.vbs](启动多媒体笔记工作台.vbs)。默认访问地址为 `http://localhost:8081/app/app_179bn4jet6k/`；端口和子路径以 `.env.local` 中的 `SERVER_PORT`、`CLIENT_DEV_PORT`、`CLIENT_BASE_PATH` 为准。
+如果源码位于其他目录，请将第一行替换为实际路径。构建前需准备 Node.js 22（含 npm）、项目依赖和 Inno Setup 编译器。
 
-停止或重启项目：
-
-```powershell
-npm.cmd run stop:windows
-npm.cmd run restart:windows
-```
-
-环境检查：
-
-```powershell
-node --version
-npm --version
-yt-dlp --version
-ffmpeg -version
-whisper-cli --help
-```
-
-只处理文档时，可以跳过 `yt-dlp`、`ffmpeg` 和 `whisper-cli` 检查。不要将 Cookie、飞书 / 钉钉令牌、`.env.local`、原始媒体或临时文件提交到仓库。
+构建成功后，安装包位于 `release\windows\<版本号>\installer\` 目录，运行生成的 `Setup.exe` 安装程序即可安装。
 
 ## 可追溯性与数据边界
 
@@ -234,13 +205,6 @@ whisper-cli --help
 | 历史记录找不到                   | 清除类型、日期和状态筛选；记录按生成时间倒序展示                                                          |
 | 本地页面打不开                   | 查看 `logs/dev.std.log`，确认 `3000`、`8081` 端口属于本项目                                               |
 
-服务就绪接口：
-
-```text
-GET /api/runtime
-GET /api/note-jobs/readiness
-```
-
 ## 当前边界
 
 - 异步任务暂不具备服务重启恢复、队列调度、阶段重试和完整并发控制。
@@ -249,35 +213,6 @@ GET /api/note-jobs/readiness
 - 不自动向外部平台发布内容，也不跟踪外部平台发布结果。
 
 运行中的任务状态保存在服务进程内存中，服务重启后尚未完成的任务不能继续查询；转换历史、提示词版本和追溯数据使用项目数据库保存。
-
-## 项目结构与维护者验证
-
-```text
-client/                         React 19 前端与资料入口
-  src/pages/                    视频、录音、双源、文档、设置和历史页面
-server/                         NestJS 10 后端
-  modules/note-jobs/            任务编排、转录、文档解析、模板与历史
-  modules/connectors/           飞书 / 钉钉授权、文档与待办输出
-  modules/note-inbox/           飞书链接收集箱与去重账本
-  modules/runtime/              本地运行时和就绪检查
-shared/api.interface.ts         前后端共享请求和响应类型
-scripts/dev-windows.js          Windows 构建、启动、探测和日志汇聚
-启动多媒体笔记工作台.vbs      Windows 双击启动器
-docs/PROJECT_GUIDE.md           维护和实现参考
-```
-
-维护者验证命令：
-
-```powershell
-npm.cmd run type:check
-npm.cmd run lint
-npm.cmd test
-npm.cmd run build:server
-npm.cmd run build:client
-git diff --check
-```
-
-至少完成一次真实闭环：提交一份有权使用的资料，核验原文、学习笔记、提示词快照、待处理状态和转化记录。
 
 ## 开源协议
 
